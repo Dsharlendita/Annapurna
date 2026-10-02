@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1ece1"/><stop offset="1" stop-color="#ddd3c0"/></linearGradient>
+<linearGradient id="sole" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a3a"/><stop offset="1" stop-color="#161616"/></linearGradient>
+<linearGradient id="strap" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1f4d2f"/><stop offset="1" stop-color="#2f6b44"/></linearGradient>
+</defs>
+<rect width="600" height="600" fill="url(#bg)"/>
+<ellipse cx="300" cy="460" rx="240" ry="16" fill="#000" opacity=".12"/>
+<!-- footbed & sole -->
+<path d="M70 402 Q66 372 100 364 L460 350 Q534 348 540 390 L540 404 Z" fill="#c9b48a"/>
+<path d="M66 400 L542 400 L542 424 Q542 436 528 436 L86 436 Q66 436 66 418 Z" fill="#e7e1d4"/>
+<path d="M66 432 L542 432 L542 446 Q542 458 528 458 L86 458 Q66 458 66 446 Z" fill="url(#sole)"/>
+<g stroke="#000" stroke-width="3" opacity=".5"><path d="M100 452 l14 -14"/><path d="M140 452 l14 -14"/><path d="M180 452 l14 -14"/><path d="M220 452 l14 -14"/><path d="M260 452 l14 -14"/><path d="M300 452 l14 -14"/><path d="M340 452 l14 -14"/><path d="M380 452 l14 -14"/><path d="M420 452 l14 -14"/><path d="M460 452 l14 -14"/><path d="M500 452 l14 -14"/></g>
+<!-- heel strap -->
+<path d="M104 380 Q88 300 130 250 Q160 222 196 236" fill="none" stroke="url(#strap)" stroke-width="30" stroke-linecap="round"/>
+<path d="M104 380 Q88 300 130 250 Q160 222 196 236" fill="none" stroke="#f2c14e" stroke-width="3" stroke-dasharray="8 7"/>
+<!-- ankle strap -->
+<path d="M150 378 Q176 248 270 236 Q318 232 332 262" fill="none" stroke="url(#strap)" stroke-width="34" stroke-linecap="round"/>
+<path d="M150 378 Q176 248 270 236 Q318 232 332 262" fill="none" stroke="#f2c14e" stroke-width="3" stroke-dasharray="8 7"/>
+<!-- forefoot strap -->
+<path d="M330 380 Q370 282 452 290 Q492 296 500 350" fill="none" stroke="url(#strap)" stroke-width="32" stroke-linecap="round"/>
+<path d="M330 380 Q370 282 452 290 Q492 296 500 350" fill="none" stroke="#f2c14e" stroke-width="3" stroke-dasharray="8 7"/>
+<!-- connector -->
+<path d="M290 376 Q300 320 326 272" fill="none" stroke="#173c24" stroke-width="18" stroke-linecap="round"/>
+<!-- buckle -->
+<rect x="236" y="220" width="46" height="36" rx="7" fill="#2b2b2b"/><rect x="246" y="229" width="26" height="18" rx="4" fill="#f2c14e"/>
+<rect x="424" y="274" width="40" height="32" rx="7" fill="#2b2b2b"/><rect x="433" y="282" width="22" height="16" rx="4" fill="#f2c14e"/>
+</svg>

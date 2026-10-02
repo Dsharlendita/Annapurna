@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1ece1"/><stop offset="1" stop-color="#ddd3c0"/></linearGradient>
+<linearGradient id="up" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a6a3e"/><stop offset="1" stop-color="#6b4424"/></linearGradient>
+<linearGradient id="mesh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#57606a"/><stop offset="1" stop-color="#3b4249"/></linearGradient>
+<linearGradient id="sole" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a3a"/><stop offset="1" stop-color="#1c1c1c"/></linearGradient>
+</defs>
+<rect width="600" height="600" fill="url(#bg)"/>
+<ellipse cx="300" cy="452" rx="235" ry="16" fill="#000" opacity=".12"/>
+<!-- upper -->
+<path d="M150 170 Q150 150 172 148 L300 140 Q322 140 326 160 L338 262 Q420 272 478 300 Q528 326 530 372 L532 392 L78 392 L80 346 Q84 312 116 298 L142 286 Z" fill="url(#up)"/>
+<!-- mesh panel -->
+<path d="M206 250 Q270 228 330 262 Q420 272 470 298 Q430 310 360 318 Q280 322 220 300 Z" fill="url(#mesh)" opacity=".9"/>
+<!-- collar padding -->
+<path d="M150 170 Q150 150 172 148 L300 140 Q322 140 326 160 L328 176 Q244 186 152 192 Z" fill="#4b2d16"/>
+<path d="M156 150 Q160 128 186 126 L300 118 Q322 118 326 138 L326 150 Q240 158 156 166 Z" fill="#c9974f"/>
+<!-- heel tab -->
+<rect x="134" y="140" width="24" height="60" rx="8" fill="#e8c16a"/>
+<!-- toe cap -->
+<path d="M430 290 Q500 306 524 346 Q530 362 530 392 L420 392 Q432 340 430 290 Z" fill="#3e2613"/>
+<!-- laces & eyelets -->
+<g fill="#e5d9c3" stroke="#3e2613" stroke-width="3"><circle cx="244" cy="176" r="7"/><circle cx="308" cy="170" r="7"/><circle cx="252" cy="212" r="7"/><circle cx="318" cy="206" r="7"/><circle cx="262" cy="248" r="7"/><circle cx="330" cy="242" r="7"/><circle cx="276" cy="282" r="7"/><circle cx="348" cy="276" r="7"/></g>
+<g stroke="#e8453c" stroke-width="7" stroke-linecap="round"><path d="M244 176 L318 206"/><path d="M308 170 L252 212"/><path d="M252 212 L330 242"/><path d="M318 206 L262 248"/><path d="M262 248 L348 276"/><path d="M330 242 L276 282"/></g>
+<path d="M244 176 Q220 140 236 112" stroke="#e8453c" stroke-width="6" fill="none" stroke-linecap="round"/>
+<path d="M308 170 Q330 136 318 108" stroke="#e8453c" stroke-width="6" fill="none" stroke-linecap="round"/>
+<!-- midsole & outsole -->
+<path d="M76 388 L534 388 Q540 388 540 396 L540 412 Q540 420 530 420 L86 420 Q72 420 72 406 Z" fill="#e7e1d4"/>
+<path d="M72 418 L540 418 L540 440 Q540 452 526 452 L92 452 Q72 452 72 436 Z" fill="url(#sole)"/>
+<g fill="#111"><rect x="100" y="440" width="26" height="14" rx="3"/><rect x="146" y="440" width="26" height="14" rx="3"/><rect x="192" y="440" width="26" height="14" rx="3"/><rect x="300" y="440" width="26" height="14" rx="3"/><rect x="346" y="440" width="26" height="14" rx="3"/><rect x="392" y="440" width="26" height="14" rx="3"/><rect x="438" y="440" width="26" height="14" rx="3"/><rect x="484" y="440" width="26" height="14" rx="3"/></g>
+<!-- stitching -->
+<path d="M84 374 Q300 382 526 374" stroke="#e8c16a" stroke-width="2.5" stroke-dasharray="7 6" fill="none"/>
+<path d="M150 200 L144 290" stroke="#e8c16a" stroke-width="2.5" stroke-dasharray="7 6"/>
+</svg>

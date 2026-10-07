@@ -42,6 +42,32 @@ class ActivityLog extends Model
         ], JSON_UNESCAPED_UNICODE));
     }
 
+    public static function record(?int $userId, string $type, string $action, ?string $subjectType = null, ?string $subjectId = null, ?array $changes = null): static
+    {
+        $user = $userId ? User::find($userId) : null;
+        $prevLog = static::latest('id')->first();
+        $prevHash = $prevLog ? $prevLog->hash : str_repeat('0', 64);
+
+        $attrs = [
+            'user_id' => $userId,
+            'user_name' => $user ? $user->name : 'Sistem',
+            'role' => $user ? $user->role : 'system',
+            'type' => $type,
+            'action' => $action,
+            'subject_type' => $subjectType,
+            'subject_id' => $subjectId,
+            'changes' => $changes,
+            'ip_address' => request()?->ip(),
+            'user_agent' => request()?->userAgent(),
+            'prev_hash' => $prevHash,
+            'created_at' => now()->toIso8601String(),
+        ];
+
+        $attrs['hash'] = static::hashFor($attrs, $prevHash);
+
+        return static::create($attrs);
+    }
+
     /** Periksa rantai hash dari awal. Mengembalikan id baris pertama yang rusak, atau null bila utuh. */
     public static function firstBrokenId(): ?int
     {

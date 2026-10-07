@@ -33,13 +33,41 @@
     });
   });
   const form = $('#loginForm');
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!validate(form, { email: (v) => (!v ? 'Isi email kamu.' : !isEmail(v) ? 'Format email belum benar.' : ''), password: (v) => (!v ? 'Isi kata sandi.' : '') })) return;
-    const r = DB.login(form.email.value, form.password.value);
-    if (!r.ok) { validate(form, { [r.field]: () => r.msg }); return; }
-    toast(`Selamat datang, ${r.user.name.split(' ')[0]}!`);
-    setTimeout(() => { location.href = next ? next : DB.isStaff(r.user) ? DB.panelHome(r.user) : './'; }, 450);
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    try {
+      const response = await fetch(UI.url('masuk'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': csrfToken || '',
+        },
+        body: JSON.stringify({
+          email: form.email.value,
+          password: form.password.value,
+          next: next || '',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        validate(form, { [data.field || 'password']: () => data.msg || 'Gagal masuk. Periksa email dan password.' });
+        return;
+      }
+      DB.set('session', data.user);
+      toast(`Selamat datang, ${data.user.name.split(' ')[0]}!`);
+      setTimeout(() => {
+        location.href = data.redirect || (next ? next : DB.isStaff(data.user) ? DB.panelHome(data.user) : './');
+      }, 450);
+    } catch (err) {
+      const r = DB.login(form.email.value, form.password.value);
+      if (!r.ok) { validate(form, { [r.field]: () => r.msg }); return; }
+      toast(`Selamat datang, ${r.user.name.split(' ')[0]}!`);
+      setTimeout(() => { location.href = next ? next : DB.isStaff(r.user) ? DB.panelHome(r.user) : './'; }, 450);
+    }
   });
 
   /* Masuk tanpa kata sandi: kode verifikasi */

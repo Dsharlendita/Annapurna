@@ -42,5 +42,7 @@ class DatabaseSeeder extends Seeder
             'password' => 'customer123',
             'email_verified_at' => now(),
         ]);
+
+        $this->call(AnnapurnaSeeder::class);
     }
 }

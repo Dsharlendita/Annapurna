@@ -1,10 +1,13 @@
 <?php
 
 use App\Http\Controllers\Annapurna\AdminController;
+use App\Http\Controllers\Annapurna\ApiController;
+use App\Http\Controllers\Annapurna\AuthController;
 use App\Http\Controllers\Annapurna\OwnerController;
 use App\Http\Controllers\Annapurna\PageController;
 use Illuminate\Support\Facades\Route;
 
+// Halaman Publik
 Route::controller(PageController::class)->group(function () {
     Route::get('/', 'home')->name('home');
     Route::get('/katalog', 'katalog')->name('katalog');
@@ -24,7 +27,33 @@ Route::controller(PageController::class)->group(function () {
     Route::get('/profil', 'profil')->name('profil');
 });
 
-Route::prefix('admin')->name('admin.')->controller(AdminController::class)->group(function () {
+// Autentikasi Pengguna
+Route::controller(AuthController::class)->group(function () {
+    Route::post('/masuk', 'login')->name('masuk.submit');
+    Route::post('/daftar', 'register')->name('daftar.submit');
+    Route::match(['get', 'post'], '/keluar', 'logout')->name('logout');
+    Route::get('/api/me', 'me')->name('api.me');
+});
+
+// REST API Endpoints untuk Interaksi Frontend
+Route::prefix('api')->name('api.')->group(function () {
+    Route::post('/login', [AuthController::class, 'login'])->name('login');
+    Route::post('/register', [AuthController::class, 'register'])->name('register');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    Route::controller(ApiController::class)->group(function () {
+        Route::get('/katalog', 'products')->name('katalog');
+        Route::get('/kategori', 'categories')->name('categories');
+        Route::get('/produk/{id}', 'productDetail')->name('product.detail');
+        Route::get('/paket', 'packages')->name('packages');
+        Route::post('/cek-stok', 'checkAvailability')->name('check.availability');
+        Route::post('/booking', 'storeBooking')->name('booking.store');
+        Route::post('/pembayaran/upload', 'uploadPayment')->name('payment.upload');
+    });
+});
+
+// Panel Admin (Role: Admin & Owner)
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,owner'])->controller(AdminController::class)->group(function () {
     Route::redirect('/', '/admin/dashboard');
     Route::get('/dashboard', 'dashboard')->name('dashboard');
     Route::get('/booking', 'booking')->name('booking');
@@ -41,8 +70,8 @@ Route::prefix('admin')->name('admin.')->controller(AdminController::class)->grou
     Route::get('/kalender', 'kalender')->name('kalender');
 });
 
-// Panel Owner / Super Admin (hanya role owner; saat ini dijaga di sisi browser, lihat README).
-Route::prefix('owner')->name('owner.')->controller(OwnerController::class)->group(function () {
+// Panel Owner / Super Admin (Khusus Role: Owner)
+Route::prefix('owner')->name('owner.')->middleware(['auth', 'role:owner'])->controller(OwnerController::class)->group(function () {
     Route::redirect('/', '/owner/dashboard');
     Route::get('/dashboard', 'dashboard')->name('dashboard');
     Route::get('/histori', 'histori')->name('histori');

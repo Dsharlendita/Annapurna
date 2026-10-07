@@ -823,7 +823,7 @@
     isStaff,
     panelHome: (u) => (u && u.role === 'owner' ? 'owner/dashboard' : 'admin/dashboard'),
     users: () => read('users', USERS),
-    user: (id) => read('users', USERS).find((u) => u.id === id),
+    user: (id) => read('users', USERS).find((u) => u.id === id || String(u.id) === String(id) || u.id === ('u' + id) || (typeof id === 'string' && String(u.id).replace(/^u/, '') === String(id).replace(/^u/, '')) || (u.email && String(u.email).toLowerCase() === String(id).toLowerCase())),
     staff: () => read('users', USERS).filter(isStaff),
     patchUser(id, patch) { const all = read('users', USERS); const u = all.find((x) => x.id === id); if (!u) return null; Object.assign(u, patch); write('users', all); return u; },
     session: () => read('session', null),

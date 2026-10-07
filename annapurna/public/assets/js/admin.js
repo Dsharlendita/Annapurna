@@ -3,10 +3,10 @@
   const { $, $$, esc, asset, url, toast, modal, confirmBox, pill } = window.UI;
 
   const me = DB.session();
-  const rec = me && DB.user(me.id);
+  const rec = me && (DB.user(me.id) || (me.email && DB.user(me.email)) || me);
   const basePath = new URL(UI.BASE || '/', location.href).pathname;
   const here = location.pathname.slice(basePath.length) + location.search;
-  if (!me || !DB.isStaff(me) || !rec || !DB.isStaff(rec) || rec.status === 'nonaktif') {
+  if (!me || !DB.isStaff(me) || !rec || !DB.isStaff(rec) || (rec.status && rec.status === 'nonaktif')) {
     const blockedAcc = me && rec && rec.status === 'nonaktif';
     if (blockedAcc) DB.logout();
     location.replace(url('masuk?next=' + encodeURIComponent(here) + (blockedAcc ? '&nonaktif=1' : '')));

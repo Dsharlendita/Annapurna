@@ -41,8 +41,9 @@
   const A = $('#af'); A.elements.aname.value = Admin.me.name; A.elements.aphone.value = Admin.me.phone || '';
   A.addEventListener('submit', (e) => { e.preventDefault(); if (!validate(A, { aname: (v) => (v.length < 3 ? 'Minimal 3 huruf.' : '') })) return; DB.updateProfile({ name: A.elements.aname.value.trim(), phone: A.elements.aphone.value.trim() }); toast('Profil disimpan.'); setTimeout(() => location.reload(), 600); });
   const P = $('#pf');
-  P.addEventListener('submit', (e) => { e.preventDefault(); if (!validate(P, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : '') })) return;
-    if (!DB.changePassword(P.elements.old.value, P.elements.npw.value)) { validate(P, { old: () => 'Kata sandi lama salah.' }); return; } P.reset(); toast('Kata sandi diganti.'); });
+  P.addEventListener('submit', async (e) => { e.preventDefault(); if (!validate(P, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : '') })) return;
+    const r = await Api.busy(P.querySelector('[type="submit"]'), () => Api.changePassword(P.elements.old.value, P.elements.npw.value), 'Menyimpan…'); if (!r) return;
+    if (!r.ok) { if (r.field === 'old') validate(P, { old: () => r.msg || 'Kata sandi lama salah.' }); else toast(r.msg, 'err'); return; } P.reset(); toast('Kata sandi diganti.'); });
   $('#reset').addEventListener('click', async () => { if (!(await confirmBox({ title: 'Setel ulang data demo?', text: 'Semua data kembali ke contoh awal, termasuk histori sistem demo. Kamu tetap masuk sebagai owner.', ok: 'Setel ulang', danger: true }))) return; DB.reset(); toast('Data demo dipulihkan.'); setTimeout(() => location.reload(), 700); });
   if (owner) { load(); if (param('tab')) show(param('tab')); }
   else {

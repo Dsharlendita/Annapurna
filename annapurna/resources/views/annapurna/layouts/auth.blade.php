@@ -15,6 +15,7 @@
   <script>if (window.Ann && window.Ann.DB && window.Ann.DB.session()) window.Ann.DB.clearSession();</script>
   @endguest
   <script src="{{ asset('assets/js/ui.js') }}?v={{ config('app.asset_version') }}"></script>
+  <script src="{{ asset('assets/js/api.js') }}?v={{ config('app.asset_version') }}"></script>
   @stack('scripts')
 </body>
 </html>

@@ -10,6 +10,7 @@
     <div class="filters">
       <select class="select" id="type"></select>
       <input class="input" type="date" id="from"> <span class="muted">s/d</span> <input class="input" type="date" id="to">
+      <select class="select" id="order" aria-label="Urutan baris"><option value="desc">Terbaru di atas</option><option value="asc">Terlama di atas</option></select>
       <span style="flex:1"></span>
       <span class="exp" id="exp"><button class="btn btn-light btn-sm" data-export="xlsx"><i class="fa-solid fa-file-excel" style="color:#1d6f42"></i> Excel</button><button class="btn btn-light btn-sm" data-export="pdf"><i class="fa-solid fa-file-pdf" style="color:#c0392b"></i> PDF</button></span>
       <button class="btn btn-primary btn-sm" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak</button>

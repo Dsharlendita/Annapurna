@@ -125,9 +125,14 @@
     };
     m.$('#lfTab').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { mode = b.dataset.t; draw(); } });
     draw();
-    m.$('#lfOk').addEventListener('click', () => {
+    m.$('#lfOk').addEventListener('click', async () => {
       let res;
-      if (mode === 'pw') res = DB.login(r.user.email, (m.$('#lfPw') || {}).value || '');
+      if (mode === 'pw') {
+        /* Kata sandi dicek server; akun di browser hanya disalin dari jawaban server */
+        const s = await Api.busy(m.$('#lfOk'), () => Api.post('masuk', { email: r.user.email, password: (m.$('#lfPw') || {}).value || '' }, { redirectOn401: false }), 'Masuk…');
+        if (!s) return;
+        res = s.ok && s.raw && s.raw.user ? { ok: true, user: DB.adoptSession(s.raw.user) } : { ok: false, msg: s.msg };
+      }
       else { if (!sent) { toast('Kirim kode verifikasi dulu.', 'err'); return; } res = DB.verifyLoginCode((m.$('#lfCode') || {}).value || ''); }
       if (!res.ok) { toast(res.msg || 'Gagal masuk.', 'err'); return; }
       user = DB.session(); m.close();

@@ -45,6 +45,7 @@
   </script>
   @endguest
   <script src="{{ asset('assets/js/ui.js') }}?v={{ config('app.asset_version') }}"></script>
+  <script src="{{ asset('assets/js/api.js') }}?v={{ config('app.asset_version') }}"></script>
   <script src="{{ asset('assets/js/admin.js') }}?v={{ config('app.asset_version') }}"></script>
   <script src="{{ asset('assets/js/reports.js') }}?v={{ config('app.asset_version') }}"></script>
   @stack('scripts')

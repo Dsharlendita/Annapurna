@@ -38,6 +38,7 @@
   </script>
   @endguest
   <script src="{{ asset('assets/js/ui.js') }}?v={{ config('app.asset_version') }}"></script>
+  <script src="{{ asset('assets/js/api.js') }}?v={{ config('app.asset_version') }}"></script>
   <script src="{{ asset('assets/js/site.js') }}?v={{ config('app.asset_version') }}"></script>
   {{-- Asisten Trip tersedia di semua halaman customer (bukan hanya beranda) --}}
   <script src="{{ asset('assets/js/ai.js') }}?v={{ config('app.asset_version') }}"></script>

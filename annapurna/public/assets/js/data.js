@@ -410,9 +410,9 @@
   };
 
   const USERS = [
-    { id: 'u1', name: 'Pak Ikun', email: 'owner@annapurna.id', password: 'owner123', role: 'owner', status: 'aktif', phone: '081200001111', address: SETTINGS.address, createdAt: stampRel(-120, 8) },
-    { id: 'u2', name: 'Dimas Saputra', email: 'customer@annapurna.id', password: 'customer123', role: 'customer', status: 'aktif', phone: '081390001122', address: 'Jl. Dr. Soeparno No. 12, Karangwangkal, Purwokerto Utara' },
-    { id: 'u3', name: 'Dita', email: 'dita@annapurna.id', password: 'dita123', role: 'admin', status: 'aktif', phone: '085711223344', address: '', createdAt: stampRel(-60, 8), createdBy: 'u1' },
+    { id: 'u1', name: 'Pak Ikun', email: 'owner@annapurna.id', role: 'owner', status: 'aktif', phone: '081200001111', address: SETTINGS.address, createdAt: stampRel(-120, 8) },
+    { id: 'u2', name: 'Dimas Saputra', email: 'customer@annapurna.id', role: 'customer', status: 'aktif', phone: '081390001122', address: 'Jl. Dr. Soeparno No. 12, Karangwangkal, Purwokerto Utara' },
+    { id: 'u3', name: 'Dita', email: 'dita@annapurna.id', role: 'admin', status: 'aktif', phone: '085711223344', address: '', createdAt: stampRel(-60, 8), createdBy: 'u1' },
   ];
   /* Data contoh: semua aktivitas staff dilakukan oleh Dita (satu-satunya staff). */
   const dayNo = (iso) => Math.floor(Date.parse(String(iso).slice(0, 10) + 'T00:00:00Z') / 864e5);
@@ -634,7 +634,7 @@
 
   function seedOutbox(users) {
     return users.filter((u) => u.role === 'admin').map((u, i) => ({ id: 'MAIL-' + (i + 1), at: u.createdAt, kind: 'staff_invite', to: u.email, subject: 'Anda telah ditambahkan sebagai Staff Annapurna Adventure Shop',
-      data: { name: u.name, email: u.email, role: u.role, tempPassword: u.password, by: 'Pak Ikun' }, status: 'terkirim' }));
+      data: { name: u.name, email: u.email, role: u.role, tempPassword: '(dikirim lewat email)', by: 'Pak Ikun' }, status: 'terkirim' }));
   }
 
   /* ---------- Unit fisik (nomor inventaris) ---------- */
@@ -707,6 +707,14 @@
 
   const read = (k, fb) => { try { const v = localStorage.getItem(KEY(k)); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } };
   const write = (k, v) => { try { localStorage.setItem(KEY(k), JSON.stringify(v)); } catch (e) { console.warn('Penyimpanan penuh / tidak tersedia', e); } };
+  /* Kata sandi akun LOKAL (mode transisi) tidak pernah disimpan sebagai teks asli.
+     Ini hanya penyamaran di browser; keamanan sebenarnya ada di server (bcrypt Laravel).
+     Akun dari server (owner, admin, customer terdaftar) tidak punya kata sandi lokal sama sekali. */
+  const pwHash = (s) => { let h1 = 0xdeadbeef ^ 7, h2 = 0x41c6ce57 ^ 7; const t = 'annapurna|' + String(s);
+    for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 'h:' + (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0'); };
+  const pwOk = (u, pw) => !!(u && u.password && (String(u.password).startsWith('h:') ? u.password === pwHash(pw) : u.password === pw));
 
   function seed(force) {
     if (!force && read('version') === VERSION) return;
@@ -735,6 +743,20 @@
     write('version', VERSION);
   }
   seed(false);
+  /* Hapus kata sandi teks asli yang pernah tersimpan di browser (versi lama): akun demo bawaan dikosongkan
+     (masuk lewat server), akun lokal lain diubah menjadi hash. */
+  (function migratePasswords() {
+    const users = read('users', null); if (!users) return; let ch = false;
+    const OLD = { 'owner@annapurna.id': 'owner123', 'customer@annapurna.id': 'customer123', 'dita@annapurna.id': 'dita123' };
+    users.forEach((u) => {
+      if (!u.password || String(u.password).startsWith('h:')) return;
+      if (OLD[String(u.email).toLowerCase()] === u.password) delete u.password; else u.password = pwHash(u.password);
+      ch = true;
+    });
+    if (ch) write('users', users);
+    const ob = read('outbox', null);
+    if (ob && ob.some((m) => m.data && Object.values(OLD).includes(m.data.tempPassword))) { ob.forEach((m) => { if (m.data && Object.values(OLD).includes(m.data.tempPassword)) m.data.tempPassword = '(dikirim lewat email)'; }); write('outbox', ob); }
+  })();
   /* Kualitas per unit tidak dipakai lagi: unit lama yang "Tidak layak pakai" dipindah ke status Dalam perbaikan
      (tetap tidak bisa disewa), dan semua unit kualitasnya disamakan "Baik". */
   /* Pembaruan data tersimpan: Carrier Eiger 60L tanpa ukuran punggung, Gas Kaleng versi sewa, paket BBQ memakai gas sewa */
@@ -1075,7 +1097,8 @@
       const users = read('users', USERS);
       const u = users.find((x) => x.email.toLowerCase() === String(email).toLowerCase().trim());
       if (!u) return { ok: false, field: 'email', msg: 'Email belum terdaftar. Periksa lagi atau daftar akun baru.' };
-      if (u.password !== password) {
+      if (!u.password) return { ok: false, field: 'password', msg: 'Akun ini masuk lewat server. Pastikan koneksi tersedia, lalu coba lagi.' };
+      if (!pwOk(u, password)) {
         if (isStaff(u)) DB.audit({ actor: u, type: 'login_gagal', action: 'Percobaan login gagal: kata sandi salah' });
         return { ok: false, field: 'password', msg: 'Kata sandi salah. Coba lagi.' };
       }
@@ -1110,7 +1133,7 @@
       const ex = byEmail || byPhone;
       if (ex) { if (isStaff(ex)) return { status: 'staff' }; return { status: 'exists', user: ex, by: byEmail ? 'email' : 'phone' }; }
       const pw = Math.random().toString(36).slice(2, 10) + 'A1';
-      const u = { id: 'u' + Date.now(), role: 'customer', status: 'aktif', name: name.trim(), phone: phone.trim(), email: em, address: '', password: pw, autoCreated: true, needsPassword: true, createdAt: nowStamp() };
+      const u = { id: 'u' + Date.now(), role: 'customer', status: 'aktif', name: name.trim(), phone: phone.trim(), email: em, address: '', password: pwHash(pw), autoCreated: true, needsPassword: true, createdAt: nowStamp() };
       users.push(u); write('users', users);
       const r = DB.login(u.email, pw);
       return { status: 'created', user: r.user };
@@ -1136,7 +1159,7 @@
     },
     setOwnPassword(pw) {
       const s = DB.session(); const users = read('users', USERS); const u = users.find((x) => x.id === s.id); if (!u) return false;
-      Object.assign(u, { password: pw, needsPassword: false }); write('users', users); write('session', Object.assign(s, { needsPassword: false })); return true;
+      Object.assign(u, { password: pwHash(pw), needsPassword: false }); write('users', users); write('session', Object.assign(s, { needsPassword: false })); return true;
     },
     /* Cek pesanan tanpa login: nomor pesanan + nomor HP */
     lookupOrder(id, phone) {
@@ -1150,9 +1173,9 @@
     register(data) {
       const users = read('users', USERS);
       if (users.some((x) => x.email.toLowerCase() === data.email.toLowerCase())) return { ok: false, field: 'email', msg: 'Email sudah terdaftar. Silakan masuk.' };
-      const u = { id: 'u' + Date.now(), role: 'customer', status: 'aktif', address: '', ...data };
+      const u = { id: 'u' + Date.now(), role: 'customer', status: 'aktif', address: '', ...data, password: pwHash(data.password) };
       users.push(u); write('users', users);
-      return DB.login(u.email, u.password);
+      return DB.login(u.email, data.password);
     },
     updateProfile(data) {
       const s = DB.session(); if (!s) return;
@@ -1164,11 +1187,13 @@
     },
     changePassword(oldPw, newPw) {
       const s = DB.session(); const users = read('users', USERS); const u = users.find((x) => x.id === s.id);
-      if (u.password !== oldPw) return false;
-      u.password = newPw; const first = !!u.mustChangePw; u.mustChangePw = false; write('users', users);
+      if (!u) return { ok: false, msg: 'Sesi tidak ditemukan. Silakan masuk kembali.' };
+      if (!u.password) return { ok: false, server: true, msg: 'Ganti kata sandi untuk akun ini diproses server dan belum tersedia. Hubungi tim backend (endpoint POST /akun/kata-sandi).' };
+      if (!pwOk(u, oldPw)) return { ok: false, field: 'old', msg: 'Kata sandi lama salah.' };
+      u.password = pwHash(newPw); const first = !!u.mustChangePw; u.mustChangePw = false; write('users', users);
       write('session', Object.assign(s, { mustChangePw: false }));
       DB.audit({ type: 'edit', action: first ? 'Mengganti kata sandi sementara (login pertama)' : 'Mengganti kata sandi akun', ref: u.id });
-      return true;
+      return { ok: true };
     },
     touch() {
       const s = DB.session(); if (!isStaff(s)) return;
@@ -1209,7 +1234,7 @@
       const dup = users.find((x) => x.email.toLowerCase() === email);
       if (dup) return { ok: false, field: 'email', msg: isStaff(dup) ? 'Email ini sudah terdaftar sebagai staff.' : 'Email ini sudah dipakai akun customer. Gunakan email lain.' };
       const me = DB.session(); const temp = DB.tempPassword();
-      const u = { id: 'u' + Date.now(), name: data.name.trim(), email, phone: data.phone || '', address: '', role: data.role, status: data.status, password: temp, mustChangePw: true, createdAt: nowStamp(), createdBy: me ? me.id : '' };
+      const u = { id: 'u' + Date.now(), name: data.name.trim(), email, phone: data.phone || '', address: '', role: data.role, status: data.status, password: pwHash(temp), mustChangePw: true, createdAt: nowStamp(), createdBy: me ? me.id : '' };
       users.push(u); write('users', users);
       DB.audit({ type: 'staff', action: `Menambahkan staff ${u.name} (${ROLE_LABEL[u.role]})`, ref: u.id, changes: [{ field: 'Email', from: '', to: u.email }, { field: 'Role', from: '', to: ROLE_LABEL[u.role] }, { field: 'Status', from: '', to: u.status === 'aktif' ? 'Aktif' : 'Nonaktif' }] });
       let mail = null;
@@ -1230,7 +1255,7 @@
     },
     resetStaffPassword(id) {
       const users = read('users', USERS); const u = users.find((x) => x.id === id); if (!u) return null;
-      const temp = DB.tempPassword(); u.password = temp; u.mustChangePw = true; write('users', users);
+      const temp = DB.tempPassword(); u.password = pwHash(temp); u.mustChangePw = true; write('users', users);
       const me = DB.session();
       DB.audit({ type: 'staff', action: `Mengatur ulang kata sandi staff ${u.name}`, ref: u.id });
       const mail = DB.sendMail({ kind: 'password_reset', to: u.email, subject: 'Kata sandi sementara akun Staff Annapurna Adventure', data: { name: u.name, email: u.email, role: u.role, tempPassword: temp, by: me ? me.name : 'Owner' } });

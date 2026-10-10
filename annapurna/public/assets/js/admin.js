@@ -327,10 +327,11 @@
       </form>`,
       foot: `<button class="btn btn-light" id="fpwOut">Keluar</button><button class="btn btn-primary" id="fpwOk"><i class="fa-solid fa-check"></i> Simpan kata sandi</button>` });
     m.$('#fpwOut').addEventListener('click', () => UI.serverLogout(url('masuk')));
-    m.$('#fpwOk').addEventListener('click', () => {
+    m.$('#fpwOk').addEventListener('click', async () => {
       const F = m.$('#fpw'), E = F.elements;
       if (!UI.validate(F, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : v === E.old.value ? 'Harus berbeda dari kata sandi sementara.' : ''), npw2: (v) => (v !== E.npw.value ? 'Kata sandi tidak sama.' : '') })) return;
-      if (!DB.changePassword(E.old.value, E.npw.value)) { UI.validate(F, { old: () => 'Kata sandi sementara salah.' }); return; }
+      const r = await Api.busy(m.$('#fpwOk'), () => Api.changePassword(E.old.value, E.npw.value), 'Menyimpan…'); if (!r) return;
+      if (!r.ok) { if (r.field === 'old') UI.validate(F, { old: () => r.msg || 'Kata sandi sementara salah.' }); else UI.toast(r.msg, 'err'); return; }
       me.mustChangePw = false; m.close(); toast('Kata sandi baru disimpan. Selamat bekerja!');
     });
   }

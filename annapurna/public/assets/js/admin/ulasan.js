@@ -33,13 +33,13 @@
         const link = txLink(r.refId); const prods = r.productIds.map((id) => DB.product(id)).filter(Boolean);
         return `<article class="rv-card ${r.visible ? '' : 'is-hidden'}">
           <div class="rv-h">
-            <span class="rv-av">${r.img ? `<img src="${asset(r.img)}" alt="">` : esc(r.name.charAt(0))}</span>
+            <span class="rv-av">${r.img ? `<img loading="lazy" decoding="async" src="${asset(r.img)}" alt="">` : esc(r.name.charAt(0))}</span>
             <div class="who"><strong>${esc(r.name)}</strong>${fresh.has(r.id) ? ' <span class="pill amber plain">Baru</span>' : ''}${r.featured && r.visible ? ' <span class="pill green plain"><i class="fa-solid fa-thumbtack"></i> Beranda</span>' : ''}${!r.visible ? ' <span class="pill gray plain">Disembunyikan</span>' : ''}
               <small>${D.fmtDateTime(r.createdAt)} · ${r.type === 'rent' ? 'Rental' : 'Pembelian'} ${NOREF(r.refId) ? (link ? `<a href="${link}" style="color:var(--g700);font-weight:700">${NOREF(r.refId)}</a>` : NOREF(r.refId)) : ''}</small></div>
             <span class="rv-stars">${UI.stars(r.rating, false)}</span>
           </div>
           <p class="rv-text">${esc(r.text)}</p>
-          ${prods.length ? `<div class="rv-prods">${prods.map((p) => `<span class="stock-chip"><img src="${asset(p.img)}" alt="" style="width:18px;height:14px;object-fit:cover;border-radius:3px"> ${esc(p.name)}</span>`).join('')}</div>` : ''}
+          ${prods.length ? `<div class="rv-prods">${prods.map((p) => `<span class="stock-chip"><img loading="lazy" decoding="async" src="${asset(p.img)}" alt="" style="width:18px;height:14px;object-fit:cover;border-radius:3px"> ${esc(p.name)}</span>`).join('')}</div>` : ''}
           ${r.reply ? `<div class="rv-reply"><strong><i class="fa-solid fa-reply"></i> Balasan toko${r.replyAt ? ` · ${D.fmtDate(r.replyAt, true)}` : ''}</strong> ${esc(r.reply)}${r.replySeen === false ? '<small class="muted" style="display:block;margin-top:4px"><i class="fa-regular fa-envelope"></i> Belum dibaca customer</small>' : r.replySeen ? '<small class="muted" style="display:block;margin-top:4px"><i class="fa-solid fa-check-double"></i> Sudah dibaca customer</small>' : ''}</div>` : ''}
           <div class="rv-acts">
             ${tab === 'beranda' ? `<button class="btn btn-light btn-xs" data-up="${r.id}" ${i === 0 ? 'disabled' : ''} aria-label="Naikkan"><i class="fa-solid fa-arrow-up"></i></button><button class="btn btn-light btn-xs" data-down="${r.id}" ${i === L.length - 1 ? 'disabled' : ''} aria-label="Turunkan"><i class="fa-solid fa-arrow-down"></i></button>` : ''}

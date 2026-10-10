@@ -57,7 +57,7 @@
       const n = stockOf(kind, x);
       const price = S.mode === 'buy' ? rupiah(x.price) : `${rupiah(Rules.unitPrice(x, days()))}<small> / ${days()} malam</small>`;
       return `<button type="button" class="k-item ${n <= 0 ? 'out' : ''}" data-add="${kind}|${x.id}" ${n <= 0 ? 'disabled' : ''}>
-        <img src="${asset(x.img)}" alt="" loading="lazy"><span class="k-nm">${kind === 'package' ? '<span class="pill gray plain">Paket</span> ' : ''}${esc(x.name)}</span>
+        <img src="${asset(x.img)}" alt="" loading="lazy" decoding="async"><span class="k-nm">${kind === 'package' ? '<span class="pill gray plain">Paket</span> ' : ''}${esc(x.name)}</span>
         <span class="k-pr">${price}</span><span class="k-st ${n <= 2 ? 'low' : ''}">${n <= 0 ? 'Habis' : `Sisa ${n}`}</span></button>`;
     }).join('') : '<p class="muted" style="grid-column:1/-1;padding:20px">Barang tidak ditemukan.</p>';
   }

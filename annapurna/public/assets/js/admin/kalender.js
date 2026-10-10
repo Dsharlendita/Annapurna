@@ -18,7 +18,7 @@
     const f = $('#from').value || T; const days = [...Array(DAYS)].map((_, i) => D.addDays(f, i));
     const R = rows();
     $('#cal').innerHTML = `<thead><tr><th class="cal-name">Barang</th>${days.map((d) => { const x = new Date(d + 'T00:00:00'); const we = x.getDay() === 0 || x.getDay() === 6; return `<th class="${d === T ? 'today' : ''} ${we ? 'we' : ''}"><small>${D.HARI[x.getDay()]}</small>${x.getDate()}</th>`; }).join('')}</tr></thead>
-      <tbody>${R.length ? R.map((r) => `<tr class="${r.child ? 'child' : ''}"><td class="cal-name">${r.child ? `<span class="cal-size">${esc(r.label)}</span>` : `<div class="prod"><img src="${asset(r.p.img)}" alt=""><div><strong>${esc(r.label)}</strong><small>${r.total} unit siap sewa</small></div></div>`}</td>
+      <tbody>${R.length ? R.map((r) => `<tr class="${r.child ? 'child' : ''}"><td class="cal-name">${r.child ? `<span class="cal-size">${esc(r.label)}</span>` : `<div class="prod"><img loading="lazy" decoding="async" src="${asset(r.p.img)}" alt=""><div><strong>${esc(r.label)}</strong><small>${r.total} unit siap sewa</small></div></div>`}</td>
         ${days.map((d) => { const a = Rules.availableOn(r.p.id, d, null, r.size); const pct = r.total ? a / r.total : 0; const cls = a <= 0 ? 'full' : pct <= .34 ? 'mid' : 'ok';
           return `<td><button class="cal-c ${cls}" data-p="${r.p.id}" data-s="${esc(r.size || '')}" data-d="${d}" title="${esc(r.label)} · ${D.fmtDate(d)}: ${a} tersedia">${a}<small>/${r.total}</small></button></td>`; }).join('')}</tr>`).join('') : `<tr><td colspan="${DAYS + 1}" class="muted" style="text-align:center;padding:24px">Tidak ada barang.</td></tr>`}</tbody>`;
   }

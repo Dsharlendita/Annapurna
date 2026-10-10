@@ -404,14 +404,14 @@
       <div class="tp-grid">
         <div class="tp-opt">
           <div class="tp-opt-h"><strong>Rakit sendiri</strong><span>Sesuai kebutuhanmu</span></div>
-          <ul class="tp-lines">${r.lines.map((l) => `<li><span class="tp-ic"><i class="fa-solid ${role[l.role] || 'fa-box'}"></i></span><img src="${asset(l.p.img)}" alt=""><div><a href="${url('produk?id=' + l.pid)}"><b>${l.qty}× ${esc(l.p.name)}</b></a><small>${esc(l.why)}</small></div><span class="tp-av ${l.ok ? '' : 'no'}">${l.ok ? `${l.avail} tersedia` : `sisa ${l.avail}`}</span><strong>${rupiah(l.sub)}</strong></li>`).join('')}</ul>
+          <ul class="tp-lines">${r.lines.map((l) => `<li><span class="tp-ic"><i class="fa-solid ${role[l.role] || 'fa-box'}"></i></span><img loading="lazy" decoding="async" src="${asset(l.p.img)}" alt=""><div><a href="${url('produk?id=' + l.pid)}"><b>${l.qty}× ${esc(l.p.name)}</b></a><small>${esc(l.why)}</small></div><span class="tp-av ${l.ok ? '' : 'no'}">${l.ok ? `${l.avail} tersedia` : `sisa ${l.avail}`}</span><strong>${rupiah(l.sub)}</strong></li>`).join('')}</ul>
           <div class="tp-total"><span>Total ${r.days} malam</span><strong>${rupiah(r.custom)}</strong></div>
           ${allOk ? '' : '<p class="tp-warn"><i class="fa-solid fa-triangle-exclamation"></i> Ada alat yang stoknya kurang di tanggal ini. Coba geser tanggal atau kurangi jumlah.</p>'}
           <button class="btn btn-primary btn-block" id="tpAddCustom" ${r.lines.length ? '' : 'disabled'}><i class="fa-solid fa-cart-plus"></i> Masukkan semua ke keranjang</button>
         </div>
         ${pk ? `<div class="tp-opt pk-opt">
           <div class="tp-opt-h"><strong>Atau pakai paket</strong><span class="tp-badge">Lebih praktis</span></div>
-          <div class="tp-pk"><img src="${asset(pk.pk.img)}" alt=""><div><b>${esc(pk.pk.name)}</b><small>${esc(pk.pk.tagline || '')}</small><small>${pk.pk.items.map((i) => `${i.qty}× ${esc(P(i.productId).name)}`).join(', ')}</small></div></div>
+          <div class="tp-pk"><img loading="lazy" decoding="async" src="${asset(pk.pk.img)}" alt=""><div><b>${esc(pk.pk.name)}</b><small>${esc(pk.pk.tagline || '')}</small><small>${pk.pk.items.map((i) => `${i.qty}× ${esc(P(i.productId).name)}`).join(', ')}</small></div></div>
           <div class="tp-total"><span>${esc(Rules.tierLabel(Rules.packageTiers(pk.pk), r.days))}</span><strong>${rupiah(pk.total)}</strong></div>
           <p class="tp-note">${pk.avail ? `<i class="fa-solid fa-circle-check"></i> ${pk.avail} paket tersedia di tanggal ini` : '<i class="fa-solid fa-circle-xmark"></i> Paket penuh di tanggal ini'}${pk.normal > pk.total ? ` · hemat ${rupiah(pk.normal - pk.total)} dibanding sewa satuan isi paket` : ''}</p>
           <button class="btn btn-light btn-block" id="tpAddPkg" ${pk.avail ? '' : 'disabled'}><i class="fa-solid fa-box-open"></i> Sewa paket ini</button>
@@ -573,7 +573,7 @@
     return `<div class="ai-fc-h"><span class="ai-tag">${mdIcon()} Prediksi AI · 14 hari</span><small>Hari ramai: ${busy.map((d) => D.fmtDate(d).replace(/ \d{4}$/, '')).join(', ')}</small></div>
       <p class="ai-card-t">${risky.length ? `${risky.filter((x) => x.level === 'kurang').length} barang diperkirakan kurang dan ${risky.filter((x) => x.level === 'waspada').length} hampir penuh. Pertimbangkan tambah unit atau naikkan harga akhir pekan.` : 'Stok aman untuk 14 hari ke depan.'}</p>
       <div class="table-wrap"><table class="table ai-fc"><thead><tr><th>Barang</th><th class="num">Stok</th><th class="num">Perkiraan butuh</th><th>Puncak</th><th>Status</th></tr></thead><tbody>
-      ${F.slice(0, limit || 6).map((x) => `<tr><td><div class="prod"><img src="${asset(x.p.img)}" alt=""><strong>${esc(x.p.name)}</strong></div></td><td class="num">${x.stock}</td><td class="num">${x.need}${x.booked ? `<small>${x.booked} sudah dibooking</small>` : ''}</td><td>${DAY_NAMES[new Date(x.date + 'T00:00:00').getDay()]}, ${D.fmtDate(x.date).replace(/ \d{4}$/, '')}</td><td><span class="ai-lv ${x.level}">${lbl[x.level]}${x.gap > 0 ? ` · −${x.gap}` : ''}</span></td></tr>`).join('')}
+      ${F.slice(0, limit || 6).map((x) => `<tr><td><div class="prod"><img loading="lazy" decoding="async" src="${asset(x.p.img)}" alt=""><strong>${esc(x.p.name)}</strong></div></td><td class="num">${x.stock}</td><td class="num">${x.need}${x.booked ? `<small>${x.booked} sudah dibooking</small>` : ''}</td><td>${DAY_NAMES[new Date(x.date + 'T00:00:00').getDay()]}, ${D.fmtDate(x.date).replace(/ \d{4}$/, '')}</td><td><span class="ai-lv ${x.level}">${lbl[x.level]}${x.gap > 0 ? ` · −${x.gap}` : ''}</span></td></tr>`).join('')}
       </tbody></table></div>
       <p class="ai-proof-n">Perkiraan dari booking yang sudah masuk dan pola sewa 60 hari terakhir. Makin banyak data transaksi, makin akurat.</p>`;
   }
@@ -582,7 +582,7 @@
     const L = alsoRented(pid, 4);
     if (!L.length) return '';
     return `<div class="ai-also"><div class="ai-also-h"><span class="ai-tag">${mdIcon()} Sering disewa bersama</span><small>Berdasarkan pesanan penyewa lain</small></div>
-      <div class="ai-also-list">${L.map((x) => `<div class="ai-also-it"><a href="${url('produk?id=' + x.p.id)}"><img src="${asset(x.p.img)}" alt=""></a><div><a href="${url('produk?id=' + x.p.id)}"><b>${esc(x.p.name)}</b></a><small>${rupiah(x.p.rent)}/malam</small></div><button class="btn btn-light btn-xs" data-rent="${x.p.id}" aria-label="Sewa ${esc(x.p.name)}"><i class="fa-solid fa-plus"></i></button></div>`).join('')}</div></div>`;
+      <div class="ai-also-list">${L.map((x) => `<div class="ai-also-it"><a href="${url('produk?id=' + x.p.id)}"><img loading="lazy" decoding="async" src="${asset(x.p.img)}" alt=""></a><div><a href="${url('produk?id=' + x.p.id)}"><b>${esc(x.p.name)}</b></a><small>${rupiah(x.p.rent)}/malam</small></div><button class="btn btn-light btn-xs" data-rent="${x.p.id}" aria-label="Sewa ${esc(x.p.name)}"><i class="fa-solid fa-plus"></i></button></div>`).join('')}</div></div>`;
   }
 
   window.AI = { answer, parsePlan, recommend, openPlanner, alsoRented, alsoRentedHtml, reviewInsights, replyDraft, reportInsights, insightCard, forecast, forecastPanel };

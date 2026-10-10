@@ -36,7 +36,7 @@
     const preview = pk.items.slice(0, 2), more = pk.items.length - preview.length;
     return `<article class="pk ${pk.popular ? 'popular' : ''} ${best ? 'best' : ''} ${isOpen ? 'open' : ''}" data-id="${pk.id}">${best ? `<div class="pk-best"><i class="fa-solid fa-piggy-bank"></i> Paling hemat · hemat ${pk.pct}% dibanding sewa satuan</div>` : ''}
       <div class="pk-top">
-        <div class="pk-ph"><img src="${asset(pk.img)}" alt="${esc(pk.name)}" loading="lazy">${pk.popular ? '<span class="pk-hot">Paling laris</span>' : ''}</div>
+        <div class="pk-ph"><img src="${asset(pk.img)}" alt="${esc(pk.name)}" loading="lazy" decoding="async">${pk.popular ? '<span class="pk-hot">Paling laris</span>' : ''}</div>
         <div class="pk-info">
           <div class="pk-meta"><span class="pk-tag t-${pk.type}">${TYPE[pk.type] || 'Paket'}</span><span><i class="fa-solid fa-user-group"></i> ${esc(pk.people)}</span><span><i class="fa-solid fa-box-open"></i> ${pk.items.length} alat</span></div>
           <h3>${esc(pk.name)}</h3>
@@ -53,7 +53,7 @@
         </div>
       </div>
       <div class="pk-detail"><div class="pk-detail-in">
-        <ul>${pk.items.map((i) => `<li><img src="${asset(i.p.img)}" alt=""><a href="produk?id=${i.p.id}">${esc(i.p.name)}</a><span class="muted">${i.qty}×</span><strong>${rupiah(i.p.rent * i.qty)}<small class="muted" style="font-weight:400"> /malam</small></strong></li>`).join('')}</ul>
+        <ul>${pk.items.map((i) => `<li><img loading="lazy" decoding="async" src="${asset(i.p.img)}" alt=""><a href="produk?id=${i.p.id}">${esc(i.p.name)}</a><span class="muted">${i.qty}×</span><strong>${rupiah(i.p.rent * i.qty)}<small class="muted" style="font-weight:400"> /malam</small></strong></li>`).join('')}</ul>
         <table class="tier-tbl"><thead><tr><th>Durasi</th><th class="num">Harga satuan</th><th class="num">Harga paket</th><th class="num">Hemat</th></tr></thead><tbody>${pk.rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : rupiah(r.normal)}</td><td class="num"><b>${rupiah(r.price)}</b></td><td class="num pk-green">${r.normal > r.price ? rupiah(r.normal - r.price) : '—'}</td></tr>`).join('')}</tbody></table>
         ${pk.tektok ? `<div class="tk-terms"><b><i class="fa-solid fa-circle-info"></i> Syarat & ketentuan paket tektok</b><ol>${(DB.settings().tektokTerms || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ol><p>Tukar / upgrade item bisa langsung dipilih saat menekan <b>Sewa</b>.</p></div>` : ''}
       </div></div>

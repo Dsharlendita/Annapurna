@@ -12,7 +12,7 @@
   const done = ['selesai', 'dibatalkan'];
 
   function lines(items) {
-    return items.map((it) => `<div class="mini-line"><img src="${asset(it.img)}" alt=""><div class="nm">${it.qty}× ${esc(it.name)}${it.kind === 'package' ? ' <span class="pill green plain">Paket</span>' : ''}<small>${it.pricePerDay ? rupiah(it.pricePerDay) + ' / malam' : rupiah(it.price)}</small></div></div>`).join('');
+    return items.map((it) => `<div class="mini-line"><img loading="lazy" decoding="async" src="${asset(it.img)}" alt=""><div class="nm">${it.qty}× ${esc(it.name)}${it.kind === 'package' ? ' <span class="pill green plain">Paket</span>' : ''}<small>${it.pricePerDay ? rupiah(it.pricePerDay) + ' / malam' : rupiah(it.price)}</small></div></div>`).join('');
   }
   function revBtn(x) {
     const r = DB.reviewFor(x.id);

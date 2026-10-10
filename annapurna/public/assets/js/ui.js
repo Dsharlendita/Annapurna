@@ -331,7 +331,7 @@
       ? `<div class="pc-stars">${stars(p.rating, false)}<span class="pc-rv">${p.rating.toLocaleString('id-ID', { maximumFractionDigits: 1 })} · ${p.reviews} ulasan</span></div>`
       : '<div class="pc-stars none"><span class="stars">' + '<i class="fa-regular fa-star"></i>'.repeat(5) + '</span><span class="pc-rv">Belum ada ulasan</span></div>';
     return `<article class="prod-card">
-      <a class="ph" href="${href}" aria-label="Lihat ${esc(p.name)}"><img src="${asset(p.img)}" alt="${esc(p.name)}" loading="lazy">${badge}</a>
+      <a class="ph" href="${href}" aria-label="Lihat ${esc(p.name)}"><img src="${asset(p.img)}" alt="${esc(p.name)}" loading="lazy" decoding="async">${badge}</a>
       <div class="bd">
         <div class="pc-top"><span class="pc-cat">${esc(cat)}</span></div>
         <h3><a href="${href}">${esc(p.name)}</a></h3>
@@ -901,7 +901,7 @@
         const on = st.pid === p.id; const ta = totalAvail(p); const pu = Rules.tierPlan(Rules.productTiers(p), b.days).total; const d = (pu - Rules.lineUnit(line, b.days));
         const sizes = on && DB.hasVariant(p) ? Rules.sizeAvailability(p.id, b.start, b.end, b.id) : null;
         return `<article class="pick-card ${on ? 'on' : ''} ${ta < st.qty ? 'low' : ''}" data-pid="${p.id}">
-          <div class="pc-ph"><img src="${asset(p.img)}" alt="" loading="lazy">${on ? '<span class="pc-check"><i class="fa-solid fa-check"></i></span>' : ''}</div>
+          <div class="pc-ph"><img src="${asset(p.img)}" alt="" loading="lazy" decoding="async">${on ? '<span class="pc-check"><i class="fa-solid fa-check"></i></span>' : ''}</div>
           <div class="pc-bd"><b>${esc(p.name)}</b><div class="pc-price">${rupiah(pu)} <small>/ ${b.days} malam</small></div>
             <div class="pc-meta"><span class="${ta >= st.qty ? 'ok' : 'no'}">${ta >= st.qty ? `${ta} tersedia` : ta ? `sisa ${ta}` : 'Penuh'}</span><span class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '+' : d < 0 ? '−' : '±'}${rupiah(Math.abs(d))}</span></div>
             ${DB.hasVariant(p) ? (sizes ? `<div class="pc-sizes">${sizes.filter((o) => !(p.id === line.refId && o.name === line.size)).map((o) => `<button type="button" data-psize="${esc(o.name)}" class="${st.size === o.name ? 'on' : ''}" ${o.avail >= st.qty ? '' : 'disabled'}>${esc(short(o.name))}<small>${o.avail}</small></button>`).join('')}</div>` : `<div class="size-hint"><i class="fa-solid fa-ruler"></i> ${esc(p.variant.options.map((o) => short(o.name)).join(' · '))}</div>`) : ''}

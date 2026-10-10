@@ -45,7 +45,7 @@
       const cats = DB.categories(true); const P = productsRaw();
       $('#cfgMain').innerHTML = head('Kategori Barang', 'Kategori tampil di katalog customer dan dipakai untuk menentukan atribut apa saja yang muncul di form barang.', '<button class="btn btn-primary btn-sm" id="addCat"><i class="fa-solid fa-plus"></i> Tambah kategori</button>')
         + `<div class="cfg-cards">${cats.map((c) => { const n = P.filter((p) => p.cat === c.id).length; const at = DB.attrsForCat(c.id); const off = c.active === false;
-          return `<article class="cfg-card ${off ? 'row-off' : ''}"><img src="${asset(c.img)}" alt=""><div class="cc-bd"><strong>${esc(c.name)}</strong>${off ? ' <span class="pill gray plain">Tidak aktif</span>' : ''}<small>${n} barang</small>
+          return `<article class="cfg-card ${off ? 'row-off' : ''}"><img loading="lazy" decoding="async" src="${asset(c.img)}" alt=""><div class="cc-bd"><strong>${esc(c.name)}</strong>${off ? ' <span class="pill gray plain">Tidak aktif</span>' : ''}<small>${n} barang</small>
             <div class="chips">${at.length ? at.map((a) => `<span class="${a.variant ? 'v' : ''}">${esc(a.name)}</span>`).join('') : '<span class="none">Tanpa atribut</span>'}</div></div>
             <div class="cc-act"><button class="btn btn-light btn-xs" data-cedit="${c.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-ctoggle="${c.id}">${off ? 'Aktifkan' : 'Nonaktifkan'}</button></div></article>`; }).join('')}</div>`;
       $('#addCat').addEventListener('click', () => catForm());
@@ -124,7 +124,7 @@
       const opt = (v, t, d) => `<label class="pk-opt"><input type="radio" name="mode" value="${v}" ${hb.mode === v ? 'checked' : ''}><span><i class="fa-solid ${v === 'otomatis' ? 'fa-chart-line' : v === 'manual' ? 'fa-hand-pointer' : 'fa-layer-group'}"></i><b>${t}</b><small>${d}</small></span></label>`;
       const draw = () => {
         const prev = DB.homeBest();
-        $('#hbPrev').innerHTML = prev.items.length ? prev.items.map((x, i) => `<li><span class="hb-n">${i + 1}</span><img src="${UI.asset(x.p.img)}" alt=""><span class="hb-name">${esc(x.p.name)}</span>${x.pinned ? '<span class="pill gray plain">Disematkan</span>' : ''}<span class="hb-c">${x.n ? `${x.n}× disewa` : 'cadangan (rating)'}</span></li>`).join('') : '<li class="muted">Belum ada barang yang memenuhi.</li>';
+        $('#hbPrev').innerHTML = prev.items.length ? prev.items.map((x, i) => `<li><span class="hb-n">${i + 1}</span><img loading="lazy" decoding="async" src="${UI.asset(x.p.img)}" alt=""><span class="hb-name">${esc(x.p.name)}</span>${x.pinned ? '<span class="pill gray plain">Disematkan</span>' : ''}<span class="hb-c">${x.n ? `${x.n}× disewa` : 'cadangan (rating)'}</span></li>`).join('') : '<li class="muted">Belum ada barang yang memenuhi.</li>';
       };
       $('#cfgMain').innerHTML = head('Tampilan Beranda', 'Mengatur isi section "Produk Rental Terlaris" di beranda customer.') + `<div class="panel"><form id="hbf" novalidate>
         <h4 class="cfg-sub" style="margin-top:0">Sumber data</h4>

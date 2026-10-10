@@ -14,7 +14,7 @@
   const prods = DB.products();
   $('#catGrid').innerHTML = DB.categories().map((c) => {
     const n = prods.filter((p) => p.cat === c.id).length;
-    return `<a class="cat-card" href="katalog?cat=${c.id}"><div class="ph"><img src="${asset(c.img)}" alt="${esc(c.name)}" loading="lazy"></div><div class="tx"><strong>${esc(c.name)}</strong><small>(${n} Produk)</small></div></a>`;
+    return `<a class="cat-card" href="katalog?cat=${c.id}"><div class="ph"><img src="${asset(c.img)}" alt="${esc(c.name)}" loading="lazy" decoding="async"></div><div class="tx"><strong>${esc(c.name)}</strong><small>(${n} Produk)</small></div></a>`;
   }).join('');
 
   /* Produk Rental Terlaris: dihitung dari jumlah sewa (pengaturan owner: otomatis / manual / gabungan). 3 teratas dapat label "Terlaris". */
@@ -55,7 +55,7 @@
   const drawTesti = (L) => { $('#testiCards').innerHTML = L.length ? L.map((t) => `
     <figure class="t-card">
       <i class="fa-solid fa-quote-right q" aria-hidden="true"></i>
-      <div class="who"><span class="rv-av">${t.img ? `<img src="${asset(t.img)}" alt="">` : esc(t.name.charAt(0))}</span><div><strong>${esc(t.name)}</strong><small>${esc(t.role || (t.type === 'rent' ? 'Penyewa' : 'Pembeli'))}</small>${stars(t.rating, false)}</div></div>
+      <div class="who"><span class="rv-av">${t.img ? `<img loading="lazy" decoding="async" src="${asset(t.img)}" alt="">` : esc(t.name.charAt(0))}</span><div><strong>${esc(t.name)}</strong><small>${esc(t.role || (t.type === 'rent' ? 'Penyewa' : 'Pembeli'))}</small>${stars(t.rating, false)}</div></div>
       ${ctx(t)}
       <p>“${esc(t.text)}”</p>
       ${t.reply ? `<div class="t-reply"><strong><i class="fa-solid fa-store"></i> Balasan Annapurna</strong><span>${esc(t.reply)}</span></div>` : ''}
@@ -109,7 +109,7 @@
     } else if (last) {
       const items = last.items;
       box.innerHTML = `<div class="mine-card again"><div class="mc-h"><div><small>Halo, ${esc(first)}</small><strong>Sewa lagi perlengkapan trip terakhirmu?</strong></div></div>
-        <div class="again-items">${items.map((i) => `<span><img src="${asset(i.img)}" alt="">${i.qty}× ${esc(i.name)}</span>`).join('')}</div>
+        <div class="again-items">${items.map((i) => `<span><img loading="lazy" decoding="async" src="${asset(i.img)}" alt="">${i.qty}× ${esc(i.name)}</span>`).join('')}</div>
         <div class="again-f"><span class="muted">Trip terakhir ${Ann.D.fmtRange(last.start, last.end)} · ${last.days} hari</span><button class="btn btn-primary" id="againBtn"><i class="fa-solid fa-rotate-right"></i> Sewa lagi</button></div></div>`;
       $('#againBtn').addEventListener('click', () => UI.tripModal(() => {
         const t = DB.trip(); if (!t) return;

@@ -25,7 +25,7 @@
       if (noSz) szProblems++;
       const days = it.type === 'rent' ? Rules.rentalDays(it.start, it.end) : 0;
       return `<div class="cart-item" data-key="${it.key}">
-        <img src="${asset(r.img)}" alt="">
+        <img loading="lazy" decoding="async" src="${asset(r.img)}" alt="">
         <div>
           <h4>${esc(r.name)} ${it.kind === 'package' ? '<span class="pill green plain" style="margin-left:4px">Paket</span>' : ''}</h4>
           <div class="sm">${it.type === 'rent' ? `${esc(Rules.tierLabel(r.tiers, days))} · ${rupiah(Rules.tierPlan(r.tiers, days).total)} / unit` : rupiah(r.unit)}${r.sub ? `<br>${esc(r.sub)}` : ''}</div>

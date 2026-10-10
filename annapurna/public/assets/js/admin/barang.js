@@ -46,7 +46,7 @@
       ? '<tr><th>Barang</th><th>Kategori</th><th class="num">Tarif sewa</th><th>Unit / stok</th><th>Kondisi</th><th class="num">Aksi</th></tr>'
       : '<tr><th>Barang</th><th>Kategori</th><th class="num">Harga jual</th><th title="Stok saat ini & batas restock (stok minimum)">Stok &amp; batas restock</th><th class="num">Terjual</th><th class="num">Aksi</th></tr>';
     const L = list();
-    const prodCell = (p) => `<td><div class="prod"><img src="${asset(p.img)}" alt=""><div><strong>${esc(p.name)}</strong><small>${esc(p.sku || p.id)}${p.brand ? ` · ${esc(p.brand)}` : ''}${p.badge ? ` · ${esc(p.badge)}` : ''}${p.featured ? ' · <i class="fa-solid fa-star" style="color:var(--gold)"></i> Unggulan' : ''}</small></div></div></td>`;
+    const prodCell = (p) => `<td><div class="prod"><img loading="lazy" decoding="async" src="${asset(p.img)}" alt=""><div><strong>${esc(p.name)}</strong><small>${esc(p.sku || p.id)}${p.brand ? ` · ${esc(p.brand)}` : ''}${p.badge ? ` · ${esc(p.badge)}` : ''}${p.featured ? ' · <i class="fa-solid fa-star" style="color:var(--gold)"></i> Unggulan' : ''}</small></div></div></td>`;
     const varChips = (p) => (DB.hasVariant(p) ? `<div class="var-chips">${p.variant.options.map((o) => `<span title="${esc(o.name)}">${esc(o.name.replace(/\s*\(.*\)/, ''))} <b>${o.stock}</b></span>`).join('')}</div>` : '');
     /* Aksi per baris: tombol utama (Unit, Edit) + menu "⋯" untuk riwayat, lihat di website, dan aktif/nonaktif */
     const actions = (p, off) => `<td><div class="acts acts-compact">
@@ -75,7 +75,7 @@
         <td class="num">${soldQty(p.id)} unit</td>
         ${actions(p, off)}</tr>`;
     }).join('') : `<tr><td colspan="6" class="muted" style="text-align:center;padding:26px">Tidak ada barang ${KIND === 'rent' ? 'sewa' : 'jual'} yang cocok.</td></tr>`;
-    $('#cats').innerHTML = cats().map((c) => { const n = prods().filter((p) => p.cat === c.id).length; const off = c.active === false; const at = DB.attrsForCat(c.id); return `<div class="list-row ${off ? 'row-off' : ''}"><img src="${asset(c.img)}" alt="" style="width:52px;height:42px;object-fit:cover;border-radius:8px"><div class="nm"><strong>${esc(c.name)}</strong>${off ? ' <span class="pill gray plain">Tidak Aktif</span>' : ''}<small>${n} barang${at.length ? ' · atribut: ' + at.map((a) => esc(a.name) + (a.variant ? ' (varian stok)' : '')).join(', ') : ''}</small></div></div>`; }).join('');
+    $('#cats').innerHTML = cats().map((c) => { const n = prods().filter((p) => p.cat === c.id).length; const off = c.active === false; const at = DB.attrsForCat(c.id); return `<div class="list-row ${off ? 'row-off' : ''}"><img loading="lazy" decoding="async" src="${asset(c.img)}" alt="" style="width:52px;height:42px;object-fit:cover;border-radius:8px"><div class="nm"><strong>${esc(c.name)}</strong>${off ? ' <span class="pill gray plain">Tidak Aktif</span>' : ''}<small>${n} barang${at.length ? ' · atribut: ' + at.map((a) => esc(a.name) + (a.variant ? ' (varian stok)' : '')).join(', ') : ''}</small></div></div>`; }).join('');
   }
 
   const ACTIVE_STS = ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'];

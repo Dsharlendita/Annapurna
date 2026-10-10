@@ -9,6 +9,7 @@ class PageController extends Controller
 {
     public function home(): View { return view('annapurna.pages.index'); }
     public function katalog(): View { return view('annapurna.pages.katalog'); }
+    public function belanja(): View { return view('annapurna.pages.belanja'); }
     public function produk(): View { return view('annapurna.pages.produk'); }
     public function paket(): View { return view('annapurna.pages.paket'); }
     public function tentang(): View { return view('annapurna.pages.tentang'); }

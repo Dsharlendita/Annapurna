@@ -2,6 +2,7 @@
   const { DB } = Ann; const { $, $$, esc, validate, isEmail, toast, modal, param } = UI;
   const next = param('next');
   if (param('nonaktif')) setTimeout(() => toast('Akun kamu dinonaktifkan oleh Owner. Hubungi Owner untuk informasi lebih lanjut.', 'err'), 300);
+  if (param('idle')) setTimeout(() => toast(`Kamu otomatis keluar karena tidak ada aktivitas selama ${DB.settings().idleLogoutMin || 60} menit. Silakan masuk lagi.`), 300);
   if (next) $('#toRegister').href = 'daftar?next=' + encodeURIComponent(next);
   $$('.toggle-pw').forEach((b) => b.addEventListener('click', () => { const i = b.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; b.innerHTML = `<i class="fa-regular fa-eye${i.type === 'text' ? '-slash' : ''}"></i>`; }));
   $$('[data-demo]').forEach((b) => b.addEventListener('click', () => { const [e, p] = b.dataset.demo.split('|'); $('#email').value = e; $('#password').value = p; }));
@@ -57,7 +58,7 @@
         validate(form, { [data.field || 'password']: () => data.msg || 'Gagal masuk. Periksa email dan password.' });
         return;
       }
-      DB.set('session', data.user);
+      DB.adoptSession(data.user);
       toast(`Selamat datang, ${data.user.name.split(' ')[0]}!`);
       setTimeout(() => {
         location.href = data.redirect || (next ? next : DB.isStaff(data.user) ? DB.panelHome(data.user) : './');

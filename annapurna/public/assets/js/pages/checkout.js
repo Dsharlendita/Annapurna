@@ -23,6 +23,7 @@
       ${buy.length ? `<div class="kv"><span>Total belanja</span><span>${rupiah(buyTotal)}</span></div>${db ? `<div class="kv"><span>Diskon belanja (${esc(pr.promo.code)})</span><span style="color:var(--g700)">− ${rupiah(db)}</span></div>` : ''}` : ''}
       ${depositTotal ? `<div class="kv dep-kv"><span>Jaminan <small>dibayar saat ambil, dikembalikan saat kembali</small></span><span>${rupiah(depositTotal)}</span></div>` : ''}
       <div class="kv total"><span>Dibayar sekarang</span><span id="payNow">${rupiah(dpNow + buyTotal - db)}</span></div>`;
+    const sb = document.getElementById('coStickyAmt'); if (sb) sb.textContent = rupiah(dpNow + buyTotal - db);
   }
   root.innerHTML = `<form id="coForm" class="layout-2" novalidate>
     <div>
@@ -44,7 +45,8 @@
           <div><strong>Ambil &amp; kembalikan di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></div>
           <a class="btn btn-light btn-xs" href="kontak#lokasi" target="_blank"><i class="fa-solid fa-location-dot"></i> Lihat peta</a>
         </div>
-        <p class="muted" style="font-size:13px;margin-top:8px"><i class="fa-solid fa-circle-info"></i> Annapurna Adventure tidak menyediakan layanan antar. Tunjukkan nota digital${rent.length ? ' dan kartu identitas asli' : ''} saat mengambil barang.</p>
+        <p class="deliv-hint"><i class="fa-solid fa-truck-fast"></i> <span>Ingin barang diantar? <a href="${UI.waLink('Halo admin Annapurna, saya ingin menanyakan apakah barang sewaan saya bisa diantar. Alamat saya: ')}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Hubungi admin via WhatsApp</a> untuk menanyakan ketersediaan dan ongkirnya.</span></p>
+        <p class="muted" style="font-size:13px;margin-top:8px"><i class="fa-solid fa-circle-info"></i> Tunjukkan nota digital${rent.length ? ' dan kartu identitas asli' : ''} saat mengambil barang.</p>
         <div class="field" style="margin-top:14px"><label for="notes">Catatan untuk admin <span class="muted">(opsional)</span></label><input class="input" id="notes" name="notes" placeholder="Contoh: ambil sore sekitar jam 4"></div>
       </div>
 
@@ -63,7 +65,7 @@
 
     <aside class="card sticky-side">
       <div class="card-title">Pesananmu</div>
-      ${rent.length ? `<small class="muted" style="font-weight:700">SEWA</small>${rent.map((it) => { const r = Cart.resolve(it); return `<div class="mini-line"><img src="${asset(r.img)}" alt=""><div class="nm">${it.qty}× ${esc(r.name)}<small>${D.fmtRange(it.start, it.end)} · ${Rules.rentalDays(it.start, it.end)} hari</small></div><span>${rupiah(Cart.lineTotal(it))}</span></div>`; }).join('')}` : ''}
+      ${rent.length ? `<small class="muted" style="font-weight:700">SEWA</small>${rent.map((it) => { const r = Cart.resolve(it); return `<div class="mini-line"><img src="${asset(r.img)}" alt=""><div class="nm">${it.qty}× ${esc(r.name)}<small>${D.fmtRange(it.start, it.end)} · ${esc(Rules.tierLabel(r.tiers, Rules.rentalDays(it.start, it.end)))}</small></div><span>${rupiah(Cart.lineTotal(it))}</span></div>`; }).join('')}` : ''}
       ${buy.length ? `<small class="muted" style="font-weight:700;display:block;margin-top:10px">BELI</small>${buy.map((it) => { const r = Cart.resolve(it); return `<div class="mini-line"><img src="${asset(r.img)}" alt=""><div class="nm">${it.qty}× ${esc(r.name)}</div><span>${rupiah(Cart.lineTotal(it))}</span></div>`; }).join('')}` : ''}
       <div class="promo-box"><label for="promoIn"><i class="fa-solid fa-ticket"></i> Kode promo</label><div class="promo-row"><input class="input" id="promoIn" placeholder="Contoh: WEEKDAY15" autocomplete="off"><button type="button" class="btn btn-light btn-sm" id="promoBtn">Pakai</button></div><div id="promoMsg"></div></div>
       <div style="margin-top:10px" id="coSum"></div>
@@ -71,7 +73,9 @@
       <button class="btn btn-primary btn-block" ${blocked ? 'disabled' : ''} type="submit" style="margin-top:14px">Buat pesanan &amp; bayar <i class="fa-solid fa-arrow-right"></i></button>
       <a class="btn btn-ghost btn-block btn-sm" href="keranjang" style="margin-top:6px"><i class="fa-solid fa-arrow-left"></i> Ubah keranjang</a>
     </aside>
+    <div class="sticky-buy co-sticky"><div><small>Dibayar sekarang</small><b id="coStickyAmt">-</b></div><button class="btn btn-primary" type="submit" ${blocked ? 'disabled' : ''}>Buat pesanan <i class="fa-solid fa-arrow-right"></i></button></div>
   </form>`;
+  document.body.classList.add('has-sticky');
 
   const form = $('#coForm');
   drawSum();
@@ -84,6 +88,9 @@
   const pre = new URLSearchParams(location.search).get('promo'); if (pre) { $('#promoIn').value = pre; applyPromo(); }
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    /* Paket berisi barang berukuran wajib sudah dipilih ukurannya */
+    const noSz = Cart.all().filter((it) => it.type === 'rent' && it.kind === 'package' && ((Cart.resolve(it) || {}).missingSizes || []).length);
+    if (noSz.length) { toast('Pilih dulu ukuran barang di paket (mis. sepatu / jaket) di keranjang.', 'err'); setTimeout(() => (location.href = UI.url('keranjang')), 900); return; }
     const ok = validate(form, {
       name: (v) => (v.length < 3 ? 'Isi nama lengkap.' : ''),
       phone: (v) => (!isPhone(v) ? 'Nomor WhatsApp tidak valid. Contoh: 081234567890.' : ''),
@@ -138,15 +145,17 @@
     const ids = [];
     const groups = {};
     rent.forEach((it) => { const k = it.start + '|' + it.end; (groups[k] = groups[k] || []).push(it); });
+    /* Durasi berbeda dalam satu checkout = beberapa booking → ditandai satu "pesanan gabungan" */
+    const grp = Object.keys(groups).length > 1 ? 'GRP-' + Date.now().toString(36).toUpperCase() : null;
     Object.entries(groups).forEach(([k, items]) => {
       const [start, end] = k.split('|');
       const days = Rules.rentalDays(start, end);
-      const lines = items.map((it) => { const r = Cart.resolve(it); return Object.assign({ kind: it.kind, refId: it.refId, name: r.name, img: r.img, qty: it.qty, pricePerDay: r.unit, components: r.components }, r.size ? { size: r.size } : {}); });
-      const subtotal = lines.reduce((s, l) => s + l.pricePerDay * l.qty, 0) * days;
+      const lines = items.map((it) => { const r = Cart.resolve(it); return Object.assign({ kind: it.kind, refId: it.refId, name: r.name, img: r.img, qty: it.qty, pricePerDay: r.unit, tiers: r.tiers, components: r.components }, r.size ? { size: r.size } : {}); });
+      const subtotal = Rules.itemsSubtotal(lines, days);
       const disc = usePr && usePr.rent ? (usePr.promo.type === 'persen' ? { code: usePr.promo.code, type: 'persen', value: usePr.promo.value, amount: 0 } : { code: usePr.promo.code, type: 'nominal', fixed: Math.round(usePr.rent * subtotal / rentTotal), amount: 0 }) : null;
       const dep = items.reduce((a, it) => a + depOf(it), 0);
       const b = Object.assign({}, common, { id: DB.nextId('RNT', DB.bookings()), items: lines, start, end, days, deposit: dep, subtotal, total: subtotal, dp: Math.round(subtotal * st.dpPercent / 100), fine: 0, discount: disc,
-        status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], refunds: [], changes: [], history: [{ at: D.nowStamp(), text: 'Booking dibuat' }] });
+        status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], refunds: [], changes: [], history: [{ at: D.nowStamp(), text: 'Booking dibuat' }] }, grp ? { group: grp } : {});
       Rules.recalc(b); if (!b.discount) delete b.discount;
       DB.saveBooking(b); ids.push(b.id);
       DB.notifyStaff('Booking baru masuk', `${customer.name} membuat booking ${b.id} untuk ${D.fmtRange(start, end)}.`, 'admin/booking?id=' + b.id);

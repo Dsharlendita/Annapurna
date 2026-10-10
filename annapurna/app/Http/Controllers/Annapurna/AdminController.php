@@ -20,4 +20,5 @@ class AdminController extends Controller
     public function sop(): View { return view('annapurna.admin.sop'); }
     public function perawatan(): View { return view('annapurna.admin.perawatan'); }
     public function kalender(): View { return view('annapurna.admin.kalender'); }
+    public function kasir(): View { return view('annapurna.admin.kasir'); }
 }

@@ -5,7 +5,7 @@
   const sum = DB.ratingSummary();
   const units = products.reduce((a, p) => a + (p.stock || 0), 0);
   const stats = [
-    { n: products.length, suffix: '', label: 'Jenis alat', note: 'Tenda, carrier, dapur, hingga penerangan' },
+    { n: products.length, suffix: '', label: 'Jenis alat', note: 'Tenda, tas, footwear, fashion, outdoor & cooking equipment' },
     { n: units, suffix: '+', label: 'Unit perlengkapan', note: 'Siap disewa bergantian setiap hari' },
     { n: sum.avg, suffix: '', label: 'Rating pelanggan', dec: 1, star: true, note: 'Rata-rata dari ulasan penyewa' },
     { n: sum.count, suffix: '', label: 'Penilaian', note: 'Ulasan dari pelanggan yang sudah menyewa' },
@@ -16,6 +16,8 @@
   $('#abExample').textContent = `Sewa mulai tanggal 30, batas pembatalan dengan DP kembali adalah tanggal ${30 - st.cancelDays}.`;
   $('#terms').innerHTML = st.rentalTerms.map((t) => `<li>${esc(t)}</li>`).join('');
   $('#policy').innerHTML = st.cancelPolicy.map((t) => `<li>${esc(t)}</li>`).join('');
+  const dr = $('#durRules'); if (dr) dr.innerHTML = (st.durations || []).map((d, i) => `<div class="dur-card"><h4>${i + 1}. ${esc(d.name)}</h4><p>${esc(d.note)}</p><div class="ex"><b>Contoh:</b> ${esc(d.example)}</div></div>`).join('');
+  const tr = $('#tektokRules'); if (tr) tr.innerHTML = (st.tektokTerms || []).length ? `<b>Syarat &amp; ketentuan paket tektok:</b> ${st.tektokTerms.map(esc).join(' ')}` : '';
   $('#abWa').href = waLink('Halo Annapurna Adventure, saya ingin bertanya tentang sewa alat.');
 
   const fmt = (v, dec) => v.toLocaleString('id-ID', { minimumFractionDigits: dec, maximumFractionDigits: dec });

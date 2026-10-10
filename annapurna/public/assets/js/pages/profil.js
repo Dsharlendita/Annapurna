@@ -47,7 +47,7 @@
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) show(b.dataset.tab); });
   $('#logout').addEventListener('click', async () => {
     if (!(await confirmBox({ title: 'Keluar dari akun?', text: 'Kamu perlu masuk lagi untuk melihat pesanan.', ok: 'Keluar' }))) return;
-    DB.logout(); location.href = './';
+    UI.serverLogout(UI.url('./'));
   });
   head(); notifs(); if (param('tab')) show(param('tab'));
 })();

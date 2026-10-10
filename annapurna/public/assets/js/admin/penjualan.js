@@ -9,7 +9,7 @@
   const txt = (s) => s.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
   function list() {
     const q = $('#q').value.trim().toLowerCase(), f = $('#from').value, t = $('#to').value;
-    return DB.sales().filter((s) => match(s, tab) && (!q || [s.id, s.customer.name, txt(s)].join(' ').toLowerCase().includes(q))
+    return DB.sales().filter((s) => match(s, tab) && (!q || [s.id, NO(s), s.customer.name, txt(s)].join(' ').toLowerCase().includes(q))
       && (!f || D.day(s.createdAt) >= f) && (!t || D.day(s.createdAt) <= t)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   function draw() {
@@ -22,7 +22,7 @@
     $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${k === tab ? 'active' : ''}" data-tab="${k}">${l} <span class="cnt">${S.filter((s) => match(s, k)).length}</span></button>`).join('');
     const L = list();
     $('#rows').innerHTML = L.length ? L.map((s) => { const a = Admin.saleActions(s)[0]; return `<tr>
-      <td><strong>${s.id}</strong><small>${D.fmtDateTime(s.createdAt)}</small></td><td>${esc(s.customer.name)}<small>${esc(s.customer.phone)}</small></td>
+      <td><strong>${NO(s)}</strong><small>${D.fmtDateTime(s.createdAt)}</small></td><td>${esc(s.customer.name)}<small>${esc(s.customer.phone)}</small></td>
       <td style="min-width:190px;max-width:260px">${esc(txt(s))}</td>
       <td class="num">${rupiah(s.total)}</td><td>${pill('payment', s.paymentStatus)}</td><td>${pill('sale', s.status)}</td>
       <td><div class="acts">${a ? `<button class="btn ${a[3]} btn-xs" data-act="${a[0]}" data-id="${s.id}"><i class="fa-solid ${a[1]}"></i> ${a[2]}</button>` : ''}<button class="btn btn-light btn-xs" data-act="sdetail" data-id="${s.id}">Detail</button></div></td></tr>`; }).join('')
@@ -35,7 +35,7 @@
     return { filename: `penjualan-${D.today()}`, title: 'Data Penjualan', subtitle: `Status: ${TABS.find((x) => x[0] === tab)[1]}`,
       summary: [['Jumlah pesanan', String(L.length)], ['Barang terjual', ok.reduce((a, s) => a + s.items.reduce((x, i) => x + i.qty, 0), 0) + ' unit'], ['Omzet (lunas)', ok.filter((s) => s.paymentStatus === 'paid').reduce((a, s) => a + s.total, 0)]],
       columns: [{ header: 'No. Pesanan' }, { header: 'Tanggal' }, { header: 'Customer' }, { header: 'Telepon' }, { header: 'Barang', width: 40 }, { header: 'Qty', type: 'number' }, { header: 'Total', type: 'money' }, { header: 'Pembayaran' }, { header: 'Status' }],
-      rows: L.map((s) => [s.id, D.fmtDateTime(s.createdAt), s.customer.name, s.customer.phone, txt(s), s.items.reduce((x, i) => x + i.qty, 0), s.total, STATUS.payment[s.paymentStatus].label, STATUS.sale[s.status].label]),
+      rows: L.map((s) => [NO(s), D.fmtDateTime(s.createdAt), s.customer.name, s.customer.phone, txt(s), s.items.reduce((x, i) => x + i.qty, 0), s.total, STATUS.payment[s.paymentStatus].label, STATUS.sale[s.status].label]),
       foot: ['Total', '', '', '', '', ok.reduce((a, s) => a + s.items.reduce((x, i) => x + i.qty, 0), 0), ok.reduce((a, s) => a + s.total, 0), '', ''] }; });
   draw();
   if (param('id')) Admin.saleModal(param('id'), draw);

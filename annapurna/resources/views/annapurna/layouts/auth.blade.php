@@ -11,6 +11,9 @@
   @yield('content')
 
   <script src="{{ asset('assets/js/data.js') }}?v={{ config('app.asset_version') }}"></script>
+  @guest
+  <script>if (window.Ann && window.Ann.DB && window.Ann.DB.session()) window.Ann.DB.clearSession();</script>
+  @endguest
   <script src="{{ asset('assets/js/ui.js') }}?v={{ config('app.asset_version') }}"></script>
   @stack('scripts')
 </body>

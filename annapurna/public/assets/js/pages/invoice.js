@@ -18,20 +18,25 @@
   const sisa = Math.max(0, total - paid);
   let stamp, stampColor;
   if (x.status === 'dibatalkan') { stamp = 'DIBATALKAN'; stampColor = '#b23a2a'; }
+  else if (isRent && UI.billOf(x).late) { stamp = `TERLAMBAT ${UI.billOf(x).late} MALAM`; stampColor = '#b42318'; }
+  else if (isRent && UI.billOf(x).dueToday) { stamp = 'JATUH TEMPO HARI INI'; stampColor = '#b7791f'; }
   else if (sisa <= 0) { stamp = 'LUNAS'; stampColor = '#1f4d2f'; }
   else if (paid > 0) { stamp = 'DP DIBAYAR'; stampColor = '#b7791f'; }
+  else if (UI.pendingPay(x)) { stamp = 'MENUNGGU VERIFIKASI'; stampColor = '#2b5aa8'; }
   else { stamp = 'BELUM DIBAYAR'; stampColor = '#b7791f'; }
 
+  const BL = isRent ? UI.billOf(x) : { late: 0, fines: [], fine: 0, dueToday: false };
+  const CI = UI.changeInfo(x); const dpPaid = (x.payments || []).filter((p) => p.type === 'DP').reduce((a, p) => a + (+p.amount || 0), 0);
   const rows = isRent
-    ? x.items.map((it) => `<tr><td><div class="prod"><img src="${asset(it.img)}" alt=""><div><strong>${esc(it.name)}</strong>${it.kind === 'package' ? '<small>Paket</small>' : ''}</div></div></td><td class="num">${it.qty}</td><td class="num">${rupiah(it.pricePerDay)}</td><td class="num">${x.days} hari</td><td class="num">${rupiah(it.pricePerDay * it.qty * x.days)}</td></tr>`).join('')
-    : x.items.map((it) => `<tr><td><div class="prod"><img src="${asset(it.img)}" alt=""><strong>${esc(it.name)}</strong></div></td><td class="num">${it.qty}</td><td class="num">${rupiah(it.price)}</td><td class="num">${rupiah(it.price * it.qty)}</td></tr>`).join('');
+    ? x.items.map((it) => `<tr><td><div class="prod"><img src="${asset(it.img)}" alt=""><div><strong>${esc(it.name)}</strong>${it.kind === 'package' ? '<small>Paket</small>' : ''}<small class="inv-m">${it.qty} × ${rupiah(Rules.lineUnit(it, x.days))} · ${esc(Rules.tierLabel(it.tiers || { d1: it.pricePerDay }, x.days))}</small></div></div></td><td class="num">${it.qty}</td><td class="num">${rupiah(Rules.lineUnit(it, x.days))}</td><td class="num">${esc(Rules.tierLabel(it.tiers || { d1: it.pricePerDay }, x.days))}</td><td class="num">${rupiah(Rules.lineUnit(it, x.days) * it.qty)}</td></tr>`).join('')
+    : x.items.map((it) => `<tr><td><div class="prod"><img src="${asset(it.img)}" alt=""><div><strong>${esc(it.name)}</strong><small class="inv-m">${it.qty} × ${rupiah(it.price)}</small></div></div></td><td class="num">${it.qty}</td><td class="num">${rupiah(it.price)}</td><td class="num">${rupiah(it.price * it.qty)}</td></tr>`).join('');
 
   $('#inv').innerHTML = `<div class="invoice">
     <div class="inv-head">
       <div><img src="assets/img/logo.png" alt="Annapurna Adventure"><p class="muted" style="font-size:13px;margin-top:8px;max-width:34ch">${esc(st.address)}<br>${esc(st.phone)} · ${esc(st.email)}</p></div>
       <div style="text-align:right">
         <h2>${isRent ? 'NOTA BOOKING' : 'NOTA PEMBELIAN'}</h2>
-        <p style="font-weight:700;font-size:16px">#${esc(x.id)}</p>
+        <p style="font-weight:700;font-size:16px">#${esc(NO(x))}</p>
         <p class="muted" style="font-size:13px">Tanggal: ${D.fmtDate(x.createdAt, true)}</p>
         <div style="margin-top:10px;color:${stampColor}"><span class="stamp">${stamp}</span></div>
       </div>
@@ -40,25 +45,29 @@
     <div class="inv-meta">
       <div><h5>Ditagihkan kepada</h5><strong>${esc(x.customer.name)}</strong><br>${esc(x.customer.phone)}<br>${esc(x.customer.email)}</div>
       <div><h5>${isRent ? 'Detail sewa' : 'Detail pesanan'}</h5>
-        ${isRent ? `<div>Periode: <strong>${D.fmtRange(x.start, x.end)}</strong> (${x.days} hari)</div><div>Ambil: ${D.fmtDate(x.start, true)} · Kembali: ${D.fmtDate(x.end, true)}</div>` : ''}
+        ${isRent ? `<div>Periode: <strong>${D.fmtRange(x.start, x.end)}</strong> (${x.days} malam · kembali maks. pukul ${String(Ann.DB.settings().returnTime || '22:00').replace(':', '.')} WIB)</div><div>Ambil: ${D.fmtDate(x.start, true)} · Kembali: ${D.fmtDate(x.end, true)}</div>` : ''}
         <div>Pengambilan: Ambil di toko</div>
         <div>Pembayaran: ${esc(x.method || '-')}</div>
         <div style="margin-top:6px">${isRent ? pill('rental', x.status) : pill('sale', x.status)} ${pill('payment', x.paymentStatus)}</div>
       </div>
     </div>
-    <div class="table-wrap"><table class="table">
-      <thead><tr><th>Barang</th><th class="num">Qty</th><th class="num">${isRent ? 'Harga/hari' : 'Harga'}</th>${isRent ? '<th class="num">Durasi</th>' : ''}<th class="num">Jumlah</th></tr></thead>
+    <div class="table-wrap" data-no-paginate><table class="table inv-items">
+      <thead><tr><th>Barang</th><th class="num">Qty</th><th class="num">${isRent ? 'Harga/unit' : 'Harga'}</th>${isRent ? '<th class="num">Durasi</th>' : ''}<th class="num">Jumlah</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
+    ${isRent ? UI.changesHtml(x) : ''}
+    ${BL.late ? `<div class="late-sec"><h5><i class="fa-solid fa-triangle-exclamation"></i> Tagihan denda keterlambatan · ${BL.late} malam</h5><p>Batas pengembalian ${D.fmtDate(x.end, true)} pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB sudah lewat. Denda bertambah setiap malam sampai barang dikembalikan.</p>
+      <div class="table-wrap" data-no-paginate><table class="table inv-items"><thead><tr><th>Barang</th><th class="num">Qty</th><th class="num">Tarif/malam</th><th class="num">Malam</th><th class="num">Denda</th></tr></thead><tbody>${BL.fines.map((f) => `<tr><td>${esc(f.name)}<small class="inv-m">${f.qty} × ${rupiah(f.per)} × ${BL.late} malam</small></td><td class="num">${f.qty}</td><td class="num">${rupiah(f.per)}</td><td class="num">${BL.late}</td><td class="num"><b>${rupiah(f.total)}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
     <div class="inv-foot"><div class="box">
-      <div class="kv"><span>Subtotal</span><span>${rupiah(x.subtotal)}</span></div>
+      ${isRent && CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
+      <div class="kv"><span>Subtotal${isRent && CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(x.subtotal)}</span></div>
       ${x.discount ? `<div class="kv"><span>Promo ${esc(x.discount.code)}</span><span style="color:var(--g700)">− ${rupiah(x.discount.amount)}</span></div>` : ''}
       ${isRent && x.fine ? `<div class="kv"><span>Denda / biaya tambahan</span><span>${rupiah(x.fine)}</span></div>` : ''}
-      <div class="kv total"><span>Total</span><span>${rupiah(total)}</span></div>
-      ${isRent ? `<div class="kv"><span>DP ${st.dpPercent}%</span><span>${rupiah(x.dp)}</span></div>` : ''}
-      <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(paid)}</span></div>
+      <div class="kv total"><span>${isRent && CI.ok.length ? 'Total baru' : 'Total'}</span><span>${rupiah(total)}</span></div>
+      ${isRent ? (dpPaid ? `<div class="kv"><span>DP sudah dibayar</span><span>${rupiah(dpPaid)}</span></div>` : `<div class="kv"><span>DP ${st.dpPercent}% yang harus dibayar</span><span>${rupiah(x.dp)}</span></div>`) : ''}
+      <div class="kv hl"><span>Sudah dibayar${UI.pendingPay(x) ? ' (terverifikasi)' : ''}</span><span>${rupiah(paid)}</span></div>${UI.pendingPayHtml(x)}
       ${refunded ? `<div class="kv"><span>Dikembalikan</span><span>− ${rupiah(refunded)}</span></div>` : ''}
-      ${x.status !== 'dibatalkan' ? `<div class="kv"><span>Sisa pembayaran</span><strong>${rupiah(sisa)}</strong></div>` : ''}
+      ${x.status !== 'dibatalkan' ? `<div class="kv"><span>${isRent && ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'].includes(x.status) ? 'Sisa dibayar saat ambil' : 'Sisa pembayaran'}</span><strong>${rupiah(sisa)}</strong></div>` : ''}${BL.late ? `<div class="kv"><span>Denda keterlambatan (${BL.late} malam)</span><span style="color:#b42318;font-weight:700">${rupiah(BL.fine)}</span></div><div class="kv total" style="color:#b42318"><span>Total dibayar saat kembali</span><span>${rupiah(sisa + BL.fine)}</span></div>` : ''}${isRent && CI.all.some((c) => c.status === 'menunggu') ? '<p class="muted" style="font-size:12px;margin-top:6px">Ada permintaan ganti barang yang masih menunggu persetujuan admin, belum dihitung di total.</p>' : ''}
     </div></div>
     ${(x.payments || []).length ? `<h5 style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
       ${x.payments.map((p) => `<div class="kv" style="border-bottom:1px dashed var(--line)"><span>${D.fmtDateTime(p.at)} · ${esc(p.type)}</span><span>${rupiah(p.amount)}</span></div>`).join('')}` : ''}
@@ -66,11 +75,16 @@
     <p class="muted" style="text-align:center;font-size:12.5px;margin-top:22px">Terima kasih telah mempercayai Annapurna Adventure. Tunjukkan nota ini${isRent ? ' dan kartu identitas asli' : ''} saat mengambil barang di toko.</p>
   </div>`;
   (async () => { try { await UI.loadScript(UI.asset('assets/vendor/qr/qrcode-generator.js')); const q = window.qrcode(0, 'M'); q.addData(`${UI.BASE}${isRent ? 'admin/booking' : 'admin/penjualan'}?id=${x.id}`); q.make(); $('#invQr').innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true }); } catch (e) { $('#invQr').closest('.inv-qr').remove(); } })();
-  $('#waShare').href = waLink(`Halo Annapurna Adventure, berikut nota ${isRent ? 'booking' : 'pembelian'} saya: #${x.id} atas nama ${x.customer.name}. Total ${rupiah(total)}, sudah dibayar ${rupiah(paid)}.`);
-  document.title = `${x.id} — Annapurna Adventure`;
+  /* Tombol WhatsApp: membuka jendela kirim nota digital (gambar nota + pesan) ke admin */
+  $('#waShare').href = waLink('');
+  $('#waShare').dataset.nota = x.id;
+  /* Dibuka staff/owner dari panel admin: tombol WhatsApp customer tidak ditampilkan */
+  const staffView = ['admin', 'owner'].includes((user || {}).role);
+  if (staffView) $('#waShare').remove();
+  document.title = `Nota ${NO(x)} — Annapurna Adventure`;
   $('#dlPdf').addEventListener('click', async () => {
     const btn = $('#dlPdf'), h = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan…';
-    try { await UI.elementToPDF($('#inv .invoice'), `${isRent ? 'Nota-Booking' : 'Invoice'}-${x.id}`); UI.toast('Nota PDF berhasil diunduh.'); }
+    try { await UI.elementToPDF($('#inv .invoice'), `${isRent ? 'Nota-Booking' : 'Invoice'}-${NO(x).replace(/\//g, '-')}`); UI.toast('Nota PDF berhasil diunduh.'); }
     catch (e) { console.error(e); UI.toast('Gagal membuat PDF. Gunakan tombol Cetak.', 'err'); }
     btn.disabled = false; btn.innerHTML = h;
   });

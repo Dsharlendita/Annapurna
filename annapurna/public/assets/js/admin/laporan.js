@@ -11,6 +11,8 @@
   function draw() {
     let f = $('#from').value || T, t = $('#to').value || T; if (f > t) { t = f; $('#to').value = f; }
     cur = Reports.build($('#type').value, f, t);
+    /* Default terbaru di atas; pilihan "Terlama di atas" membalik urutan baris (kecuali laporan stok) */
+    if ($('#order').value === 'asc' && $('#type').value !== 'stok') cur = Object.assign({}, cur, { rows: cur.rows.slice().reverse() });
     const money = cur.money || cur.num;
     const fmt = (v, i) => (money.includes(i) && typeof v === 'number' ? rupiah(v) : esc(v));
     $('#title').textContent = cur.title; $('#rhTitle').textContent = cur.title;
@@ -20,7 +22,7 @@
     $('#rows').innerHTML = cur.rows.length ? cur.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${cur.num.includes(i) ? 'num' : ''}">${fmt(v, i)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cur.cols.length}" class="muted" style="text-align:center;padding:26px">Tidak ada data pada periode ini.</td></tr>`;
     $('#tf').innerHTML = cur.foot && cur.rows.length ? `<tr>${cur.foot.map((v, i) => `<td class="${cur.num.includes(i) ? 'num' : ''}">${fmt(v, i)}</td>`).join('')}</tr>` : '';
   }
-  ['#type', '#from', '#to'].forEach((s) => $(s).addEventListener('change', draw));
+  ['#type', '#from', '#to', '#order'].forEach((s) => $(s).addEventListener('change', draw));
   bindExport($('#exp'), () => Reports.toSpec(cur, `${$('#type').value}-${$('#from').value}_${$('#to').value}`, $('#range').textContent));
   draw();
 })();

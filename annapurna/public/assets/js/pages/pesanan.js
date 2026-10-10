@@ -12,7 +12,7 @@
   const done = ['selesai', 'dibatalkan'];
 
   function lines(items) {
-    return items.map((it) => `<div class="mini-line"><img src="${asset(it.img)}" alt=""><div class="nm">${it.qty}× ${esc(it.name)}${it.kind === 'package' ? ' <span class="pill green plain">Paket</span>' : ''}<small>${it.pricePerDay ? rupiah(it.pricePerDay) + ' / hari' : rupiah(it.price)}</small></div></div>`).join('');
+    return items.map((it) => `<div class="mini-line"><img src="${asset(it.img)}" alt=""><div class="nm">${it.qty}× ${esc(it.name)}${it.kind === 'package' ? ' <span class="pill green plain">Paket</span>' : ''}<small>${it.pricePerDay ? rupiah(it.pricePerDay) + ' / malam' : rupiah(it.price)}</small></div></div>`).join('');
   }
   function revBtn(x) {
     const r = DB.reviewFor(x.id);
@@ -23,6 +23,7 @@
     const paid = Rules.paidTotal(b);
     const pendingChange = b.changes.find((c) => c.status === 'menunggu');
     const acts = [];
+    if (!['selesai', 'dibatalkan'].includes(b.status)) acts.push(`<button class="btn btn-ghost btn-sm wa-admin" data-act="waadmin" data-id="${b.id}" title="Tanya admin soal pesanan ini (mis. minta diantar)"><i class="fa-brands fa-whatsapp"></i> Chat admin</button>`);
     acts.push(`<button class="btn btn-ghost btn-sm" data-act="detail" data-id="${b.id}">Detail</button>`);
     if (['dikonfirmasi', 'disewa', 'selesai'].includes(b.status)) acts.push(`<a class="btn btn-light btn-sm" href="invoice?id=${b.id}"><i class="fa-solid fa-receipt"></i> Nota digital</a>`);
     if (b.status === 'dikonfirmasi' && !pendingChange) acts.push(`<button class="btn btn-outline btn-sm" data-act="change" data-id="${b.id}"><i class="fa-solid fa-arrows-rotate"></i> Ganti barang</button>`);
@@ -33,12 +34,12 @@
     if (b.status === 'selesai') { acts.push(revBtn(b)); acts.push(`<button class="btn btn-primary btn-sm" data-act="again" data-id="${b.id}"><i class="fa-solid fa-rotate-right"></i> Sewa lagi</button>`); }
     const late = b.status === 'disewa' && D.today() > b.end;
     return `<article class="order-card">
-      <div class="oh"><div><strong>${b.id}</strong><small>Dibuat ${D.fmtDateTime(b.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div></div>
+      <div class="oh"><div><strong>${NO(b)}</strong><small>Dibuat ${D.fmtDateTime(b.createdAt)}</small>${b.group ? (() => { const mates = DB.bookings().filter((x) => x.group === b.group && x.id !== b.id); return mates.length ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan · ${mates.map((x) => `${x.id} kembali ${D.fmtDate(x.end)}`).join(', ')}</small>` : ''; })() : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div></div>
       ${UI.orderTracker(b)}
       <div class="ob">
         <div>
           <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px;margin-bottom:8px">
-            <span><i class="fa-regular fa-calendar" style="color:var(--g600)"></i> ${D.fmtRange(b.start, b.end)} · ${b.days} hari</span>
+            <span><i class="fa-regular fa-calendar" style="color:var(--g600)"></i> ${D.fmtRange(b.start, b.end)} · ${b.days} malam</span>
             <span><i class="fa-solid fa-store" style="color:var(--g600)"></i> Ambil di toko</span>
           </div>
           ${lines(b.items)}
@@ -46,22 +47,22 @@
           ${late ? `<div class="notice red" style="margin-top:10px"><i class="fa-solid fa-clock"></i><div>Sudah lewat tanggal kembali ${D.diffDays(b.end, D.today())} hari. Segera kembalikan untuk menghindari denda bertambah.</div></div>` : ''}
           ${b.status === 'dibatalkan' && b.cancel ? `<div class="notice ${b.cancel.refundable ? 'green' : 'red'}" style="margin-top:10px"><i class="fa-solid fa-circle-info"></i><div>${b.cancel.refundable ? (b.cancel.refundStatus === 'selesai' ? `DP ${rupiah(b.dp)} sudah dikembalikan.` : b.cancel.refundStatus === 'menunggu' ? `Pengembalian DP ${rupiah(b.dp)} sedang diproses admin.` : 'Booking dibatalkan sebelum pembayaran.') : 'Dibatalkan kurang dari H-2, DP tidak dikembalikan.'}</div></div>` : ''}
         </div>
-        <div class="sum"><small>Total sewa</small><strong>${rupiah(b.total)}</strong><small>Sudah dibayar ${rupiah(paid)}</small>${b.status !== 'dibatalkan' && b.total - paid > 0 ? `<small style="color:var(--orange);font-weight:700">Sisa ${rupiah(b.total - paid)}</small>` : ''}</div>
+        <div class="sum"><small>Total sewa</small><strong>${rupiah(b.total)}</strong><small>Sudah dibayar ${rupiah(paid)}</small>${UI.pendingPay(b) ? `<small class="pay-wait-s"><i class="fa-regular fa-clock"></i> ${rupiah(UI.pendingPay(b))} menunggu verifikasi</small>` : ''}${b.status !== 'dibatalkan' && b.total - paid > 0 ? `<small style="color:var(--orange);font-weight:700">Sisa ${rupiah(b.total - paid)}</small>` : ''}</div>
       </div>
       <div class="of">${acts.join('')}</div>
     </article>`;
   }
   function saleCard(s) {
-    const acts = [`<button class="btn btn-ghost btn-sm" data-act="sdetail" data-id="${s.id}">Detail</button>`];
+    const acts = [...(!['selesai', 'dibatalkan'].includes(s.status) ? [`<button class="btn btn-ghost btn-sm wa-admin" data-act="waadmin" data-id="${s.id}" title="Tanya admin soal pesanan ini (mis. minta diantar)"><i class="fa-brands fa-whatsapp"></i> Chat admin</button>`] : []), `<button class="btn btn-ghost btn-sm" data-act="sdetail" data-id="${s.id}">Detail</button>`];
     if (s.paymentStatus === 'paid') acts.push(`<a class="btn btn-light btn-sm" href="invoice?id=${s.id}"><i class="fa-solid fa-receipt"></i> Nota digital</a>`);
     if (s.status === 'menunggu_pembayaran') { acts.push(`<button class="btn btn-danger btn-sm" data-act="scancel" data-id="${s.id}">Batalkan</button>`); acts.push(`<a class="btn btn-primary btn-sm" href="pembayaran?ids=${s.id}">Bayar ${rupiah(s.total)}</a>`); }
     if (s.status === 'siap_diambil') acts.push(`<button class="btn btn-primary btn-sm" data-act="received" data-id="${s.id}"><i class="fa-solid fa-check"></i> Sudah saya ambil</button>`);
     if (s.status === 'selesai') { acts.push(revBtn(s)); acts.push(`<button class="btn btn-outline btn-sm" data-act="buyagain" data-id="${s.id}">Beli lagi</button>`); }
     return `<article class="order-card">
-      <div class="oh"><div><strong>${s.id}</strong><small>Dibuat ${D.fmtDateTime(s.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div></div>
+      <div class="oh"><div><strong>${NO(s)}</strong><small>Dibuat ${D.fmtDateTime(s.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div></div>
       ${UI.orderTracker(s)}
       <div class="ob"><div><div style="font-size:13.5px;margin-bottom:8px"><i class="fa-solid fa-store" style="color:var(--g600)"></i> ${s.status === 'siap_diambil' ? '<strong style="color:var(--g700)">Siap diambil di toko</strong> — bawa nota digital' : 'Ambil di toko'}</div>${lines(s.items)}</div>
-      <div class="sum"><small>Total belanja</small><strong>${rupiah(s.total)}</strong></div></div>
+      <div class="sum"><small>Total belanja</small><strong>${rupiah(s.total)}</strong>${s.status !== 'dibatalkan' ? `<small>Sudah dibayar ${rupiah(Rules.paidTotal ? (s.payments || []).reduce((a, p) => a + (+p.amount || 0), 0) : 0)}</small>` : ''}${UI.pendingPay(s) ? `<small class="pay-wait-s"><i class="fa-regular fa-clock"></i> ${rupiah(UI.pendingPay(s))} menunggu verifikasi</small>` : ''}</div></div>
       <div class="of">${acts.join('')}</div>
     </article>`;
   }
@@ -76,26 +77,26 @@
     $$('#tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
     let html = '';
     if (tab === 'sewa') html = running.length ? running.map(rentCard).join('') : empty('Belum ada rental berjalan', 'Pilih alat dan tanggal sewa, lalu bayar DP untuk mengunci booking.', '<a class="btn btn-primary" href="katalog">Sewa alat sekarang</a>');
-    if (tab === 'beli') html = activeBuy.length ? activeBuy.map(saleCard).join('') : empty('Belum ada pembelian berjalan', 'Butuh gas kaleng atau alat baru? Belanja langsung dari katalog.', '<a class="btn btn-primary" href="katalog?mode=beli">Belanja alat</a>');
+    if (tab === 'beli') html = activeBuy.length ? activeBuy.map(saleCard).join('') : empty('Belum ada pembelian berjalan', 'Butuh gas kaleng atau alat baru? Belanja langsung dari katalog.', '<a class="btn btn-primary" href="belanja">Belanja alat</a>');
     if (tab === 'riwayat') html = hist.length ? hist.map((x) => (x._t === 'rent' ? rentCard(x) : saleCard(x))).join('') : empty('Riwayat masih kosong', 'Rental dan pembelian yang sudah selesai akan tercatat di sini.', '');
     $('#list').innerHTML = html;
   }
   $$('#tabs .tab').forEach((t) => t.addEventListener('click', () => { tab = t.dataset.tab; history.replaceState(null, '', '?tab=' + tab); draw(); }));
 
   function detail(b) {
-    modal({ title: `Detail ${b.id}`, size: 'lg', body: `
+    modal({ title: `Detail ${NO(b)}`, size: 'lg', body: `
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div>
       <div class="grid-2" style="gap:20px">
         <div>
           <h4 style="margin-bottom:8px">Barang</h4>${lines(b.items)}
           <div class="kv"><span>Tanggal sewa</span><span>${D.fmtRange(b.start, b.end)}</span></div>
-          <div class="kv"><span>Lama sewa</span><span>${b.days} hari</span></div>
+          <div class="kv"><span>Lama sewa</span><span>${b.days} malam · ${esc(Rules.tierLabel(b.items[0] ? (b.items[0].tiers || { d1: b.items[0].pricePerDay }) : {}, b.days))}</span></div>
           <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
           <div class="kv"><span>Metode bayar</span><span>${esc(b.method)}</span></div>
           <div class="kv"><span>Subtotal sewa</span><span>${rupiah(b.subtotal)}</span></div>
           ${b.fine ? `<div class="kv"><span>Denda</span><span style="color:var(--red)">${rupiah(b.fine)}</span></div>` : ''}
           <div class="kv total"><span>Total</span><span>${rupiah(b.total)}</span></div>
-          <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(Rules.paidTotal(b))}</span></div>
+          <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(Rules.paidTotal(b))}</span></div>${UI.pendingPayHtml(b)}
           ${b.ret ? `<div class="notice green" style="margin-top:10px"><i class="fa-solid fa-box"></i><div>Dikembalikan ${D.fmtDateTime(b.ret.at)} · kondisi <strong>${esc(b.ret.cond)}</strong>${b.ret.note ? ' · ' + esc(b.ret.note) : ''}</div></div>` : ''}
         </div>
         <div>
@@ -107,7 +108,7 @@
       </div>`, foot: `<button class="btn btn-light" data-close>Tutup</button>${['dikonfirmasi', 'disewa', 'selesai'].includes(b.status) ? `<a class="btn btn-primary" href="invoice?id=${b.id}">Lihat bukti booking</a>` : ''}` });
   }
   function sdetail(s) {
-    modal({ title: `Detail ${s.id}`, body: `<div style="display:flex;gap:6px;margin-bottom:12px">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div>${lines(s.items)}
+    modal({ title: `Detail ${NO(s)}`, body: `<div style="display:flex;gap:6px;margin-bottom:12px">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div>${lines(s.items)}
       <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
       <div class="kv"><span>Subtotal</span><span>${rupiah(s.subtotal)}</span></div>
       <div class="kv total"><span>Total</span><span>${rupiah(s.total)}</span></div>
@@ -120,7 +121,7 @@
     const msg = !hasDp ? 'Booking ini belum dibayar, jadi bisa langsung dibatalkan tanpa biaya.'
       : refundable ? `Kamu membatalkan paling lambat H-${st.cancelDays}. DP <strong>${rupiah(b.dp)}</strong> akan dikembalikan penuh oleh admin.`
       : `Tanggal ambil tinggal ${Math.max(0, D.diffDays(D.today(), b.start))} hari lagi (kurang dari H-${st.cancelDays}). <strong>DP ${rupiah(b.dp)} tidak dapat dikembalikan.</strong>`;
-    const reason = await confirmBox({ title: `Batalkan ${b.id}?`, text: msg, ok: 'Batalkan booking', cancel: 'Kembali', danger: true, input: { label: 'Alasan pembatalan', placeholder: 'Contoh: jadwal pendakian diundur', required: true, error: 'Tulis alasan pembatalan.' } });
+    const reason = await confirmBox({ title: `Batalkan ${NO(b)}?`, text: msg, ok: 'Batalkan booking', cancel: 'Kembali', danger: true, input: { label: 'Alasan pembatalan', placeholder: 'Contoh: jadwal pendakian diundur', required: true, error: 'Tulis alasan pembatalan.' } });
     if (!reason) return;
     b.status = 'dibatalkan';
     b.cancel = { at: D.nowStamp(), reason, refundable: hasDp ? refundable : true, refundStatus: hasDp ? (refundable ? 'menunggu' : 'hangus') : 'tidak_perlu' };
@@ -134,14 +135,14 @@
 
   function extend(b) {
     const st = DB.settings(); const maxEnd = D.addDays(b.start, st.maxRentDays || 60);
-    const m = modal({ title: `Perpanjang sewa · ${b.id}`, body: `
+    const m = modal({ title: `Perpanjang sewa · ${NO(b)}`, body: `
       <p class="muted" style="margin-bottom:14px">Sewa sekarang ${D.fmtRange(b.start, b.end)}. Pilih tanggal kembali baru; admin akan mengecek dan menyetujui.</p>
       <div class="field"><label>Tanggal kembali baru</label><input class="input" type="date" id="xEnd" min="${D.addDays(b.end, 1)}" max="${maxEnd}" value="${D.addDays(b.end, 1)}"></div>
       <div id="xInfo"></div>
       <div class="field" style="margin-top:12px"><label>Alasan (opsional)</label><input class="input" id="xWhy" placeholder="Contoh: cuaca buruk, pendakian diundur sehari"></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="xOk">Ajukan perpanjangan</button>' });
     const calc = () => { const r = Rules.extendCheck(b, m.$('#xEnd').value);
-      m.$('#xInfo').innerHTML = r.extraDays > 0 ? `<div class="notice ${r.ok ? 'green' : 'red'}"><i class="fa-solid ${r.ok ? 'fa-circle-check' : 'fa-circle-xmark'}"></i><div>${r.ok ? `Tambahan <strong>${r.extraDays} hari</strong>, biaya <strong>${rupiah(r.cost)}</strong> (dibayar saat pengembalian).` : esc(r.msg)}</div></div>` : '';
+      m.$('#xInfo').innerHTML = r.extraDays > 0 ? `<div class="notice ${r.ok ? 'green' : 'red'}"><i class="fa-solid ${r.ok ? 'fa-circle-check' : 'fa-circle-xmark'}"></i><div>${r.ok ? `Tambahan <strong>${r.extraDays} malam</strong>, biaya <strong>${rupiah(r.cost)}</strong> (dibayar saat pengembalian).` : esc(r.msg)}</div></div>` : '';
       m.$('#xOk').disabled = !r.ok; return r; };
     m.$('#xEnd').addEventListener('change', calc); calc();
     m.$('#xOk').addEventListener('click', () => { const r = calc(); if (!r.ok) return; const to = m.$('#xEnd').value;
@@ -165,6 +166,7 @@
   $('#list').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-act]'); if (!btn) return;
     const id = btn.dataset.id, act = btn.dataset.act;
+    if (act === 'waadmin') { UI.waContact(`Halo admin, saya mau tanya soal pesanan #${NO(DB.booking(id) || DB.sale(id) || { id })}.`, { focus: id }); return; }
     if (act === 'detail') detail(DB.booking(id));
     if (act === 'cancel') cancel(DB.booking(id));
     if (act === 'change') change(DB.booking(id));

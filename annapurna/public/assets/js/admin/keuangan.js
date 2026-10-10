@@ -22,11 +22,22 @@
   }
   const sumCat = (l) => { const o = {}; l.forEach((x) => (o[x.cat] = (o[x.cat] || 0) + x.amount)); return Object.entries(o).sort((a, b) => b[1] - a[1]); };
   const bars = (entries, color) => { const max = entries.length ? entries[0][1] : 1; return entries.length ? entries.map(([k, v]) => `<li><div class="bl"><span>${esc(k)}</span><strong>${rupiah(v)}</strong></div><div class="bar"><i style="width:${(v / max) * 100}%;background:${color}"></i></div></li>`).join('') : '<li class="muted">Tidak ada data.</li>'; };
+  /* Filter lini bisnis: semua | rent (sewa) | sale (jual) | umum (operasional, promosi, dll.) — sama dengan tab di Dashboard owner */
+  let LINE = ['rent', 'sale', 'umum'].includes(param('lini')) ? param('lini') : 'all';
+  const LINE_LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
+  const lini = (x) => `<span class="lini ${x.line}">${LINE_LBL[x.line] || ''}</span>`;
+  function led(f, t) {
+    const L = Admin.ledger(f, t); if (LINE === 'all') return L;
+    const income = L.income.filter((x) => x.line === LINE), expense = L.expense.filter((x) => x.line === LINE);
+    const tot = (a) => a.reduce((s, x) => s + x.amount, 0);
+    const ti = L.fromArchive ? L.by[LINE].in : tot(income), to = L.fromArchive ? L.by[LINE].out : tot(expense);
+    return Object.assign({}, L, { income, expense, voided: L.voided.filter((x) => !x.line || x.line === LINE), totalIn: ti, totalOut: to });
+  }
   function draw() {
     const f = $('#from').value, t = $('#to').value;
-    const L = Admin.ledger(f, t);
-    const q = (a, b) => { const x = Admin.ledger(a, b); return x.totalIn - x.totalOut; };
-    const qi = (a, b) => Admin.ledger(a, b).totalIn;
+    const L = led(f, t);
+    const q = (a, b) => { const x = led(a, b); return x.totalIn - x.totalOut; };
+    const qi = (a, b) => led(a, b).totalIn;
     const st = (ic, tone, l, v) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong></div></div>`;
     if ($('#quick')) $('#quick').innerHTML = st('fa-sun', 'gold', 'Pemasukan hari ini', rupiah(qi(T, T))) + st('fa-calendar-week', 'blue', 'Pemasukan minggu ini', rupiah(qi(D.rel(-6), T))) + st('fa-calendar', '', 'Pemasukan bulan ini', rupiah(qi(T.slice(0, 8) + '01', T))) + st('fa-scale-balanced', '', 'Laba bersih bulan ini', rupiah(q(T.slice(0, 8) + '01', T)));
     const net = L.totalIn - L.totalOut;
@@ -40,12 +51,12 @@
     const when = (x) => (String(x.date).length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date));
     const voidRows = (kind, span) => L.voided.filter((x) => x.kind === kind).map((x) => `<tr class="row-off"><td>${when(x)}</td>${span}<td><span class="pill gray">${esc(x.cat)}</span></td><td><s>${esc(x.desc)}</s><small>Dibatalkan oleh ${esc(x.voidBy || '-')}: ${esc(x.voidReason || '-')}</small></td><td class="num"><s>${rupiah(x.amount)}</s></td><td><span class="pill red plain">Dibatalkan</span></td></tr>`).join('');
     if (tab === 'in') {
-      $('#th').innerHTML = '<tr><th>Tanggal</th><th>Referensi</th><th>Kategori</th><th>Keterangan</th><th class="num">Jumlah</th><th class="num">Aksi</th></tr>';
-      $('#rows').innerHTML = (L.income.length ? L.income.map((x) => `<tr><td>${when(x)}</td><td>${x.manual ? `<span class="muted">${x.ref}</span>` : `<a href="${x.ref.startsWith('RNT') ? 'booking' : 'penjualan'}?id=${x.ref}" style="font-weight:700;color:var(--g700)">${x.ref}</a>`}</td><td><span class="pill ${x.cat === 'Penjualan' ? 'blue' : x.cat === 'Denda' ? 'amber' : x.manual ? 'gray' : 'green'}">${x.cat}</span></td><td>${esc(x.desc)}${x.manual ? '' : '<small>Tercatat otomatis dari transaksi</small>'}</td><td class="num">${rupiah(x.amount)}</td><td>${x.manual ? acts(x) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Tidak ada pemasukan pada periode ini.</td></tr>') + voidRows('in', '<td></td>');
+      $('#th').innerHTML = '<tr><th>Tanggal</th><th>Referensi</th><th>Lini · Kategori</th><th>Keterangan</th><th class="num">Jumlah</th><th class="num">Aksi</th></tr>';
+      $('#rows').innerHTML = (L.income.length ? L.income.map((x) => `<tr><td>${when(x)}</td><td>${x.manual ? `<span class="muted">${x.ref}</span>` : `<a href="${x.ref.startsWith('RNT') ? 'booking' : 'penjualan'}?id=${x.ref}" style="font-weight:700;color:var(--g700)">${esc(Reports.refNo(x.ref))}</a>`}</td><td>${lini(x)}<span class="pill ${x.cat === 'Penjualan' ? 'blue' : x.cat === 'Denda' ? 'amber' : x.manual ? 'gray' : 'green'}">${x.cat}</span></td><td>${esc(x.desc)}${x.manual ? '' : '<small>Tercatat otomatis dari transaksi</small>'}</td><td class="num">${rupiah(x.amount)}</td><td>${x.manual ? acts(x) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Tidak ada pemasukan pada periode ini.</td></tr>') + voidRows('in', '<td></td>');
       $('#tf').innerHTML = `<tr><td colspan="4">Total pemasukan</td><td class="num">${rupiah(L.totalIn)}</td><td></td></tr>`;
     } else {
-      $('#th').innerHTML = '<tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th class="num">Jumlah</th><th class="num">Aksi</th></tr>';
-      $('#rows').innerHTML = (L.expense.length ? L.expense.map((x) => `<tr><td>${when(x)}</td><td><span class="pill ${x.auto ? 'amber' : 'gray'}">${esc(x.cat)}</span></td><td>${esc(x.desc)}${x.auto ? '<small>Tercatat otomatis dari refund</small>' : ''}</td><td class="num">${rupiah(x.amount)}</td><td>${x.auto ? `<div class="acts"><a class="btn btn-light btn-xs" href="booking?id=${x.ref}">Lihat</a></div>` : acts(x)}</td></tr>`).join('') : '<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Tidak ada pengeluaran pada periode ini.</td></tr>') + voidRows('out', '');
+      $('#th').innerHTML = '<tr><th>Tanggal</th><th>Lini · Kategori</th><th>Keterangan</th><th class="num">Jumlah</th><th class="num">Aksi</th></tr>';
+      $('#rows').innerHTML = (L.expense.length ? L.expense.map((x) => `<tr><td>${when(x)}</td><td>${lini(x)}<span class="pill ${x.auto ? 'amber' : 'gray'}">${esc(x.cat)}</span></td><td>${esc(x.desc)}${x.auto ? '<small>Tercatat otomatis dari refund</small>' : ''}</td><td class="num">${rupiah(x.amount)}</td><td>${x.auto ? `<div class="acts"><a class="btn btn-light btn-xs" href="booking?id=${x.ref}">Lihat</a></div>` : acts(x)}</td></tr>`).join('') : '<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Tidak ada pengeluaran pada periode ini.</td></tr>') + voidRows('out', '');
       $('#tf').innerHTML = `<tr><td colspan="3">Total pengeluaran</td><td class="num">${rupiah(L.totalOut)}</td><td></td></tr>`;
     }
     const days = []; for (let d = f; d <= t && days.length < 62; d = D.addDays(d, 1)) days.push(d);
@@ -95,7 +106,7 @@
       DB.voidFinance(k, x.id, r); toast('Transaksi ditandai dibatalkan.'); draw();
     }
   });
-  bindExport($('#exp'), () => { const f = $('#from').value, t = $('#to').value; const L = Admin.ledger(f, t);
+  bindExport($('#exp'), () => { const f = $('#from').value, t = $('#to').value; const L = led(f, t);
     const rows = [...L.income.map((x) => [x.date, x.date.length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date), 'Pemasukan', x.cat, x.ref, x.desc, x.amount, '']), ...L.expense.map((x) => [x.date, x.date.length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date), 'Pengeluaran', x.cat, x.ref, x.desc, '', x.amount])]
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map((r) => r.slice(1));
     return { filename: `rekap-keuangan-${f}_${t}`, title: 'Rekap Keuangan', subtitle: `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`, orientation: 'portrait',
@@ -103,5 +114,9 @@
       columns: [{ header: 'Tanggal' }, { header: 'Jenis' }, { header: 'Kategori' }, { header: 'Ref' }, { header: 'Keterangan', width: 34 }, { header: 'Masuk', type: 'money' }, { header: 'Keluar', type: 'money' }],
       rows, foot: ['Total', '', '', '', `Selisih: ${rupiah(L.totalIn - L.totalOut)}`, L.totalIn, L.totalOut] }; });
   setRange(OWN ? 'month' : 'today');
+  /* Pilihan lini */
+  const syncLini = () => { $$('#lini [data-l]').forEach((b) => b.classList.toggle('active', b.dataset.l === LINE)); $('#liniNote').textContent = { all: 'Semua transaksi: sewa, penjualan, dan pemasukan/pengeluaran umum toko. Angka ini sama dengan tab Gabungan di Dashboard owner.', rent: 'Hanya transaksi sewa: DP, pelunasan, denda, refund DP, perawatan & perbaikan alat sewa.', sale: 'Hanya transaksi jual: pembayaran pesanan beli (online & kasir) dan pembelian/restock barang jual.', umum: 'Pemasukan & pengeluaran yang bukan khusus sewa/jual: operasional, promosi, listrik, gaji, dll.' }[LINE]; };
+  $('#lini').addEventListener('click', (e) => { const b = e.target.closest('[data-l]'); if (!b) return; LINE = b.dataset.l; history.replaceState(null, '', LINE === 'all' ? location.pathname : '?lini=' + LINE); syncLini(); draw(); });
+  syncLini();
 })();
 

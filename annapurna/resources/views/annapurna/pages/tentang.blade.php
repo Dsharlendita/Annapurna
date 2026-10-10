@@ -77,6 +77,11 @@
         <div class="eyebrow">Aturan main</div>
         <h2 class="sec-title">Ketentuan sewa &amp; pembatalan</h2>
       </div>
+      <div class="ab-rule-card" id="durasi" style="margin-bottom:18px" data-reveal>
+        <div class="ab-rule-h"><span class="ab-v-ic"><i class="fa-solid fa-calendar-days"></i></span><h3>Durasi peminjaman</h3></div>
+        <div class="dur-rules" id="durRules"></div>
+        <p class="muted" id="tektokRules" style="font-size:13px;margin-top:12px"></p>
+      </div>
       <div class="ab-rules-grid" data-reveal-group>
         <div class="ab-rule-card">
           <div class="ab-rule-h"><span class="ab-v-ic"><i class="fa-solid fa-file-lines"></i></span><h3>Ketentuan sewa</h3></div>
@@ -100,11 +105,12 @@
         <a class="btn btn-primary" id="abWa" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya lewat WhatsApp</a>
       </div>
       <div class="ab-faq" id="abFaq" data-reveal-group>
-        <details open><summary>Bagaimana cara menghitung lama sewa?</summary><div class="ab-faq-a"><p>Lama sewa dihitung dari tanggal ambil sampai tanggal kembali. Ambil tanggal 28 dan kembali tanggal 30 dihitung 2 hari.</p></div></details>
+        <details open><summary>Bagaimana cara menghitung lama sewa?</summary><div class="ab-faq-a"><p>Ada 3 pilihan: <b>Per malam</b> (kembali esok hari), <b>Kegiatan 3 hari 3 malam</b>, dan <b>Ekspedisi 5 hari 5 malam</b>. Contoh: ambil Kamis pukul 09.00 WIB, sewa per malam kembali Jumat, kegiatan kembali Minggu, ekspedisi kembali Selasa — maksimal pukul 22.00 WIB (jam tutup toko). Durasi lain dihitung dari kombinasi tarif paling hemat.</p></div></details>
         <details><summary>Apa saja yang perlu dibawa saat mengambil barang?</summary><div class="ab-faq-a"><p>Bawa kartu identitas asli (KTP/KTM/SIM) dan nota digital dari halaman Pesanan Saya. Sisa pembayaran dilunasi saat pengambilan.</p></div></details>
         <details><summary>Apakah barang bisa diantar?</summary><div class="ab-faq-a"><p>Belum. Semua pengambilan dan pengembalian barang dilakukan langsung di toko agar kondisi alat bisa dicek bersama.</p></div></details>
         <details><summary>Bagaimana kalau alat rusak saat dipakai?</summary><div class="ab-faq-a"><p>Laporkan ke admin saat pengembalian. Biaya perbaikan menyesuaikan tingkat kerusakan setelah pengecekan bersama.</p></div></details>
-        <details><summary>Apakah alat bisa dibeli?</summary><div class="ab-faq-a"><p>Bisa. Buka katalog, pilih tab “Beli”, lalu checkout seperti belanja biasa. Barang diambil langsung di toko.</p></div></details>
+        <details><summary>Apakah barang harus dicuci sebelum dikembalikan?</summary><div class="ab-faq-a"><p>Tidak perlu. Sewa bersih, kembali kotor? Biar kami yang membersihkan — kamu cukup memakainya dengan happy tanpa harus mencuci.</p></div></details>
+        <details><summary>Bagaimana kalau terlambat mengembalikan?</summary><div class="ab-faq-a"><p>Batas pengembalian adalah tanggal kembali pukul 22.00 WIB. Lewat dari itu dihitung terlambat dan dikenakan biaya sewa per malam untuk setiap barang, setiap malam keterlambatan.</p></div></details>
       </div>
     </div>
   </section>

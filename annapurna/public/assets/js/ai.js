@@ -19,7 +19,7 @@
       { id: 'batal', keys: ['batal', 'cancel', 'refund', 'pembatalan', 'h-2', 'uang kembali', 'reschedule'], title: 'Pembatalan',
         a: `${s.cancelPolicy.map((t) => esc(t)).join('<br>')}<br>Pembatalan diajukan dari halaman <a href="${url('pesanan')}">Pesanan Saya</a>.` },
       { id: 'denda', keys: ['denda', 'telat', 'terlambat', 'rusak', 'hilang', 'lewat', 'molor'], title: 'Denda',
-        a: `Keterlambatan dikenakan denda <b>${esc(DB.lateFeeText())}</b> untuk barang yang terlambat. Kerusakan atau kehilangan menjadi tanggung jawab penyewa sesuai hasil pengecekan bersama saat pengembalian.` },
+        a: `Barang dikembalikan paling lambat tanggal kembali pukul <b>${esc(String(s.returnTime).replace(':', '.'))} WIB</b> (jam tutup toko). Lewat dari itu dikenakan biaya <b>${esc(DB.lateFeeText())}</b>. Kerusakan atau kehilangan menjadi tanggung jawab penyewa sesuai hasil pengecekan bersama saat pengembalian.` },
       { id: 'jam', keys: ['jam', 'buka', 'tutup', 'operasional', 'libur', 'hari apa'], title: 'Jam buka',
         a: `Toko buka <b>${esc(s.hours)}</b>.` },
       { id: 'lokasi', keys: ['lokasi', 'alamat', 'dimana', 'di mana', 'maps', 'tempat', 'toko', 'arah'], title: 'Lokasi toko',
@@ -28,10 +28,14 @@
         a: 'Maaf, belum ada layanan antar. Semua pengambilan dan pengembalian dilakukan langsung di toko supaya kondisi alat bisa dicek bersama.' },
       { id: 'syarat', keys: ['syarat', 'ktp', 'ktm', 'sim', 'identitas', 'jaminan', 'ketentuan', 'aturan'], title: 'Syarat sewa',
         a: `<ul>${s.rentalTerms.slice(0, 5).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` },
-      { id: 'hitung', keys: ['hitung', 'durasi', 'lama sewa', 'per hari', '24 jam', 'berapa hari', 'hitungan'], title: 'Hitungan hari',
-        a: 'Lama sewa dihitung dari tanggal ambil sampai tanggal kembali. Contoh: ambil tanggal 28, kembali tanggal 30 dihitung <b>2 hari</b>.' },
+      { id: 'hitung', keys: ['batas pengembalian', 'batas kembali', 'pengembalian', 'kembali jam', 'kapan kembali', 'hitung', 'durasi', 'lama sewa', 'per hari', 'per malam', 'permalam', 'kegiatan', 'ekspedisi', '24 jam', 'berapa hari', 'hitungan', 'paket hari'], title: 'Durasi sewa',
+        a: `Ada 3 pilihan durasi:<ul>${(s.durations || []).map((d) => `<li><b>${esc(d.name)}</b>: ${esc(d.note)}. ${esc(d.example)}</li>`).join('')}</ul>Pengembalian maksimal sampai jam tutup toko pukul ${esc(String(s.returnTime).replace(':', '.'))} WIB. Lama sewa lain dihitung dari kombinasi tarif paling hemat (contoh 4 malam = kegiatan + 1 malam).` },
+      { id: 'tektok', keys: ['tektok', 'paket tektok', 'tek tok'], title: 'Paket tektok',
+        a: `${DB.packages().filter((p) => p.tektok).map((p) => `${esc(p.name)} ${rupiah(p.price)}`).join(' dan ')} (harga per malam).<ul>${(s.tektokTerms || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul><a href="${url('paket?type=tektok')}">Lihat paket tektok</a>` },
+      { id: 'cuci', keys: ['cuci', 'kotor', 'bersih', 'mencuci', 'dicuci'], title: 'Barang kotor',
+        a: 'Sewa bersih, kembali kotor? Biar kami yang membersihkan. Kamu cukup memakainya dengan happy tanpa harus mencuci.' },
       { id: 'beli', keys: ['beli', 'jual', 'membeli', 'dijual', 'belanja'], title: 'Membeli alat',
-        a: `Bisa! Buka <a href="${url('katalog?mode=beli')}">katalog tab Beli</a>, masukkan ke keranjang, lalu checkout. Barang diambil di toko.` },
+        a: `Bisa! Buka halaman <a href="${url('belanja')}">Beli Alat</a>, masukkan ke keranjang, lalu checkout. Barang diambil di toko.` },
       { id: 'ganti', keys: ['ganti barang', 'tukar', 'ubah pesanan', 'ganti alat', 'upgrade'], title: 'Ganti barang',
         a: `Setelah booking, kamu bisa mengajukan ganti barang dari <a href="${url('pesanan')}">Pesanan Saya</a>. Selisih harga dihitung otomatis dan admin yang menyetujui.` },
       { id: 'kontak', keys: ['admin', 'cs', 'whatsapp', 'wa', 'telepon', 'hubungi', 'nomor', 'kontak', 'manusia', 'orang'], title: 'Hubungi admin',
@@ -44,7 +48,7 @@
     let best = null, score = 0;
     products.forEach((p) => {
       const words = norm(p.name).split(' ');
-      const hit = words.filter((w) => w.length > 2 && ` ${q} `.includes(` ${w} `)).length;
+      const hit = words.filter((w) => (w.length > 2 || /^\d/.test(w)) && ` ${q} `.includes(` ${w} `)).length;
       const sc = hit + hit / words.length + (q.includes(norm(p.name)) ? 2 : 0);
       if (hit && sc > score) { best = p; score = sc; }
     });
@@ -58,7 +62,7 @@
   function orderCard(x) {
     const isRent = x.id.startsWith('RNT');
     const next = isRent ? ({ menunggu_pembayaran: 'Selesaikan pembayaran DP agar booking terkunci.', menunggu_konfirmasi: 'Admin biasanya mengonfirmasi dalam 1×24 jam.', dikonfirmasi: `Ambil barang tanggal ${D.fmtDate(x.start, true)} dengan nota digital & KTP.`, disewa: `Kembalikan paling lambat ${D.fmtDate(x.end, true)}.`, selesai: 'Terima kasih! Jangan lupa beri ulasan.' })[x.status] || '' : '';
-    return `<div class="ai-order"><div class="ai-order-h"><strong>${x.id}</strong><span class="ai-st st-${x.status}">${STATUS_TEXT[x.status] || x.status}</span></div>
+    return `<div class="ai-order"><div class="ai-order-h"><strong>${NO(x)}</strong><span class="ai-st st-${x.status}">${STATUS_TEXT[x.status] || x.status}</span></div>
       <p>${esc(x.items.map((i) => `${i.qty}× ${i.name}`).join(', '))}</p>
       ${isRent ? `<p class="muted">${D.fmtRange(x.start, x.end)} · Total ${rupiah(x.total)}</p>` : `<p class="muted">Total ${rupiah(x.total)}</p>`}
       ${next ? `<p class="ai-next"><i class="fa-solid fa-circle-info"></i> ${next}</p>` : ''}
@@ -105,26 +109,29 @@
     const lines = [];
     const add = (pid, qty, why, role) => { if (qty > 0 && P(pid)) lines.push({ pid, qty, why, role }); };
     if (!own.has('tent') && nights > 0) {
-      if (type === 'hiking') add('p7', Math.ceil(people / 2), 'Tenda ringan 2 orang, muat di carrier', 'tent');
-      else if (people >= 5) { add('p15', Math.floor(people / 6) || 1, 'Tenda besar 6 orang dengan teras', 'tent'); const rest = people - (Math.floor(people / 6) || 1) * 6; if (rest > 0) add('p1', Math.ceil(rest / 4), 'Tambahan tenda untuk sisa anggota', 'tent'); }
-      else add('p1', Math.ceil(people / 4), 'Tenda dome 4 orang, cepat dipasang', 'tent');
+      /* Pilih kombinasi tenda Annapurna: kapasitas 6, 4-5, 4, dan 2 orang */
+      let left = people; const tents = {};
+      if (type === 'hiking') { tents['tnd-2'] = Math.ceil(people / 2); left = 0; }
+      while (left > 0) { const k = left >= 6 ? 'tnd-6' : left === 5 ? 'tnd-45' : left >= 3 ? 'tnd-4' : 'tnd-2'; tents[k] = (tents[k] || 0) + 1; left -= ({ 'tnd-6': 6, 'tnd-45': 5, 'tnd-4': 4, 'tnd-2': 2 })[k]; }
+      Object.entries(tents).forEach(([k, n]) => add(k, n, type === 'hiking' ? 'Tenda 2 orang, ringan dibawa mendaki' : `Tenda double layer, tahan air & angin`, 'tent'));
     }
-    if (!own.has('sleep') && nights > 0) add(type === 'hiking' ? 'p8' : 'p3', people, type === 'hiking' ? 'Hangat untuk suhu gunung' : 'Satu per orang', 'sleep');
-    if (!own.has('mat') && nights > 0) add(type === 'hiking' ? 'p13' : 'p14', people, type === 'hiking' ? 'Ringan dan menahan dingin dari tanah' : 'Alas tidur tahan tusukan', 'mat');
-    if (!own.has('bag') && type === 'hiking') add(nights > 0 ? 'p5' : 'p10', people, nights > 0 ? 'Carrier 60 L untuk bawa semua alat' : 'Daypack untuk naik-turun sehari', 'bag');
-    if (!own.has('cook')) add(people >= 3 && type === 'camping' ? 'p11' : 'p4', type === 'camping' && people >= 3 ? Math.ceil(people / 6) : Math.ceil(people / 4), 'Untuk masak dan bikin kopi', 'cook');
-    if (!own.has('light')) add(type === 'hiking' ? 'p12' : 'p6', Math.max(1, Math.ceil(people / 3)), 'Penerangan di tenda dan jalur', 'light');
-    if (!own.has('chair') && type === 'camping' && nights > 0) add('p2', people, 'Santai di camping ground', 'chair');
+    if (!own.has('sleep') && nights > 0) add('oe-sb', people, 'Satu sleeping bag per orang', 'sleep');
+    if (!own.has('mat') && nights > 0) add('oe-matras', people, 'Alas tidur di dalam tenda', 'mat');
+    if (!own.has('bag') && type === 'hiking') add(nights > 0 ? 'crr-60s' : 'tas-hydro', people, nights > 0 ? 'Carrier 60 L untuk bawa semua alat' : 'Hydropack untuk naik-turun sehari', 'bag');
+    if (!own.has('cook') && nights > 0) { add(people >= 4 ? 'ck-ds300' : 'ck-ds200', Math.ceil(people / 6), 'Nesting untuk masak dan bikin kopi', 'cook'); add('ck-kompor', Math.ceil(people / 6), 'Kompor kotak camping', 'cook'); }
+    if (!own.has('light')) { if (type === 'hiking') add('oe-headlamp', people, 'Penerangan di jalur malam', 'light'); else add('oe-lampu', Math.max(1, Math.ceil(people / 4)), 'Penerangan di dalam tenda', 'light'); }
+    if (!own.has('chair') && type === 'camping' && nights > 0) add('oe-kursi', people, 'Santai di camping ground', 'chair');
     const days = Math.max(1, D.diffDays(start, end));
-    const priced = lines.map((l) => { const p = P(l.pid); const avail = Rules.available(l.pid, start, end); return { ...l, p, price: p.rent, sub: p.rent * l.qty * days, avail, ok: avail >= l.qty }; });
+    const priced = lines.map((l) => { const p = P(l.pid); const avail = Rules.available(l.pid, start, end); const unit = Rules.unitPrice(p, days); return { ...l, p, price: unit, sub: unit * l.qty, avail, ok: avail >= l.qty }; });
     const custom = priced.reduce((s, l) => s + l.sub, 0);
-    const pkgs = DB.packages().filter((pk) => (pk.type === type || (type === 'camping' && pk.type === 'camping')) && (pk.pMin || 1) <= people && (pk.pMax || people) >= people);
+    const pkType = nights === 0 ? 'tektok' : 'tenda';
+    const pkgs = DB.packages().filter((pk) => pk.type === pkType && (pk.pMin || 1) <= people && (pk.pMax || people) >= people);
     let pkg = null;
     pkgs.forEach((pk) => {
       const covered = pk.items.filter((i) => priced.some((l) => l.pid === i.productId || (P(l.pid) && P(i.productId) && P(l.pid).cat === P(i.productId).cat))).length;
       const avail = Rules.packageAvailable(pk.id, start, end);
       const score = covered / Math.max(1, pk.items.length) + (avail ? 0.5 : 0);
-      if (!pkg || score > pkg.score) pkg = { pk, score, avail, total: pk.price * days, normal: pk.items.reduce((s, i) => s + P(i.productId).rent * i.qty, 0) * days };
+      if (!pkg || score > pkg.score) pkg = { pk, score, avail, total: Rules.unitPrice(pk, days), normal: pk.items.reduce((s, i) => s + Rules.unitPrice(P(i.productId), days) * i.qty, 0) };
     });
     return { people, nights, type, days, start, end, lines: priced, custom, pkg, place: plan.place, own: [...own] };
   }
@@ -145,26 +152,81 @@
       const L = [...DB.bookings(), ...DB.sales()].filter((x) => x.customer.email === user.email && !['selesai', 'dibatalkan'].includes(x.status)).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt)).slice(0, 3);
       return { html: L.length ? `Pesanan aktif kamu:${L.map(orderCard).join('')}` : 'Kamu belum punya pesanan aktif. Mau aku bantu rencanakan trip?', chips: L.length ? [] : ['Rencanakan trip'] };
     }
+    /* Urusan yang butuh keputusan admin → serahkan ke WhatsApp admin beserta pertanyaannya */
+    if (has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'cod', 'jemput', 'nego', 'negosiasi', 'diskon khusus', 'harga khusus', 'komplain', 'keluhan', 'kecewa', 'ganti jadwal', 'ubah jadwal', 'bukti bayar', 'salah transfer'])) {
+      return { html: 'Untuk hal ini sebaiknya langsung ke <b>admin</b> ya, supaya bisa dicek dan diputuskan langsung. Tekan tombol di bawah, pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true };
+    }
+    /* Cek kelengkapan isi keranjang sewa */
+    if (has(q, ['keranjang', 'keranjangku', 'sudah lengkap', 'kurang apa', 'cek kelengkapan', 'lengkap belum'])) return cartCheck();
+    /* Ukuran barang yang tersedia */
+    const prodSz = matchProduct(q);
+    if (prodSz && has(q, ['ukuran', 'size', 'nomor', 'no sepatu'])) {
+      if (!DB.hasVariant(prodSz)) return { html: `<b>${esc(prodSz.name)}</b> tidak punya pilihan ukuran (satu ukuran untuk semua).` };
+      const t = DB.trip() || { start: D.rel(1), end: D.rel(2) };
+      const list = Rules.sizeAvailability(prodSz.id, t.start, t.end);
+      return { html: `Ukuran <b>${esc(prodSz.name)}</b> untuk ${D.fmtRange(t.start, t.end)}:<ul>${list.map((o) => `<li>${esc(o.name.replace(/\s*\(.*\)/, ''))}: ${o.avail ? `<b>tersedia ${o.avail}</b>` : '<span style="color:var(--red)">habis</span>'}</li>`).join('')}</ul>Tanggal lain? Ganti tanggal di halaman barangnya.`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prodSz.id) }] };
+    }
+    /* Barang yang biasa disewa bersama */
+    if (prodSz && has(q, ['bersama', 'barengan', 'biasa disewa', 'pelengkap', 'cocok dengan'])) {
+      const L = alsoRented(prodSz.id, 4);
+      return { html: L.length ? `Customer yang menyewa <b>${esc(prodSz.name)}</b> biasanya juga menyewa:<ul>${L.map((x) => `<li>${esc(x.p.name)} · ${rupiah(x.p.rent)}/malam</li>`).join('')}</ul>` : 'Belum ada data barang yang biasa disewa bersama.', actions: L.slice(0, 2).map((x) => ({ label: `Lihat ${x.p.name}`, href: url('produk?id=' + x.p.id) })) };
+    }
+    /* Bandingkan paket, mis. "beda paket 4P dan 5P" */
+    if (has(q, ['beda', 'bedanya', 'banding', 'bandingkan', 'vs'])) {
+      const pks = DB.packages().filter((k) => { const id = k.id.replace('pk-', ''); return q.includes(norm(k.name)) || q.split(' ').includes(id) || (id.length <= 3 && q.includes(id)); });
+      if (pks.length >= 2) return { html: `Perbandingan paket:<table class="ai-tbl"><tr><th></th>${pks.map((k) => `<th>${esc(k.name)}</th>`).join('')}</tr><tr><td>Untuk</td>${pks.map((k) => `<td>${esc(k.people)}</td>`).join('')}</tr><tr><td>1 malam</td>${pks.map((k) => `<td>${rupiah(Rules.unitPrice(k, 1))}</td>`).join('')}</tr><tr><td>3 hari</td>${pks.map((k) => `<td>${rupiah(Rules.unitPrice(k, 3))}</td>`).join('')}</tr><tr><td>Isi</td>${pks.map((k) => `<td>${k.items.map((i) => `${i.qty}× ${esc((P(i.productId) || {}).name || '')}`).join('<br>')}</td>`).join('')}</tr></table>`, actions: [{ label: 'Lihat semua paket', href: url('paket') }] };
+    }
+    /* Harga barang tertentu (mis. "harga sepatu hiking mid 3 hari") — dijawab sebelum perencana trip */
+    if (prodSz && prodSz.rent && has(q, ['harga', 'berapa', 'tarif', 'biaya', 'sewa'])) {
+      const n = +(q.match(/(\d+)\s*(hari|malam|mlm)/) || [])[1] || 0;
+      const t = Rules.productTiers(prodSz);
+      const rows = Rules.tierRows(t).filter((x) => x.price).map((x) => `<li>${esc(x.name)}: <b>${rupiah(x.price)}</b></li>`).join('');
+      return { html: `Tarif sewa <b>${esc(prodSz.name)}</b>:<ul>${rows}</ul>${n ? `Untuk <b>${n} malam</b>: <b>${rupiah(Rules.tierPlan(t, n).total)}</b> (${esc(Rules.tierLabel(t, n))}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prodSz.id) }] };
+    }
     const tripish = /\d+\s*(orang|org|malam|mlm|hari)/.test(q) || has(q, ['berdua', 'bertiga', 'berempat', 'rombongan', 'keluarga', 'naik gunung', 'mendaki', 'camping', 'kemah', 'tektok', 'slamet', 'prau', 'baturraden', 'rekomendasi', 'rencana', 'trip', 'butuh apa', 'sewa apa', 'perlu apa']);
     if (tripish && !has(q, ['batal', 'denda', 'dp', 'jam', 'alamat'])) {
       const plan = parsePlan(text);
       if (has(q, ['rencanakan trip', 'rencana trip']) && !plan.people && !plan.type) return { html: 'Siap! Ceritakan rencanamu: mau ke mana, berapa orang, dan berapa malam. Contoh: <i>"camping di Baturraden berempat 1 malam"</i>.', planner: true };
       const s = nextWeekend(); const e = D.addDays(s, Math.max(1, plan.nights == null ? 1 : plan.nights));
       const r = recommend(plan, s, e);
-      const top = r.pkg && r.pkg.avail ? `Paket yang paling pas: <b>${esc(r.pkg.pk.name)}</b> (${rupiah(r.pkg.pk.price)}/hari).` : '';
-      return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} hari sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }] };
+      const top = r.pkg && r.pkg.avail ? `Paket yang paling pas: <b>${esc(r.pkg.pk.name)}</b> (${rupiah(r.pkg.total)} untuk ${r.days} malam).` : '';
+      return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} malam sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }] };
     }
     const prod = matchProduct(q);
     if (prod && has(q, ['harga', 'berapa', 'tarif', 'biaya', 'ada', 'tersedia', 'stok', 'sisa', 'kosong', 'ready'])) {
       const t = D.rel(1), a = Rules.availableOn(prod.id, t);
-      return { html: `<b>${esc(prod.name)}</b>${prod.rent ? ` disewakan ${rupiah(prod.rent)}/hari` : ''}${prod.price ? `${prod.rent ? ',' : ''} dijual ${rupiah(prod.price)}` : ''}. ${prod.rent ? `Tersedia <b>${a} unit</b> untuk besok (${D.fmtDate(t, true)}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prod.id) }] };
+      return { html: `<b>${esc(prod.name)}</b>${prod.rent ? ` disewakan ${esc(UI.tierText(Rules.productTiers(prod)))}` : ''}${prod.price ? `${prod.rent ? ',' : ''} dijual ${rupiah(prod.price)}` : ''}. ${prod.rent ? `Tersedia <b>${a} unit</b> untuk besok (${D.fmtDate(t, true)}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prod.id) }] };
     }
     let best = null, bestScore = 0;
     knowledge().forEach((k) => { const sc = k.keys.reduce((s, w) => s + (has(q, [w]) ? (w.includes(' ') ? 2 : 1) : 0), 0); if (sc > bestScore) { best = k; bestScore = sc; } });
     if (best) return { html: best.a, wa: best.wa, chips: related(best.id) };
-    if (has(q, ['halo', 'hai', 'hi', 'pagi', 'siang', 'sore', 'malam', 'assalamualaikum', 'permisi', 'min'])) return { html: 'Halo! 👋 Ada yang bisa aku bantu? Kamu bisa tanya soal cara sewa, DP, pembatalan, denda, atau minta rekomendasi alat untuk trip.', chips: ['Cara sewa', 'Rencanakan trip', 'Cek pesanan'] };
-    if (has(q, ['terima kasih', 'makasih', 'thanks', 'thx', 'mantap', 'oke', 'ok', 'siap'])) return { html: 'Sama-sama! Semoga petualanganmu seru. 🏕️' };
-    return { html: 'Maaf, aku belum yakin jawabannya. Pertanyaan ini sebaiknya langsung ke admin supaya tidak salah informasi.', wa: true, chips: ['Cara sewa', 'Pembayaran & DP', 'Pembatalan'] };
+    if (has(q, ['halo', 'hai', 'hi', 'pagi', 'siang', 'sore', 'malam', 'assalamualaikum', 'permisi', 'min'])) return { html: 'Halo! Ada yang bisa aku bantu? Kamu bisa tanya soal cara sewa, DP, pembatalan, denda, atau minta rekomendasi alat untuk trip.', chips: ['Cara sewa', 'Rencanakan trip', 'Cek pesanan'] };
+    if (has(q, ['terima kasih', 'makasih', 'thanks', 'thx', 'mantap', 'oke', 'ok', 'siap'])) return { html: 'Sama-sama! Semoga petualanganmu seru.' };
+    return { html: 'Maaf, aku belum yakin jawabannya. Pertanyaan ini sebaiknya langsung ke admin supaya tidak salah informasi. Pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true, chips: ['Cara sewa', 'Pembayaran & DP', 'Pembatalan'] };
+  }
+  /* Cek kelengkapan keranjang untuk camping / mendaki */
+  function cartCheck() {
+    const rent = Cart.all().filter((c) => c.type === 'rent');
+    if (!rent.length) return { html: 'Keranjang sewamu masih kosong. Mau aku bantu susun daftar alat untuk trip-mu?', chips: ['Rencanakan trip'], actions: [{ label: 'Lihat paket hemat', href: url('paket') }] };
+    const pids = new Set(); let cap = 0;
+    rent.forEach((c) => { const r = Cart.resolve(c); (r ? r.components : []).forEach((x) => pids.add(x.productId)); if (c.kind === 'product') pids.add(c.refId); });
+    rent.forEach((c) => { const r = Cart.resolve(c); (r ? r.components : []).forEach((x) => { const pp = P(x.productId); const m = pp && pp.cat === 'tenda' && String(pp.name).match(/(\d+)(?:-(\d+))?\s*\(|Kapasitas\s+(\d+)(?:-(\d+))?/i); if (m) cap += (+(m[4] || m[3] || m[2] || m[1]) || 0) * x.qty * c.qty; }); });
+    const hasCat = (cat, re) => [...pids].some((id) => { const pp = P(id); return pp && (pp.cat === cat || re.test(pp.name)); });
+    const hasTent = hasCat('tenda', /tenda/i);
+    const need = [];
+    if (hasTent || cap) {
+      if (![...pids].some((id) => /sleeping bag/i.test((P(id) || {}).name || ''))) need.push(['oe-sb', 'Sleeping bag', 'supaya tidak kedinginan malam hari']);
+      if (![...pids].some((id) => /matras/i.test((P(id) || {}).name || ''))) need.push(['oe-matras', 'Matras', 'alas tidur di dalam tenda']);
+      if (![...pids].some((id) => /lampu|headlamp/i.test((P(id) || {}).name || ''))) need.push(['oe-lampu', 'Lampu tenda', 'penerangan malam hari']);
+      if (![...pids].some((id) => (P(id) || {}).cat === 'cooking')) need.push(['ck-kompor', 'Kompor', 'untuk masak & bikin minuman hangat']);
+    } else {
+      need.push(['tnd-2', 'Tenda', 'kalau berencana menginap']);
+      if (![...pids].some((id) => /headlamp/i.test((P(id) || {}).name || ''))) need.push(['oe-headlamp', 'Headlamp', 'penerangan di jalur saat gelap']);
+    }
+    const t = rent[0];
+    if (!need.length) return { html: `Keranjangmu sudah lengkap untuk kebutuhan dasar${cap ? ` camping sekitar <b>${cap} orang</b>` : ''}. Jangan lupa: kembali paling lambat <b>${D.fmtDate(t.end, true)} pukul ${String(store().returnTime || '22:00').replace(':', '.')} WIB</b>.` };
+    return { html: `Dari isi keranjangmu${cap ? ` (tenda untuk sekitar <b>${cap} orang</b>)` : ''}, yang mungkin masih kurang:<ul>${need.map(([, n, why]) => `<li><b>${n}</b>, ${why}</li>`).join('')}</ul>Abaikan kalau kamu sudah punya sendiri.`,
+      actions: need.filter(([id]) => P(id)).slice(0, 3).map(([id, n]) => ({ label: `+ ${n}`, add: { id, start: t.start, end: t.end, qty: /sleeping|matras/i.test(n) && cap ? cap : 1 } })) };
   }
   function related(id) {
     return ({ cara: ['Pembayaran & DP', 'Syarat sewa', 'Rencanakan trip'], dp: ['Pembatalan', 'Cara sewa'], batal: ['Pembayaran & DP', 'Denda'], denda: ['Hitungan hari', 'Syarat sewa'], jam: ['Lokasi toko'], lokasi: ['Jam buka', 'Pengantaran'], antar: ['Lokasi toko', 'Jam buka'], syarat: ['Denda', 'Cara sewa'] })[id] || ['Cara sewa', 'Rencanakan trip'];
@@ -186,6 +248,22 @@
 
   function mdIcon() { return '<i class="fa-solid fa-wand-magic-sparkles"></i>'; }
 
+  /* Saran pertanyaan sesuai halaman yang sedang dibuka */
+  const CTX_PAGES = ['produk', 'paket', 'keranjang', 'pesanan', 'invoice', 'checkout', 'pembayaran'];
+  const COMPACT_PAGES = ['checkout', 'pembayaran'];
+  /* Nama halaman dari alamat URL (data-page tidak selalu unik, mis. halaman produk memakai "katalog") */
+  const pageKind = () => (location.pathname.replace(/\/+$/, '').split('/').pop() || 'beranda').replace(/\.html$/, '');
+  function contextChips() {
+    const page = pageKind();
+    if (page === 'produk') {
+      const p = P(new URLSearchParams(location.search).get('id'));
+      if (p) return [`Harga ${p.name} 3 hari`, ...(DB.hasVariant(p) ? [`Ukuran ${p.name} yang tersedia`] : []), `Barang yang biasa disewa bersama ${p.name}`, 'Batas pengembalian'];
+    }
+    if (page === 'paket') return ['Paket untuk 5 orang camping 1 malam', 'Beda paket 4P dan 5P', 'Bisa tukar item paket tektok?', 'Paket BBQ isinya apa'];
+    if (page === 'keranjang' || page === 'checkout') return ['Apakah keranjangku sudah lengkap?', 'Batas pengembalian', 'Denda kalau telat', 'Pembayaran & DP'];
+    if (page === 'pesanan' || page === 'invoice' || page === 'pembayaran') return ['Cek pesanan', 'Batas pengembalian', 'Denda kalau telat', 'Pembatalan'];
+    return ['Cara sewa', 'Pembayaran & DP', 'Pembatalan', 'Cek pesanan', 'Rencanakan trip'];
+  }
   function isCustomerPage() { return !document.querySelector('.admin') && !document.body.dataset.base?.includes('..') && !/^admin/.test(document.body.dataset.page || ''); }
 
   function chatWidget() {
@@ -216,8 +294,8 @@
           <div class="ai-body" id="aiBody"></div>
           <div class="ai-chips" id="aiChips"></div>
           <form class="ai-form" id="aiForm"><input id="aiInput" placeholder="Tulis pertanyaan… (contoh: RNT-1003)" autocomplete="off" aria-label="Pesan"><button aria-label="Kirim"><i class="fa-solid fa-paper-plane"></i></button></form>
-          <p class="ai-foot">Asisten bisa keliru. Untuk hal penting, <a id="aiWaLink" target="_blank" rel="noopener">hubungi admin</a>.</p>
         </div>
+        <a class="ai-admin" id="aiWaLink" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>Butuh jawaban pasti? <b>Chat admin via WhatsApp</b></span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       </section>`;
     document.body.appendChild(wrap);
     document.body.classList.add('has-ai');
@@ -227,9 +305,10 @@
       const el = document.createElement('div'); el.className = `ai-msg ${who}`;
       el.innerHTML = `<div class="ai-bub">${html}</div>${extra || ''}`; body.appendChild(el); body.scrollTop = body.scrollHeight; requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; }); return el;
     };
-    const actionsHtml = (r) => {
+    const actionsHtml = (r, q) => {
       const a = (r.actions || []).map((x, i) => `<button class="ai-act" data-i="${i}">${esc(x.label)}</button>`).join('');
-      const wa = r.wa ? `<a class="ai-act wa" href="${UI.waLink('Halo Annapurna, saya mau bertanya.')}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Chat admin</a>` : '';
+      const waText = q ? `Halo admin ${store().storeName}, saya mau tanya: "${q}"` : `Halo admin ${store().storeName}, saya mau bertanya.`;
+      const wa = r.wa ? `<a class="ai-act wa" href="${UI.waLink(waText)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> ${r.handoff ? 'Lanjut chat admin' : 'Chat admin'}</a>` : '';
       return a || wa ? `<div class="ai-acts">${a}${wa}</div>` : '';
     };
     const setChips = (list) => { chips.innerHTML = (list || []).map((c) => `<button type="button">${esc(c)}</button>`).join(''); };
@@ -237,9 +316,17 @@
       body.innerHTML = '';
       if (!log.length) {
         const u = DB.session();
-        bubble('bot', `Halo${u ? ' ' + esc(u.name.split(' ')[0]) : ''}! Aku asisten Annapurna Adventure. Aku bisa bantu:<ul><li>Jawab pertanyaan sewa, DP, pembatalan, denda</li><li>Cek status pesanan (ketik nomornya, misal <b>RNT-1003</b>)</li><li>Rekomendasi alat untuk trip-mu</li></ul>`);
-        setChips(['Cara sewa', 'Pembayaran & DP', 'Pembatalan', 'Cek pesanan', 'Rencanakan trip']);
-      } else log.forEach((m) => bubble(m.who, m.html, m.extra));
+        bubble('bot', `Halo${u ? ' ' + esc(u.name.split(' ')[0]) : ''}! Aku Asisten Trip Annapurna Adventure. Ini yang bisa aku bantu:<ul class="ai-can">
+          <li><b>Rencanakan trip:</b> rekomendasi alat &amp; paket sesuai jumlah orang dan lama perjalanan, beserta perkiraan biaya</li>
+          <li><b>Harga &amp; durasi sewa:</b> tarif per malam, kegiatan 3 hari, dan ekspedisi 5 hari</li>
+          <li><b>Stok &amp; ukuran:</b> ketersediaan barang serta ukuran sepatu/jaket di tanggalmu</li>
+          <li><b>Cek keranjang:</b> apakah perlengkapanmu sudah lengkap</li>
+          <li><b>Info paket:</b> isi paket, perbandingan paket, tukar/upgrade item tektok</li>
+          <li><b>Aturan sewa:</b> DP, pembatalan, batas pengembalian 22.00, denda, syarat identitas</li>
+          <li><b>Status pesanan:</b> ketik nomornya, misal <b>RNT-1003</b></li></ul>
+          Butuh informasi pasti atau keputusan admin, misalnya soal pengantaran, harga khusus, keluhan, atau ubah jadwal? Hubungi admin lewat tombol <b>Chat admin via WhatsApp</b> di bawah.`);
+        setChips(contextChips());
+      } else { log.forEach((m) => bubble(m.who, m.html, m.extra)); setChips(contextChips()); }
     };
     const ask = async (text) => {
       text = String(text || '').trim(); if (!text) return;
@@ -250,17 +337,18 @@
       await wait(450 + Math.random() * 450);
       const r = answer(map[text] || text);
       typing.remove();
-      const extra = actionsHtml(r);
+      const extra = actionsHtml(r, text);
       const el = bubble('bot', r.html, extra); log.push({ who: 'bot', html: r.html, extra }); save();
       el.querySelectorAll('.ai-act[data-i]').forEach((b) => b.addEventListener('click', () => {
         const act = r.actions[+b.dataset.i];
         if (act.href) location.href = act.href;
         if (act.plan != null) openPlanner(act.plan);
+        if (act.add) { const pp = P(act.add.id); if (!pp) return; if (DB.hasVariant(pp)) { UI.quickRent('product', pp.id); return; } Cart.add({ type: 'rent', kind: 'product', refId: pp.id, qty: act.add.qty || 1, start: act.add.start, end: act.add.end }); b.disabled = true; b.textContent = `✓ ${pp.name} ditambahkan`; toast(`${esc(pp.name)} masuk keranjang.`); if (pageKind() === 'keranjang') setTimeout(() => location.reload(), 700); }
       }));
       if (r.planner === true) setChips(['Camping berempat 1 malam', 'Naik Slamet berdua 2 malam', 'Tektok sendiri']);
       else setChips(r.chips || []);
     };
-    let cur = log.length ? 'chat' : 'plan';
+    let cur = log.length || CTX_PAGES.includes(pageKind()) ? 'chat' : 'plan';
     const tab = (t) => {
       cur = t;
       wrap.querySelectorAll('.ai-tabs button').forEach((b) => { const on = b.dataset.t === t; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); });
@@ -292,6 +380,9 @@
     $('#aiForm').addEventListener('submit', (e) => { e.preventDefault(); ask(input.value); });
     chips.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) ask(b.textContent); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#aiPanel').hidden) close(); });
+    /* Tombol "Tanya Asisten Trip" di halaman mana pun: <button data-ai-open data-ai-q="pertanyaan (opsional)"> */
+    document.addEventListener('click', (e) => { const b = e.target.closest('[data-ai-open]'); if (!b) return; e.preventDefault(); open('chat'); if (b.dataset.aiQ) setTimeout(() => ask(b.dataset.aiQ), 250); });
+    if (COMPACT_PAGES.includes(pageKind())) wrap.classList.add('ai-compact');
     window.AIChat = { open, close, ask, tab };
   }
 
@@ -303,21 +394,21 @@
         <span><i class="fa-solid ${r.type === 'hiking' ? 'fa-mountain' : 'fa-campground'}"></i> ${r.type === 'hiking' ? 'Pendakian' : 'Camping'}${r.place ? ' · ' + esc(r.place) : ''}</span>
         <span><i class="fa-solid fa-user-group"></i> ${r.people} orang</span>
         <span><i class="fa-regular fa-moon"></i> ${r.nights ? r.nights + ' malam' : 'Tanpa menginap'}</span>
-        <span><i class="fa-regular fa-calendar"></i> ${D.fmtRange(r.start, r.end)} · ${r.days} hari</span>
+        <span><i class="fa-regular fa-calendar"></i> ${D.fmtRange(r.start, r.end)} · ${r.days} malam</span>
         ${r.own.length ? `<span><i class="fa-solid fa-check"></i> Sudah punya ${r.own.length} jenis alat</span>` : ''}
       </div>
       <div class="tp-grid">
         <div class="tp-opt">
           <div class="tp-opt-h"><strong>Rakit sendiri</strong><span>Sesuai kebutuhanmu</span></div>
           <ul class="tp-lines">${r.lines.map((l) => `<li><span class="tp-ic"><i class="fa-solid ${role[l.role] || 'fa-box'}"></i></span><img src="${asset(l.p.img)}" alt=""><div><a href="${url('produk?id=' + l.pid)}"><b>${l.qty}× ${esc(l.p.name)}</b></a><small>${esc(l.why)}</small></div><span class="tp-av ${l.ok ? '' : 'no'}">${l.ok ? `${l.avail} tersedia` : `sisa ${l.avail}`}</span><strong>${rupiah(l.sub)}</strong></li>`).join('')}</ul>
-          <div class="tp-total"><span>Total ${r.days} hari</span><strong>${rupiah(r.custom)}</strong></div>
+          <div class="tp-total"><span>Total ${r.days} malam</span><strong>${rupiah(r.custom)}</strong></div>
           ${allOk ? '' : '<p class="tp-warn"><i class="fa-solid fa-triangle-exclamation"></i> Ada alat yang stoknya kurang di tanggal ini. Coba geser tanggal atau kurangi jumlah.</p>'}
           <button class="btn btn-primary btn-block" id="tpAddCustom" ${r.lines.length ? '' : 'disabled'}><i class="fa-solid fa-cart-plus"></i> Masukkan semua ke keranjang</button>
         </div>
         ${pk ? `<div class="tp-opt pk-opt">
           <div class="tp-opt-h"><strong>Atau pakai paket</strong><span class="tp-badge">Lebih praktis</span></div>
           <div class="tp-pk"><img src="${asset(pk.pk.img)}" alt=""><div><b>${esc(pk.pk.name)}</b><small>${esc(pk.pk.tagline || '')}</small><small>${pk.pk.items.map((i) => `${i.qty}× ${esc(P(i.productId).name)}`).join(', ')}</small></div></div>
-          <div class="tp-total"><span>${rupiah(pk.pk.price)} × ${r.days} hari</span><strong>${rupiah(pk.total)}</strong></div>
+          <div class="tp-total"><span>${esc(Rules.tierLabel(Rules.packageTiers(pk.pk), r.days))}</span><strong>${rupiah(pk.total)}</strong></div>
           <p class="tp-note">${pk.avail ? `<i class="fa-solid fa-circle-check"></i> ${pk.avail} paket tersedia di tanggal ini` : '<i class="fa-solid fa-circle-xmark"></i> Paket penuh di tanggal ini'}${pk.normal > pk.total ? ` · hemat ${rupiah(pk.normal - pk.total)} dibanding sewa satuan isi paket` : ''}</p>
           <button class="btn btn-light btn-block" id="tpAddPkg" ${pk.avail ? '' : 'disabled'}><i class="fa-solid fa-box-open"></i> Sewa paket ini</button>
         </div>` : ''}
@@ -401,16 +492,16 @@
     if (/(gampang|mudah|praktis)/.test(t)) pos.push('proses sewanya');
     const posTxt = pos.length ? pos.slice(0, 2).join(' dan ') : 'pengalamannya';
     if (tone === 'singkat') {
-      return r.rating >= 4 ? `Terima kasih, Kak ${first}! Senang ${posTxt} memuaskan. Ditunggu petualangan berikutnya! 🏕️`
+      return r.rating >= 4 ? `Terima kasih, Kak ${first}! Senang ${posTxt} memuaskan. Ditunggu petualangan berikutnya!`
         : `Terima kasih masukannya, Kak ${first}. Maaf atas ${neg[0] ? neg[0].s : 'ketidaknyamanannya'}, akan segera kami perbaiki.`;
     }
     if (tone === 'formal') {
       if (r.rating >= 4) return `Terima kasih, ${r.name}, atas ulasan dan kepercayaan Anda kepada Annapurna Adventure. Kami senang ${posTxt} sesuai harapan. Kami tunggu kunjungan Anda berikutnya.`;
       return `Terima kasih atas masukan Anda, ${r.name}. Kami mohon maaf atas ${neg.length ? neg.map((n) => n.s).join(' dan ') : 'ketidaknyamanan yang terjadi'}. ${neg.length ? neg.map((n) => n.fix.charAt(0).toUpperCase() + n.fix.slice(1)).join('. ') + '.' : 'Masukan ini akan kami tindak lanjuti.'} Semoga kami dapat melayani Anda lebih baik di kesempatan berikutnya.`;
     }
-    if (r.rating >= 4 && !neg.length) return `Makasih banyak, Kak ${first}! 🙌 Senang banget ${posTxt} bikin trip-nya lancar. Semoga petualangannya seru, ditunggu sewa berikutnya di Annapurna ya!`;
+    if (r.rating >= 4 && !neg.length) return `Makasih banyak, Kak ${first}! Senang banget ${posTxt} bikin trip-nya lancar. Semoga petualangannya seru, ditunggu sewa berikutnya di Annapurna ya!`;
     if (r.rating >= 4) return `Makasih ulasannya, Kak ${first}! Senang ${posTxt} memuaskan. Soal ${neg.map((n) => n.s).join(' dan ')}, ${neg.map((n) => n.fix).join(', ')}. Ditunggu sewa berikutnya ya!`;
-    return `Halo Kak ${first}, terima kasih sudah jujur berbagi pengalaman. Mohon maaf atas ${neg.length ? neg.map((n) => n.s).join(' dan ') : 'ketidaknyamanannya'} 🙏 ${neg.length ? neg.map((n) => n.fix.charAt(0).toUpperCase() + n.fix.slice(1)).join('. ') + '.' : 'Masukan ini langsung kami bahas bersama tim.'} Semoga di kesempatan berikutnya kami bisa memberi pengalaman yang jauh lebih baik.`;
+    return `Halo Kak ${first}, terima kasih sudah jujur berbagi pengalaman. Mohon maaf atas ${neg.length ? neg.map((n) => n.s).join(' dan ') : 'ketidaknyamanannya'}. ${neg.length ? neg.map((n) => n.fix.charAt(0).toUpperCase() + n.fix.slice(1)).join('. ') + '.' : 'Masukan ini langsung kami bahas bersama tim.'} Semoga di kesempatan berikutnya kami bisa memberi pengalaman yang jauh lebih baik.`;
   }
 
   function reportInsights(from, to) {
@@ -487,7 +578,7 @@
     const L = alsoRented(pid, 4);
     if (!L.length) return '';
     return `<div class="ai-also"><div class="ai-also-h"><span class="ai-tag">${mdIcon()} Sering disewa bersama</span><small>Berdasarkan pesanan penyewa lain</small></div>
-      <div class="ai-also-list">${L.map((x) => `<div class="ai-also-it"><a href="${url('produk?id=' + x.p.id)}"><img src="${asset(x.p.img)}" alt=""></a><div><a href="${url('produk?id=' + x.p.id)}"><b>${esc(x.p.name)}</b></a><small>${rupiah(x.p.rent)}/hari</small></div><button class="btn btn-light btn-xs" data-rent="${x.p.id}" aria-label="Sewa ${esc(x.p.name)}"><i class="fa-solid fa-plus"></i></button></div>`).join('')}</div></div>`;
+      <div class="ai-also-list">${L.map((x) => `<div class="ai-also-it"><a href="${url('produk?id=' + x.p.id)}"><img src="${asset(x.p.img)}" alt=""></a><div><a href="${url('produk?id=' + x.p.id)}"><b>${esc(x.p.name)}</b></a><small>${rupiah(x.p.rent)}/malam</small></div><button class="btn btn-light btn-xs" data-rent="${x.p.id}" aria-label="Sewa ${esc(x.p.name)}"><i class="fa-solid fa-plus"></i></button></div>`).join('')}</div></div>`;
   }
 
   window.AI = { answer, parsePlan, recommend, openPlanner, alsoRented, alsoRentedHtml, reviewInsights, replyDraft, reportInsights, insightCard, forecast, forecastPanel };

@@ -26,10 +26,10 @@
   function draw() {
     const q = DB.careQueue();
     const st = (ic, tone, l, v, d) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong>${d ? `<span class="d">${d}</span>` : ''}</div></div>`;
-    $('#careStats').innerHTML = st('fa-soap', 'blue', 'Perlu dicuci', q.cuci.length + ' unit', 'belum bisa diserahkan') + st('fa-screwdriver-wrench', 'red', 'Dalam perbaikan', q.perbaikan.length + ' unit', 'tidak dihitung di stok') + st('fa-calendar-check', 'gold', 'Jatuh tempo perawatan', q.berkala.length + ' unit', `tiap ${every()}× disewa`);
+    $('#careStats').innerHTML = st('fa-soap', 'blue', 'Perlu dicuci', q.cuci.length + ' unit', 'belum bisa diserahkan') + st('fa-screwdriver-wrench', 'red', 'Dalam perbaikan', q.perbaikan.length + ' unit', 'tidak dihitung di stok') + st('fa-calendar-check', 'gold', 'Perlu servis berkala', q.berkala.length + ' unit', `tiap ${every()}× disewa`);
     $('#careBody').innerHTML = sec('cuci', 'fa-soap', 'Perlu dicuci / dibersihkan', 'Tidak ada antrian cuci.', q.cuci, true)
       + sec('perbaikan', 'fa-screwdriver-wrench', 'Dalam perbaikan', 'Tidak ada unit yang sedang diperbaiki.', q.perbaikan)
-      + sec('berkala', 'fa-calendar-check', 'Jatuh tempo perawatan berkala', 'Semua unit masih dalam jadwal perawatan.', q.berkala);
+      + sec('berkala', 'fa-calendar-check', 'Perlu servis berkala', 'Semua unit masih dalam jadwal perawatan.', q.berkala);
     Admin.refreshShell && Admin.refreshShell();
   }
   const split = (v) => v.split('|');
@@ -41,21 +41,21 @@
       const [pid, code] = split(f.dataset.fixed); const p = DB.product(pid); const u = p.units.find((x) => x.code === code);
       const m = modal({ title: `Selesai diperbaiki · ${code}`, body: `<div class="notice" style="margin-bottom:12px"><i class="fa-solid fa-screwdriver-wrench"></i><div>Kerusakan: <b>${esc((u.careInfo || {}).issue || '-')}</b></div></div>
         <div class="field"><label>Yang dikerjakan</label><input class="input" id="fxN" placeholder="Contoh: flysheet dijahit & dilapisi seam sealer"></div>
-        <div class="grid-2"><div class="field"><label>Biaya perbaikan (Rp)</label><input class="input" type="number" min="0" step="1000" id="fxC" value="0"><span class="hint">Bila diisi, otomatis tercatat sebagai pengeluaran.</span></div>
-        <div class="field"><label>Kondisi setelah diperbaiki</label><select class="select" id="fxK">${DB.COND_LIST.map((x) => `<option ${x === 'Baik' ? 'selected' : ''}>${x}</option>`).join('')}</select></div></div>
-        ${DB.needsWash(p) ? '<label class="chk-line"><input type="checkbox" id="fxW"> Cuci dulu sebelum disewakan lagi</label>' : ''}`,
+        <div class="field"><label>Biaya perbaikan (Rp) <span class="opt">(opsional)</span></label><input class="input" type="number" min="0" step="1000" id="fxC" value="0"><span class="hint">Bila diisi, otomatis tercatat sebagai pengeluaran.</span></div>
+        ${DB.needsWash(p) ? '<label class="chk-line"><input type="checkbox" id="fxW" checked> Cuci dulu sebelum disewakan lagi <small class="chk-help">Kategori ini wajib dicuci. Hilangkan centang bila unit sudah bersih.</small></label>' : ''}
+        <p class="muted" style="font-size:12.5px;margin-top:8px">Setelah disimpan, unit kembali <b>${DB.needsWash(p) ? 'Perlu dicuci → Siap disewa' : 'Siap disewa'}</b>. Kalau ternyata tidak bisa diperbaiki, pakai tombol <b>Tidak bisa diperbaiki</b>.</p>`,
         foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="fxOk"><i class="fa-solid fa-check"></i> Simpan</button>' });
       m.$('#fxOk').addEventListener('click', () => {
         const note = m.$('#fxN').value.trim(); if (!note) { m.$('#fxN').classList.add('err'); m.$('#fxN').focus(); return; }
-        DB.finishCare(pid, code, { note, cost: Math.max(0, +m.$('#fxC').value || 0), cond: m.$('#fxK').value });
+        DB.finishCare(pid, code, { note, cost: Math.max(0, +m.$('#fxC').value || 0) });
         if (m.$('#fxW') && m.$('#fxW').checked) DB.setCare(pid, code, 'cuci');
         m.close(); toast(`${code} selesai diperbaiki.`); draw();
       });
     }
     if (rt) {
       const [pid, code] = split(rt.dataset.retire);
-      const x = await confirmBox({ title: `Unit ${code} tidak bisa diperbaiki?`, text: 'Unit dinonaktifkan dan tidak dihitung lagi di stok. Riwayatnya tetap tersimpan.', ok: 'Nonaktifkan unit', danger: true, input: { label: 'Alasan', required: true, error: 'Alasan wajib diisi.' } });
-      if (x === false) return; DB.updateUnit(pid, code, { status: 'nonaktif', care: null, notes: x }, `Tidak bisa diperbaiki — unit dinonaktifkan: ${x}`); toast(`${code} dinonaktifkan.`); draw();
+      const x = await confirmBox({ title: `Unit ${code} tidak bisa diperbaiki?`, text: 'Unit dinonaktifkan sebagai <b>Rusak total</b> dan tidak dihitung lagi di stok. Riwayatnya tetap tersimpan.', ok: 'Nonaktifkan · Rusak total', danger: true, input: { label: 'Catatan (opsional)', required: false, placeholder: 'Contoh: frame patah di 3 ruas, suku cadang tidak tersedia' } });
+      if (x === false) return; DB.updateUnit(pid, code, { status: 'nonaktif', offReason: 'rusak', care: null, careInfo: null, notes: x || 'Rusak total' }, `Tidak bisa diperbaiki — dinonaktifkan · Rusak total${x ? ': ' + x : ''}`); toast(`${code} dinonaktifkan (Rusak total).`); draw();
     }
     if (r) {
       const [pid, code] = split(r.dataset.rutin);

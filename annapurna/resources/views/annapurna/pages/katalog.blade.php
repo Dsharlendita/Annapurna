@@ -1,14 +1,14 @@
 @extends('annapurna.layouts.app')
 
-@section('title', 'Katalog Alat Outdoor')
+@section('title', 'Sewa Alat Outdoor')
 @section('page', 'katalog')
 
 @section('content')
 <section class="page-hero">
   <div class="wrap">
-    <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span id="crumbNow">Produk Rental</span></div>
-    <h1 id="pageTitle">Katalog Alat Outdoor</h1>
-    <p id="pageSub">Pilih alat yang kamu butuhkan, cek ketersediaan tanggalnya, lalu sewa atau beli langsung dari sini.</p>
+    <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span id="crumbNow">Sewa Alat</span></div>
+    <h1 id="pageTitle">Sewa Alat Outdoor</h1>
+    <p id="pageSub">Pilih alat yang kamu butuhkan, cek ketersediaan tanggalnya, lalu sewa per malam, 3 hari, atau 5 hari.</p>
   </div>
 </section>
 
@@ -41,10 +41,10 @@
         <div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input class="input" id="q" placeholder="Cari nama alat…" aria-label="Cari nama alat"></div>
         <div class="right">
           <button class="btn btn-light btn-sm filter-open" id="openFilter"><i class="fa-solid fa-sliders"></i> Filter</button>
-          <div class="seg" role="tablist" aria-label="Jenis transaksi">
-            <button data-mode="rent" role="tab">Sewa</button>
-            <button data-mode="buy" role="tab">Beli</button>
-          </div>
+          <nav class="seg mode-links" aria-label="Pindah halaman">
+            <a href="{{ route('katalog') }}" data-mode="rent"><i class="fa-solid fa-campground"></i> Sewa</a>
+            <a href="{{ route('belanja') }}" data-mode="buy"><i class="fa-solid fa-bag-shopping"></i> Beli</a>
+          </nav>
           <select class="select" id="sort" style="width:auto;padding:9px 38px 9px 14px;font-size:13.5px;background-position:right 14px center" aria-label="Urutkan">
             <option value="pop">Paling populer</option>
             <option value="low">Harga terendah</option>

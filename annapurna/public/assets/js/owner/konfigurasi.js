@@ -9,6 +9,9 @@
     ['atribut', 'fa-ruler-combined', 'Atribut Barang', 'Ukuran, warna, kapasitas, dll. per kategori.'],
     ['status', 'fa-toggle-on', 'Kualitas Barang', 'Pilihan kualitas (Sangat Baik, Baik, …).'],
     ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, lama sewa, jam batas pengembalian.'],
+    ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
+    ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
+    ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis bila staff tidak aktif.'],
     ['batal', 'fa-rotate-left', 'Pembatalan & Refund', 'Batas H- dan persentase DP yang dikembalikan.'],
     ['denda', 'fa-gavel', 'Aturan Denda', 'Denda keterlambatan & kerusakan.'],
     ['stok', 'fa-soap', 'Perawatan & Stok', 'Wajib cuci, perawatan berkala, stok minimum.'],
@@ -89,23 +92,106 @@
         toast('Status barang disimpan.'); R.status();
       });
     },
+    /* ---------- Sesi staff: logout otomatis ---------- */
+    sesi() {
+      const cur = +(S().idleLogoutMin ?? 60);
+      $('#cfgMain').innerHTML = head('Sesi Staff', 'Mengatur kapan sesi staff berakhir otomatis bila tidak ada aktivitas.') + `<div class="panel"><form id="ssf" novalidate>
+        <div class="field" style="max-width:360px"><label>Logout otomatis setelah tidak aktif</label><select class="select" name="idle">${[[15, '15 menit'], [30, '30 menit'], [60, '60 menit (disarankan)'], [120, '2 jam'], [240, '4 jam'], [0, 'Tidak pernah']].map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <p class="muted" style="font-size:13px;margin:0"><i class="fa-solid fa-circle-info"></i> "Tidak aktif" = tidak ada klik, ketik, atau gulir di panel. Staff yang lupa menekan <b>Keluar</b> (misalnya langsung menutup browser) akan tercatat <b>Logout otomatis</b> dengan jam aktivitas terakhirnya, sehingga durasi kerja di Histori Login selalu terisi dan akun tidak terbuka terlalu lama di komputer toko.</p>
+      </form></div>${saveBar('saveSs')}`;
+      $('#saveSs').addEventListener('click', () => { const v = +$('#ssf').elements.idle.value; cfgSave(Object.assign({}, S(), { idleLogoutMin: v }), 'Mengubah logout otomatis staff', [['idleLogoutMin', 'Logout otomatis', (x) => (+x ? `${x} menit` : 'Tidak pernah')]]); });
+    },
+    /* ---------- Nota & struk kasir ---------- */
+    nota() {
+      const r = Object.assign({ paper: 58, footerRent: '', footerSale: '' }, S().receipt || {});
+      $('#cfgMain').innerHTML = head('Nota & Struk', 'Pengaturan struk yang dicetak dari menu Kasir (printer thermal) dan pesan penutup di struk.') + `<div class="panel"><form id="ntf" novalidate>
+        <h4 class="cfg-sub" style="margin-top:0">Ukuran kertas struk</h4>
+        <div class="pk-opts nt-paper">${[[58, '58 mm', 'Printer thermal kecil (paling umum, kertas 57–58 mm).'], [80, '80 mm', 'Printer thermal besar (kertas 79–80 mm), tulisan lebih lega.']].map(([v, t, d]) => `<label class="pk-opt"><input type="radio" name="paper" value="${v}" ${+r.paper === v ? 'checked' : ''}><span><i class="fa-solid fa-receipt"></i><b>${t}</b><small>${d}</small></span></label>`).join('')}</div>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0"><i class="fa-solid fa-circle-info"></i> Ukuran ini dipakai tombol <b>Cetak struk</b> di Kasir. Panjang kertas mengikuti isi struk secara otomatis. Di jendela cetak, pilih printer thermal dan atur <b>Margin: Tidak ada</b>.</p>
+        <h4 class="cfg-sub">Pesan penutup struk</h4>
+        <div class="field"><label>Struk sewa</label><textarea class="textarea" name="footerRent" rows="2" maxlength="200">${esc(r.footerRent)}</textarea></div>
+        <div class="field"><label>Struk penjualan</label><textarea class="textarea" name="footerSale" rows="2" maxlength="200">${esc(r.footerSale)}</textarea></div>
+      </form></div>${saveBar('saveNt')}`;
+      $('#saveNt').addEventListener('click', () => {
+        const E = $('#ntf').elements;
+        const next = Object.assign({}, S(), { receipt: { paper: +$('#ntf').querySelector('input[name="paper"]:checked').value, footerRent: E.footerRent.value.trim(), footerSale: E.footerSale.value.trim() } });
+        cfgSave(next, 'Mengubah pengaturan nota & struk', [['receipt', 'Struk kasir', (v) => (v ? `${v.paper} mm` : '-')]]);
+      });
+    },
+    /* ---------- Tampilan beranda: Produk Rental Terlaris ---------- */
+    beranda() {
+      const hb = Object.assign({ mode: 'gabungan', days: 90, count: 6, onlyAvailable: true }, S().homeBest || {});
+      const opt = (v, t, d) => `<label class="pk-opt"><input type="radio" name="mode" value="${v}" ${hb.mode === v ? 'checked' : ''}><span><i class="fa-solid ${v === 'otomatis' ? 'fa-chart-line' : v === 'manual' ? 'fa-hand-pointer' : 'fa-layer-group'}"></i><b>${t}</b><small>${d}</small></span></label>`;
+      const draw = () => {
+        const prev = DB.homeBest();
+        $('#hbPrev').innerHTML = prev.items.length ? prev.items.map((x, i) => `<li><span class="hb-n">${i + 1}</span><img src="${UI.asset(x.p.img)}" alt=""><span class="hb-name">${esc(x.p.name)}</span>${x.pinned ? '<span class="pill gray plain">Disematkan</span>' : ''}<span class="hb-c">${x.n ? `${x.n}× disewa` : 'cadangan (rating)'}</span></li>`).join('') : '<li class="muted">Belum ada barang yang memenuhi.</li>';
+      };
+      $('#cfgMain').innerHTML = head('Tampilan Beranda', 'Mengatur isi section "Produk Rental Terlaris" di beranda customer.') + `<div class="panel"><form id="hbf" novalidate>
+        <h4 class="cfg-sub" style="margin-top:0">Sumber data</h4>
+        <div class="pk-opts hb-modes">${opt('gabungan', 'Gabungan (disarankan)', 'Barang yang disematkan admin tampil dulu (maks. setengah), sisanya otomatis dari yang paling sering disewa.')}${opt('otomatis', 'Otomatis', 'Murni dari jumlah sewa. Judul: "Produk Rental Terlaris".')}${opt('manual', 'Manual', 'Hanya barang yang disematkan admin. Judul berubah jadi "Produk Pilihan Kami".')}</div>
+        <div class="grid-3" style="margin-top:14px">
+          <div class="field"><label>Periode hitung</label><select class="select" name="days">${[[30, '30 hari terakhir'], [90, '90 hari terakhir'], [0, 'Sepanjang waktu']].map(([v, l]) => `<option value="${v}" ${+hb.days === v ? 'selected' : ''}>${l}</option>`).join('')}</select><span class="hint">Booking yang dibatalkan tidak dihitung. Isi paket ikut dihitung per barang.</span></div>
+          <div class="field"><label>Jumlah barang tampil</label><select class="select" name="count">${[4, 6, 8].map((v) => `<option ${+hb.count === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        </div>
+        <label class="chk-line"><input type="checkbox" name="onlyAvailable" ${hb.onlyAvailable ? 'checked' : ''}> Sembunyikan barang yang stoknya habis hari ini</label>
+        <p class="muted" style="font-size:12.5px;margin-top:6px"><i class="fa-solid fa-circle-info"></i> Sematkan barang lewat <b>Data Barang → Edit → "Sematkan di beranda"</b>. 3 barang teratas otomatis mendapat label <b>Terlaris</b>. Kartu "Barang paling sering disewa" di dashboard admin memakai periode yang sama.</p>
+        <h4 class="cfg-sub">Pratinjau (dengan pengaturan tersimpan)</h4><ol class="hb-prev" id="hbPrev"></ol>
+      </form></div>${saveBar('saveHb')}
+      <div class="panel" style="margin-top:18px"><h4 class="cfg-sub" style="margin-top:0">Tata cara di beranda</h4>
+        <p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Langkah yang tampil di section "Cara Sewa | Cara Beli" beranda. Minimal 2, maksimal 5 langkah.</p>
+        <div class="seg biz-view" id="htTab"><button type="button" data-ht="sewa" class="active">Cara Sewa</button><button type="button" data-ht="beli">Cara Beli</button></div>
+        <div id="htList" class="ht-list"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn btn-light btn-sm" id="htAdd"><i class="fa-solid fa-plus"></i> Tambah langkah</button><button type="button" class="btn btn-ghost btn-sm" id="htReset"><i class="fa-solid fa-rotate-left"></i> Kembalikan ke bawaan</button></div>
+      </div>${saveBar('saveHt')}`;
+      draw();
+      $('#saveHb').addEventListener('click', () => {
+        const E = $('#hbf').elements;
+        const next = Object.assign({}, S(), { homeBest: { mode: $('#hbf').querySelector('input[name="mode"]:checked').value, days: +E.days.value, count: +E.count.value, onlyAvailable: E.onlyAvailable.checked } });
+        const fmt = (v) => (v ? `${{ gabungan: 'Gabungan', otomatis: 'Otomatis', manual: 'Manual' }[v.mode] || v.mode}, ${+v.days ? v.days + ' hari' : 'semua waktu'}, ${v.count} barang` : '-');
+        cfgSave(next, 'Mengubah tampilan beranda (Produk Rental Terlaris)', [['homeBest', 'Produk Rental Terlaris', fmt]]);
+      });
+      /* Editor tata cara sewa / beli */
+      const ICONS = [['fa-calendar-days', 'Kalender'], ['fa-magnifying-glass', 'Cari'], ['fa-bag-shopping', 'Tas belanja'], ['fa-cart-shopping', 'Keranjang'], ['fa-clipboard', 'Form'], ['fa-credit-card', 'Pembayaran'], ['fa-qrcode', 'QRIS'], ['fa-receipt', 'Nota'], ['fa-box', 'Paket/kemas'], ['fa-store', 'Toko'], ['fa-person-hiking', 'Pendaki'], ['fa-campground', 'Tenda'], ['fa-rotate-left', 'Kembali'], ['fa-circle-check', 'Selesai']];
+      const ht = JSON.parse(JSON.stringify(S().howto || {})); let htK = 'sewa';
+      const drawHt = () => {
+        $('#htList').innerHTML = (ht[htK] || []).map((x, i) => `<div class="ht-row"><span class="ht-n">${i + 1}</span>
+          <select class="select" data-hi="${i}" data-hf="icon">${ICONS.map(([v, l]) => `<option value="${v}" ${x.icon === v ? 'selected' : ''}>${l}</option>`).join('')}</select><i class="fa-solid ${esc(x.icon)} ht-ic"></i>
+          <input class="input" data-hi="${i}" data-hf="title" value="${esc(x.title)}" maxlength="30" placeholder="Judul langkah">
+          <input class="input ht-text" data-hi="${i}" data-hf="text" value="${esc(x.text)}" maxlength="120" placeholder="Penjelasan singkat">
+          <span class="ht-mv"><button type="button" class="icon-btn sm" data-hup="${i}" ${i ? '' : 'disabled'} aria-label="Naikkan"><i class="fa-solid fa-arrow-up"></i></button><button type="button" class="icon-btn sm" data-hdel="${i}" aria-label="Hapus" ${(ht[htK] || []).length <= 2 ? 'disabled' : ''}><i class="fa-solid fa-trash-can"></i></button></span></div>`).join('');
+        $('#htAdd').disabled = (ht[htK] || []).length >= 5;
+      };
+      drawHt();
+      $('#htTab').addEventListener('click', (e) => { const b = e.target.closest('[data-ht]'); if (!b) return; htK = b.dataset.ht; $$('#htTab [data-ht]').forEach((x) => x.classList.toggle('active', x === b)); drawHt(); });
+      $('#htList').addEventListener('input', (e) => { const i = e.target.dataset.hi; if (i == null) return; ht[htK][+i][e.target.dataset.hf] = e.target.value; if (e.target.dataset.hf === 'icon') drawHt(); });
+      $('#htList').addEventListener('change', (e) => { if (e.target.dataset.hf === 'icon') { ht[htK][+e.target.dataset.hi].icon = e.target.value; drawHt(); } });
+      $('#htList').addEventListener('click', (e) => { const u = e.target.closest('[data-hup]'); if (u) { const i = +u.dataset.hup; [ht[htK][i - 1], ht[htK][i]] = [ht[htK][i], ht[htK][i - 1]]; drawHt(); } const d = e.target.closest('[data-hdel]'); if (d) { ht[htK].splice(+d.dataset.hdel, 1); drawHt(); } });
+      $('#htAdd').addEventListener('click', () => { ht[htK].push({ icon: 'fa-circle-check', title: '', text: '' }); drawHt(); });
+      $('#htReset').addEventListener('click', () => { ht[htK] = JSON.parse(JSON.stringify(Ann.DEFAULT_SETTINGS.howto[htK])); drawHt(); toast('Langkah dikembalikan ke bawaan (belum disimpan).'); });
+      $('#saveHt').addEventListener('click', () => {
+        for (const k of ['sewa', 'beli']) { if ((ht[k] || []).some((x) => !String(x.title).trim() || !String(x.text).trim())) { toast(`Lengkapi judul & penjelasan semua langkah ${k === 'sewa' ? 'Cara Sewa' : 'Cara Beli'}.`, 'err'); return; } }
+        const fmt = (v) => (v || []).map((x, i) => `${i + 1}. ${x.title}`).join(' · ');
+        cfgSave(Object.assign({}, S(), { howto: { sewa: ht.sewa, beli: ht.beli } }), 'Mengubah tata cara sewa/beli di beranda', [['howto', 'Tata cara', (v) => `Sewa: ${fmt(v && v.sewa)} | Beli: ${fmt(v && v.beli)}`]]);
+      });
+    },
     /* ---------- Aturan rental ---------- */
     rental() {
       const st = S();
       $('#cfgMain').innerHTML = head('Aturan Rental', 'Dipakai otomatis saat customer booking, di keranjang, nota, dan halaman Tentang Kami.') + `<div class="panel"><form id="rf" novalidate>
         <div class="grid-3">
           <div class="field"><label>Minimal DP (%)</label><input class="input" type="number" min="10" max="100" name="dpPercent" value="${st.dpPercent}"><span class="hint">Dibayar customer untuk mengunci booking.</span></div>
-          <div class="field"><label>Maksimal lama sewa (hari)</label><input class="input" type="number" min="1" max="60" name="maxRentDays" value="${st.maxRentDays || 14}"></div>
-          <div class="field"><label>Jam batas pengembalian</label><input class="input" type="time" name="returnTime" value="${st.returnTime || '18:00'}"></div>
+          <div class="field"><label>Batas waktu bayar DP (jam)</label><input class="input" type="number" min="1" max="48" name="payWindowHours" value="${st.payWindowHours || 1}"><span class="hint">Lewat batas ini, booking yang belum dibayar dibatalkan otomatis.</span></div>
+          <div class="field"><label>Maksimal lama sewa (malam)</label><input class="input" type="number" min="1" max="60" name="maxRentDays" value="${st.maxRentDays || 14}"></div>
+          <div class="field"><label>Jam batas pengembalian</label><input class="input" type="time" name="returnTime" value="${st.returnTime || '22:00'}"><span class="hint">Sesuai price list: jam tutup toko 22.00 WIB.</span></div>
         </div>
         <label class="chk-line" style="margin-top:0"><input type="checkbox" name="lateAfterReturnTime" ${st.lateAfterReturnTime ? 'checked' : ''}> Barang yang kembali di hari terakhir <b>setelah jam batas</b> dihitung terlambat 1 hari</label>
         <h4 class="cfg-sub">Ketentuan rental (tampil di website)</h4>${listEditor('terms', st.rentalTerms, 'Contoh: Penyewa wajib menyerahkan KTP asli')}
       </form></div>${saveBar('saveRental')}`;
       $('#saveRental').addEventListener('click', () => {
         const F = $('#rf'), E = F.elements;
-        if (!validate(F, { dpPercent: (v) => (!(+v >= 10 && +v <= 100) ? 'Isi 10–100.' : ''), maxRentDays: (v) => (!(+v >= 1) ? 'Minimal 1.' : ''), returnTime: (v) => (!v ? 'Isi jam.' : '') })) return;
-        const next = Object.assign({}, S(), { dpPercent: +E.dpPercent.value, maxRentDays: +E.maxRentDays.value, returnTime: E.returnTime.value, lateAfterReturnTime: E.lateAfterReturnTime.checked, rentalTerms: readLines('terms') });
-        cfgSave(next, 'Mengubah aturan rental', [['dpPercent', 'Minimal DP (%)'], ['maxRentDays', 'Maksimal lama sewa (hari)'], ['returnTime', 'Jam batas pengembalian'], ['lateAfterReturnTime', 'Terlambat bila lewat jam batas', (v) => (v ? 'Ya' : 'Tidak')], ['rentalTerms', 'Ketentuan rental', (v) => `${v.length} poin`]]);
+        if (!validate(F, { dpPercent: (v) => (!(+v >= 10 && +v <= 100) ? 'Isi 10–100.' : ''), payWindowHours: (v) => (!(+v >= 1 && +v <= 48) ? 'Isi 1–48 jam.' : ''), maxRentDays: (v) => (!(+v >= 1) ? 'Minimal 1.' : ''), returnTime: (v) => (!v ? 'Isi jam.' : '') })) return;
+        const next = Object.assign({}, S(), { dpPercent: +E.dpPercent.value, payWindowHours: +E.payWindowHours.value, maxRentDays: +E.maxRentDays.value, returnTime: E.returnTime.value, lateAfterReturnTime: E.lateAfterReturnTime.checked, rentalTerms: readLines('terms') });
+        cfgSave(next, 'Mengubah aturan rental', [['dpPercent', 'Minimal DP (%)'], ['payWindowHours', 'Batas waktu bayar DP (jam)'], ['maxRentDays', 'Maksimal lama sewa (hari)'], ['returnTime', 'Jam batas pengembalian'], ['lateAfterReturnTime', 'Terlambat bila lewat jam batas', (v) => (v ? 'Ya' : 'Tidak')], ['rentalTerms', 'Ketentuan rental', (v) => `${v.length} poin`]]);
       });
     },
     batal() {
@@ -128,18 +214,18 @@
       const st = S();
       $('#cfgMain').innerHTML = head('Aturan Denda', 'Dihitung otomatis saat staff memproses pengembalian barang.') + `<div class="panel"><form id="df" novalidate>
         <div class="field"><label>Cara menghitung denda keterlambatan</label><div class="seg-pick">
-          <label><input type="radio" name="lateFeeMode" value="persen" ${st.lateFeeMode !== 'nominal' ? 'checked' : ''}><span><b>Persentase harga sewa</b><small>Contoh 100% = denda sama dengan harga sewa per hari</small></span></label>
-          <label><input type="radio" name="lateFeeMode" value="nominal" ${st.lateFeeMode === 'nominal' ? 'checked' : ''}><span><b>Nominal tetap</b><small>Contoh Rp20.000 per barang per hari</small></span></label></div></div>
+          <label><input type="radio" name="lateFeeMode" value="persen" ${st.lateFeeMode !== 'nominal' ? 'checked' : ''}><span><b>Persentase harga sewa</b><small>Contoh 100% = denda sama dengan harga sewa per malam</small></span></label>
+          <label><input type="radio" name="lateFeeMode" value="nominal" ${st.lateFeeMode === 'nominal' ? 'checked' : ''}><span><b>Nominal tetap</b><small>Contoh Rp20.000 per barang per malam</small></span></label></div></div>
         <div class="grid-2">
-          <div class="field" id="fPct"><label>Persentase (% harga sewa / hari)</label><input class="input" type="number" min="0" max="300" name="lateFeePercent" value="${st.lateFeePercent}"></div>
-          <div class="field" id="fAmt"><label>Nominal (Rp / barang / hari)</label><input class="input" type="number" min="0" step="1000" name="lateFeeAmount" value="${st.lateFeeAmount || 0}"></div>
+          <div class="field" id="fPct"><label>Persentase (% harga sewa / malam)</label><input class="input" type="number" min="0" max="300" name="lateFeePercent" value="${st.lateFeePercent}"></div>
+          <div class="field" id="fAmt"><label>Nominal (Rp / barang / malam)</label><input class="input" type="number" min="0" step="1000" name="lateFeeAmount" value="${st.lateFeeAmount || 0}"></div>
         </div>
         <div class="notice green" id="dPrev"></div>
         <h4 class="cfg-sub">Aturan kerusakan & kehilangan</h4>${listEditor('dmg', st.damageRules || [], 'Contoh: Hilang = mengganti 100% harga barang')}
       </form></div>${saveBar('saveDenda')}`;
       const F = $('#df'), E = F.elements;
       const prev = () => { const nom = E.lateFeeMode.value === 'nominal'; $('#fPct').hidden = nom; $('#fAmt').hidden = !nom;
-        $('#dPrev').innerHTML = `<i class="fa-solid fa-calculator"></i><div>Contoh: menyewa 2 barang @ ${rupiah(50000)}/hari, terlambat 1 hari → denda <strong>${rupiah(nom ? (+E.lateFeeAmount.value || 0) * 2 : 100000 * (+E.lateFeePercent.value || 0) / 100)}</strong>.</div>`; };
+        $('#dPrev').innerHTML = `<i class="fa-solid fa-calculator"></i><div>Contoh: menyewa 2 barang @ ${rupiah(50000)}/malam, terlambat 1 malam (lewat jam batas) → denda <strong>${rupiah(nom ? (+E.lateFeeAmount.value || 0) * 2 : 100000 * (+E.lateFeePercent.value || 0) / 100)}</strong>.</div>`; };
       F.addEventListener('input', prev); prev();
       $('#saveDenda').addEventListener('click', () => {
         cfgSave(Object.assign({}, S(), { lateFeeMode: E.lateFeeMode.value, lateFeePercent: +E.lateFeePercent.value || 0, lateFeeAmount: +E.lateFeeAmount.value || 0, damageRules: readLines('dmg') }), 'Mengubah aturan denda',
@@ -244,10 +330,10 @@
     const isNew = !c; c = c || { id: '', name: '', img: 'assets/img/categories/tenda.jpg', active: true }; let img = c.img;
     const m = modal({ title: isNew ? 'Tambah kategori' : 'Edit kategori', body: `<form id="cf" novalidate>
       <div class="field"><label>Nama kategori</label><input class="input" name="cname" value="${esc(c.name)}" placeholder="Contoh: Peralatan Hiking"></div>
-      <div class="field"><label>Gambar kategori</label><div style="display:flex;gap:12px;align-items:center"><img id="cPrev" src="${asset(img)}" style="width:90px;height:70px;object-fit:cover;border-radius:10px"><label class="btn btn-light btn-sm" style="cursor:pointer"><i class="fa-solid fa-upload"></i> Ganti gambar<input type="file" accept="image/*" id="cImg" hidden></label></div></div>
+      <div class="field"><label>Gambar kategori</label><div style="display:flex;gap:12px;align-items:center"><img id="cPrev" src="${asset(img)}" style="width:72px;height:72px;object-fit:cover;border-radius:10px"><label class="btn btn-light btn-sm" style="cursor:pointer"><i class="fa-solid fa-upload"></i> Ganti gambar<input type="file" accept="image/*" id="cImg" hidden></label></div></div>
       <p class="muted" style="font-size:12.5px">Atribut untuk kategori ini diatur di bagian <b>Atribut Barang</b>.</p></form>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="cSave">Simpan</button>' });
-    m.$('#cImg').addEventListener('change', async (e) => { const f = e.target.files[0]; if (!f) return; img = await fileToDataURL(f, 500); m.$('#cPrev').src = img; });
+    m.$('#cImg').addEventListener('change', async (e) => { const f = e.target.files[0]; if (!f) return; e.target.value = ''; const out = await UI.cropImage(f, { aspect: 1, size: 600, title: 'Atur gambar kategori' }); if (!out) return; img = out; m.$('#cPrev').src = img; });
     m.$('#cSave').addEventListener('click', () => {
       const F = m.$('#cf'); if (!validate(F, { cname: (v) => (v.length < 3 ? 'Nama minimal 3 karakter.' : '') })) return;
       const name = F.elements.cname.value.trim();
@@ -263,14 +349,20 @@
     const usedVals = (v) => P.filter((p) => (p.variant && p.variant.attrId === a.id && p.variant.options.some((o) => o.name === v)) || (p.attrs && p.attrs[a.id] === v)).length;
     const m = modal({ title: isNew ? 'Tambah atribut barang' : `Edit atribut · ${esc(a.name)}`, size: 'lg', body: `<form id="af" novalidate>
       <div class="grid-2"><div class="field"><label>Nama atribut</label><input class="input" name="aname" value="${esc(a.name)}" placeholder="Contoh: Ukuran, Warna, Kapasitas"></div>
-      <div class="field"><label>Tipe</label><select class="select" name="atype">${Object.entries(TYPE_LABEL).map(([k, l]) => `<option value="${k}" ${a.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      <div class="field"><label>Tipe</label><select class="select" name="atype">${Object.entries(TYPE_LABEL).map(([k, l]) => `<option value="${k}" ${a.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select><span class="hint type-hint" id="typeHint"></span></div></div>
       <div class="field" id="valF"><label>Nilai pilihan</label><div class="tag-input" id="tags"></div><input class="input" id="tagIn" placeholder="Ketik nilai lalu Enter (contoh: S, M, L, XL)"><span class="hint">Nilai yang sudah dipakai barang tidak bisa dikeluarkan.</span></div>
       <div class="field"><label>Berlaku untuk kategori</label><div class="cat-checks">${cats.map((c) => `<label><input type="checkbox" value="${c.id}" ${(a.cats || []).includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('')}</div><span class="hint">Tidak dicentang semua = berlaku untuk semua kategori.</span></div>
-      <label class="chk-line" id="varF"><input type="checkbox" name="avariant" ${a.variant ? 'checked' : ''}> <span><b>Jadikan varian stok</b> — stok dihitung per nilai dan customer wajib memilih saat menyewa/membeli</span></label>
-      <label class="chk-line"><input type="checkbox" name="areq" ${a.required ? 'checked' : ''}> Wajib diisi staff saat menambah / mengedit barang di kategori tersebut</label>
+      <label class="chk-line" id="varF"><input type="checkbox" name="avariant" ${a.variant ? 'checked' : ''}> <span><b>Jadikan varian stok</b> — stok dihitung per nilai dan customer wajib memilih saat menyewa/membeli<small class="chk-help">Centang bila tiap nilai adalah unit fisik berbeda yang dipilih customer, mis. ukuran sepatu 39–43 atau ukuran jaket M/L/XL. Jangan dicentang untuk keterangan saja seperti kapasitas tenda.</small></span></label>
+      <label class="chk-line"><input type="checkbox" name="areq" ${a.required ? 'checked' : ''}> <span>Wajib diisi staff saat menambah / mengedit barang di kategori tersebut<small class="chk-help">Barang tidak bisa disimpan sebelum atribut ini diisi. Centang hanya bila semua barang di kategori itu pasti punya nilai ini (mis. ukuran sepatu di Footwear), bukan untuk kategori campuran seperti Fashion yang berisi topi & kacamata.</small></span></label>
       </form>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="aSave"><i class="fa-solid fa-floppy-disk"></i> Simpan atribut</button>' });
     const F = m.$('#af'), E = F.elements;
+    const TYPE_HELP = {
+      pilihan: '<b>Pilihan:</b> nilai dipilih dari daftar yang kamu buat di bawah, mis. S, M, L atau 2 orang, 4 orang. Penulisan jadi seragam dan bisa dijadikan varian stok.',
+      teks: '<b>Teks bebas:</b> staff mengetik sendiri isinya per barang, mis. Bahan "Nylon ripstop 420D". Cocok untuk keterangan yang berbeda-beda.',
+      angka: '<b>Angka:</b> hanya boleh diisi angka, mis. Berat 1,2 (kg) atau Powerbank 10000 (mAh). Tidak ada salah ketik huruf.',
+    };
     const drawTags = () => {
+      m.$('#typeHint').innerHTML = TYPE_HELP[E.atype.value] || '';
       const pil = E.atype.value === 'pilihan'; m.$('#valF').hidden = !pil; m.$('#varF').hidden = !pil; if (!pil) E.avariant.checked = false;
       m.$('#tags').innerHTML = a.values.map((v, i) => { const u = a.id ? usedVals(v) : 0; return `<span class="tag">${esc(v)}${u ? `<small>${u}</small>` : `<button type="button" data-tr="${i}" aria-label="Keluarkan ${esc(v)}">×</button>`}</span>`; }).join('') || '<span class="muted" style="font-size:12.5px">Belum ada nilai.</span>';
     };

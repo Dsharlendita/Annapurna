@@ -7,26 +7,29 @@
   const inR = (iso, f, t) => { const d = D.day(iso || ''); return d && d >= f && d <= t; };
   const typeLabel = (k) => (AUDIT_TYPES[k] || { label: k }).label;
   const roleLabel = (r) => DB.ROLE_LABEL[r] || r;
+  /* Kode internal pesanan (RNT-…/ORD-…) ditampilkan sebagai nomor nota (001/X/2026) */
+  const refNo = (r) => { if (!r) return '-'; const x = DB.booking(r) || DB.sale(r); return x ? NO(x) : r; };
+  const refText = (t) => String(t || '').replace(/\b(RNT|ORD)-\d+\b/g, (m) => refNo(m));
   const durasi = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} mnt` : `${Math.floor(m / 60)} jam ${m % 60} mnt`; };
 
   const R = {
     rental(f, t) {
-      const L = DB.bookings().filter((b) => inR(b.start, f, t)).sort((a, b) => a.start.localeCompare(b.start));
+      const L = DB.bookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
       const ok = L.filter((b) => b.status !== 'dibatalkan');
       return { title: 'Laporan Rental', note: 'Berdasarkan tanggal mulai sewa.',
         sum: [['Jumlah booking', L.length], ['Dibatalkan', L.length - ok.length], ['Nilai sewa (tidak termasuk batal)', rupiah(ok.reduce((s, b) => s + b.total, 0))]],
         cols: ['No.', 'Customer', 'Barang', 'Periode', 'Hari', 'Total', 'Dibayar', 'Status'], num: [4, 5, 6], money: [5, 6],
-        rows: L.map((b) => [b.id, b.customer.name, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.days, b.total, Rules.paidTotal(b), STATUS.rental[b.status].label]),
+        rows: L.map((b) => [NO(b), b.customer.name, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.days, b.total, Rules.paidTotal(b), STATUS.rental[b.status].label]),
         foot: ['Total', '', '', '', ok.reduce((s, b) => s + b.days, 0), ok.reduce((s, b) => s + b.total, 0), L.reduce((s, b) => s + Rules.paidTotal(b), 0), ''] };
     },
     penjualan(f, t) {
-      const L = DB.sales().filter((s) => inR(s.createdAt, f, t)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      const L = DB.sales().filter((s) => inR(s.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const ok = L.filter((s) => s.status !== 'dibatalkan');
       const qty = ok.reduce((s, x) => s + x.items.reduce((a, i) => a + i.qty, 0), 0);
       return { title: 'Laporan Penjualan', note: 'Berdasarkan tanggal pesanan.',
         sum: [['Jumlah pesanan', L.length], ['Barang terjual', qty + ' unit'], ['Omzet', rupiah(ok.filter((s) => s.paymentStatus === 'paid').reduce((a, s) => a + s.total, 0))]],
         cols: ['No.', 'Tanggal', 'Customer', 'Barang', 'Qty', 'Total', 'Status'], num: [4, 5], money: [5],
-        rows: L.map((s) => [s.id, D.fmtDate(s.createdAt), s.customer.name, s.items.map((i) => `${i.qty}× ${i.name}`).join(', '), s.items.reduce((a, i) => a + i.qty, 0), s.total, STATUS.sale[s.status].label]),
+        rows: L.map((s) => [NO(s), D.fmtDate(s.createdAt), s.customer.name, s.items.map((i) => `${i.qty}× ${i.name}`).join(', '), s.items.reduce((a, i) => a + i.qty, 0), s.total, STATUS.sale[s.status].label]),
         foot: ['Total', '', '', '', qty, ok.reduce((a, s) => a + s.total, 0), ''] };
     },
     stok(f, t) {
@@ -39,39 +42,39 @@
         rows: P.map((p) => [p.id, p.name, (cats.find((c) => c.id === p.cat) || {}).name || p.cat, p.cond, p.active === false ? 'Tidak Aktif' : 'Aktif', p.stock, Rules.availableOn(p.id, T()), Rules.rentedNow(p.id), times(p.id), sold(p.id)]) };
     },
     pengembalian(f, t) {
-      const L = DB.bookings().filter((b) => b.ret && inR(b.ret.at, f, t)).sort((a, b) => a.ret.at.localeCompare(b.ret.at));
+      const L = DB.bookings().filter((b) => b.ret && inR(b.ret.at, f, t)).sort((a, b) => b.ret.at.localeCompare(a.ret.at));
       return { title: 'Laporan Pengembalian', note: 'Berdasarkan tanggal barang kembali.',
         sum: [['Pengembalian', L.length], ['Terlambat', L.filter((b) => b.ret.lateDays > 0).length], ['Kondisi bermasalah', L.filter((b) => /Rusak|Hilang/.test(b.ret.cond)).length]],
         cols: ['No.', 'Customer', 'Barang', 'Jadwal kembali', 'Tanggal kembali', 'Terlambat', 'Kondisi', 'Petugas'], num: [5], money: [],
-        rows: L.map((b) => [b.id, b.customer.name, Admin.itemsText(b), D.fmtDate(b.end), D.fmtDateTime(b.ret.at), b.ret.lateDays + ' hari', b.ret.cond, b.ret.by]) };
+        rows: L.map((b) => [NO(b), b.customer.name, Admin.itemsText(b), D.fmtDate(b.end), D.fmtDateTime(b.ret.at), b.ret.lateDays + ' hari', b.ret.cond, b.ret.by]) };
     },
     denda(f, t) {
-      const L = DB.bookings().filter((b) => b.ret && b.ret.fine && inR(b.ret.at, f, t));
+      const L = DB.bookings().filter((b) => b.ret && b.ret.fine && inR(b.ret.at, f, t)).sort((a, b) => b.ret.at.localeCompare(a.ret.at));
       const lateOf = (b) => (b.ret.lateFee != null ? b.ret.lateFee : b.ret.fine - (b.ret.damageFee || 0));
       const late = L.reduce((s, b) => s + lateOf(b), 0), dmg = L.reduce((s, b) => s + (b.ret.damageFee || 0), 0);
       return { title: 'Laporan Kerusakan & Denda', note: 'Denda keterlambatan dan biaya kerusakan dari pengembalian barang.',
         sum: [['Kasus', L.length], ['Denda keterlambatan', rupiah(late)], ['Biaya kerusakan', rupiah(dmg)]],
         cols: ['No.', 'Tanggal', 'Customer', 'Kondisi', 'Terlambat', 'Denda telat', 'Biaya rusak', 'Total', 'Catatan'], num: [4, 5, 6, 7], money: [5, 6, 7],
-        rows: L.map((b) => [b.id, D.fmtDate(b.ret.at), b.customer.name, b.ret.cond, b.ret.lateDays + ' hari', lateOf(b), b.ret.damageFee || 0, b.ret.fine, b.ret.note || '-']),
+        rows: L.map((b) => [NO(b), D.fmtDate(b.ret.at), b.customer.name, b.ret.cond, b.ret.lateDays + ' hari', lateOf(b), b.ret.damageFee || 0, b.ret.fine, b.ret.note || '-']),
         foot: ['Total', '', '', '', '', late, dmg, late + dmg, ''] };
     },
     keuangan(f, t) {
       const L = Admin.ledger(f, t);
       const when = (x) => (String(x.date).length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date));
       const rows = [...L.income.map((x) => [x.date, when(x), 'Pemasukan', x.cat, x.ref, x.desc, x.amount, '']), ...L.expense.map((x) => [x.date, when(x), 'Pengeluaran', x.cat, x.ref, x.desc, '', x.amount])]
-        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map((r) => r.slice(1));
+        .sort((a, b) => String(b[0]).localeCompare(String(a[0]))).map((r) => r.slice(1));
       return { title: 'Laporan Keuangan', note: 'Rekap pemasukan dan pengeluaran. Transaksi yang dibatalkan tidak dihitung.',
         sum: [['Pemasukan', rupiah(L.totalIn)], ['Pengeluaran', rupiah(L.totalOut)], ['Selisih', rupiah(L.totalIn - L.totalOut)]],
         cols: ['Tanggal', 'Jenis', 'Kategori', 'Ref', 'Keterangan', 'Masuk', 'Keluar'], num: [5, 6],
         rows, foot: ['Total', '', '', '', '', L.totalIn, L.totalOut] };
     },
     aktivitas(f, t) {
-      const L = DB.audits().filter((a) => a.type !== 'akses' && inR(a.at, f, t));
+      const L = DB.audits().filter((a) => a.type !== 'akses' && inR(a.at, f, t)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
       const people = new Set(L.filter((a) => a.role !== 'system').map((a) => a.userId));
       return { title: 'Laporan Aktivitas Staff', note: 'Dicatat otomatis oleh sistem (tanpa input manual). Tidak termasuk riwayat membuka halaman.',
         sum: [['Total aktivitas', L.length], ['Staff terlibat', people.size], ['Perubahan data', L.filter((a) => (AUDIT_TYPES[a.type] || {}).group === 'data').length], ['Aktivitas transaksi', L.filter((a) => (AUDIT_TYPES[a.type] || {}).group === 'transaksi').length]],
-        cols: ['Waktu', 'Staff', 'Role', 'Jenis', 'Aktivitas', 'Data', 'Perubahan'], num: [], money: [],
-        rows: L.map((a) => [D.fmtDateTime(a.at), a.userName, roleLabel(a.role), typeLabel(a.type), a.action, a.ref || '-', (a.changes || []).map((c) => `${c.field}: ${c.from || '—'} → ${c.to || '—'}`).join('; ') || '-']) };
+        cols: ['Waktu', 'Staff', 'Role', 'Jenis', 'Aktivitas', 'No. Referensi', 'Perubahan'], num: [], money: [],
+        rows: L.map((a) => [D.fmtDateTime(a.at), a.userName, roleLabel(a.role), typeLabel(a.type), refText(a.action), refNo(a.ref), (a.changes || []).map((c) => `${c.field}: ${c.from || '—'} → ${c.to || '—'}`).join('; ') || '-']) };
     },
     login(f, t) {
       const all = DB.audits().filter((a) => ['login', 'logout', 'login_gagal'].includes(a.type));
@@ -81,7 +84,11 @@
         if (a.type === 'login') {
           const out = all.slice(i + 1).find((x) => x.userId === a.userId && ['login', 'logout'].includes(x.type));
           const lo = out && out.type === 'logout' ? out : null;
-          rows.push({ at: a.at, r: [a.userName, roleLabel(a.role), D.fmtDateTime(a.at), lo ? D.fmtDateTime(lo.at) : '-', lo ? durasi(new Date(lo.at) - new Date(a.at)) : '-', lo ? 'Logout normal' : out ? 'Tidak logout (sesi ditimpa login berikutnya)' : 'Sesi masih berjalan'], dur: lo ? new Date(lo.at) - new Date(a.at) : 0 });
+          /* Tidak menekan Keluar: jam keluar diperkirakan dari aktivitas terakhir staff di sesi itu */
+          const until = out ? out.at : '9999';
+          const lastAct = !lo && out ? DB.audits().filter((x) => x.userId === a.userId && x.at > a.at && x.at < until && !['login', 'logout', 'login_gagal'].includes(x.type)).map((x) => x.at).sort().pop() : null;
+          const estEnd = lastAct || null;
+          rows.push({ at: a.at, dur: lo ? new Date(lo.at) - new Date(a.at) : 0, r: [a.userName, roleLabel(a.role), D.fmtDateTime(a.at), lo ? D.fmtDateTime(lo.at) : estEnd ? `± ${D.fmtDateTime(estEnd)} (aktivitas terakhir)` : '-', lo ? durasi(new Date(lo.at) - new Date(a.at)) : estEnd ? `± ${durasi(new Date(estEnd) - new Date(a.at))}` : '-', lo ? (lo.auto ? `Logout otomatis (tidak aktif ${lo.idleMin || 60} menit)` : 'Logout normal') : out ? (estEnd ? 'Tidak menekan Keluar (browser ditutup) · jam keluar diperkirakan' : 'Tidak menekan Keluar & tidak ada aktivitas') : 'Sesi masih berjalan'], dur: lo ? new Date(lo.at) - new Date(a.at) : 0 });
         }
         if (a.type === 'login_gagal') rows.push({ at: a.at, r: [a.userName, roleLabel(a.role), D.fmtDateTime(a.at), '-', '-', a.action], fail: 1 });
       });
@@ -89,7 +96,7 @@
       return { title: 'Histori Login Staff', note: 'Pasangan login–logout setiap staff beserta durasi sesi dan percobaan login yang gagal.',
         sum: [['Jumlah login', ok.length], ['Login gagal / ditolak', rows.length - ok.length], ['Rata-rata durasi sesi', withDur.length ? durasi(withDur.reduce((s, x) => s + x.dur, 0) / withDur.length) : '-']],
         cols: ['Staff', 'Role', 'Login', 'Logout', 'Durasi', 'Keterangan'], num: [], money: [],
-        rows: rows.map((x) => x.r) };
+        rows: rows.slice().reverse().map((x) => x.r) };
     },
   };
   const TYPES = [
@@ -123,7 +130,7 @@
     return {
       rental: B.filter((b) => inR(b.start, f, t) && b.status !== 'dibatalkan').length,
       penjualan: S.filter((s) => inR(s.createdAt, f, t) && s.status !== 'dibatalkan').length,
-      pemasukan: L.totalIn, pengeluaran: L.totalOut,
+      pemasukan: L.totalIn, pengeluaran: L.totalOut, byLine: L.by,
       keluar: B.filter((b) => b.out && inR(b.out.at, f, t)).length,
       kembali: B.filter((b) => b.ret && inR(b.ret.at, f, t)).length,
       batal: B.filter((b) => b.cancel && inR(b.cancel.at, f, t)).length + S.filter((s) => s.status === 'dibatalkan' && inR(s.createdAt, f, t)).length,
@@ -141,25 +148,48 @@
     const mail = DB.sendMail({ kind: 'monthly_report', to: to.join(', '), subject: `Rekap Laporan Annapurna Adventure – ${monthName(period)}`, data: { period, summary, folder: folderName(period), files: MONTHLY.map(([, l]) => fileName(l, period)) } });
     const a = { period, createdAt: D.nowStamp(), by: opts.auto ? 'Sistem (terjadwal)' : me.name, auto: !!opts.auto, version: old ? (old.version || 1) + 1 : 1,
       path: [ig.driveRoot || 'ANNAPURNA ADVENTURE', `TAHUN ${period.slice(0, 4)}`, folderName(period)], files: MONTHLY.map(([k, l]) => ({ type: k, name: fileName(l, period) })), summary, mailId: mail.id, mailTo: mail.to };
+    /* Snapshot isi setiap file laporan disimpan bersama arsip, agar tetap bisa diunduh walau data mentah sudah dibersihkan */
+    const [pf, pt] = monthRange(period);
+    try { a.snap = Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](pf, pt)))])); } catch (e) { /* abaikan */ }
+    if (old && old.purged) { a.snap = old.snap || a.snap; a.purged = old.purged; a.summary = old.summary; }
     DB.saveArchive(a);
     DB.audit(Object.assign(opts.auto ? { system: true } : {}, { type: 'laporan', action: `${old ? 'Memperbarui' : 'Membuat'} rekap laporan ${monthName(period)}, disimpan ke Google Drive & dikirim ke ${mail.to}`, ref: period, changes: [{ field: 'Folder', from: '', to: a.path.join(' / ') }, { field: 'File', from: '', to: `${a.files.length} PDF` }] }));
     return a;
   }
 
+  /* Simpan isi laporan ke arsip (tanpa mengirim email) — untuk arsip lama yang dibuat sebelum ada snapshot */
+  function snapshot(period) {
+    const a = DB.archive(period); if (!a || a.snap) return a;
+    const [f, t] = monthRange(period);
+    a.snap = Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](f, t)))])); a.summary = Object.assign({}, a.summary, { byLine: monthSummary(period).byLine });
+    DB.saveArchive(a); return a;
+  }
   function autoMonthly() {
     const ig = integ(); if (!ig.autoMonthly || !ig.driveConnected) return;
     const now = new Date(); const day = now.getDate(); const [h, m] = String(ig.sendTime || '06:00').split(':').map(Number);
     if (day < (ig.sendDay || 1) || (day === (ig.sendDay || 1) && now.getHours() * 60 + now.getMinutes() < h * 60 + m)) return;
     const period = prevPeriod();
     if (DB.archive(period)) return;
-    generateMonthly(period, { auto: true });
-    setTimeout(() => toast(`Rekap laporan ${monthName(period)} dibuat otomatis, disimpan ke Google Drive, dan dikirim ke ${ig.ownerEmail}.`), 600);
+    const a = generateMonthly(period, { auto: true });
+    /* Pembersihan otomatis setelah rekap tersimpan & email terkirim (bisa dimatikan owner) */
+    let cl = null; const mode = DB.cleanupMode();
+    if (a && a.mailId && mode === 'auto') cl = DB.cleanupArchived(period);
+    /* Mode persetujuan: data TIDAK dihapus, owner diberi tahu & diminta menyetujui */
+    if (a && a.mailId && mode === 'approve') {
+      const pv = DB.cleanupArchived(period, true);
+      if (pv.ok && pv.total) {
+        const req = DB.cleanupReq(); req.snoozeUntil = ''; if (req.skipUntil && req.skipUntil <= D.today()) req.skipUntil = ''; DB.setCleanupReq(req);
+        DB.users().filter((u) => u.role === 'owner').forEach((u) => DB.notify(u.email, 'Pembersihan data menunggu persetujuan', `Rekap ${monthName(period)} sudah tersimpan di Google Drive. ${pv.total} data lama siap dibersihkan agar website tetap ringan. Data tidak akan dihapus sebelum kamu menyetujui.`, 'owner/integrasi#bersih'));
+      }
+    }
+    setTimeout(() => toast(`Rekap laporan ${monthName(period)} dibuat otomatis, disimpan ke Google Drive, dan dikirim ke ${ig.ownerEmail}.${cl && cl.ok && cl.total ? ` ${cl.total} data lama dibersihkan.` : ''}`), 600);
   }
 
   async function downloadArchiveFile(period, type) {
     const [f, t] = monthRange(period);
     const item = MONTHLY.find((x) => x[0] === type);
-    const cur = R[type](f, t);
+    const arc = DB.archive(period);
+    const cur = (arc && arc.snap && arc.snap[type]) || R[type](f, t);
     const spec = toSpec(cur, fileName(item[1], period).replace(/\.pdf$/, ''), `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)} · ${cur.note}`);
     await UI.exportPDF(spec);
     DB.audit({ type: 'laporan', action: `Mengunduh ${fileName(item[1], period)} dari arsip Google Drive`, ref: period });
@@ -204,5 +234,5 @@
     UI.modal({ title: 'Pratinjau email', size: 'lg', body: mailHtml(m), foot: `<a class="btn btn-light" href="${mailto}"><i class="fa-regular fa-envelope"></i> Buka di aplikasi email</a><button class="btn btn-primary" data-close>Tutup</button>` });
   }
 
-  window.Reports = { R, TYPES, build: (type, f, t) => R[type](f, t), toSpec, MONTHLY, monthName, monthRange, prevPeriod, folderName, fileName, monthSummary, generateMonthly, autoMonthly, downloadArchiveFile, mailHtml, mailText, mailModal };
+  window.Reports = { refNo, refText, R, TYPES, build: (type, f, t) => R[type](f, t), toSpec, MONTHLY, monthName, monthRange, prevPeriod, folderName, fileName, monthSummary, generateMonthly, autoMonthly, snapshot, downloadArchiveFile, mailHtml, mailText, mailModal };
 })();

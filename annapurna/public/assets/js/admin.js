@@ -3,7 +3,7 @@
   const { $, $$, esc, asset, url, toast, modal, confirmBox, pill } = window.UI;
 
   const me = DB.session();
-  const rec = me && (DB.user(me.id) || (me.email && DB.user(me.email)) || me);
+  const rec = me && ((me.email && DB.user(me.email)) || DB.user(me.id) || me);
   const basePath = new URL(UI.BASE || '/', location.href).pathname;
   const here = location.pathname.slice(basePath.length) + location.search;
   if (!me || !DB.isStaff(me) || !rec || !DB.isStaff(rec) || (rec.status && rec.status === 'nonaktif')) {
@@ -24,6 +24,7 @@
 
   const bookingBadge = () => DB.bookings().filter((b) => b.status === 'menunggu_konfirmasi').length + pendingRequests().length;
   const OPS = [
+    { id: 'kasir', href: A('kasir'), icon: 'fa-cash-register', label: 'Kasir (offline)' },
     { id: 'booking', href: A('booking'), icon: 'fa-calendar-check', label: 'Booking Rental', cnt: bookingBadge },
     { id: 'pengembalian', href: A('pengembalian'), icon: 'fa-right-left', label: 'Barang Keluar & Kembali', cnt: () => { const q = DB.careQueue(); return DB.bookings().filter((b) => b.status === 'disewa' && b.end <= D.today()).length + q.cuci.length + q.perbaikan.length; } },
     { id: 'barang', href: A('barang'), icon: 'fa-boxes-stacked', label: 'Data Barang' },
@@ -70,45 +71,115 @@
   }
 
   const waNum = (c) => String(c.phone).replace(/\D/g, '').replace(/^0/, '62');
+  /* ---------- Pengingat ke customer: nota + rincian denda ---------- */
+  const fmtTime = () => { const n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
+  const lateOf = (b) => (b.status === 'disewa' ? Rules.lateDays(b, D.today(), fmtTime()) : 0);
+  /* Rincian denda per barang (mengikuti aturan denda Owner: % tarif per malam atau nominal per barang) */
+  const fineLines = (b, late) => UI.fineLines(b, late);
+  /* Booking lain dari checkout yang sama (pesanan gabungan) yang masih berjalan */
+  const groupMates = (b) => (b.group ? DB.bookings().filter((x) => x.group === b.group && x.id !== b.id && !['selesai', 'dibatalkan'].includes(x.status)) : []);
+  const paidOf = (b) => (b.payments || []).reduce((a, p) => a + (+p.amount || 0), 0) - (b.refunds || []).reduce((a, p) => a + (+p.amount || 0), 0);
+  const approvedChanges = (b) => (b.changes || []).filter((c) => c.status === 'disetujui');
   function reminderText(b) {
-    const st = DB.settings(); const late = D.diffDays(b.end, D.today());
-    const first = b.customer.name.split(' ')[0];
-    return late > 0
-      ? `Halo Kak ${first}, kami dari ${st.storeName}. Sewa ${b.id} (${itemsText(b)}) seharusnya dikembalikan ${D.fmtDate(b.end, true)} dan sekarang sudah terlambat ${late} hari. Mohon segera dikembalikan ke toko ya (${st.hours}). Denda keterlambatan berlaku sesuai ketentuan. Terima kasih!`
-      : `Halo Kak ${first}, kami dari ${st.storeName} 👋 Mengingatkan bahwa sewa ${b.id} (${itemsText(b)}) jadwal pengembaliannya *hari ini, ${D.fmtDate(b.end, true)}*. Barang bisa dikembalikan ke toko ${st.hours}. Terima kasih sudah menyewa di Annapurna!`;
+    const st = DB.settings(); const first = b.customer.name.split(' ')[0];
+    const bl = UI.billOf(b); const late = bl.late, sisa = bl.sisa, fl = bl.fines, fine = bl.fine;
+    const notaUrl = new URL(url('invoice?id=' + b.id), location.href).href;
+    const L = [];
+    L.push(late
+      ? `Halo Kak ${first}, kami dari ${st.storeName}. Sewa *${NO(b)}* seharusnya dikembalikan *${D.fmtDate(b.end, true)}* paling lambat pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB, dan sekarang sudah *terlambat ${late} malam*. Mohon segera dikembalikan ke toko ya.`
+      : `Halo Kak ${first}, kami dari ${st.storeName} mengingatkan bahwa sewa *${NO(b)}* jadwal pengembaliannya *hari ini, ${D.fmtDate(b.end, true)}*, paling lambat pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB.`);
+    L.push('', '*Nota sewa*', ...b.items.map((it) => `• ${it.qty}× ${it.name} — ${rupiah(Rules.lineUnit(it, b.days) * it.qty)}`));
+    approvedChanges(b).forEach((c) => L.push(`• Ganti barang: ${c.fromName} → ${c.toName} (${c.diff >= 0 ? '+' : '−'}${rupiah(Math.abs(c.diff))})`));
+    L.push(`Total sewa: ${rupiah(b.total)} · Sudah dibayar: ${rupiah(bl.paid)}${sisa ? ` · Sisa: ${rupiah(sisa)}` : ''}`);
+    if (late) {
+      L.push('', `*Denda keterlambatan (${late} malam)*`, ...fl.map((x) => `• ${x.qty}× ${x.name}: ${rupiah(x.per)} × ${x.qty} × ${late} malam = ${rupiah(x.total)}`));
+      L.push(`Total denda: ${rupiah(fine)}`, '', `*Total dibayar saat pengembalian: ${rupiah(sisa + fine)}*`, '_Denda bertambah setiap malam keterlambatan._');
+    } else if (sisa) L.push('', `*Sisa yang dibayar saat pengembalian: ${rupiah(sisa)}*`);
+    const mates = groupMates(b);
+    if (mates.length) L.push('', `Barang lain di pesanan yang sama masih bisa dipakai: ${mates.map((x) => `${NO(x)} (${itemsText(x)}) kembali ${D.fmtDate(x.end, true)}`).join('; ')}.`);
+    L.push('', `Nota digital: ${notaUrl}`, `Alamat toko: ${st.address} (${st.hours}). Terima kasih!`);
+    return L.join('\n');
   }
-  function remindWa(b) {
-    window.open(`https://wa.me/${waNum(b.customer)}?text=${encodeURIComponent(reminderText(b))}`, '_blank');
-    const fresh = DB.booking(b.id);
-    fresh.reminders = fresh.reminders || []; fresh.reminders.push({ at: D.nowStamp(), by: me.name });
-    fresh.history = fresh.history || []; fresh.history.push({ at: D.nowStamp(), text: `Pengingat pengembalian dikirim via WhatsApp (${me.name})` });
-    DB.saveBooking(fresh);
-    DB.audit({ type: 'rental', action: `Mengirim pengingat pengembalian ${b.id} ke ${b.customer.name} via WhatsApp`, ref: b.id });
+  /* Kirim pengingat / tagihan: pratinjau NOTA TAGIHAN → Salin gambar (tempel Ctrl+V di WhatsApp) / Buka WhatsApp / Unduh.
+     Link wa.me hanya bisa membawa teks, jadi gambar tidak diunduh otomatis lagi — staff memilih sendiri cara melampirkannya. */
+  async function remindCustomer(b) {
+    if (!b) return;
+    b = DB.booking(b.id) || b;
+    const text = reminderText(b); const bill = UI.billOf(b);
+    const cv = await UI.tagihanCanvas(b);
+    const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+    const name = `nota-tagihan-${b.id}.png`;
+    const file = blob && typeof File !== 'undefined' ? new File([blob], name, { type: 'image/png' }) : null;
+    const canShare = matchMedia('(pointer: coarse)').matches && file && navigator.canShare && navigator.canShare({ files: [file] });
+    const canCopy = !!(navigator.clipboard && window.ClipboardItem && window.isSecureContext);
+    const waUrl = `https://wa.me/${waNum(b.customer)}?text=${encodeURIComponent(text)}`;
+    let logged = false;
+    const log = (how) => {
+      if (logged) return; logged = true;
+      const fresh = DB.booking(b.id);
+      fresh.reminders = fresh.reminders || []; fresh.reminders.push({ at: D.nowStamp(), by: me.name, late: bill.late, fine: bill.fine });
+      fresh.history = fresh.history || []; fresh.history.push({ at: D.nowStamp(), text: bill.late ? `Nota tagihan (terlambat ${bill.late} malam, denda ${rupiah(bill.fine)}) dikirim via WhatsApp${how ? ' · ' + how : ''} (${me.name})` : `Pengingat pengembalian + nota dikirim via WhatsApp${how ? ' · ' + how : ''} (${me.name})` });
+      DB.saveBooking(fresh);
+      DB.audit({ type: 'rental', action: `Mengirim ${bill.late ? `tagihan keterlambatan (denda ${rupiah(bill.fine)})` : 'pengingat pengembalian'} ${b.id} ke ${b.customer.name} via WhatsApp`, ref: b.id });
+    };
+    const imgUrl = URL.createObjectURL(blob);
+    const m = modal({ title: `${bill.late ? 'Tagih denda' : 'Ingatkan pengembalian'} · ${NO(b)}`, size: 'lg', body: `
+      <div class="tg-steps">${canShare
+        ? '<span><b>1</b> Tekan <b>Bagikan</b>, pilih WhatsApp, lalu pilih chat customer. Gambar nota & pesan terkirim bersamaan.</span>'
+        : `<span><b>1</b> ${canCopy ? 'Tekan <b>Salin gambar nota</b>' : 'Tekan <b>Unduh gambar</b>'}</span><span><b>2</b> Tekan <b>Buka WhatsApp</b> — pesan sudah terisi</span><span><b>3</b> Di chat WhatsApp, ${canCopy ? 'tekan <b>Ctrl+V</b> untuk menempel gambar' : 'lampirkan gambar yang diunduh'}, lalu kirim</span>`}</div>
+      <div class="tg-prev"><img src="${imgUrl}" alt="Nota tagihan ${b.id}"></div>
+      <details class="tg-msg"><summary>Lihat isi pesan WhatsApp</summary><pre>${esc(text)}</pre></details>`,
+      foot: `<button class="btn btn-light" id="tgDl"><i class="fa-solid fa-download"></i> Unduh gambar</button>
+        ${canShare ? '<button class="btn btn-wa" id="tgShare"><i class="fa-solid fa-share-nodes"></i> Bagikan ke WhatsApp</button>'
+          : `${canCopy ? '<button class="btn btn-light" id="tgCopy"><i class="fa-regular fa-copy"></i> Salin gambar nota</button>' : ''}<button class="btn btn-wa" id="tgWa"><i class="fa-brands fa-whatsapp"></i> Buka WhatsApp ${esc(b.customer.name.split(' ')[0])}</button>`}` });
+    const done = new MutationObserver(() => { if (!document.body.contains(m.el)) { done.disconnect(); URL.revokeObjectURL(imgUrl); } }); done.observe(document.body, { childList: true });
+    m.$('#tgDl').addEventListener('click', () => { const a = document.createElement('a'); a.href = imgUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Gambar nota tersimpan di folder Unduhan.'); });
+    if (m.$('#tgCopy')) m.$('#tgCopy').addEventListener('click', async () => {
+      try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); m.$('#tgCopy').innerHTML = '<i class="fa-solid fa-check"></i> Gambar tersalin'; m.$('#tgCopy').classList.add('done'); toast('Gambar nota tersalin. Tempel di chat WhatsApp dengan Ctrl+V.'); }
+      catch (e) { toast('Browser tidak mengizinkan menyalin gambar. Pakai tombol Unduh gambar.', 'err'); }
+    });
+    if (m.$('#tgWa')) m.$('#tgWa').addEventListener('click', () => { window.open(waUrl, '_blank'); log(''); });
+    if (m.$('#tgShare')) m.$('#tgShare').addEventListener('click', async () => { try { await navigator.share({ files: [file], text }); log('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ } });
   }
+  const remindWa = remindCustomer;
   const remindedToday = (b) => (b.reminders || []).some((r) => D.day(r.at) === D.today());
   /* Notifikasi otomatis: rental yang harus kembali hari ini → ingatkan staff menghubungi penyewa. */
   function dueTodayNotices() {
     const T = D.today(); const sent = DB.get('dueNotices');
     DB.bookings().filter((b) => b.status === 'disewa' && b.end === T).forEach((b) => {
       const key = `${b.id}|${T}`; if (sent.includes(key)) return;
-      DB.notifyStaff('Pengembalian hari ini', `${b.id} · ${b.customer.name} harus mengembalikan ${itemsText(b)} hari ini. Ingatkan penyewa via WhatsApp.`, 'admin/pengembalian?remind=' + b.id);
+      DB.notifyStaff('Pengembalian hari ini', `${NO(b)} · ${b.customer.name} harus mengembalikan ${itemsText(b)} hari ini. Ingatkan penyewa via WhatsApp.`, 'admin/pengembalian?remind=' + b.id);
       sent.push(key);
     });
     DB.set('dueNotices', sent);
   }
 
   /* ---------- Scan QR nota ---------- */
+  /* Kenali kode dari QR / ketikan: nomor nota (028/X/2026, 28/x/2026), kode internal (RNT-1028 / ORD-2007), atau link nota (…invoice?id=RNT-1028) */
+  function findRef(txt) {
+    const raw = String(txt || '').trim(); const up = raw.toUpperCase();
+    const code = (up.match(/(RNT|ORD)-\d{3,6}/) || [])[0];
+    if (code) { const x = code.startsWith('RNT') ? DB.booking(code) : DB.sale(code); return x ? { x, kind: code.startsWith('RNT') ? 'rent' : 'sale' } : { miss: code }; }
+    const m = up.replace(/\s+/g, '').match(/(\d{1,4})\/([IVX]{1,4})\/(\d{4})/);
+    if (m) {
+      const no = `${String(+m[1]).padStart(3, '0')}/${m[2]}/${m[3]}`;
+      const b = DB.bookings().find((y) => y.no === no); if (b) return { x: b, kind: 'rent' };
+      const s = DB.sales().find((y) => y.no === no); if (s) return { x: s, kind: 'sale' };
+      return { miss: no };
+    }
+    return null;
+  }
   function openRef(txt) {
-    const id = (String(txt).toUpperCase().match(/(RNT|ORD)-\d{3,6}/) || [])[0];
-    if (!id) { toast('QR / kode tidak dikenali.', 'err'); return false; }
-    if (id.startsWith('RNT') ? !DB.booking(id) : !DB.sale(id)) { toast(`${id} tidak ditemukan.`, 'err'); return false; }
-    DB.audit({ type: 'akses', action: `Membuka ${id} lewat scan QR nota`, ref: id });
-    location.href = A(id.startsWith('RNT') ? 'booking?id=' + id : 'penjualan?id=' + id); return true;
+    const r = findRef(txt);
+    if (!r) { toast('Kode tidak dikenali. Ketik nomor nota (contoh: 028/X/2026) atau scan QR di nota customer.', 'err'); return false; }
+    if (r.miss) { toast(`Pesanan ${r.miss} tidak ditemukan.`, 'err'); return false; }
+    DB.audit({ type: 'akses', action: `Membuka ${NO(r.x)} lewat scan QR / nomor nota`, ref: r.x.id });
+    location.href = A(r.kind === 'rent' ? 'booking?id=' + r.x.id : 'penjualan?id=' + r.x.id); return true;
   }
   async function scanQR() {
     let stream = null, raf = 0, stop = false;
     const m = UI.modal({ title: 'Scan QR nota customer', body: `<div class="scan-box"><video id="qrV" playsinline muted></video><div class="scan-frame"></div><p id="qrMsg" class="muted">Menyalakan kamera…</p></div>
-      <div class="field" style="margin-top:14px"><label>Atau ketik nomor booking / pesanan</label><div style="display:flex;gap:8px"><input class="input" id="qrCode" placeholder="RNT-1008"><button class="btn btn-primary" id="qrGo">Buka</button></div></div>`,
+      <div class="field" style="margin-top:14px"><label>Atau ketik nomor booking / pesanan</label><div style="display:flex;gap:8px"><input class="input" id="qrCode" placeholder="Contoh: 028/X/2026" autocomplete="off"><button class="btn btn-primary" id="qrGo">Buka</button></div></div>`,
       foot: '<button class="btn btn-light" data-close>Tutup</button>' });
     const end = () => { stop = true; cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); };
     new MutationObserver((mu, ob) => { if (!document.body.contains(m.el)) { end(); ob.disconnect(); } }).observe(document.body, { childList: true });
@@ -149,7 +220,7 @@
     const hit = (...xs) => xs.some((x) => String(x || '').toLowerCase().includes(n));
     const phHit = (p) => ph.length >= 4 && DB.normPhone(p).includes(ph.replace(/^62/, '0'));
     const R = [];
-    DB.bookings().filter((b) => hit(b.id, b.customer.name, b.customer.email) || phHit(b.customer.phone)).slice(0, 6).forEach((b) => R.push({ g: 'Booking', ic: 'fa-calendar-check', t: `${b.id} · ${b.customer.name}`, s: `${D.fmtRange(b.start, b.end)} · ${STATUS.rental[b.status].label}`, href: A('booking?id=' + b.id) }));
+    DB.bookings().filter((b) => hit(b.id, NO(b), b.customer.name, b.customer.email) || phHit(b.customer.phone)).slice(0, 6).forEach((b) => R.push({ g: 'Booking', ic: 'fa-calendar-check', t: `${b.id} · ${b.customer.name}`, s: `${D.fmtRange(b.start, b.end)} · ${STATUS.rental[b.status].label}`, href: A('booking?id=' + b.id) }));
     DB.sales().filter((x) => hit(x.id, x.customer.name, x.customer.email) || phHit(x.customer.phone)).slice(0, 4).forEach((x) => R.push({ g: 'Penjualan', ic: 'fa-bag-shopping', t: `${x.id} · ${x.customer.name}`, s: `${rupiah(x.total)} · ${STATUS.sale[x.status].label}`, href: A('penjualan?id=' + x.id) }));
     DB.products(true).filter((p) => hit(p.name, p.sku, p.brand)).slice(0, 5).forEach((p) => R.push({ g: 'Barang', ic: 'fa-box', t: p.name, s: `${p.sku || p.id}${p.brand ? ' · ' + p.brand : ''} · stok ${p.stock}`, href: A('barang?q=' + encodeURIComponent(p.name)) }));
     DB.products(true).forEach((p) => (p.units || []).filter((u) => u.code.toLowerCase().includes(n)).slice(0, 3).forEach((u) => R.push({ g: 'Unit', ic: 'fa-barcode', t: `${u.code} · ${p.name}`, s: `Kondisi ${u.cond}`, href: A('barang?unit=' + p.id) })));
@@ -239,7 +310,7 @@
     $('#admLogout').addEventListener('click', async (e) => {
       e.preventDefault();
       if (!(await confirmBox({ title: `Keluar dari panel ${isOwner ? 'owner' : 'admin'}?`, text: 'Sesi akan diakhiri dan waktu logout tercatat di histori.', ok: 'Keluar' }))) return;
-      DB.logout(); location.href = url('masuk');
+      UI.serverLogout(url('masuk'));
     });
   }
   let shellState = null;
@@ -255,7 +326,7 @@
         <div class="field"><label>Ulangi kata sandi baru</label><input class="input" type="password" name="npw2" autocomplete="new-password"></div>
       </form>`,
       foot: `<button class="btn btn-light" id="fpwOut">Keluar</button><button class="btn btn-primary" id="fpwOk"><i class="fa-solid fa-check"></i> Simpan kata sandi</button>` });
-    m.$('#fpwOut').addEventListener('click', () => { DB.logout(); location.href = url('masuk'); });
+    m.$('#fpwOut').addEventListener('click', () => UI.serverLogout(url('masuk')));
     m.$('#fpwOk').addEventListener('click', () => {
       const F = m.$('#fpw'), E = F.elements;
       if (!UI.validate(F, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : v === E.old.value ? 'Harus berbeda dari kata sandi sementara.' : ''), npw2: (v) => (v !== E.npw.value ? 'Kata sandi tidak sama.' : '') })) return;
@@ -265,6 +336,7 @@
   }
 
   function init(active, title) {
+    Admin.active = active;
     dueTodayNotices(); stockNotices();
     shellState = { active, title }; renderShell(active, title);
     document.title = `${title} — ${isOwner ? 'Owner' : 'Admin'} Annapurna`;
@@ -276,7 +348,68 @@
       const s2 = DB.session(); s2.seen = Object.assign(s2.seen || {}, { [key]: D.nowStamp() }); DB.set('session', s2);
     }
     if (me.mustChangePw) forcePassword();
-    if (isOwner && window.Reports) Reports.autoMonthly();
+    /* Rekap bulanan berjalan saat panel dibuka siapa pun (admin/owner) pada/di atas tanggal kirim */
+    if (window.Reports) Reports.autoMonthly();
+    if (isOwner) setTimeout(() => cleanupNotice(active), 900);
+    idleWatch();
+  }
+
+  /* ---------- Logout otomatis bila staff tidak aktif ----------
+     Aktivitas (klik, ketik, gulir) disimpan sebagai "terakhir aktif". Bila lewat batas (default 60 menit, diatur owner),
+     sesi diakhiri & tercatat "Logout otomatis" dengan jam = aktivitas terakhir — jadi histori login selalu punya jam keluar. */
+  function idleWatch() {
+    const min = +(DB.settings().idleLogoutMin ?? 60); if (!min) return;
+    const K = 'ann_lastActive_' + me.id;
+    const expired = () => { const last = +localStorage.getItem(K) || 0; return last && Date.now() - last > min * 60e3 ? last : 0; };
+    const kick = (last) => { DB.logout({ auto: true, idleMin: min, at: new Date(last).toISOString() }); localStorage.removeItem(K); location.href = UI.url('masuk?idle=1'); };
+    const last0 = expired(); if (last0) { kick(last0); return; }
+    let t = 0; const mark = () => { const n = Date.now(); if (n - t > 15e3) { t = n; localStorage.setItem(K, String(n)); } };
+    mark(); ['click', 'keydown', 'scroll', 'mousemove', 'touchstart'].forEach((ev) => window.addEventListener(ev, mark, { passive: true }));
+    setInterval(() => { const l = expired(); if (l) kick(l); }, 60e3);
+  }
+
+  /* ---------- Persetujuan pembersihan data (khusus owner) ----------
+     Rekap tetap otomatis; data lama baru dihapus setelah owner menyetujui. */
+  const CL_LBL = { bookings: 'pesanan sewa', sales: 'pembelian', logs: 'log aktivitas', notifications: 'notifikasi', emails: 'email', finance: 'catatan kas' };
+  function cleanupSum(P) { const c = {}; P.forEach((x) => Object.entries(x.p.counts).forEach(([k, v]) => { c[k] = (c[k] || 0) + v; })); return c; }
+  function cleanupNotice(active) {
+    if (!window.Reports || DB.cleanupMode() !== 'approve') return;
+    const P = DB.cleanupPending(); if (!P.length) return;
+    const req = DB.cleanupReq(); const T = D.today();
+    const waiting = (req.snoozeUntil && req.snoozeUntil > T) || (req.skipUntil && req.skipUntil > T);
+    /* Banner di dashboard owner & halaman Google Drive selama masih menunggu */
+    if (['owner-dashboard', 'owner-integrasi', 'dashboard'].includes(active) && !document.getElementById('clBanner')) {
+      const warn = P.length >= 2;
+      const host = document.querySelector('.content'); if (host) host.insertAdjacentHTML('afterbegin', `<div class="cl-banner ${warn ? 'warn' : ''}" id="clBanner"><i class="fa-solid ${warn ? 'fa-triangle-exclamation' : 'fa-broom'}"></i><div><b>${warn ? `Data ${P.length} bulan belum dibersihkan` : 'Pembersihan data menunggu persetujuanmu'}</b><small>${P.map((x) => Reports.monthName(x.a.period)).join(', ')} sudah aman di Google Drive · ${P.reduce((a, x) => a + x.p.total, 0)} data lama siap dibersihkan${warn ? '. Website bisa makin lambat bila data terus menumpuk.' : ''}${waiting ? ` · ditunda sampai ${D.fmtDate(req.skipUntil > T ? req.skipUntil : req.snoozeUntil, true)}` : ''}</small></div><button class="btn btn-primary btn-sm" type="button" id="clReview">Tinjau</button></div>`);
+      const b = document.getElementById('clReview'); if (b) b.addEventListener('click', () => cleanupModal(P));
+    }
+    if (waiting || sessionStorage.getItem('clPromptShown')) return;
+    sessionStorage.setItem('clPromptShown', '1');
+    cleanupModal(P);
+  }
+  function cleanupModal(P) {
+    const c = cleanupSum(P); const total = P.reduce((a, x) => a + x.p.total, 0);
+    const months = P.map((x) => Reports.monthName(x.a.period)).join(' & ');
+    const m = modal({ title: `Rekap ${months} sudah aman di Google Drive`, size: 'lg', body: `
+      <div class="clm-ok">${P.map((x) => `<div class="clm-arc"><i class="fa-solid fa-folder-closed"></i><div><b>${esc(Reports.folderName(x.a.period))}</b><small><i class="fa-solid fa-check"></i> ${x.a.files.length} file laporan tersimpan · <i class="fa-solid fa-check"></i> email terkirim ke ${esc(x.a.mailTo || 'owner')}</small></div><a class="btn btn-light btn-xs" href="${O('integrasi?folder=' + x.a.period)}">Lihat folder</a></div>`).join('')}</div>
+      <h4 class="clm-h">Data lama yang bisa dibersihkan agar website tetap ringan</h4>
+      <ul class="clm-list">${Object.entries(c).filter(([k, v]) => v && CL_LBL[k]).map(([k, v]) => `<li><b>${v}</b> ${CL_LBL[k]}${k === 'bookings' || k === 'sales' ? ' (selesai/dibatalkan)' : ''}</li>`).join('')}</ul>
+      <p class="clm-safe"><i class="fa-solid fa-shield-halved"></i> Tetap aman: barang & unit, pesanan aktif/belum lunas, ulasan, ringkasan angka bulanan, dan riwayat pelanggan. Laporan bulan tsb. tetap bisa diunduh dari arsip.</p>
+      <div class="clm-later"><span>Belum sekarang?</span>
+        <select class="select" id="clSnooze"><option value="1">Ingatkan besok</option><option value="3">Ingatkan 3 hari lagi</option><option value="7">Ingatkan 7 hari lagi</option></select>
+        <button class="btn btn-light btn-sm" id="clLater"><i class="fa-regular fa-clock"></i> Ingatkan nanti</button>
+        <button class="btn btn-ghost btn-sm" id="clSkip">Jangan hapus bulan ini</button></div>`,
+      foot: `<a class="btn btn-light" href="${O('integrasi#bersih')}">Lihat detail dulu</a><button class="btn btn-danger" id="clGo"><i class="fa-solid fa-broom"></i> Bersihkan sekarang (${total} data)</button>` });
+    const T = D.today(); const req = DB.cleanupReq();
+    m.$('#clLater').addEventListener('click', () => { const n = +m.$('#clSnooze').value; req.snoozeUntil = D.addDays(T, n); DB.setCleanupReq(req); DB.audit({ type: 'laporan', action: `Menunda pembersihan data ${months} (${n} hari)` }); m.close(); toast(`Baik, kami ingatkan lagi ${n === 1 ? 'besok' : n + ' hari lagi'}. Data tidak dihapus.`); const bn = document.getElementById('clBanner'); if (bn) bn.remove(); cleanupNotice(Admin.active); });
+    m.$('#clSkip').addEventListener('click', () => { const d = new Date(T + 'T00:00:00'); d.setMonth(d.getMonth() + 1, 1); req.skipUntil = d.toISOString().slice(0, 10); DB.setCleanupReq(req); DB.audit({ type: 'laporan', action: `Memilih tidak membersihkan data ${months} bulan ini` }); m.close(); toast('Data bulan ini tetap disimpan. Bulan depan akan ditawarkan lagi bersama data bulan berikutnya.'); const bn = document.getElementById('clBanner'); if (bn) bn.remove(); cleanupNotice(Admin.active); });
+    m.$('#clGo').addEventListener('click', async () => {
+      if (!(await confirmBox({ title: 'Hapus data lama sekarang?', text: `${total} data dari ${months} akan dihapus permanen dari website. Semua sudah tersimpan di rekap Google Drive. Tindakan ini tidak bisa dibatalkan.`, ok: 'Ya, bersihkan', danger: true }))) return;
+      let n = 0; P.forEach((x) => { Reports.snapshot(x.a.period); const r = DB.cleanupArchived(x.a.period); if (r.ok) n += r.total; });
+      DB.setCleanupReq({ snoozeUntil: '', skipUntil: '' });
+      m.close(); toast(`${n} data lama dibersihkan. Website kembali ringan.`); const bn = document.getElementById('clBanner'); if (bn) bn.remove();
+      if (typeof window.onCleanupDone === 'function') window.onCleanupDone();
+    });
   }
 
   const val = (r) => (typeof r === 'string' && r !== '-' ? r : '');
@@ -332,6 +465,29 @@
     });
     if (errs.length) { toast(`Lengkapi dulu: ${errs.join(', ')}.`, 'err'); return null; }
     return { photo, extra };
+  }
+  /* Detail lengkap pencatatan barang keluar / kembali (unit, petugas, kondisi, jaminan, pembayaran, checklist, foto) */
+  const RES_LBL = { siap: 'Bersih, siap disewa', cuci: 'Perlu dicuci', rusak: 'Rusak, perlu diperbaiki', hilang: 'Hilang' };
+  function outRetHtml(b, kind) {
+    const x = b[kind]; const isOut = kind === 'out';
+    const units = b.items.map((it) => ({ name: it.name, qty: it.qty, units: (it.units || []).map((u) => u.code) }));
+    const res = (code) => { const r = x.units && x.units[code]; if (!r) return ''; const o = typeof r === 'string' ? { res: 'siap', cond: r } : r; return `<span class="pill ${o.res === 'siap' ? 'green' : o.res === 'cuci' ? 'teal' : 'red'} plain">${RES_LBL[o.res] || o.res}</span>${o.note ? `<small class="muted"> ${esc(o.note)}</small>` : ''}`; };
+    const row = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
+    const photos = [x.photo ? { label: isOut ? 'Foto saat keluar' : 'Foto saat kembali', src: x.photo } : null, ...(x.extra || []).filter((e) => e.type === 'foto' && e.value).map((e) => ({ label: e.label, src: e.value }))].filter(Boolean);
+    const extras = (x.extra || []).filter((e) => e.type !== 'foto' && e.value !== '' && e.value != null);
+    return `<div class="mini-sec orx ${kind}"><h4><i class="fa-solid ${isOut ? 'fa-arrow-right-from-bracket' : 'fa-arrow-right-to-bracket'}"></i> ${isOut ? 'Pencatatan barang keluar' : 'Pencatatan barang kembali'}</h4>
+      <dl class="orx-grid">
+        ${row('Waktu', D.fmtDateTime(x.at))}${row('Petugas', esc(x.by || '-'))}${row('Kondisi umum', esc(x.cond || '-'))}
+        ${isOut ? row('Kartu identitas jaminan', esc(x.idCard || b.idType || '-')) : row('Keterlambatan', x.lateDays ? `<b style="color:var(--red)">${x.lateDays} malam</b>` : 'Tepat waktu')}
+        ${isOut ? row('Dibayar saat ambil', x.paidAtPickup ? rupiah(x.paidAtPickup) : 'Tidak ada (sudah lunas)') : row('Denda', x.fine ? `${rupiah(x.fine)}${x.lateFee ? ` <small class="muted">(terlambat ${rupiah(x.lateFee)}${x.damageFee ? ` · kerusakan ${rupiah(x.damageFee)}` : ''})</small>` : ''}` : 'Tidak ada')}
+        ${isOut && b.depositIn ? row('Jaminan uang', `${rupiah(b.depositIn.amount)} diterima`) : ''}${!isOut && b.depositOut ? row('Jaminan dikembalikan', rupiah(b.depositOut.amount || 0)) : ''}
+        ${extras.map((e) => row(esc(e.label), esc(Array.isArray(e.value) ? e.value.join(', ') : e.value === true ? 'Ya' : String(e.value)))).join('')}
+      </dl>
+      <div class="orx-units"><b>${isOut ? 'Unit yang diserahkan' : 'Hasil pemeriksaan per unit'}</b>${units.map((u) => `<div class="orx-u"><span>${u.qty}× ${esc(u.name)}</span><span>${u.units.length ? u.units.map((c) => `<code>${esc(c)}</code>${!isOut ? ' ' + res(c) : ''}`).join(isOut ? ' ' : '<br>') : '<small class="muted">tanpa kode unit</small>'}</span></div>`).join('')}</div>
+      ${x.checklist && x.checklist.length ? `<div class="orx-chk"><b>Checklist</b>${x.checklist.map((c) => `<span><i class="fa-solid fa-check"></i> ${esc(c)}</span>`).join('')}</div>` : ''}
+      ${x.note ? `<p class="orx-note"><i class="fa-regular fa-note-sticky"></i> ${esc(x.note)}</p>` : ''}
+      ${photos.length ? `<div class="orx-photos">${photos.map((p) => `<a href="${p.src}" target="_blank" rel="noopener"><img src="${p.src}" alt="${esc(p.label)}"><small>${esc(p.label)}</small></a>`).join('')}</div>` : `<p class="muted orx-nophoto"><i class="fa-regular fa-image"></i> Tidak ada foto yang diunggah.</p>`}
+    </div>`;
   }
   const extrasHtml = (x) => [x.photo ? `<img class="proof-img" style="max-width:180px;margin-top:6px" src="${x.photo}" alt="Foto">` : '', ...(x.extra || []).map((e) => e.type === 'foto' ? `<br><span class="muted">${esc(e.label)}:</span><br><img class="proof-img" style="max-width:160px" src="${e.value}" alt="">` : `<br><span class="muted">${esc(e.label)}:</span> ${esc(e.value)}`)].join('');
 
@@ -401,10 +557,10 @@
       log(b, 'Pembayaran DP diverifikasi, booking dikonfirmasi', 'rental', `Mengonfirmasi booking ${b.id} (DP ${rupiah(b.dp)} diverifikasi)`, chg('Status booking', rl(from), rl('dikonfirmasi')));
       DB.saveBooking(b);
       DB.notify(b.customer.email, 'Booking dikonfirmasi', `DP ${rupiah(b.dp)} untuk ${b.id} diterima. Barang bisa diambil ${D.fmtDate(b.start, true)}.`, `pesanan?id=${b.id}`);
-      toast(`${b.id} dikonfirmasi.`);
+      toast(`${NO(b)} dikonfirmasi.`);
     },
     async rejectProof(b) {
-      const r = await confirmBox({ title: `Tolak bukti bayar ${b.id}?`, text: 'Customer akan diminta mengunggah ulang bukti pembayaran.', ok: 'Tolak bukti', danger: true, input: { label: 'Alasan penolakan (mis. nominal tidak sesuai)' } });
+      const r = await confirmBox({ title: `Tolak bukti bayar ${NO(b)}?`, text: 'Customer akan diminta mengunggah ulang bukti pembayaran.', ok: 'Tolak bukti', danger: true, input: { label: 'Alasan penolakan (mis. nominal tidak sesuai)' } });
       if (r === false) return false;
       b.status = 'menunggu_pembayaran'; b.paymentStatus = 'unpaid'; b.proof = null;
       log(b, `Bukti pembayaran ditolak${val(r) ? ': ' + val(r) : ''}`, 'rental', `Menolak bukti pembayaran ${b.id}${val(r) ? ` (${val(r)})` : ''}`, chg('Status booking', rl('menunggu_konfirmasi'), rl('menunggu_pembayaran')));
@@ -414,7 +570,7 @@
     },
     pickup(b, done) {
       const due = sisa(b); const fc = DB.formCfg('pickup');
-      const m = modal({ title: `Catat barang keluar · ${b.id}`, size: 'lg', body: `${custFlag(b.customer)}
+      const m = modal({ title: `Catat barang keluar · ${NO(b)}`, size: 'lg', body: `${custFlag(b.customer)}
         <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-box-open"></i><div>${esc(b.customer.name)} mengambil <strong>${esc(itemsText(b))}</strong> untuk ${D.fmtRange(b.start, b.end)}.</div></div>
         <div class="grid-2">
           <div class="field"><label>Kondisi barang saat keluar</label><select class="select" id="oCond"><option>Baik</option><option>Sangat Baik</option><option>Baik (ada bekas pemakaian)</option></select></div>
@@ -438,7 +594,7 @@
         const picks = readUnitPicks(m, b); if (!picks) return;
         const ex = readExtras(m, 'pickup'); if (!ex) return;
         DB.assignUnits(b, picks);
-        b.out = { at: D.nowStamp(), cond: m.$('#oCond').value, idCard: m.$('#oId') ? m.$('#oId').value : '', by: me.name, note, photo: ex.photo, extra: ex.extra };
+        b.out = { at: D.nowStamp(), cond: m.$('#oCond').value, idCard: m.$('#oId') ? m.$('#oId').value : '', by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: due || 0, checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
         if (due) b.payments.push({ at: D.nowStamp(), amount: due, type: 'Pelunasan' });
         if (b.deposit) b.depositIn = { at: D.nowStamp(), amount: b.deposit, by: me.name };
         b.paymentStatus = 'lunas'; b.status = 'disewa';
@@ -450,7 +606,7 @@
     },
     processReturn(b, done) {
       const fc = DB.formCfg('return'); const stR = DB.settings(); const hasUnits = b.items.some((it) => (it.units || []).length); const nowT = new Date().toTimeString().slice(0, 5);
-      const m = modal({ title: `Proses pengembalian · ${b.id}`, size: 'lg', body: `
+      const m = modal({ title: `Proses pengembalian · ${NO(b)}`, size: 'lg', body: `
         <div class="notice" style="margin-bottom:14px"><i class="fa-solid fa-rotate-left"></i><div>Jadwal kembali <strong>${D.fmtDate(b.end, true)}</strong>${stR.lateAfterReturnTime ? `, paling lambat pukul <strong>${esc(stR.returnTime)}</strong>` : ''}. Barang: ${esc(itemsText(b))}. Denda: ${esc(DB.lateFeeText())}.</div></div>
         <div class="grid-3">
           <div class="field"><label>Tanggal kembali</label><input class="input" type="date" id="rDate" value="${D.today()}" min="${b.start}"></div>
@@ -474,7 +630,7 @@
         const late = Rules.lateDays(b, date, m.$('#rTime').value); const lf = Rules.lateFee(b, late);
         const dmg = Math.max(0, +m.$('#rDmg').value || 0);
         if (/Rusak|Hilang/.test(m.$('#rCond').value) && !dmg) m.$('#rDmg').classList.add('err'); else m.$('#rDmg').classList.remove('err');
-        m.$('#rLate').value = late ? `${late} hari (denda ${rupiah(lf)})` : 'Tepat waktu';
+        m.$('#rLate').value = late ? `${late} malam (denda ${rupiah(lf)})` : 'Tepat waktu';
         m.$('#rSum').innerHTML = `<div class="kv"><span>Denda keterlambatan</span><span>${rupiah(lf)}</span></div><div class="kv"><span>Biaya kerusakan</span><span>${rupiah(dmg)}</span></div><div class="kv total"><span>Total denda</span><span>${rupiah(lf + dmg)}</span></div>`;
         const dep = b.depositIn ? b.depositIn.amount : 0;
         if (dep) {
@@ -498,7 +654,7 @@
         const uc = hasUnits ? readUnitResults(m) : {}; if (!uc) return;
         if (hasUnits) { const v = Object.values(uc).map((x) => x.res); m.$('#rCond').value = v.includes('hilang') ? 'Hilang sebagian' : v.includes('perbaikan') ? 'Rusak ringan' : v.includes('cuci') ? 'Kotor (perlu dicuci)' : 'Baik'; }
         DB.releaseUnits(b, uc);
-        b.ret = { at: new Date(`${r.date}T${t}:00`).toISOString(), cond: m.$('#rCond').value, lateDays: r.late, lateFee: r.lf, damageFee: r.dmg, fine: r.fine, by: me.name, note, photo: ex.photo, extra: ex.extra };
+        b.ret = { at: new Date(`${r.date}T${t}:00`).toISOString(), cond: m.$('#rCond').value, lateDays: r.late, lateFee: r.lf, damageFee: r.dmg, fine: r.fine, by: me.name, note, photo: ex.photo, extra: ex.extra, units: uc || null };
         b.fine = (b.fine || 0) + r.fine; Rules.recalc(b);
         if (r.ded) b.payments.push({ at: D.nowStamp(), amount: r.ded, type: 'Denda', note: 'dipotong dari jaminan' });
         const restFine = r.fine - (r.ded || 0);
@@ -517,7 +673,7 @@
     adminCancel(b, done) {
       const hasDp = Rules.paidTotal(b) > 0;
       const refundable = Rules.canRefund(b);
-      const m = modal({ title: `Batalkan booking ${b.id}`, body: `
+      const m = modal({ title: `Batalkan booking ${NO(b)}`, body: `
         <div class="field"><label>Alasan pembatalan</label><textarea class="textarea" id="cReason" placeholder="Contoh: permintaan customer via WhatsApp"></textarea></div>
         ${hasDp ? `<div class="notice ${refundable ? 'green' : 'red'}" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>Tanggal ambil ${D.fmtDate(b.start, true)} (${D.diffDays(D.today(), b.start)} hari lagi). Sesuai kebijakan H-${DB.settings().cancelDays}, DP <strong>${refundable ? 'dapat dikembalikan' : 'hangus'}</strong>.</div></div>
         <div class="field"><label>Perlakuan DP (${rupiah(Rules.paidTotal(b))})</label><select class="select" id="cDp"><option value="refund" ${refundable ? 'selected' : ''}>Kembalikan DP (refund)</option><option value="forfeit" ${refundable ? '' : 'selected'}>DP hangus</option></select></div>` : ''}`,
@@ -530,13 +686,13 @@
         if (hasDp) b.paymentStatus = mode === 'refund' ? 'refund_pending' : 'forfeited';
         log(b, `Booking dibatalkan admin: ${reason}`, 'pembatalan', `Membatalkan booking ${b.id}: ${reason}`, [{ field: 'Status booking', from: rl(from), to: rl('dibatalkan') }, ...(hasDp ? [{ field: 'Perlakuan DP', from: '', to: mode === 'refund' ? 'Dikembalikan (refund)' : 'Hangus' }] : [])]);
         DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Booking dibatalkan', `${b.id} dibatalkan (${reason}).${mode === 'refund' ? ' DP akan dikembalikan maks. 2×24 jam.' : mode === 'forfeit' ? ' DP tidak dapat dikembalikan sesuai kebijakan.' : ''}`, `pesanan?tab=riwayat`);
+        DB.notify(b.customer.email, 'Booking dibatalkan', `${NO(b)} dibatalkan (${reason}).${mode === 'refund' ? ' DP akan dikembalikan maks. 2×24 jam.' : mode === 'forfeit' ? ' DP tidak dapat dikembalikan sesuai kebijakan.' : ''}`, `pesanan?tab=riwayat`);
         m.close(); toast('Booking dibatalkan.'); done && done();
       });
     },
     async refund(b) {
       const amt = Rules.refundAmount(b); const pct = DB.settings().refundPercent ?? 100;
-      const r = await confirmBox({ title: `Kembalikan DP ${b.id}?`, text: `Transfer ${rupiah(amt)}${pct < 100 ? ` (${pct}% dari DP sesuai aturan refund)` : ''} ke rekening ${b.customer.name}, lalu konfirmasi di sini.${sopBox('cancel') ? '<br><br>' + DB.sops('pembatalan').filter((x) => x.active !== false).map((x) => `<b>SOP:</b> ${esc(x.body)}`).join('<br>') : ''}`, ok: 'Sudah ditransfer', input: { label: 'No. referensi transfer (opsional)' } });
+      const r = await confirmBox({ title: `Kembalikan DP ${NO(b)}?`, text: `Transfer ${rupiah(amt)}${pct < 100 ? ` (${pct}% dari DP sesuai aturan refund)` : ''} ke rekening ${b.customer.name}, lalu konfirmasi di sini.${sopBox('cancel') ? '<br><br>' + DB.sops('pembatalan').filter((x) => x.active !== false).map((x) => `<b>SOP:</b> ${esc(x.body)}`).join('<br>') : ''}`, ok: 'Sudah ditransfer', input: { label: 'No. referensi transfer (opsional)' } });
       if (r === false) return false;
       b.refunds = b.refunds || []; b.refunds.push({ at: D.nowStamp(), amount: amt, ref: val(r) });
       b.paymentStatus = 'refunded'; if (b.cancel) b.cancel.refundStatus = 'selesai';
@@ -558,15 +714,15 @@
     /* Perpanjangan sewa. req = permintaan customer (opsional) */
     extend(b, done, req) {
       const st = DB.settings(); const maxEnd = D.addDays(b.start, st.maxRentDays || 60);
-      const m = modal({ title: `${req ? 'Tinjau perpanjangan' : 'Perpanjang sewa'} · ${b.id}`, body: `
-        <div class="notice" style="margin-bottom:14px"><i class="fa-solid fa-calendar"></i><div>Sewa sekarang <strong>${D.fmtRange(b.start, b.end)}</strong> (${b.days} hari). Barang: ${esc(itemsText(b))}.</div></div>
+      const m = modal({ title: `${req ? 'Tinjau perpanjangan' : 'Perpanjang sewa'} · ${NO(b)}`, body: `
+        <div class="notice" style="margin-bottom:14px"><i class="fa-solid fa-calendar"></i><div>Sewa sekarang <strong>${D.fmtRange(b.start, b.end)}</strong> (${b.days} malam). Barang: ${esc(itemsText(b))}.</div></div>
         <div class="field"><label>Tanggal kembali baru</label><input class="input" type="date" id="exEnd" min="${D.addDays(b.end, 1)}" max="${maxEnd}" value="${req ? req.to : D.addDays(b.end, 1)}" ${req ? 'disabled' : ''}></div>
         <div id="exInfo"></div>
         ${req ? `<p style="font-size:13.5px"><span class="muted">Alasan customer:</span> ${esc(req.reason || '-')}</p>` : ''}
         <label class="chk-line" id="exPaidW"><input type="checkbox" id="exPaid"> Biaya perpanjangan sudah dibayar sekarang</label>`,
         foot: `${req ? '<button class="btn btn-danger" id="exNo">Tolak</button>' : '<button class="btn btn-light" data-close>Batal</button>'}<button class="btn btn-primary" id="exOk"><i class="fa-solid fa-check"></i> ${req ? 'Setujui perpanjangan' : 'Simpan perpanjangan'}</button>` });
       const calc = () => { const r = Rules.extendCheck(b, m.$('#exEnd').value);
-        m.$('#exInfo').innerHTML = r.extraDays > 0 ? `<div class="kv"><span>Tambahan</span><span>${r.extraDays} hari</span></div><div class="kv total"><span>Biaya perpanjangan</span><span>${rupiah(r.cost)}</span></div>${r.ok ? '<div class="notice green" style="margin-top:8px"><i class="fa-solid fa-circle-check"></i><div>Semua barang tersedia di tanggal tambahan.</div></div>' : `<div class="notice red" style="margin-top:8px"><i class="fa-solid fa-circle-xmark"></i><div>${esc(r.msg)}</div></div>`}` : `<p class="muted">${esc(r.msg)}</p>`;
+        m.$('#exInfo').innerHTML = r.extraDays > 0 ? `<div class="kv"><span>Tambahan</span><span>${r.extraDays} malam (tarif dihitung ulang sesuai durasi baru)</span></div><div class="kv total"><span>Biaya perpanjangan</span><span>${rupiah(r.cost)}</span></div>${r.ok ? '<div class="notice green" style="margin-top:8px"><i class="fa-solid fa-circle-check"></i><div>Semua barang tersedia di tanggal tambahan.</div></div>' : `<div class="notice red" style="margin-top:8px"><i class="fa-solid fa-circle-xmark"></i><div>${esc(r.msg)}</div></div>`}` : `<p class="muted">${esc(r.msg)}</p>`;
         m.$('#exOk').disabled = !r.ok; m.$('#exPaidW').style.display = r.ok && b.status === 'disewa' ? 'flex' : 'none'; return r; };
       m.$('#exEnd').addEventListener('change', calc); calc();
       m.$('#exOk').addEventListener('click', () => {
@@ -637,7 +793,7 @@
   async function runBooking(act, id, done) {
     const b = DB.booking(id); if (!b) return;
     const fin = () => { refreshShell(); done && done(); };
-    if (act === 'verify') { if (await confirmBox({ title: `Konfirmasi ${b.id}?`, text: `DP ${rupiah(b.dp)} dari ${b.customer.name} sudah masuk ke rekening toko.`, ok: 'Ya, konfirmasi' })) { BK.verifyDP(b); fin(); } }
+    if (act === 'verify') { if (await confirmBox({ title: `Konfirmasi ${NO(b)}?`, text: `DP ${rupiah(b.dp)} dari ${b.customer.name} sudah masuk ke rekening toko.`, ok: 'Ya, konfirmasi' })) { BK.verifyDP(b); fin(); } }
     if (act === 'reject') { if (await BK.rejectProof(b)) fin(); }
     if (act === 'pickup') BK.pickup(b, fin);
     if (act === 'return') BK.processReturn(b, fin);
@@ -660,7 +816,7 @@
       ${C.map((c) => { const [tone, lbl] = REQ_ST[c.status] || ['gray', c.status]; const pd = DB.product(c.toId);
         return `<div class="req-card ${c.status === 'menunggu' ? 'pending' : ''}"><div class="rq-top"><span class="pill ${tone} plain">${lbl}</span><small>${c.source === 'toko' ? `<i class="fa-solid fa-store"></i> Di toko oleh ${esc(c.by || '-')}` : '<i class="fa-solid fa-mobile-screen"></i> Diajukan customer'} · ${D.fmtDateTime(c.at)}</small></div>
           <div class="rq-swap"><div class="rq-item">${img(c.fromId)}<span><small>Barang lama</small><b>${c.qty}× ${esc(c.fromName)}</b></span></div><i class="fa-solid fa-arrow-right-long"></i>
-            <div class="rq-item to">${img(c.toId)}<span><small>Diganti menjadi</small><b>${c.qty}× ${esc(c.toName)}</b>${pd ? `<em>${rupiah(pd.rent)}/hari${c.toSize ? ` · ukuran ${esc(String(c.toSize).replace(/\s*\(.*\)/, ''))}` : ''}</em>` : ''}</span></div></div>
+            <div class="rq-item to">${img(c.toId)}<span><small>Diganti menjadi</small><b>${c.qty}× ${esc(c.toName)}</b>${pd ? `<em>${rupiah(pd.rent)}/malam${c.toSize ? ` · ukuran ${esc(String(c.toSize).replace(/\s*\(.*\)/, ''))}` : ''}</em>` : ''}</span></div></div>
           <div class="rq-meta"><span>Selisih: <b style="color:${c.diff > 0 ? '#9a6508' : c.diff < 0 ? 'var(--g700)' : 'inherit'}">${c.diff > 0 ? '+' : c.diff < 0 ? '−' : ''}${rupiah(Math.abs(c.diff || 0))}</b></span>${c.reason ? `<span>Alasan: ${esc(c.reason)}</span>` : ''}${c.note ? `<span>Catatan admin: ${esc(c.note)}</span>` : ''}${c.status === 'menunggu' ? `<span>Stok pengganti: <b>${Rules.available(c.toId, b.start, b.end, b.id, c.toSize || null)} unit</b></span>` : ''}</div>
           ${c.status === 'menunggu' ? `<div class="acts" style="justify-content:flex-start;margin-top:8px"><button class="btn btn-primary btn-xs" data-rqok="${c.id}"><i class="fa-solid fa-check"></i> Setujui</button><button class="btn btn-danger btn-xs" data-rqno="${c.id}"><i class="fa-solid fa-xmark"></i> Tolak</button></div>` : ''}</div>`; }).join('')}
       ${X.map((x) => { const [tone, lbl] = REQ_ST[x.status] || ['gray', x.status];
@@ -674,26 +830,28 @@
     const acts = bookingActions(b);
     const pend = (b.changes || []).filter((c) => c.status === 'menunggu');
     const pendExt = (b.extensions || []).filter((x) => x.status === 'menunggu');
-    const m = modal({ title: `Booking ${b.id}`, size: 'lg', body: `${custFlag(b.customer)}
+    const CI = UI.changeInfo(b); const dpPaid = (b.payments || []).filter((p) => p.type === 'DP').reduce((a, p) => a + (+p.amount || 0), 0); const mates = groupMates(b);
+    const m = modal({ title: `Booking ${NO(b)}`, size: 'lg', body: `${custFlag(b.customer)}
       ${pendExt.length ? `<div class="notice" style="margin-bottom:12px"><i class="fa-solid fa-calendar-plus"></i><div>Customer mengajukan perpanjangan sampai <strong>${D.fmtDate(pendExt[0].to, true)}</strong> (+${pendExt[0].days} hari, ${rupiah(pendExt[0].cost)}). <a href="${A('permintaan?tab=extend')}" style="font-weight:700;text-decoration:underline">Tinjau</a></div></div>` : ''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${pill('rental', b.status)} ${pill('payment', b.paymentStatus)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${pill('rental', b.status)} ${pill('payment', b.paymentStatus)}${b.group ? `<span class="grp-tag" style="margin:0"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · terkait ' + mates.map((x) => `${x.id} (${esc(itemsText(x))}, kembali ${D.fmtDate(x.end)})`).join(', ') : ''}</span>` : ''}</div>
       <div class="kv-grid">
         <div class="kv"><span>Customer</span><strong>${esc(b.customer.name)}</strong></div>
         <div class="kv"><span>Telepon</span><a href="${custLink(b.customer)}" target="_blank" style="color:var(--g700);font-weight:600"><i class="fa-brands fa-whatsapp"></i> ${esc(b.customer.phone)}</a></div>
-        <div class="kv"><span>Periode</span><span>${D.fmtRange(b.start, b.end)} (${b.days} hari)</span></div>
+        <div class="kv"><span>Periode</span><span>${D.fmtRange(b.start, b.end)} (${b.days} malam)</span></div>
         <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
         <div class="kv"><span>Metode bayar</span><span>${esc(b.method || '-')}</span></div>
         <div class="kv"><span>Dibuat</span><span>${D.fmtDateTime(b.createdAt)}</span></div>
       </div>
       
       ${b.notes ? `<p style="font-size:13.5px"><span class="muted">Catatan:</span> ${esc(b.notes)}</p>` : ''}
-      <div class="mini-sec"><h4>Barang</h4><div class="adm-items">${b.items.map((i) => `<div class="it"><img src="${asset(i.img)}" alt=""><div class="nm"><strong>${esc(i.name)}</strong><br><small class="muted">${i.qty} × ${rupiah(i.pricePerDay)}/hari</small>${(i.units || []).length ? `<div class="unit-tags">${i.units.map((u) => `<span><i class="fa-solid fa-barcode"></i> ${u.code}</span>`).join('')}</div>` : ''}</div><strong>${rupiah(i.qty * i.pricePerDay * b.days)}</strong></div>`).join('')}</div></div>
+      <div class="mini-sec"><h4>Barang</h4><div class="adm-items">${b.items.map((i) => `<div class="it"><img src="${asset(i.img)}" alt=""><div class="nm"><strong>${esc(i.name)}</strong><br><small class="muted">${i.qty} × ${rupiah(Rules.lineUnit(i, b.days))} · ${esc(Rules.tierLabel(i.tiers || { d1: i.pricePerDay }, b.days))}</small>${(i.units || []).length ? `<div class="unit-tags">${i.units.map((u) => `<span><i class="fa-solid fa-barcode"></i> ${u.code}</span>`).join('')}</div>` : ''}</div><strong>${rupiah(i.qty * Rules.lineUnit(i, b.days))}</strong></div>`).join('')}</div></div>
       <div class="mini-sec" style="max-width:360px;margin-left:auto">
-        <div class="kv"><span>Subtotal</span><span>${rupiah(b.subtotal)}</span></div>
+        ${CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
+        <div class="kv"><span>Subtotal${CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(b.subtotal)}</span></div>
         ${b.discount ? `<div class="kv"><span>Promo ${esc(b.discount.code)}</span><span style="color:var(--g700)">− ${rupiah(b.discount.amount)}</span></div>` : ''}
         ${b.fine ? `<div class="kv"><span>Denda</span><span>${rupiah(b.fine)}</span></div>` : ''}
-        <div class="kv total"><span>Total</span><span>${rupiah(b.total)}</span></div>
-        <div class="kv"><span>DP ${DB.settings().dpPercent}%</span><span>${rupiah(b.dp)}</span></div>
+        <div class="kv total"><span>${CI.ok.length ? 'Total baru' : 'Total'}</span><span>${rupiah(b.total)}</span></div>
+        ${dpPaid ? `<div class="kv"><span>DP sudah dibayar</span><span>${rupiah(dpPaid)}</span></div>` : `<div class="kv"><span>DP ${DB.settings().dpPercent}% yang harus dibayar</span><span>${rupiah(b.dp)}</span></div>`}
         <div class="kv hl"><span>Dibayar</span><span>${rupiah(paid)}</span></div>
         ${(b.refunds || []).length ? `<div class="kv"><span>Refund</span><span>− ${rupiah(b.refunds.reduce((s, r) => s + r.amount, 0))}</span></div>` : ''}
         ${b.status !== 'dibatalkan' ? `<div class="kv"><span>Sisa</span><strong>${rupiah(sisa(b))}</strong></div>` : ''}
@@ -702,8 +860,8 @@
       ${b.proof ? `<div class="mini-sec"><h4>Bukti pembayaran</h4><img class="proof-img" src="${asset(b.proof)}" alt="Bukti pembayaran"></div>` : b.status === 'menunggu_konfirmasi' ? '<div class="mini-sec"><h4>Bukti pembayaran</h4><p class="muted" style="font-size:13px">Bukti diunggah customer (contoh data demo tanpa gambar).</p></div>' : ''}
       ${pend.length ? `<div class="notice" style="margin-top:14px"><i class="fa-solid fa-arrows-rotate"></i><div>Ada ${pend.length} permintaan ganti barang menunggu. <a href="permintaan" style="font-weight:700;text-decoration:underline">Tinjau</a></div></div>` : ''}
       ${b.cancel ? `<div class="notice red" style="margin-top:14px"><i class="fa-solid fa-ban"></i><div>Dibatalkan ${D.fmtDateTime(b.cancel.at)} — ${esc(b.cancel.reason)}. Refund: ${({ menunggu: 'menunggu diproses', selesai: 'sudah dikembalikan', hangus: 'DP hangus', tidak_perlu: 'tidak ada' })[b.cancel.refundStatus] || '-'}</div></div>` : ''}
-      ${b.out ? `<div class="mini-sec"><h4>Barang keluar</h4><p style="font-size:13.5px">${D.fmtDateTime(b.out.at)} · Kondisi ${esc(b.out.cond)}${b.out.idCard ? ` · Jaminan ${esc(b.out.idCard)}` : ''} · oleh ${esc(b.out.by)}${b.out.note ? `<br><span class="muted">${esc(b.out.note)}</span>` : ''}${extrasHtml(b.out)}</p></div>` : ''}
-      ${b.ret ? `<div class="mini-sec"><h4>Barang kembali</h4><p style="font-size:13.5px">${D.fmtDateTime(b.ret.at)} · Kondisi ${esc(b.ret.cond)} · Terlambat ${b.ret.lateDays} hari · Denda ${rupiah(b.ret.fine)}${b.ret.note ? `<br><span class="muted">${esc(b.ret.note)}</span>` : ''}${extrasHtml(b.ret)}</p></div>` : ''}
+      ${b.out ? outRetHtml(b, 'out') : ''}
+      ${b.ret ? outRetHtml(b, 'ret') : ''}
       ${reqSection(b)}
       <details class="mini-sec hist-fold"><summary><h4>Riwayat booking (${(b.history || []).length})</h4></summary><ul class="timeline">${(b.history || []).slice().reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul></details>`,
       foot: `<a class="btn btn-light" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic}"></i> ${l}</button>`).join('')}` });
@@ -729,7 +887,7 @@
     const fin = () => { refreshShell(); done && done(); };
     if (act === 'sdetail') return saleModal(id, done);
     if (act === 'spay') {
-      if (!(await confirmBox({ title: `Verifikasi pembayaran ${s.id}?`, text: `${rupiah(s.total)} dari ${s.customer.name} sudah diterima.`, ok: 'Verifikasi' }))) return;
+      if (!(await confirmBox({ title: `Verifikasi pembayaran ${NO(s)}?`, text: `${rupiah(s.total)} dari ${s.customer.name} sudah diterima.`, ok: 'Verifikasi' }))) return;
       const short = s.items.filter((i) => DB.saleableStock(DB.product(i.productId), i.size) < i.qty);
       if (short.length) { toast(`Stok tidak cukup: ${short.map((i) => i.name).join(', ')}. Tambah stok dulu di Data Barang.`, 'err'); return; }
       DB.sellStock(s.items, 1);
@@ -743,21 +901,21 @@
       const from = s.status; s.status = next;
       const txt = { dikemas: 'Pesanan dikemas', siap_diambil: 'Pesanan siap diambil di toko', selesai: 'Barang sudah diambil, pesanan selesai' }[next];
       log(s, txt, 'penjualan', `Mengubah status pesanan ${s.id} menjadi ${sl(next)}`, chg('Status pesanan', sl(from), sl(next))); DB.saveSale(s);
-      DB.notify(s.customer.email, txt, `${s.id}: ${txt.toLowerCase()}.${next === 'selesai' ? ' Beri ulasan untuk barang yang kamu beli, yuk!' : ''}`, next === 'selesai' ? `pesanan?tab=riwayat&review=${s.id}` : 'pesanan?tab=beli');
-      toast(`${s.id}: ${STATUS.sale[next].label}.`); fin();
+      DB.notify(s.customer.email, txt, `${NO(s)}: ${txt.toLowerCase()}.${next === 'selesai' ? ' Beri ulasan untuk barang yang kamu beli, yuk!' : ''}`, next === 'selesai' ? `pesanan?tab=riwayat&review=${s.id}` : 'pesanan?tab=beli');
+      toast(`${NO(s)}: ${STATUS.sale[next].label}.`); fin();
     }
     if (act === 'scancel') {
-      const r = await confirmBox({ title: `Batalkan ${s.id}?`, text: s.paymentStatus === 'paid' ? 'Pembayaran customer perlu dikembalikan secara manual.' : 'Pesanan akan dibatalkan.', ok: 'Batalkan pesanan', danger: true, input: { label: 'Alasan pembatalan' } });
+      const r = await confirmBox({ title: `Batalkan ${NO(s)}?`, text: s.paymentStatus === 'paid' ? 'Pembayaran customer perlu dikembalikan secara manual.' : 'Pesanan akan dibatalkan.', ok: 'Batalkan pesanan', danger: true, input: { label: 'Alasan pembatalan' } });
       if (r === false) return;
       const from = s.status; if (s.paymentStatus === 'paid') DB.sellStock(s.items, -1); s.status = 'dibatalkan'; log(s, `Pesanan dibatalkan admin${val(r) ? ': ' + val(r) : ''}`, 'pembatalan', `Membatalkan pesanan ${s.id}${val(r) ? `: ${val(r)}` : ''}`, chg('Status pesanan', sl(from), sl('dibatalkan'))); DB.saveSale(s);
-      DB.notify(s.customer.email, 'Pesanan dibatalkan', `${s.id} dibatalkan oleh admin.`, 'pesanan?tab=beli');
+      DB.notify(s.customer.email, 'Pesanan dibatalkan', `${NO(s)} dibatalkan oleh admin.`, 'pesanan?tab=beli');
       toast('Pesanan dibatalkan.'); fin();
     }
   }
   function saleModal(id, done) {
     const s = DB.sale(id); if (!s) { toast('Pesanan tidak ditemukan.', 'err'); return; }
     const acts = saleActions(s);
-    const m = modal({ title: `Pesanan ${s.id}`, size: 'lg', body: `
+    const m = modal({ title: `Pesanan ${NO(s)}`, size: 'lg', body: `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${pill('sale', s.status)} ${pill('payment', s.paymentStatus)}</div>
       <div class="kv-grid">
         <div class="kv"><span>Customer</span><strong>${esc(s.customer.name)}</strong></div>
@@ -781,10 +939,10 @@
     const inRange = (iso) => { const d = D.day(iso); return (!from || d >= from) && (!to || d <= to); };
     const income = [], expense = [];
     DB.bookings().forEach((b) => {
-      (b.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: b.id, cat: p.type === 'Denda' ? 'Denda' : 'Rental', desc: `${p.type} · ${b.customer.name}`, amount: p.amount }); });
+      (b.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: b.id, cat: p.type === 'Denda' ? 'Denda' : 'Rental', desc: `${p.type}${p.via ? ' · ' + p.via : ''} · ${b.customer.name}`, amount: p.amount, offline: b.channel === 'offline' }); });
       (b.refunds || []).forEach((r) => { if (inRange(r.at)) expense.push({ date: r.at, ref: b.id, cat: 'Refund DP', desc: `Refund DP · ${b.customer.name}`, amount: r.amount, auto: true }); });
     });
-    DB.sales().forEach((s) => (s.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: s.id, cat: 'Penjualan', desc: `Penjualan · ${s.customer.name}`, amount: p.amount }); }));
+    DB.sales().forEach((s) => (s.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: s.id, cat: 'Penjualan', desc: `Penjualan${p.via ? ' · ' + p.via : ''} · ${s.customer.name}`, amount: p.amount, offline: s.channel === 'offline' }); }));
     const voided = [];
     DB.expenses().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'out', voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : expense).push(row); });
     DB.incomes().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'in', manual: true, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : income).push(row); });
@@ -792,7 +950,29 @@
     income.sort(sort); expense.sort(sort);
     const sum = (l) => l.reduce((s, x) => s + x.amount, 0);
     voided.sort(sort);
-    return { income, expense, voided, totalIn: sum(income), totalOut: sum(expense) };
+    /* Pemisahan per lini bisnis agar data tidak rancu:
+       rent = sewa (pembayaran booking, denda, refund DP, perawatan & perbaikan alat)
+       sale = jual (pembayaran pesanan beli, pembelian/restock barang)
+       umum = pemasukan/pengeluaran manual lainnya (operasional, promosi, dll.) */
+    const lineOf = (x, kind) => {
+      if (/^RNT|^R-/.test(String(x.ref))) return 'rent';
+      if (/^ORD|^S-/.test(String(x.ref))) return 'sale';
+      if (kind === 'out' && /perawatan|perbaikan|refund/i.test(x.cat)) return 'rent';
+      if (kind === 'out' && /pembelian barang|restock|stok/i.test(x.cat)) return 'sale';
+      if (kind === 'in' && /cuci|servis/i.test(x.cat)) return 'rent';
+      return 'umum';
+    };
+    const by = { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: 0, out: 0 } };
+    income.forEach((x) => { x.line = lineOf(x, 'in'); by[x.line].in += x.amount; });
+    expense.forEach((x) => { x.line = lineOf(x, 'out'); by[x.line].out += x.amount; });
+    /* Bulan yang data mentahnya sudah dibersihkan: angka diambil dari ringkasan arsip */
+    const per = from && to && from.endsWith('-01') ? from.slice(0, 7) : null;
+    const arc = per && DB.archive ? DB.archive(per) : null;
+    if (arc && arc.purged && arc.summary && String(to).slice(0, 7) === per) {
+      const sm = arc.summary; const bl = sm.byLine || { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: sm.pemasukan || 0, out: sm.pengeluaran || 0 } };
+      return { income, expense, voided, totalIn: Math.max(sum(income), sm.pemasukan || 0), totalOut: Math.max(sum(expense), sm.pengeluaran || 0), by: { rent: { in: Math.max(by.rent.in, bl.rent.in), out: Math.max(by.rent.out, bl.rent.out) }, sale: { in: Math.max(by.sale.in, bl.sale.in), out: Math.max(by.sale.out, bl.sale.out) }, umum: { in: Math.max(by.umum.in, bl.umum.in), out: Math.max(by.umum.out, bl.umum.out) } }, fromArchive: true };
+    }
+    return { income, expense, voided, totalIn: sum(income), totalOut: sum(expense), by };
   }
 
   function relTime(iso) {
@@ -813,5 +993,5 @@
     return { key: 'idle', label: 'Offline', tone: 'gray' };
   }
 
-  window.Admin = { me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, ledger, sisa, itemsText, custLink };
+  window.Admin = { cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, ledger, sisa, itemsText, custLink };
 })();

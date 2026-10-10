@@ -38,7 +38,7 @@
     const fn = TABS.find((x) => x[0] === tab)[2];
     const q = $('#q').value.trim().toLowerCase(), st = $('#fStaff').value, tp = $('#fType').value; const [f, t] = range();
     return DB.audits().filter((a) => fn(a) && (!st || a.userId === st) && (!tp || a.type === tp) && D.day(a.at) >= f && D.day(a.at) <= t
-      && (!q || [a.action, a.ref, a.userName, a.id, ...(a.changes || []).map((c) => `${c.field} ${c.from} ${c.to}`)].join(' ').toLowerCase().includes(q))).reverse();
+      && (!q || [a.action, a.ref, Reports.refNo(a.ref), a.userName, a.id, ...(a.changes || []).map((c) => `${c.field} ${c.from} ${c.to}`)].join(' ').toLowerCase().includes(q))).reverse();
   }
   const chgHtml = (a) => (a.changes || []).length ? `<ul class="chg">${a.changes.map((c) => `<li><span>${esc(c.field)}</span>${c.from ? `<s>${esc(c.from)}</s><i class="fa-solid fa-arrow-right"></i>` : ''}<b>${esc(c.to || '—')}</b></li>`).join('')}</ul>` : '<span class="muted">—</span>';
   const who = (a) => `${esc(a.userName)}<small>${a.role === 'system' ? 'Otomatis' : esc(DB.ROLE_LABEL[a.role] || a.role)}</small>`;
@@ -59,7 +59,7 @@
       <td class="nw">${D.fmtDate(a.at)}<small>${D.fmtDateTime(a.at).split(', ')[1]} · ${Admin.relTime(a.at)}</small></td>
       <td class="nw">${who(a)}</td>
       <td><span class="pill ${t.tone} plain"><i class="fa-solid ${t.icon}"></i> ${t.label}</span></td>
-      <td style="min-width:220px">${esc(a.action)}${a.ref ? `<small>Data: ${esc(a.ref)}</small>` : ''}</td>
+      <td style="min-width:220px">${esc(Reports.refText(a.action))}${a.ref ? `<small>No. referensi: ${esc(Reports.refNo(a.ref))}</small>` : ''}</td>
       <td style="min-width:200px">${chgHtml(a)}</td>
       <td class="num"><button class="btn btn-light btn-xs" data-open="${a.id}">Detail</button></td></tr>`; }).join('')
       : '<tr><td colspan="6"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid fa-clock-rotate-left"></i></div><h3>Tidak ada catatan</h3><p>Coba ubah filter atau periode.</p></div></td></tr>';
@@ -87,7 +87,7 @@
         <div class="kv"><span>Waktu</span><span>${D.HARI[new Date(a.at).getDay()]}, ${D.fmtDateTime(a.at)}</span></div>
         <div class="kv"><span>Dilakukan oleh</span><strong>${esc(a.userName)}</strong></div>
         <div class="kv"><span>Role</span><span>${a.role === 'system' ? 'Sistem (otomatis)' : esc(DB.ROLE_LABEL[a.role] || a.role)}</span></div>
-        <div class="kv"><span>Data terkait</span><span>${a.ref ? (link ? `<a href="${link}" style="color:var(--g700);font-weight:700">${esc(a.ref)}</a>` : esc(a.ref)) : '-'}</span></div>
+        <div class="kv"><span>No. referensi</span><span>${a.ref ? (link ? `<a href="${link}" style="color:var(--g700);font-weight:700">${esc(Reports.refNo(a.ref))}</a>` : esc(Reports.refNo(a.ref))) : '-'}</span></div>
       </div>
       <div class="mini-sec"><h4>Perubahan data</h4>${(a.changes || []).length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Kolom</th><th>Sebelum</th><th>Sesudah</th></tr></thead><tbody>${a.changes.map((c) => `<tr><td>${esc(c.field)}</td><td>${esc(c.from || '—')}</td><td><strong>${esc(c.to || '—')}</strong></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" style="font-size:13.5px">Tidak ada perubahan nilai yang dicatat untuk aktivitas ini.</p>'}</div>
       <p class="muted" style="font-size:12.5px;margin-top:14px"><i class="fa-solid fa-lock"></i> Catatan ini tidak bisa diedit atau dihapus.</p>`,
@@ -104,8 +104,8 @@
     return { filename: `histori-sistem-${T}`, title: `Histori Sistem — ${TABS.find((x) => x[0] === tab)[1]}`,
       subtitle: `${staffName} · ${$('#fType').value ? ty($('#fType').value).label : 'Semua jenis'} · ${f === '0000-00-00' ? 'Semua tanggal' : `${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`}`,
       summary: [['Jumlah catatan', String(L.length)], ['Staff terlibat', String(new Set(L.map((a) => a.userId)).size)]],
-      columns: [{ header: 'Waktu' }, { header: 'Staff' }, { header: 'Role' }, { header: 'Jenis' }, { header: 'Aktivitas', width: 42 }, { header: 'Data' }, { header: 'Perubahan', width: 44 }],
-      rows: L.map((a) => [D.fmtDateTime(a.at), a.userName, a.role === 'system' ? 'Sistem' : DB.ROLE_LABEL[a.role] || a.role, ty(a.type).label, a.action, a.ref || '-', (a.changes || []).map((c) => `${c.field}: ${c.from || '—'} → ${c.to || '—'}`).join('; ') || '-']) };
+      columns: [{ header: 'Waktu' }, { header: 'Staff' }, { header: 'Role' }, { header: 'Jenis' }, { header: 'Aktivitas', width: 42 }, { header: 'No. Referensi' }, { header: 'Perubahan', width: 44 }],
+      rows: L.map((a) => [D.fmtDateTime(a.at), a.userName, a.role === 'system' ? 'Sistem' : DB.ROLE_LABEL[a.role] || a.role, ty(a.type).label, Reports.refText(a.action), Reports.refNo(a.ref), (a.changes || []).map((c) => `${c.field}: ${c.from || '—'} → ${c.to || '—'}`).join('; ') || '-']) };
   });
   if (param('type') && AUDIT_TYPES[param('type')]) { const g = TABS.find(([, , fn]) => fn({ type: param('type') })); tab = g[0]; }
   fillTypes(); if (param('type')) $('#fType').value = param('type');

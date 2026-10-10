@@ -10,23 +10,31 @@
   function draw() {
     const cart = Cart.all();
     if (!cart.length) {
-      root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-cart-shopping"></i></div><h3>Keranjang masih kosong</h3><p>Pilih alat yang mau disewa atau dibeli. Semua yang kamu tambahkan akan muncul di sini.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="katalog">Sewa alat</a><a class="btn btn-outline" href="paket">Lihat paket</a><a class="btn btn-light" href="katalog?mode=beli">Belanja alat</a></div></div>`;
+      root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-cart-shopping"></i></div><h3>Keranjang masih kosong</h3><p>Pilih alat yang mau disewa atau dibeli. Semua yang kamu tambahkan akan muncul di sini.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="katalog">Sewa alat</a><a class="btn btn-outline" href="paket">Lihat paket</a><a class="btn btn-light" href="belanja">Belanja alat</a></div></div>`;
       return;
     }
     const rent = cart.filter((c) => c.type === 'rent'), buy = cart.filter((c) => c.type === 'buy');
-    let problems = 0;
+    let problems = 0, szProblems = 0;
     const row = (it) => {
       const r = Cart.resolve(it);
       if (!r) return '';
       const avail = Cart.availability(it);
       const bad = it.qty > avail;
+      const noSz = it.kind === 'package' && (r.missingSizes || []).length;
       if (bad) problems++;
+      if (noSz) szProblems++;
       const days = it.type === 'rent' ? Rules.rentalDays(it.start, it.end) : 0;
       return `<div class="cart-item" data-key="${it.key}">
         <img src="${asset(r.img)}" alt="">
         <div>
           <h4>${esc(r.name)} ${it.kind === 'package' ? '<span class="pill green plain" style="margin-left:4px">Paket</span>' : ''}</h4>
-          <div class="sm">${it.type === 'rent' ? `${rupiah(r.unit)} / hari × ${days} hari` : rupiah(r.unit)}${r.sub ? `<br>${esc(r.sub)}` : ''}</div>
+          <div class="sm">${it.type === 'rent' ? `${esc(Rules.tierLabel(r.tiers, days))} · ${rupiah(Rules.tierPlan(r.tiers, days).total)} / unit` : rupiah(r.unit)}${r.sub ? `<br>${esc(r.sub)}` : ''}</div>
+          ${it.kind === 'package' ? (() => { const pk = DB.pkg(it.refId); const sized = Rules.packageSized(pk, it.swaps); if (!sized.length) return ''; const SZ = it.sizes || {};
+            return `<div class="cart-pksz">${sized.map((x) => { const list = Rules.sizeAvailability(x.productId, it.start, it.end); const need = x.qty * it.qty;
+              return `<div class="cart-size ${SZ[x.k] ? '' : 'need'}"><label>${esc(x.product.name.replace(/\s*\(.*\)/, ''))}</label><select class="select" data-pks="${x.k}"><option value="">Pilih ukuran…</option>${list.map((o) => `<option value="${esc(o.name)}" ${SZ[x.k] === o.name ? 'selected' : ''} ${o.avail < need && SZ[x.k] !== o.name ? 'disabled' : ''}>${esc(o.name.replace(/\s*\(.*\)/, ''))} ${o.avail < need ? '(habis)' : `(sisa ${o.avail})`}</option>`).join('')}</select></div>`; }).join('')}</div>`; })() : ''}
+          ${(() => { const p = it.kind === 'product' && DB.product(it.refId); if (!p || !DB.hasVariant(p)) return '';
+            const left = (o) => it.type === 'rent' ? Rules.available(p.id, it.start, it.end, null, o.name) : DB.sizeStock(p, o.name);
+            return `<div class="cart-size"><label>Ukuran</label><select class="select" data-f="size">${p.variant.options.map((o) => { const n = left(o); return `<option value="${esc(o.name)}" ${o.name === it.size ? 'selected' : ''} ${n < 1 && o.name !== it.size ? 'disabled' : ''}>${esc(o.name.replace(/\s*\(.*\)/, ''))}${n < 1 ? ' (habis)' : ` (sisa ${n})`}</option>`; }).join('')}</select></div>`; })()}
           ${it.type === 'rent' ? `<div class="dates"><label class="sr-only">Tanggal ambil</label><input type="date" class="input" data-f="start" value="${it.start}" min="${D.today()}"><span class="sm" style="align-self:center">sampai</span><label class="sr-only">Tanggal kembali</label><input type="date" class="input" data-f="end" value="${it.end}" min="${D.addDays(it.start, 1)}"></div>` : ''}
           ${bad ? `<div class="warn"><i class="fa-solid fa-triangle-exclamation"></i> ${it.type === 'rent' ? (it.kind === 'product' ? Rules.availMsg(DB.product(it.refId), it.qty, it.start, it.end, it.size, avail) : `Paket ini hanya tersedia ${avail} untuk ${D.fmtRange(it.start, it.end)}. Kurangi jumlah atau ubah tanggal.`) : `Stok tersisa ${avail} unit${it.size ? ` untuk ukuran ${esc(it.size)}` : ''}.`}</div>` : ''}
         </div>
@@ -48,7 +56,7 @@
         ${(() => { const ranges = [...new Set(rent.map((r) => r.start + '|' + r.end))]; const t = DB.trip() || (rent[0] && { start: rent[0].start, end: rent[0].end });
           if (!rent.length || !t) return '';
           if (ranges.length > 1) return `<div class="notice date-sync"><i class="fa-regular fa-calendar"></i><div><strong>Tanggal sewa di keranjang berbeda-beda.</strong> Samakan semua menjadi <b>${D.fmtRange(t.start, t.end)}</b>? Biasanya semua alat untuk satu trip diambil & dikembalikan bersamaan.</div><button class="btn btn-primary btn-sm" id="syncDates" data-s="${t.start}" data-e="${t.end}">Samakan</button></div>`;
-          return `<div class="notice green date-sync"><i class="fa-regular fa-calendar-check"></i><div>Semua alat disewa untuk <b>${D.fmtRange(rent[0].start, rent[0].end)}</b> · ${Rules.rentalDays(rent[0].start, rent[0].end)} hari.</div><button class="btn btn-light btn-sm" id="chgDates">Ubah tanggal</button></div>`; })()}
+          return `<div class="notice green date-sync"><i class="fa-regular fa-calendar-check"></i><div>Semua alat disewa untuk <b>${D.fmtRange(rent[0].start, rent[0].end)}</b> · ${Rules.rentalDays(rent[0].start, rent[0].end)} malam, kembali paling lambat pukul ${String(DB.settings().returnTime || '22:00').replace(':', '.')} WIB.</div><button class="btn btn-light btn-sm" id="chgDates">Ubah tanggal</button></div>`; })()}
         ${rent.length ? `<section class="cart-group"><h3><i class="fa-solid fa-campground" style="color:var(--g600)"></i> Sewa alat <span class="muted" style="font-weight:500;font-size:13px">(${rent.length})</span></h3>${rentHtml}</section>` : ''}
         ${buy.length ? `<section class="cart-group"><h3><i class="fa-solid fa-bag-shopping" style="color:var(--g600)"></i> Beli alat <span class="muted" style="font-weight:500;font-size:13px">(${buy.length})</span></h3>${buyHtml}</section>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-light btn-sm" href="katalog"><i class="fa-solid fa-plus"></i> Tambah alat lain</a><button class="btn btn-ghost btn-sm" id="clearCart" style="color:var(--red)">Kosongkan keranjang</button></div>
@@ -58,8 +66,9 @@
         ${rent.length ? `<div class="kv"><span>Total sewa</span><span>${rupiah(rentTotal)}</span></div><div class="kv hl"><span>DP ${DB.settings().dpPercent}% sewa</span><span>${rupiah(dp)}</span></div><div class="kv"><span>Sisa bayar saat ambil</span><span>${rupiah(rentTotal - dp)}</span></div>` : ''}
         ${buy.length ? `<div class="kv"><span>Total belanja</span><span>${rupiah(buyTotal)}</span></div>` : ''}
         <div class="kv total"><span>Dibayar sekarang</span><span>${rupiah(dp + buyTotal)}</span></div>
+        ${szProblems ? `<div class="notice red" style="margin:12px 0"><i class="fa-solid fa-ruler"></i><div>Ada ${szProblems} paket yang ukuran barangnya belum dipilih. Pilih ukurannya dulu sebelum lanjut.</div></div>` : ''}
         ${problems ? `<div class="notice red" style="margin:12px 0"><i class="fa-solid fa-circle-exclamation"></i><div>Ada ${problems} item yang jumlahnya melebihi stok. Perbaiki dulu sebelum lanjut.</div></div>` : ''}
-        <button class="btn btn-primary btn-block" id="goCheckout" style="margin-top:12px" ${problems ? 'disabled' : ''}>Lanjut ke checkout <i class="fa-solid fa-arrow-right"></i></button>
+        <button class="btn btn-primary btn-block" id="goCheckout" style="margin-top:12px" ${problems || szProblems ? 'disabled' : ''}>Lanjut ke checkout <i class="fa-solid fa-arrow-right"></i></button>
         <p class="muted" style="font-size:12.5px;margin-top:10px"><i class="fa-solid fa-circle-info"></i> Pembatalan sewa maksimal H-2 sebelum tanggal ambil, DP dikembalikan penuh.</p>
       </aside>
     </div>`;
@@ -76,9 +85,16 @@
     if (e.target.closest('[data-del]')) { Cart.remove(key); draw(); toast('Item dihapus dari keranjang.'); }
   });
   root.addEventListener('change', (e) => {
-    const f = e.target.dataset.f; if (!f) return;
+    const f = e.target.dataset.f; if (!f && e.target.dataset.pks == null) return;
     const key = e.target.closest('.cart-item').dataset.key; const it = Cart.all().find((c) => c.key === key);
     if (f === 'qty') Cart.update(key, { qty: Math.max(1, parseInt(e.target.value, 10) || 1) });
+    if (e.target.dataset.pks != null) { const sz = Object.assign({}, it.sizes || {}); if (e.target.value) sz[e.target.dataset.pks] = e.target.value; else delete sz[e.target.dataset.pks]; Cart.update(key, { sizes: sz }); UI.toast('Ukuran isi paket diperbarui.'); }
+    if (f === 'size') {
+      /* Ganti ukuran: kalau ukuran itu sudah ada di keranjang (tanggal sama), jumlahnya digabung */
+      const twin = Cart.all().find((c) => c.key !== key && c.type === it.type && c.kind === it.kind && c.refId === it.refId && c.size === e.target.value && (it.type === 'buy' || (c.start === it.start && c.end === it.end)));
+      if (twin) { Cart.update(twin.key, { qty: twin.qty + it.qty }); Cart.remove(key); } else Cart.update(key, { size: e.target.value });
+      UI.toast('Ukuran diperbarui.');
+    }
     if (f === 'start') { const s = e.target.value < D.today() ? D.today() : e.target.value; Cart.update(key, { start: s, end: it.end <= s ? D.addDays(s, 1) : it.end }); }
     if (f === 'end') { Cart.update(key, { end: e.target.value <= it.start ? D.addDays(it.start, 1) : e.target.value }); }
     draw();

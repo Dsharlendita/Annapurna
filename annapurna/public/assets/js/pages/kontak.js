@@ -19,7 +19,10 @@
     msg: (v) => (v.length < 5 ? 'Tulis pesanmu, minimal 5 karakter.' : ''),
   });
   const text = () => `Halo Annapurna Adventure, saya ${form.elements.name.value} (${form.phone.value}).\nKeperluan: ${form.topic.value}\n\n${form.msg.value}`;
-  form.addEventListener('submit', (e) => { e.preventDefault(); if (!check()) return; window.open(waLink(text()), '_blank'); toast('WhatsApp dibuka di tab baru. Tinggal tekan kirim.'); });
+  form.addEventListener('submit', (e) => { e.preventDefault(); if (!check()) return;
+    /* User dengan pesanan aktif: nota digital ikut dikirim (lihat UI.waContact) */
+    if (Ann.DB.session() && UI.activeOrders().length) { UI.waContact(text()); return; }
+    window.open(waLink(text()), '_blank'); toast('WhatsApp dibuka di tab baru. Tinggal tekan kirim.'); });
   $('#cEmail').addEventListener('click', () => { if (!check()) return; location.href = `mailto:${st.email}?subject=${encodeURIComponent(form.topic.value)}&body=${encodeURIComponent(text())}`; });
 
   /* Cek pesanan tanpa login */
@@ -35,7 +38,7 @@
       const x = DB2.lookupOrder(id, ph);
       if (!x) { out.innerHTML = '<p class="promo-msg no"><i class="fa-solid fa-circle-xmark"></i> Pesanan tidak ditemukan. Periksa lagi nomor pesanan dan nomor WhatsApp yang dipakai saat memesan.</p>'; return; }
       const rent = !!x.start; const label = rent ? ST.rental[x.status].label : ST.sale[x.status].label;
-      out.innerHTML = `<div class="track-res"><div class="tr-h"><div><strong>${x.id}</strong><small>${rent ? `Sewa ${D2.fmtRange(x.start, x.end)}` : 'Pembelian'} · ${UI.esc(x.customer.name)}</small></div><span class="pill green plain">${label}</span></div>
+      out.innerHTML = `<div class="track-res"><div class="tr-h"><div><strong>${NO(x)}</strong><small>${rent ? `Sewa ${D2.fmtRange(x.start, x.end)}` : 'Pembelian'} · ${UI.esc(x.customer.name)}</small></div><span class="pill green plain">${label}</span></div>
         ${UI.orderTracker(x, { links: false })}
         <div class="tr-items">${x.items.map((i) => `<span>${i.qty}× ${UI.esc(i.name)}</span>`).join('')}</div>
         <div class="tr-f"><span>Total <b>${rp(x.total)}</b></span><a class="btn btn-light btn-sm" href="masuk?next=${encodeURIComponent('pesanan?id=' + x.id)}">Masuk untuk kelola pesanan</a></div></div>`;

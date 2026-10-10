@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = 'ann-v15';
+  const VERSION = 'ann-v18';
   const KEY = (k) => `annapurna:${k}`;
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -34,127 +34,260 @@
   const rupiah = (n) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 
   const IMG = (p) => `assets/img/${p}`;
+  /* Alasan unit sewa dinonaktifkan (barang sewa tidak dijual, jadi tidak ada alasan "dijual") */
+  /* ---------- Nomor nota: 001/X/2026 (urut per bulan, bulan romawi, satu urutan untuk sewa & beli, mulai 001 tiap bulan) ----------
+     Kode internal (RNT-…/ORD-…) tetap dipakai untuk link, QR & data; nomor ini yang ditampilkan ke customer & staff. */
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+  let numbering = false;
+  function ensureNos() {
+    if (numbering) return; numbering = true;
+    try {
+      const B = read('bookings', []), S = read('sales', []);
+      const all = [...B, ...S];
+      const todo = all.filter((x) => !x.no);
+      if (todo.length) {
+        const seq = {};
+        all.filter((x) => x.no).forEach((x) => { const m = String(x.no).match(/^(\d+)\/([IVX]+)\/(\d{4})$/); if (m) { const k = m[3] + '-' + (ROMAN.indexOf(m[2]) + 1); seq[k] = Math.max(seq[k] || 0, +m[1]); } });
+        /* Format waktu dibuat bisa "2026-10-07T11:15" atau "2026-10-07 10:15" — disamakan dulu agar urutan kronologis */
+        const ts = (x) => Date.parse(String(x.createdAt || '').replace(' ', 'T')) || Date.now();
+        todo.sort((a, b) => ts(a) - ts(b)).forEach((x) => {
+          const d = new Date(ts(x)); const k = d.getFullYear() + '-' + (d.getMonth() + 1);
+          seq[k] = (seq[k] || 0) + 1;
+          x.no = `${String(seq[k]).padStart(3, '0')}/${ROMAN[d.getMonth()]}/${d.getFullYear()}`;
+        });
+        write('bookings', B); write('sales', S);
+      }
+    } finally { numbering = false; }
+  }
+  /* Nomor yang ditampilkan untuk pesanan (sewa/beli) */
+  window.NO = (x) => (x ? (x.no || (ensureNos(), ((read('bookings', []).concat(read('sales', []))).find((y) => y.id === x.id) || {}).no) || x.id) : '');
+  const OFF_REASON = { hilang: 'Hilang', rusak: 'Rusak total', lainnya: 'Nonaktif' };
+  /* Kategori mengikuti price list resmi Annapurna Adventure (WhatsApp). */
   const CATEGORIES = [
-    { id: 'tenda', name: 'Tenda', img: IMG('categories/tenda.jpg') },
-    { id: 'sleeping-bag', name: 'Sleeping Bag', img: IMG('categories/sleeping-bag.jpg') },
-    { id: 'kursi', name: 'Kursi Camping', img: IMG('categories/kursi.jpg') },
-    { id: 'carrier', name: 'Carrier', img: IMG('categories/carrier.jpg') },
-    { id: 'kompor', name: 'Kompor & Cooking Set', img: IMG('categories/kompor.jpg') },
-    { id: 'lampu', name: 'Lampu', img: IMG('categories/lampu.jpg') },
-    { id: 'matras', name: 'Matras', img: IMG('categories/matras.jpg') },
-    { id: 'jaket', name: 'Jaket & Pakaian', img: IMG('products/jaket.svg') },
-    { id: 'sepatu', name: 'Sepatu & Sandal', img: IMG('products/sepatu.svg') },
+    { id: 'tenda', name: 'Tenda', img: IMG('wa/cat-tenda.jpg') },
+    { id: 'tas', name: 'Tas Backpack / Rucksack', img: IMG('wa/cat-tas.jpg') },
+    { id: 'footwear', name: 'Footwear', img: IMG('wa/cat-footwear.jpg') },
+    { id: 'fashion', name: 'Fashion', img: IMG('wa/cat-fashion.jpg') },
+    { id: 'outdoor', name: 'Outdoor Equipment', img: IMG('wa/cat-outdoor.jpg') },
+    { id: 'cooking', name: 'Cooking Equipment', img: IMG('wa/cat-cooking.jpg') },
   ].map((c) => Object.assign({ active: true }, c));
 
+  /* rent = tarif per malam, rent3 = tarif perkegiatan (3 hari 3 malam), rent5 = tarif ekspedisi (5 hari 5 malam). price = harga jual (0 = tidak dijual). */
   const P = (id, name, cat, img, rent, price, stock, rating, reviews, extra = {}) =>
-    Object.assign({ id, name, cat, img: IMG(img), rent, price, stock, rating, reviews, cond: 'Sangat Baik', badge: '', featured: false, active: true }, extra);
+    Object.assign({ id, name, cat, img: IMG(img), rent, rent3: 0, rent5: 0, price, stock, rating, reviews, cond: 'Sangat Baik', badge: '', featured: false, active: true, minDays: 1 }, extra);
+  /* Barang sewa: R(id, nama, kategori, gambar, [per malam, perkegiatan 3 hari, ekspedisi 5 hari], stok, extra) */
+  const R = (id, name, cat, img, [r1, r3, r5], stock, extra = {}) => P(id, name, cat, img, r1, 0, stock, 0, 0, Object.assign({ rent3: r3, rent5: r5 }, extra));
 
   /* Varian / ukuran: { label, options: [{ name, stock }] }. Stok total = jumlah stok semua ukuran. */
   const V = (label, pairs, attrId) => ({ attrId, label, options: pairs.map(([name, stock]) => ({ name: String(name), stock })) });
+  const SHOE = (n) => V('Ukuran sepatu (EU)', [['39', n], ['40', n], ['41', n], ['42', n], ['43', n]], 'at-sepatu');
+  const SIZE = (n) => V('Ukuran pakaian', [['M', n], ['L', n], ['XL', n]], 'at-ukuran');
+  const TENT = (cap) => ({ specs: [`Kapasitas ${cap} orang`, 'Double layer (lapisan ganda)', 'Tahan air dan angin', 'Sirkulasi udara baik & nyaman', 'Mudah dipasang dan dibawa'],
+    desc: `Tenda kapasitas ${cap} orang dengan double layer (lapisan ganda). Tahan air dan angin, sirkulasi udara baik sehingga nyaman dipakai, serta mudah dipasang dan dibawa.`,
+    attrs: { 'at-kapasitas': `${cap} orang`, 'at-tipe-tenda': 'Double layer' } });
+
   const PRODUCTS = [
-    P('p1', 'Tenda Camping', 'tenda', 'products/tenda.jpg', 75000, 1850000, 6, 4.8, 124, {
-      badge: 'Populer', featured: true,
+    /* ---------- Kategori Tenda ---------- */
+    R('tnd-2', 'Tenda Kapasitas 2 (Double Layer)', 'tenda', 'wa/tnd-2.jpg', [35000, 60000, 100000], 4, Object.assign(TENT('2'), { badge: '', featured: true, sku: 'TND-2P' })),
+    R('tnd-4', 'Tenda Kapasitas 4 (Double Layer)', 'tenda', 'wa/tnd-4.jpg', [40000, 70000, 110000], 6, Object.assign(TENT('4'), { badge: '', featured: true, sku: 'TND-4P' })),
+    R('tnd-45', 'Tenda Kapasitas 4-5 (Double Layer)', 'tenda', 'wa/tnd-45.jpg', [45000, 80000, 120000], 3, Object.assign(TENT('4-5'), { sku: 'TND-45P' })),
+    R('tnd-6', 'Tenda Kapasitas 6 (Double Layer)', 'tenda', 'wa/tnd-6.jpg', [80000, 150000, 200000], 2, Object.assign(TENT('6'), { featured: true, sku: 'TND-6P' })),
+
+    /* ---------- Kategori Tas Backpack / Rucksack ---------- */
+    R('tas-hydro', 'Hydropack', 'tas', 'wa/tas-hydro.jpg', [15000, 27000, 38000], 8, { sku: 'TAS-HYD',
+      desc: 'Tas hydropack ringan & ergonomis untuk tektok dan trail running, menjaga cairan tetap tersedia di setiap perjalanan.', specs: ['Ringan & ergonomis', 'Slot kantong air', 'Cocok untuk tektok'] }),
+    R('tas-day', 'Daypack', 'tas', 'wa/tas-day.jpg', [15000, 27000, 38000], 6, { sku: 'TAS-DAY',
+      desc: 'Daypack untuk perjalanan singkat atau pendakian tanpa menginap.', specs: ['Ringan', 'Cocok untuk perjalanan sehari'] }),
+    R('crr-4050s', 'Carrier 40-50 L (Standar)', 'tas', 'wa/crr-4050s.jpg', [20000, 35000, 50000], 4, { sku: 'CRR-4050S', attrs: { 'at-kapasitas': '40-50 L' },
+      desc: 'Carrier kelas standar kapasitas 40-50 liter untuk pendakian singkat.', specs: ['Kapasitas 40-50 L', 'Kelas standar'] }),
+    R('crr-60s', 'Carrier 60 L (Standar)', 'tas', 'wa/crr-60s.jpg', [25000, 45000, 65000], 5, { sku: 'CRR-60S', featured: true, attrs: { 'at-kapasitas': '60 L' },
+      desc: 'Carrier kelas standar kapasitas 60 liter, pas untuk pendakian 2–3 hari.', specs: ['Kapasitas 60 L', 'Kelas standar'] }),
+    R('crr-7080s', 'Carrier 70-80 L (Standar)', 'tas', 'wa/crr-7080s.jpg', [30000, 55000, 80000], 3, { sku: 'CRR-7080S', attrs: { 'at-kapasitas': '70-80 L' },
+      desc: 'Carrier kelas standar kapasitas 70-80 liter untuk perjalanan panjang / ekspedisi.', specs: ['Kapasitas 70-80 L', 'Kelas standar'] }),
+    R('crr-4050m', 'Carrier 40-50 L (Medium)', 'tas', 'wa/crr-4050m.jpg', [30000, 55000, 80000], 3, { sku: 'CRR-4050M', attrs: { 'at-kapasitas': '40-50 L' },
+      desc: 'Carrier kelas medium kapasitas 40-50 liter dengan backsystem lebih nyaman.', specs: ['Kapasitas 40-50 L', 'Kelas medium'] }),
+    R('crr-60m', 'Carrier 60 L (Medium)', 'tas', 'wa/crr-60m.jpg', [35000, 60000, 100000], 3, { sku: 'CRR-60M', attrs: { 'at-kapasitas': '60 L' },
+      desc: 'Carrier kelas medium kapasitas 60 liter dengan backsystem lebih nyaman.', specs: ['Kapasitas 60 L', 'Kelas medium'] }),
+    R('crr-osprey', 'Carrier Premium Osprey', 'tas', 'wa/crr-osprey.jpg', [100000, 180000, 250000], 2, { sku: 'CRR-OSP', brand: 'Osprey', badge: 'Premium',
+      desc: 'Carrier premium merek Osprey untuk kenyamanan maksimal di perjalanan panjang.', specs: ['Merek Osprey', 'Kelas premium'] }),
+    R('tas-cover', 'Coverbag', 'tas', 'wa/tas-cover.jpg', [5000, 9000, 13000], 10, { sku: 'TAS-CVR',
+      desc: 'Cover bag / rain cover untuk melindungi tas dari hujan.', specs: ['Pelindung tas dari hujan'] }),
+
+    /* ---------- Kategori Footwear ---------- */
+    R('fw-sandal', 'Sandal Gunung', 'footwear', 'wa/fw-sandal.jpg', [10000, 18000, 25000], 10, { sku: 'FW-SDL', variant: SHOE(2),
+      desc: 'Sandal gunung dengan strap kuat dan sol anti slip, nyaman di camping ground.', specs: ['Strap kuat', 'Sol anti slip'] }),
+    R('fw-std', 'Sepatu (Standar)', 'footwear', 'wa/fw-std.jpg', [25000, 45000, 65000], 10, { sku: 'FW-STD', variant: SHOE(2),
+      desc: 'Sepatu hiking standar yang nyaman dipakai, sol kuat anti selip, siap menemani setiap langkah petualanganmu.', specs: ['Sol kuat anti selip', 'Nyaman dipakai'] }),
+    R('fw-low', 'Sepatu Trekking Low', 'footwear', 'wa/fw-low.jpg', [35000, 60000, 100000], 5, { sku: 'FW-LOW', variant: SHOE(1),
+      desc: 'Sepatu trekking model low-cut, ringan untuk jalur trekking.', specs: ['Model low-cut', 'Ringan'] }),
+    R('fw-mid', 'Sepatu Hiking Mid', 'footwear', 'wa/fw-mid.jpg', [40000, 70000, 110000], 5, { sku: 'FW-MID', featured: true, variant: SHOE(1),
+      desc: 'Sepatu hiking model mid-cut dengan pelindung mata kaki untuk jalur berbatu.', specs: ['Model mid-cut', 'Melindungi mata kaki'] }),
+    R('fw-trail', 'Sepatu Trail Premium (Salomon / Hoka)', 'footwear', 'wa/fw-trail.jpg', [50000, 90000, 130000], 5, { sku: 'FW-TRL', brand: 'Salomon / Hoka', badge: 'Premium', variant: SHOE(1),
+      desc: 'Sepatu trail premium Salomon / Hoka: ringan, nyaman & kuat. Cocok untuk semua medan, anti slip & cepat kering.', specs: ['Ringan, nyaman & kuat', 'Anti slip', 'Cepat kering'] }),
+
+    /* ---------- Kategori Fashion ---------- */
+    R('fs-jkt', 'Jaket Standar', 'fashion', 'wa/fs-jkt.jpg', [10000, 18000, 25000], 9, { sku: 'FS-JKT', variant: SIZE(3),
+      desc: 'Jaket gunung standar, melindungi dari angin & hujan. Bahan ringan, hangat, dan tahan cuaca.', specs: ['Melindungi dari angin & hujan', 'Ringan & hangat'] }),
+    R('fs-wind', 'Jaket Windbreaker Standar', 'fashion', 'wa/fs-wind.jpg', [15000, 27000, 38000], 6, { sku: 'FS-WND', variant: SIZE(2),
+      desc: 'Jaket windbreaker ringan untuk menahan angin di jalur pendakian.', specs: ['Menahan angin', 'Ringan'] }),
+    R('fs-uv', 'Jaket Anti UV', 'fashion', 'wa/fs-uv.jpg', [15000, 27000, 38000], 6, { sku: 'FS-UV', variant: SIZE(2),
+      desc: 'Jaket anti UV untuk melindungi kulit dari sinar matahari.', specs: ['Perlindungan sinar UV'] }),
+    R('fs-puffer', 'Jaket Puffer Gembung (Standar)', 'fashion', 'wa/fs-puffer.jpg', [20000, 35000, 50000], 6, { sku: 'FS-PUF', variant: SIZE(2),
+      desc: 'Jaket puffer gembung standar, hangat untuk suhu dingin di gunung.', specs: ['Hangat', 'Model puffer'] }),
+    R('fs-puffer-anak', 'Jaket Puffer Anak', 'fashion', 'wa/fs-puffer-anak.jpg', [20000, 35000, 50000], 4, { sku: 'FS-PFA',
+      desc: 'Jaket puffer hangat untuk anak-anak.', specs: ['Ukuran anak', 'Hangat'] }),
+    R('fs-insulated', 'Jaket Insulated', 'fashion', 'wa/fs-insulated.jpg', [20000, 35000, 50000], 6, { sku: 'FS-INS', variant: SIZE(2),
+      desc: 'Jaket insulated untuk menahan dingin.', specs: ['Lapisan insulasi', 'Hangat'] }),
+    R('fs-gorpcore', 'Jaket Gorpcore', 'fashion', 'wa/fs-gorpcore.jpg', [25000, 45000, 65000], 6, { sku: 'FS-GRP', variant: SIZE(2),
+      desc: 'Jaket gorpcore: melindungi dari angin & hujan, bahan ringan, hangat, dan tahan cuaca.', specs: ['Melindungi dari angin & hujan', 'Ringan, hangat, tahan cuaca'] }),
+    R('fs-puffer-prem', 'Jaket Puffer Gembung Premium', 'fashion', 'wa/fs-puffer-prem.jpg', [25000, 45000, 65000], 6, { sku: 'FS-PFP', variant: SIZE(2),
+      desc: 'Jaket puffer gembung kelas premium, sangat hangat untuk suhu dingin.', specs: ['Kelas premium', 'Sangat hangat'] }),
+    R('fs-glove', 'Sarung Tangan', 'fashion', 'wa/fs-glove.jpg', [10000, 18000, 25000], 10, { sku: 'FS-GLV',
+      desc: 'Sarung tangan untuk menjaga tangan tetap hangat.', specs: ['Menjaga tangan tetap hangat'] }),
+    R('fs-cargo', 'Celana Cargo', 'fashion', 'wa/fs-cargo.jpg', [10000, 18000, 25000], 8, { sku: 'FS-CRG',
+      desc: 'Celana cargo outdoor dengan banyak kantong.', specs: ['Banyak kantong'] }),
+    R('fs-kcm', 'Kacamata (Standar)', 'fashion', 'wa/fs-kcm.jpg', [5000, 9000, 13000], 10, { sku: 'FS-KCM',
+      desc: 'Kacamata sport standar: melindungi mata dari sinar UV, debu, & angin. Jarak pandang lebih jernih & nyaman.', specs: ['Melindungi dari UV, debu & angin'] }),
+    R('fs-kcm-gorp', 'Kacamata Gorpcore', 'fashion', 'wa/fs-kcm-gorp.jpg', [10000, 18000, 25000], 6, { sku: 'FS-KCG',
+      desc: 'Kacamata gorpcore: melindungi mata dari sinar UV, debu, & angin. Jarak pandang lebih jernih & nyaman.', specs: ['Melindungi dari UV, debu & angin'] }),
+    R('fs-topi', 'Topi', 'fashion', 'wa/fs-topi.jpg', [10000, 18000, 25000], 8, { sku: 'FS-TOP',
+      desc: 'Topi outdoor untuk melindungi kepala dari panas.', specs: ['Melindungi dari panas'] }),
+
+    /* ---------- Kategori Outdoor Equipment ---------- */
+    R('oe-sb', 'Sleeping Bag', 'outdoor', 'wa/oe-sb.jpg', [10000, 18000, 25000], 24, { sku: 'OE-SB', featured: true,
+      desc: 'Sleeping bag hangat dan selalu dicuci bersih setelah disewa.', specs: ['Hangat', 'Selalu dicuci bersih'] }),
+    R('oe-tp', 'Trekking Pole (Standar)', 'outdoor', 'wa/oe-tp.jpg', [15000, 27000, 38000], 10, { sku: 'OE-TP',
+      desc: 'Trekking pole standar: bantu jaga keseimbangan, mengurangi beban lutut, lebih stabil di medan terjal.', specs: ['Jaga keseimbangan', 'Mengurangi beban lutut'] }),
+    R('oe-tpz', 'Trekking Pole Z (Ultralight)', 'outdoor', 'wa/oe-tpz.jpg', [20000, 35000, 50000], 6, { sku: 'OE-TPZ',
+      desc: 'Trekking pole model Z ultralight: ringan, bisa dilipat ringkas, lebih stabil di medan terjal.', specs: ['Ultralight', 'Model lipat Z'] }),
+    R('oe-matras', 'Matras', 'outdoor', 'wa/oe-matras.jpg', [5000, 9000, 13000], 24, { sku: 'OE-MTR',
+      desc: 'Matras alas tidur di dalam tenda.', specs: ['Alas tidur'] }),
+    R('oe-headlamp', 'Headlamp', 'outdoor', 'wa/oe-headlamp.jpg', [5000, 9000, 13000], 15, { sku: 'OE-HDL',
+      desc: 'Headlamp: penerangan maksimal saat malam, praktis & hemat energi.', specs: ['Praktis', 'Hemat energi'] }),
+    R('oe-lampu', 'Lampu Tenda', 'outdoor', 'wa/oe-lampu.jpg', [5000, 9000, 13000], 12, { sku: 'OE-LMP',
+      desc: 'Lampu gantung untuk penerangan di dalam tenda.', specs: ['Bisa digantung di tenda'] }),
+    R('oe-fly23', 'Flysheet 2 x 3', 'outdoor', 'wa/oe-fly23.jpg', [10000, 18000, 25000], 4, { sku: 'OE-F23', desc: 'Flysheet ukuran 2 × 3 meter untuk naungan / pelindung hujan.', specs: ['Ukuran 2 × 3 m'] }),
+    R('oe-fly33', 'Flysheet 3 x 3', 'outdoor', 'wa/oe-fly33.jpg', [15000, 27000, 38000], 4, { sku: 'OE-F33', desc: 'Flysheet ukuran 3 × 3 meter untuk naungan / pelindung hujan.', specs: ['Ukuran 3 × 3 m'] }),
+    R('oe-hammock', 'Hammock', 'outdoor', 'wa/oe-hammock.jpg', [10000, 18000, 25000], 5, { sku: 'OE-HMK', desc: 'Hammock untuk bersantai di area camping.', specs: ['Untuk bersantai'] }),
+    R('oe-kursi', 'Kursi Lipat', 'outdoor', 'wa/oe-kursi.jpg', [15000, 27000, 38000], 12, { sku: 'OE-KRS', desc: 'Kursi lipat camping yang ringkas dibawa.', specs: ['Bisa dilipat'] }),
+    R('oe-meja', 'Meja Lipat', 'outdoor', 'wa/oe-meja.jpg', [15000, 27000, 38000], 5, { sku: 'OE-MJA', desc: 'Meja lipat camping yang ringkas dibawa.', specs: ['Bisa dilipat'] }),
+    R('oe-tripod', 'Tripod', 'outdoor', 'wa/oe-tripod.jpg', [10000, 18000, 25000], 3, { sku: 'OE-TRP', desc: 'Tripod untuk dokumentasi foto & video.', specs: ['Untuk kamera / HP'] }),
+    R('oe-pb10', 'Powerbank 10.000 mAh', 'outdoor', 'wa/oe-pb10.jpg', [15000, 27000, 38000], 5, { sku: 'OE-PB10', desc: 'Powerbank kapasitas 10.000 mAh.', specs: ['Kapasitas 10.000 mAh'] }),
+    R('oe-pb20', 'Powerbank 20.000 mAh', 'outdoor', 'wa/oe-pb20.jpg', [25000, 45000, 65000], 4, { sku: 'OE-PB20', desc: 'Powerbank kapasitas 20.000 mAh.', specs: ['Kapasitas 20.000 mAh'] }),
+
+    /* ---------- Kategori Cooking Equipment ---------- */
+    R('ck-ds200', 'Cooking Set DS200', 'cooking', 'wa/ck-ds200.jpg', [10000, 18000, 25000], 6, { sku: 'CK-DS200', desc: 'Cooking set / nesting DS200 untuk masak di camping.', specs: ['Nesting DS200'] }),
+    R('ck-ds300', 'Nesting TNI / Cooking Set DS300', 'cooking', 'wa/ck-ds300.jpg', [15000, 27000, 38000], 6, { sku: 'CK-DS300', desc: 'Nesting TNI / cooking set DS300, muat untuk masak rombongan.', specs: ['Nesting TNI / DS300'] }),
+    R('ck-grill-s', 'Grillpan Kecil', 'cooking', 'wa/ck-grill-s.jpg', [10000, 18000, 25000], 5, { sku: 'CK-GPS', desc: 'Grill pan ukuran kecil untuk BBQ.', specs: ['Ukuran kecil'] }),
+    R('ck-grill-m', 'Grillpan Sedang', 'cooking', 'wa/ck-grill-m.jpg', [15000, 27000, 38000], 4, { sku: 'CK-GPM', desc: 'Grill pan ukuran sedang untuk BBQ.', specs: ['Ukuran sedang'] }),
+    R('ck-grill-l', 'Grillpan Besar', 'cooking', 'wa/ck-grill-l.jpg', [20000, 35000, 50000], 3, { sku: 'CK-GPL', desc: 'Grill pan ukuran besar untuk BBQ rombongan.', specs: ['Ukuran besar'] }),
+    R('ck-kompor', 'Kompor Kotak Camping', 'cooking', 'wa/ck-kompor.jpg', [15000, 27000, 38000], 8, { sku: 'CK-KMP', desc: 'Kompor kotak camping portable yang ringkas.', specs: ['Portable', 'Ringkas'] }),
+    R('ck-koper', 'Kompor Koper Grill', 'cooking', 'wa/ck-koper.jpg', [25000, 45000, 65000], 5, { sku: 'CK-KPR', featured: true, desc: 'Kompor koper grill (BBQ) gratis koper pelindung. Cocok untuk BBQ dan masak di camping.', specs: ['Gratis koper', 'Bisa untuk BBQ'], includes: 'Kompor + koper' }),
+    R('ck-capit', 'Capitan Daging', 'cooking', 'wa/ck-capit.jpg', [5000, 9000, 13000], 6, { sku: 'CK-CPT', desc: 'Capitan / jepitan daging untuk BBQ.', specs: ['Untuk BBQ'] }),
+
+    /* ---------- Barang JUAL (data dummy, bukan dari price list WhatsApp). Hanya dijual, tidak disewakan. ---------- */
+    P('jl-1', 'Tenda Camping Consina 4P', 'tenda', 'wa/jl-1.jpg', 0, 1850000, 6, 4.8, 124, {
       desc: 'Tenda dome kapasitas 4 orang dengan double layer dan flysheet waterproof 3000mm. Rangka alloy ringan, cepat dipasang dalam 10 menit.',
       specs: ['Kapasitas 4 orang', 'Waterproof 3000mm', 'Berat 3,2 kg', 'Ukuran 210 × 240 × 140 cm'],
-      attrs: { 'at-kapasitas': '4 orang', 'at-tipe-tenda': 'Dome' }, brand: 'Consina', sku: 'TND-4P-01', color: 'Hijau army', material: 'Polyester 190T, frame alloy', weight: '3,2 kg', dimension: '210 × 240 × 140 cm', includes: 'Inner, flysheet, 2 frame alloy, 12 pasak, tali, tas', minDays: 1 }),
-    P('p2', 'Kursi Camping', 'kursi', 'products/kursi.jpg', 15000, 185000, 12, 4.7, 98, {
-      badge: 'Best Seller', featured: true,
-      desc: 'Kursi lipat dengan sandaran tinggi dan tempat gelas. Kokoh menahan beban hingga 120 kg, bisa dilipat ringkas ke dalam tas.',
-      specs: ['Beban maks. 120 kg', 'Rangka baja', 'Tas penyimpanan', 'Berat 2,1 kg'] }),
-    P('p3', 'Sleeping Bag', 'sleeping-bag', 'products/sleeping-bag.jpg', 20000, 275000, 10, 4.6, 87, {
-      featured: true,
-      desc: 'Sleeping bag polar dengan lapisan dalam lembut, nyaman untuk suhu 10–18°C. Selalu dicuci bersih setelah setiap penyewaan.',
-      specs: ['Suhu nyaman 10–18°C', 'Bahan polar', 'Ukuran 190 × 75 cm', 'Bisa dibuka jadi selimut'] }),
-    P('p4', 'Kompor Portable', 'kompor', 'products/kompor.jpg', 25000, 320000, 8, 4.8, 76, {
-      featured: true,
-      desc: 'Kompor gas portable dengan koper, api stabil dan hemat gas. Dilengkapi pengaman tekanan gas otomatis.',
-      specs: ['Gas kaleng 230 g', 'Pemantik otomatis', 'Koper pelindung', 'Berat 1,8 kg'] }),
-    P('p5', 'Carrier', 'carrier', 'products/carrier.jpg', 35000, 850000, 7, 4.8, 65, {
-      featured: true,
-      desc: 'Carrier 60 liter dengan backsystem adjustable, rain cover, dan banyak kantong. Cocok untuk pendakian 2–4 hari.',
-      specs: ['Kapasitas 60 L', 'Rain cover', 'Backsystem adjustable', 'Hip belt empuk'],
-      variant: V('Ukuran punggung', [['S (torso 40–45 cm)', 2], ['M (torso 45–50 cm)', 3], ['L (torso 50–55 cm)', 2]], 'at-punggung'), attrs: { 'at-kapasitas': '60 L' },
-      brand: 'Eiger', sku: 'CRR-60-01', color: 'Hitam / abu', material: 'Nylon ripstop 420D', weight: '1,9 kg', dimension: '60 liter', includes: 'Rain cover', minDays: 1 }),
-    P('p6', 'Lampu Camping', 'lampu', 'products/lampu.jpg', 15000, 150000, 9, 4.6, 58, {
-      featured: true,
-      desc: 'Lentera camping dengan cahaya hangat dan tiga mode terang. Baterai isi ulang tahan hingga 12 jam.',
-      specs: ['3 mode cahaya', 'Baterai isi ulang', 'Tahan 12 jam', 'Gantungan besi'] }),
-    P('p7', 'Tenda Dome 2P Ultralight', 'tenda', 'categories/tenda.jpg', 55000, 1250000, 5, 4.7, 41, {
+      attrs: { 'at-kapasitas': '4 orang', 'at-tipe-tenda': 'Dome' }, brand: 'Consina', sku: 'JL-TND-4P-01', color: 'Hijau army', material: 'Polyester 190T, frame alloy', weight: '3,2 kg', dimension: '210 × 240 × 140 cm', includes: 'Inner, flysheet, 2 frame alloy, 12 pasak, tali, tas' }),
+    P('jl-7', 'Tenda Dome 2P Ultralight', 'tenda', 'wa/jl-7.jpg', 0, 1250000, 5, 4.7, 41, {
       desc: 'Tenda ultralight untuk 2 orang, favorit pendaki solo dan berdua. Muat masuk carrier dengan mudah.',
       specs: ['Kapasitas 2 orang', 'Berat 1,9 kg', 'Waterproof 2000mm', 'Frame aluminium'] }),
-    P('p8', 'Sleeping Bag Mummy -5°C', 'sleeping-bag', 'categories/sleeping-bag.jpg', 30000, 450000, 6, 4.8, 33, {
-      desc: 'Sleeping bag bentuk mummy untuk gunung dengan suhu dingin, lengkap dengan hoodie dan resleting dua arah.',
-      specs: ['Suhu ekstrem -5°C', 'Model mummy + hoodie', 'Isian dacron', 'Compression sack'] }),
-    P('p9', 'Kursi Camping Director', 'kursi', 'categories/kursi.jpg', 20000, 240000, 6, 4.5, 22, {
-      desc: 'Kursi director dengan sandaran tangan, nyaman untuk bersantai lama di area camping ground.',
-      specs: ['Sandaran tangan', 'Beban maks. 110 kg', 'Rangka baja', 'Berat 2,8 kg'] }),
-    P('p10', 'Carrier Daypack 40L', 'carrier', 'categories/carrier.jpg', 25000, 550000, 6, 4.6, 29, {
+    P('jl-21', 'Tenda Eiger Kaliandra 4P', 'tenda', 'wa/jl-21.jpg', 0, 2450000, 4, 4.8, 38, {
+      desc: 'Tenda 4 orang merek Eiger dengan double layer, frame aluminium, dan vestibule luas untuk menyimpan carrier.',
+      specs: ['Kapasitas 4 orang', 'Waterproof 5000mm', 'Frame aluminium', 'Vestibule depan'],
+      attrs: { 'at-kapasitas': '4 orang', 'at-tipe-tenda': 'Dome' }, brand: 'Eiger', sku: 'JL-TND-EGR-4P', color: 'Abu-abu / oranye', material: 'Polyester 210T PU 5000mm, frame aluminium 7001', weight: '3,6 kg', dimension: '220 × 240 × 135 cm', includes: 'Inner, flysheet, 3 frame aluminium, 14 pasak, tali, tas' }),
+    P('jl-5', 'Carrier Eiger 60L', 'tas', 'wa/jl-5.jpg', 0, 850000, 7, 4.8, 65, {
+      desc: 'Carrier 60 liter dengan backsystem adjustable, rain cover, dan banyak kantong. Cocok untuk pendakian 2–4 hari.',
+      specs: ['Kapasitas 60 L', 'Rain cover', 'Backsystem adjustable', 'Hip belt empuk'],
+      attrs: { 'at-kapasitas': '60 L' },
+      brand: 'Eiger', sku: 'JL-CRR-60-01', color: 'Hitam / abu', material: 'Nylon ripstop 420D', weight: '1,9 kg', dimension: '60 liter', includes: 'Rain cover' }),
+    P('jl-10', 'Carrier Daypack 40L', 'tas', 'wa/jl-10.jpg', 0, 550000, 6, 4.6, 29, {
       desc: 'Daypack 40 liter untuk tektok dan pendakian satu hari. Ringan dengan ventilasi punggung.',
       specs: ['Kapasitas 40 L', 'Ventilasi punggung', 'Slot hydration', 'Berat 1,1 kg'],
-      attrs: { 'at-kapasitas': '40 L' }, brand: 'Consina', sku: 'CRR-40-01', color: 'Biru navy', material: 'Polyester 600D', weight: '1,1 kg', dimension: '40 liter', includes: 'Rain cover', minDays: 1 }),
-    P('p11', 'Kompor & Cooking Set', 'kompor', 'categories/kompor.jpg', 30000, 395000, 5, 4.7, 37, {
-      desc: 'Paket kompor koper dengan nesting 3 panci, wajan, dan sendok. Praktis untuk masak bareng di camping.',
-      specs: ['Kompor koper', 'Nesting 3 panci + wajan', 'Sendok & sutil', 'Tas jaring'] }),
-    P('p12', 'Lentera LED Retro', 'lampu', 'categories/lampu.jpg', 12000, 120000, 10, 4.5, 19, {
-      desc: 'Lentera LED gaya klasik dengan dimmer. Aman dipakai di dalam tenda.',
-      specs: ['Dimmer', '3× baterai AA', 'Tahan 20 jam', 'Tahan cipratan air'] }),
-    P('p13', 'Matras Angin Ultralight', 'matras', 'categories/matras.jpg', 15000, 225000, 8, 4.6, 27, {
-      desc: 'Matras tiup ringan dengan bantal terintegrasi. Menjaga badan tetap hangat dari tanah.',
-      specs: ['Tebal 6 cm', 'Bantal terintegrasi', 'Berat 560 g', 'Pompa kantong'] }),
-    P('p14', 'Matras Foam Lipat', 'matras', 'categories/matras.jpg', 8000, 95000, 12, 4.4, 45, {
-      desc: 'Matras foam lipat model telur. Tidak perlu ditiup dan tahan tusukan.',
-      specs: ['Model egg-crate', 'Tebal 2 cm', 'Lipat 8 bagian', 'Berat 400 g'] }),
-    P('p15', 'Tenda Keluarga 6P', 'tenda', 'products/tenda.jpg', 120000, 0, 3, 4.9, 18, {
-      desc: 'Tenda besar untuk keluarga dengan dua ruang tidur dan teras. Hanya tersedia untuk disewa.',
-      specs: ['Kapasitas 6 orang', '2 kamar + teras', 'Tinggi 190 cm', 'Waterproof 3000mm'] }),
-    P('p16', 'Gas Kaleng 230 g', 'kompor', 'categories/kompor.jpg', 0, 18000, 60, 4.8, 112, {
-      desc: 'Gas butana kaleng 230 g untuk kompor portable. Hanya tersedia untuk dibeli.',
-      specs: ['Isi 230 g', 'Butana', 'Untuk kompor portable', 'Satuan'] }),
-    P('p21', 'Tenda Eiger Kaliandra 4P', 'tenda', 'products/tenda.jpg', 90000, 2450000, 4, 4.8, 38, {
-      desc: 'Tenda 4 orang merek Eiger dengan double layer, frame aluminium, dan vestibule luas untuk menyimpan carrier. Alternatif premium dari Tenda Camping standar.',
-      specs: ['Kapasitas 4 orang', 'Waterproof 5000mm', 'Frame aluminium', 'Vestibule depan'],
-      attrs: { 'at-kapasitas': '4 orang', 'at-tipe-tenda': 'Dome' }, brand: 'Eiger', sku: 'TND-EGR-4P', color: 'Abu-abu / oranye', material: 'Polyester 210T PU 5000mm, frame aluminium 7001', weight: '3,6 kg', dimension: '220 × 240 × 135 cm', includes: 'Inner, flysheet, 3 frame aluminium, 14 pasak, tali, tas', deposit: 200000, minDays: 1 }),
-    P('p17', 'Jaket Gunung Waterproof', 'jaket', 'products/jaket.svg', 25000, 650000, 9, 4.7, 21, {
+      attrs: { 'at-kapasitas': '40 L' }, brand: 'Consina', sku: 'JL-CRR-40-01', color: 'Biru navy', material: 'Polyester 600D', weight: '1,1 kg', dimension: '40 liter', includes: 'Rain cover' }),
+    P('jl-19', 'Sepatu Hiking Mid Waterproof', 'footwear', 'wa/jl-19.jpg', 0, 950000, 9, 4.8, 17, {
+      desc: 'Sepatu hiking model mid dengan pelindung mata kaki, sol karet bergerigi, dan lapisan anti air.',
+      specs: ['Model mid-cut', 'Sol karet anti slip', 'Lapisan waterproof', 'Toe cap pelindung'],
+      variant: V('Ukuran (EU)', [['39', 1], ['40', 2], ['41', 2], ['42', 2], ['43', 1], ['44', 1]], 'at-sepatu'), attrs: { 'at-gender': 'Unisex' },
+      brand: 'SNTA', sku: 'JL-SPT-HK-01', color: 'Cokelat', material: 'Suede & mesh, sol rubber', weight: '1,1 kg / pasang', dimension: 'Panjang kaki: 39 = 24,5 cm · 40 = 25 cm · 41 = 26 cm · 42 = 26,5 cm · 43 = 27,5 cm · 44 = 28 cm', includes: 'Sepasang sepatu, tali cadangan' }),
+    P('jl-20', 'Sandal Gunung Eiger', 'footwear', 'wa/jl-20.jpg', 0, 185000, 10, 4.6, 26, {
+      desc: 'Sandal gunung dengan strap kuat dan sol empuk. Nyaman untuk di camping ground atau menyeberang sungai.',
+      specs: ['Strap webbing + velcro', 'Sol EVA + karet', 'Cepat kering', 'Anti slip'],
+      variant: V('Ukuran (EU)', [['39', 2], ['40', 2], ['41', 2], ['42', 2], ['43', 2]], 'at-sepatu'), attrs: { 'at-gender': 'Unisex' },
+      brand: 'Eiger', sku: 'JL-SDL-01', color: 'Hitam / hijau', material: 'Webbing nylon, sol karet', weight: '480 g / pasang', dimension: '', includes: 'Sepasang sandal' }),
+    P('jl-17', 'Jaket Gunung Waterproof', 'fashion', 'wa/jl-17.jpg', 0, 650000, 9, 4.7, 21, {
       badge: 'Baru', desc: 'Jaket outer 2 lapis anti air dan angin dengan hoodie yang bisa dilepas. Cocok untuk pendakian dan cuaca hujan.',
       specs: ['Waterproof 5000mm', 'Hoodie bisa dilepas', 'Kantong dalam', 'Ventilasi ketiak'],
       variant: V('Ukuran', [['S', 1], ['M', 3], ['L', 3], ['XL', 2]], 'at-ukuran'), attrs: { 'at-gender': 'Unisex' },
-      brand: 'Eiger', sku: 'JKT-WP-01', color: 'Oranye', material: 'Nylon taslan coating PU', weight: '650 g', dimension: 'Lingkar dada S 100 · M 106 · L 112 · XL 118 cm', includes: 'Jaket, hoodie, kantong penyimpanan', deposit: 50000, minDays: 1 }),
-    P('p18', 'Jaket Polar Fleece', 'jaket', 'products/jaket-polar.svg', 15000, 225000, 8, 4.6, 14, {
+      brand: 'Eiger', sku: 'JL-JKT-WP-01', color: 'Oranye', material: 'Nylon taslan coating PU', weight: '650 g', dimension: 'Lingkar dada S 100 · M 106 · L 112 · XL 118 cm', includes: 'Jaket, hoodie, kantong penyimpanan' }),
+    P('jl-18', 'Jaket Polar Fleece', 'fashion', 'wa/jl-18.jpg', 0, 225000, 8, 4.6, 14, {
       desc: 'Jaket polar hangat untuk lapisan tengah atau dipakai santai di camping ground saat malam.',
       specs: ['Bahan polar tebal', 'Resleting penuh', '2 kantong samping', 'Ringan & cepat kering'],
       variant: V('Ukuran', [['M', 2], ['L', 3], ['XL', 2], ['XXL', 1]], 'at-ukuran'), attrs: { 'at-gender': 'Unisex' },
-      brand: 'Consina', sku: 'JKT-PL-01', color: 'Hijau', material: 'Polar fleece 280 gsm', weight: '420 g', dimension: 'Lingkar dada M 104 · L 110 · XL 116 · XXL 122 cm', includes: 'Jaket', minDays: 1 }),
-    P('p19', 'Sepatu Hiking Mid Waterproof', 'sepatu', 'products/sepatu.svg', 35000, 950000, 9, 4.8, 17, {
-      desc: 'Sepatu hiking model mid dengan pelindung mata kaki, sol karet bergerigi, dan lapisan anti air. Dicuci & disemprot antibakteri setiap selesai disewa.',
-      specs: ['Model mid-cut', 'Sol karet anti slip', 'Lapisan waterproof', 'Toe cap pelindung'],
-      variant: V('Ukuran (EU)', [['39', 1], ['40', 2], ['41', 2], ['42', 2], ['43', 1], ['44', 1]], 'at-sepatu'), attrs: { 'at-gender': 'Unisex' },
-      brand: 'SNTA', sku: 'SPT-HK-01', color: 'Cokelat', material: 'Suede & mesh, sol rubber', weight: '1,1 kg / pasang', dimension: 'Panjang kaki: 39 = 24,5 cm · 40 = 25 cm · 41 = 26 cm · 42 = 26,5 cm · 43 = 27,5 cm · 44 = 28 cm', includes: 'Sepasang sepatu, tali cadangan', deposit: 100000, minDays: 1 }),
-    P('p20', 'Sandal Gunung', 'sepatu', 'products/sandal.svg', 0, 185000, 10, 4.6, 26, {
-      desc: 'Sandal gunung dengan strap kuat dan sol empuk. Nyaman untuk di camping ground atau menyeberang sungai. Hanya dijual.',
-      specs: ['Strap webbing + velcro', 'Sol EVA + karet', 'Cepat kering', 'Anti slip'],
-      variant: V('Ukuran (EU)', [['39', 2], ['40', 2], ['41', 2], ['42', 2], ['43', 2]], 'at-sepatu'), attrs: { 'at-gender': 'Unisex' },
-      brand: 'Eiger', sku: 'SDL-01', color: 'Hitam / hijau', material: 'Webbing nylon, sol karet', weight: '480 g / pasang', dimension: '', includes: 'Sepasang sandal', minDays: 1 }),
+      brand: 'Consina', sku: 'JL-JKT-PL-01', color: 'Hijau', material: 'Polar fleece 280 gsm', weight: '420 g', dimension: 'Lingkar dada M 104 · L 110 · XL 116 · XXL 122 cm', includes: 'Jaket' }),
+    P('jl-3', 'Sleeping Bag Polar', 'outdoor', 'wa/jl-3.jpg', 0, 275000, 10, 4.6, 87, {
+      desc: 'Sleeping bag polar dengan lapisan dalam lembut, nyaman untuk suhu 10–18°C.',
+      specs: ['Suhu nyaman 10–18°C', 'Bahan polar', 'Ukuran 190 × 75 cm', 'Bisa dibuka jadi selimut'] }),
+    P('jl-8', 'Sleeping Bag Mummy -5°C', 'outdoor', 'wa/jl-8.jpg', 0, 450000, 6, 4.8, 33, {
+      desc: 'Sleeping bag bentuk mummy untuk gunung dengan suhu dingin, lengkap dengan hoodie dan resleting dua arah.',
+      specs: ['Suhu ekstrem -5°C', 'Model mummy + hoodie', 'Isian dacron', 'Compression sack'] }),
+    P('jl-13', 'Matras Angin Ultralight', 'outdoor', 'wa/jl-13.jpg', 0, 225000, 8, 4.6, 27, {
+      desc: 'Matras tiup ringan dengan bantal terintegrasi. Menjaga badan tetap hangat dari tanah.',
+      specs: ['Tebal 6 cm', 'Bantal terintegrasi', 'Berat 560 g', 'Pompa kantong'] }),
+    P('jl-14', 'Matras Foam Lipat', 'outdoor', 'wa/jl-14.jpg', 0, 95000, 12, 4.4, 45, {
+      desc: 'Matras foam lipat model telur. Tidak perlu ditiup dan tahan tusukan.',
+      specs: ['Model egg-crate', 'Tebal 2 cm', 'Lipat 8 bagian', 'Berat 400 g'] }),
+    P('jl-2', 'Kursi Camping', 'outdoor', 'wa/jl-2.jpg', 0, 185000, 12, 4.7, 98, {
+      desc: 'Kursi lipat dengan sandaran tinggi dan tempat gelas. Kokoh menahan beban hingga 120 kg, bisa dilipat ringkas ke dalam tas.',
+      specs: ['Beban maks. 120 kg', 'Rangka baja', 'Tas penyimpanan', 'Berat 2,1 kg'] }),
+    P('jl-9', 'Kursi Camping Director', 'outdoor', 'wa/jl-9.jpg', 0, 240000, 6, 4.5, 22, {
+      desc: 'Kursi director dengan sandaran tangan, nyaman untuk bersantai lama di area camping ground.',
+      specs: ['Sandaran tangan', 'Beban maks. 110 kg', 'Rangka baja', 'Berat 2,8 kg'] }),
+    P('jl-6', 'Lampu Camping', 'outdoor', 'wa/jl-6.jpg', 0, 150000, 9, 4.6, 58, {
+      desc: 'Lentera camping dengan cahaya hangat dan tiga mode terang. Baterai isi ulang tahan hingga 12 jam.',
+      specs: ['3 mode cahaya', 'Baterai isi ulang', 'Tahan 12 jam', 'Gantungan besi'] }),
+    P('jl-12', 'Lentera LED Retro', 'outdoor', 'wa/jl-12.jpg', 0, 120000, 10, 4.5, 19, {
+      desc: 'Lentera LED gaya klasik dengan dimmer. Aman dipakai di dalam tenda.',
+      specs: ['Dimmer', '3× baterai AA', 'Tahan 20 jam', 'Tahan cipratan air'] }),
+    P('jl-4', 'Kompor Portable', 'cooking', 'wa/jl-4.jpg', 0, 320000, 8, 4.8, 76, {
+      desc: 'Kompor gas portable dengan koper, api stabil dan hemat gas. Dilengkapi pengaman tekanan gas otomatis.',
+      specs: ['Gas kaleng 230 g', 'Pemantik otomatis', 'Koper pelindung', 'Berat 1,8 kg'] }),
+    P('jl-11', 'Kompor & Cooking Set', 'cooking', 'wa/jl-11.jpg', 0, 395000, 5, 4.7, 37, {
+      desc: 'Paket kompor koper dengan nesting 3 panci, wajan, dan sendok. Praktis untuk masak bareng di camping.',
+      specs: ['Kompor koper', 'Nesting 3 panci + wajan', 'Sendok & sutil', 'Tas jaring'] }),
+    /* ---------- Barang habis pakai (isi Paket BBQ). Harga jual belum ada di price list WhatsApp — sesuaikan di Kelola Barang. ---------- */
+    P('gas', 'Gas Kaleng', 'cooking', 'wa/gas.jpg', 0, 18000, 40, 0, 0, { sku: 'GAS-KLG', desc: 'Gas kaleng untuk kompor portable / kompor koper grill. Dijual satuan.', specs: ['Untuk kompor portable', 'Satuan'] }),
+    /* Gas kaleng versi sewa (stok terpisah dari gas yang dijual). Tarif 3 & 5 hari mengikuti kombinasi tarif per malam. */
+    R('gas-sewa', 'Gas Kaleng (Sewa)', 'cooking', 'wa/gas.jpg', [10000, 0, 0], 10, { sku: 'GAS-SWA', desc: 'Gas kaleng untuk kompor portable / kompor koper grill, disewakan per malam. Termasuk dalam Paket BBQ 2 & 3.', specs: ['Untuk kompor portable', 'Per malam'] }),
   ];
 
+  /* Paket sesuai price list. price = per malam, price3 = perkegiatan (3 hari), price5 = ekspedisi (5 hari).
+     Paket Tektok hanya punya harga 1 malam; untuk kegiatan / ekspedisi dihitung dari harga satuan isinya (price3/price5 kosong). */
   const PACKAGES = [
-    { id: 'pk1', name: 'Paket Solo Hiking', tagline: 'Semua yang kamu butuhkan untuk naik gunung sendiri.', img: IMG('products/carrier.jpg'), price: 120000, people: '1 orang', pMin: 1, pMax: 1, type: 'hiking',
-      items: [{ productId: 'p7', qty: 1 }, { productId: 'p8', qty: 1 }, { productId: 'p13', qty: 1 }, { productId: 'p5', qty: 1 }, { productId: 'p6', qty: 1 }] },
-    { id: 'pk2', name: 'Paket Camping Berdua', tagline: 'Tenda, alas tidur, dan dapur kecil untuk dua orang.', img: IMG('products/tenda.jpg'), price: 145000, people: '2 orang', pMin: 2, pMax: 2, type: 'camping', popular: true,
-      items: [{ productId: 'p1', qty: 1 }, { productId: 'p3', qty: 2 }, { productId: 'p14', qty: 2 }, { productId: 'p4', qty: 1 }, { productId: 'p6', qty: 1 }] },
-    { id: 'pk3', name: 'Paket Keluarga', tagline: 'Camping santai bareng keluarga di camping ground.', img: IMG('products/kursi.jpg'), price: 299000, people: '4–6 orang', pMin: 4, pMax: 6, type: 'camping',
-      items: [{ productId: 'p15', qty: 1 }, { productId: 'p3', qty: 4 }, { productId: 'p14', qty: 4 }, { productId: 'p2', qty: 4 }, { productId: 'p11', qty: 1 }, { productId: 'p6', qty: 2 }] },
-    { id: 'pk4', name: 'Paket Hiking Berdua', tagline: 'Ringan dibawa untuk pendakian dua hari satu malam.', img: IMG('categories/tenda.jpg'), price: 175000, people: '2 orang', pMin: 2, pMax: 2, type: 'hiking',
-      items: [{ productId: 'p7', qty: 1 }, { productId: 'p8', qty: 2 }, { productId: 'p13', qty: 2 }, { productId: 'p10', qty: 2 }, { productId: 'p12', qty: 1 }] },
-    { id: 'pk5', name: 'Paket Tektok Ringan', tagline: 'Naik dan turun di hari yang sama tanpa menginap.', img: IMG('categories/carrier.jpg'), price: 52000, people: '1 orang', pMin: 1, pMax: 1, type: 'hiking',
-      items: [{ productId: 'p10', qty: 1 }, { productId: 'p12', qty: 1 }, { productId: 'p4', qty: 1 }] },
-    { id: 'pk6', name: 'Paket Camping Berempat', tagline: 'Dua tenda dan perlengkapan tidur untuk empat orang.', img: IMG('products/sleeping-bag.jpg'), price: 319000, people: '4 orang', pMin: 4, pMax: 4, type: 'camping',
-      items: [{ productId: 'p1', qty: 2 }, { productId: 'p3', qty: 4 }, { productId: 'p14', qty: 4 }, { productId: 'p2', qty: 4 }, { productId: 'p4', qty: 1 }, { productId: 'p6', qty: 2 }] },
-    { id: 'pk7', name: 'Paket Rombongan', tagline: 'Untuk kemah bersama komunitas atau acara kampus.', img: IMG('categories/kursi.jpg'), price: 419000, people: '6–8 orang', pMin: 6, pMax: 8, type: 'camping',
-      items: [{ productId: 'p15', qty: 1 }, { productId: 'p1', qty: 1 }, { productId: 'p3', qty: 8 }, { productId: 'p14', qty: 8 }, { productId: 'p11', qty: 1 }, { productId: 'p6', qty: 3 }] },
-    { id: 'pk8', name: 'Paket Dapur Camping', tagline: 'Masak dan ngopi di alam tanpa ribet.', img: IMG('categories/kompor.jpg'), price: 57000, people: '2–4 orang', pMin: 2, pMax: 4, type: 'pelengkap',
-      items: [{ productId: 'p11', qty: 1 }, { productId: 'p4', qty: 1 }, { productId: 'p12', qty: 1 }] },
-    { id: 'pk9', name: 'Paket Tidur Nyaman', tagline: 'Sleeping bag hangat dan matras angin untuk tidur nyenyak.', img: IMG('categories/sleeping-bag.jpg'), price: 39000, people: '1 orang', pMin: 1, pMax: 1, type: 'pelengkap',
-      items: [{ productId: 'p8', qty: 1 }, { productId: 'p13', qty: 1 }] },
+    { id: 'pk-2p', name: 'Paket 2P', tagline: 'Tenda kapasitas 2, 2 matras, 2 sleeping bag, dan 1 lampu tenda.', img: IMG('wa/pk-2p.jpg'), price: 65000, price3: 125000, price5: 185000, people: '2 orang', pMin: 1, pMax: 2, type: 'tenda', popular: true,
+      items: [{ productId: 'tnd-2', qty: 1 }, { productId: 'oe-matras', qty: 2 }, { productId: 'oe-sb', qty: 2 }, { productId: 'oe-lampu', qty: 1 }] },
+    { id: 'pk-4p', name: 'Paket 4P', tagline: 'Tenda kapasitas 4, 4 matras, 4 sleeping bag, dan 1 lampu tenda.', img: IMG('wa/pk-4p.jpg'), price: 90000, price3: 170000, price5: 250000, people: '3–4 orang', pMin: 3, pMax: 4, type: 'tenda',
+      items: [{ productId: 'tnd-4', qty: 1 }, { productId: 'oe-matras', qty: 4 }, { productId: 'oe-sb', qty: 4 }, { productId: 'oe-lampu', qty: 1 }] },
+    { id: 'pk-5p', name: 'Paket 5P', tagline: 'Tenda kapasitas 4-5, 5 matras, 5 sleeping bag, dan 1 lampu tenda.', img: IMG('wa/pk-5p.jpg'), price: 100000, price3: 190000, price5: 290000, people: '5 orang', pMin: 5, pMax: 5, type: 'tenda',
+      items: [{ productId: 'tnd-45', qty: 1 }, { productId: 'oe-matras', qty: 5 }, { productId: 'oe-sb', qty: 5 }, { productId: 'oe-lampu', qty: 1 }] },
+    { id: 'pk-6p', name: 'Paket 6P', tagline: 'Tenda kapasitas 6, 6 matras, 6 sleeping bag, dan 1 lampu tenda.', img: IMG('wa/pk-6p.jpg'), price: 150000, price3: 290000, price5: 400000, people: '6 orang', pMin: 6, pMax: 6, type: 'tenda',
+      items: [{ productId: 'tnd-6', qty: 1 }, { productId: 'oe-matras', qty: 6 }, { productId: 'oe-sb', qty: 6 }, { productId: 'oe-lampu', qty: 1 }] },
+    { id: 'pk-bbq1', name: 'Paket BBQ 1', tagline: 'Kompor BBQ dan grill pan. BBQ seru, momen berkesan!', img: IMG('wa/pk-bbq1.jpg'), price: 35000, price3: 60000, price5: 100000, people: 'Bebas', pMin: 1, pMax: 20, type: 'bbq',
+      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-s', qty: 1 }] },
+    { id: 'pk-bbq2', name: 'Paket BBQ 2', tagline: 'Kompor BBQ, grill pan, dan gas kaleng.', img: IMG('wa/pk-bbq2.jpg'), price: 45000, price3: 80000, price5: 120000, people: 'Bebas', pMin: 1, pMax: 20, type: 'bbq', popular: true,
+      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-s', qty: 1 }, { productId: 'gas-sewa', qty: 1 }] },
+    { id: 'pk-bbq3', name: 'Paket BBQ 3', tagline: 'Kompor BBQ, grill pan, gas kaleng, dan jepitan daging.', img: IMG('wa/pk-bbq3.jpg'), price: 50000, price3: 90000, price5: 130000, people: 'Bebas', pMin: 1, pMax: 20, type: 'bbq',
+      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-s', qty: 1 }, { productId: 'gas-sewa', qty: 1 }, { productId: 'ck-capit', qty: 1 }] },
+    { id: 'pk-tektok', name: 'Paket Tektok Standar', tagline: 'Perlengkapan lengkap naik-turun gunung tanpa menginap. Hemat Rp15.000.', img: IMG('wa/pk-tektok.jpg'), price: 60000, people: '1 orang', pMin: 1, pMax: 1, type: 'tektok', tektok: true,
+      items: [{ productId: 'fw-std', qty: 1 }, { productId: 'tas-hydro', qty: 1 }, { productId: 'fs-jkt', qty: 1 }, { productId: 'oe-tp', qty: 1 }, { productId: 'oe-headlamp', qty: 1 }, { productId: 'fs-kcm', qty: 1 }] },
+    { id: 'pk-tektok-prem', name: 'Paket Tektok Premium', tagline: 'Sepatu Salomon / Hoka, jaket gorpcore, trekking pole Z ultralight, dan lainnya. Hemat Rp15.000.', img: IMG('wa/pk-tektok-prem.jpg'), price: 110000, people: '1 orang', pMin: 1, pMax: 1, type: 'tektok', tektok: true,
+      items: [{ productId: 'fw-trail', qty: 1 }, { productId: 'tas-hydro', qty: 1 }, { productId: 'fs-gorpcore', qty: 1 }, { productId: 'oe-tpz', qty: 1 }, { productId: 'oe-headlamp', qty: 1 }, { productId: 'fs-kcm-gorp', qty: 1 }] },
+  ];
+  const TEKTOK_TERMS = [
+    'Harga paket tektok khusus untuk harga 1 malam. Jika mau harga kegiatan / ekspedisi, ambil harga satuan.',
+    'Paket tektok bisa di-upgrade produknya dengan menambah harga sesuai selisih.',
+    'Item dalam paket tektok bisa ditukar dengan item lain dengan harga yang sama.',
   ];
 
   const SETTINGS = {
@@ -162,15 +295,42 @@
     phone: '+62 896 3469 6969',
     whatsapp: '6289634696969',
     email: 'annapurnaadv@gmail.com',
-    instagram: '@annapurnaadv',
-    address: 'Jl. Kampus No. 8-9 Grendeng, Purwokerto, Jawa Tengah, Indonesia',
+    instagram: '@annapurna_adv',
+    tiktok: '@annapurna_adv',
+    address: 'Jl. Kampus No. 8-9, Kelurahan Grendeng, Kec. Purwokerto Utara, Kab. Banyumas',
     hours: 'Setiap hari, 09.00 – 22.00 WIB',
     dpPercent: 50,
+    /* Batas waktu membayar DP setelah booking dibuat (jam). Lewat batas → booking dibatalkan otomatis agar stok kembali tersedia. */
+    payWindowHours: 1,
+    /* Logout otomatis staff bila tidak ada aktivitas (menit, 0 = mati) */
+    idleLogoutMin: 60,
+    /* Pembersihan data setelah rekap bulanan tersimpan di Google Drive (data bulan yang sudah diarsipkan) */
+    cleanup: { mode: 'approve' },
+    /* Tata cara di beranda (bisa diubah owner di Konfigurasi → Tampilan Beranda) */
+    howto: {
+      sewa: [
+        { icon: 'fa-calendar-days', title: 'Pilih Produk', text: 'Lihat katalog dan tentukan perlengkapan yang kamu butuhkan.' },
+        { icon: 'fa-clipboard', title: 'Isi Form Sewa', text: 'Lengkapi data diri dan pilih tanggal ambil & kembali.' },
+        { icon: 'fa-credit-card', title: 'Lakukan Pembayaran', text: 'Bayar DP lewat transfer atau QRIS, lalu unggah bukti.' },
+        { icon: 'fa-store', title: 'Ambil di Toko', text: 'Tunjukkan nota digital & kartu identitas, barang siap dipakai!' },
+      ],
+      beli: [
+        { icon: 'fa-bag-shopping', title: 'Pilih Barang', text: 'Buka halaman Beli Alat, pilih perlengkapan baru yang kamu inginkan.' },
+        { icon: 'fa-cart-shopping', title: 'Checkout', text: 'Masukkan ke keranjang, isi data diri, dan pilih metode pembayaran.' },
+        { icon: 'fa-credit-card', title: 'Bayar Penuh', text: 'Transfer atau QRIS, lalu unggah bukti. Admin memverifikasi pembayaranmu.' },
+        { icon: 'fa-store', title: 'Ambil di Toko', text: 'Barang dikemas, kamu dapat notifikasi saat siap diambil.' },
+      ],
+    },
+    /* Struk kasir: ukuran kertas printer thermal & pesan penutup */
+    receipt: { paper: 58, footerRent: 'Bawa struk ini & kartu identitas saat mengembalikan barang. Sewa bersih, kembali kotor? Biar kami yang membersihkan.', footerSale: 'Barang yang sudah dibeli tidak dapat ditukar kecuali cacat produksi.' }, // approve = minta persetujuan owner · auto = langsung · off = nonaktif
+    /* Section "Produk Rental Terlaris" di beranda: sumber data (otomatis | manual | gabungan), periode hitung (hari, 0 = semua), jumlah barang */
+    homeBest: { mode: 'gabungan', days: 90, count: 6, onlyAvailable: true },
     cancelDays: 2,
+    /* Terlambat dari jam tutup toko (22.00) = dihitung tambah sewa per malam untuk setiap malam keterlambatan. */
     lateFeePercent: 100,
     lateFeeMode: 'persen',
-    lateFeeAmount: 20000,
-    returnTime: '18:00',
+    lateFeeAmount: 0,
+    returnTime: '22:00',
     lateAfterReturnTime: true,
     maxRentDays: 14,
     serviceEvery: 10,
@@ -193,12 +353,21 @@
       { bank: 'BCA', number: '1234567890', holder: 'Annapurna Adventure' },
       { bank: 'BRI', number: '0987 6543 2100 123', holder: 'Annapurna Adventure' },
     ],
+    /* Durasi peminjaman sesuai syarat & ketentuan Annapurna Adventure */
+    durations: [
+      { days: 1, name: 'Per malam', note: 'Pengembalian esok hari', example: 'Ambil Kamis 01/08 pukul 09.00 WIB, kembali Jumat 02/08 maksimal pukul 22.00 WIB.' },
+      { days: 3, name: 'Kegiatan (3 hari 3 malam)', note: 'Sewa 3 hari 3 malam', example: 'Ambil Kamis 01/08 pukul 09.00 WIB, kembali Minggu 04/08 maksimal pukul 22.00 WIB.' },
+      { days: 5, name: 'Ekspedisi (5 hari 5 malam)', note: 'Sewa 5 hari 5 malam', example: 'Ambil Kamis 01/08 pukul 09.00 WIB, kembali Selasa 06/08 maksimal pukul 22.00 WIB.' },
+    ],
+    tektokTerms: TEKTOK_TERMS,
     rentalTerms: [
-      'Pengambilan dan pengembalian barang dilakukan langsung di toko (tidak ada layanan antar).',
+      'Pengambilan dan pengembalian barang dilakukan langsung di toko Annapurna Adventure, Jl. Kampus No. 8-9 Grendeng, Purwokerto Utara.',
       'Penyewa wajib menyerahkan kartu identitas asli (KTP/KTM/SIM) saat pengambilan barang.',
-      'Harga sewa dihitung per hari (24 jam) sejak tanggal pengambilan.',
+      'Durasi sewa: Per malam (pengembalian esok hari), Kegiatan 3 hari 3 malam, atau Ekspedisi 5 hari 5 malam, dihitung sejak tanggal pengambilan.',
+      'Pengembalian paling lambat pada tanggal kembali, sampai jam operasional toko berakhir pukul 22.00 WIB.',
       'Pembayaran DP 50% diperlukan untuk mengunci booking. Sisa dibayar saat pengambilan barang.',
-      'Keterlambatan pengembalian dikenakan denda sebesar harga sewa per hari untuk setiap barang.',
+      'Lewat dari pukul 22.00 WIB pada tanggal kembali dihitung terlambat dan dikenakan biaya sewa per malam untuk setiap barang, setiap malam keterlambatan.',
+      'Sewa bersih, kembali kotor? Biar kami yang membersihkan — penyewa cukup memakainya dengan happy tanpa harus mencuci.',
       'Kerusakan atau kehilangan barang menjadi tanggung jawab penyewa sesuai hasil pengecekan.',
     ],
     cancelPolicy: [
@@ -207,16 +376,14 @@
       'Pengembalian DP diproses admin maksimal 2×24 jam ke rekening penyewa.',
     ],
     /* ---------- Konfigurasi sistem (diatur Owner) ---------- */
-    /* Kategori yang unitnya wajib dicuci / dibersihkan setiap selesai disewa */
-    washCats: ['tenda', 'sleeping-bag', 'jaket', 'sepatu'],
+    /* Kategori yang unitnya wajib dicuci / dibersihkan setiap selesai disewa ("sewa bersih, kembali kotor biar kami yang membersihkan") */
+    washCats: ['tenda', 'tas', 'footwear', 'fashion', 'outdoor', 'cooking'],
     attributes: [
-      { id: 'at-ukuran', name: 'Ukuran pakaian', type: 'pilihan', values: ['S', 'M', 'L', 'XL', 'XXL'], variant: true, cats: ['jaket'], required: true, active: true },
-      { id: 'at-sepatu', name: 'Ukuran sepatu (EU)', type: 'pilihan', values: ['38', '39', '40', '41', '42', '43', '44', '45'], variant: true, cats: ['sepatu'], required: true, active: true },
-      { id: 'at-punggung', name: 'Ukuran punggung', type: 'pilihan', values: ['S (torso 40–45 cm)', 'M (torso 45–50 cm)', 'L (torso 50–55 cm)'], variant: true, cats: ['carrier'], required: false, active: true },
-      { id: 'at-kapasitas', name: 'Kapasitas', type: 'pilihan', values: ['1 orang', '2 orang', '4 orang', '6 orang', '40 L', '60 L'], variant: false, cats: ['tenda', 'carrier'], required: false, active: true },
-      { id: 'at-tipe-tenda', name: 'Tipe tenda', type: 'pilihan', values: ['Dome', 'Tunnel', 'Ultralight', 'Keluarga'], variant: false, cats: ['tenda'], required: false, active: true },
-      { id: 'at-gender', name: 'Gender', type: 'pilihan', values: ['Pria', 'Wanita', 'Unisex'], variant: false, cats: ['jaket', 'sepatu'], required: false, active: true },
-      { id: 'at-suhu', name: 'Suhu nyaman', type: 'teks', values: [], variant: false, cats: ['sleeping-bag'], required: false, active: true },
+      { id: 'at-ukuran', name: 'Ukuran pakaian', type: 'pilihan', values: ['S', 'M', 'L', 'XL', 'XXL'], variant: true, cats: ['fashion'], required: false, active: true },
+      { id: 'at-sepatu', name: 'Ukuran sepatu (EU)', type: 'pilihan', values: ['38', '39', '40', '41', '42', '43', '44', '45'], variant: true, cats: ['footwear'], required: false, active: true },
+      { id: 'at-kapasitas', name: 'Kapasitas', type: 'pilihan', values: ['2 orang', '4 orang', '4-5 orang', '6 orang', '40-50 L', '60 L', '70-80 L'], variant: false, cats: ['tenda', 'tas'], required: false, active: true },
+      { id: 'at-tipe-tenda', name: 'Tipe tenda', type: 'pilihan', values: ['Double layer', 'Single layer'], variant: false, cats: ['tenda'], required: false, active: true },
+      { id: 'at-gender', name: 'Gender', type: 'pilihan', values: ['Pria', 'Wanita', 'Unisex', 'Anak'], variant: false, cats: ['fashion', 'footwear'], required: false, active: true },
     ],
     conditions: [
       { name: 'Sangat Baik', rentable: true, tone: 'green' },
@@ -254,13 +421,51 @@
   const hasVariant = (p) => !!(p && p.variant && (p.variant.options || []).length);
   const variantName = (p, size) => (size && hasVariant(p) ? `${p.name} · ${p.variant.label.replace(/\s*\(.*\)/, '')} ${String(size).replace(/\s*\(.*\)/, '')}` : p.name);
 
+  /* ---------- Tarif sewa (price list Annapurna Adventure) ----------
+     Tiga tarif resmi: per malam (d1), perkegiatan 3 hari 3 malam (d3), ekspedisi 5 hari 5 malam (d5).
+     Lama sewa di luar 1 / 3 / 5 malam dihitung dari kombinasi tarif yang paling murah,
+     contoh: 4 malam = perkegiatan + 1 malam, 6 malam = ekspedisi + 1 malam. */
+  const TIER_BLOCKS = [[5, 'd5', 'Ekspedisi (5 hari)'], [3, 'd3', 'Perkegiatan (3 hari)'], [1, 'd1', 'Per malam']];
+  function productTiers(p) { return p ? { d1: +p.rent || 0, d3: +p.rent3 || 0, d5: +p.rent5 || 0 } : { d1: 0, d3: 0, d5: 0 }; }
+  function tierPlan(t, days) {
+    days = Math.max(1, Math.round(+days || 1)); t = t || {};
+    const best = [{ cost: 0, from: -1, b: 0 }];
+    for (let n = 1; n <= days; n++) {
+      let cur = null;
+      TIER_BLOCKS.forEach(([d, k]) => { const price = +t[k] || 0; if (!price || n < d || !best[n - d]) return; const c = best[n - d].cost + price; if (!cur || c < cur.cost) cur = { cost: c, from: n - d, b: d }; });
+      best[n] = cur;
+    }
+    if (!best[days]) { const per = (+t.d1 || 0) || (+t.d3 || 0) / 3 || (+t.d5 || 0) / 5; return { total: Math.round(per * days), parts: [] }; }
+    const count = {}; for (let n = days; n > 0; n = best[n].from) count[best[n].b] = (count[best[n].b] || 0) + 1;
+    const parts = TIER_BLOCKS.filter(([d]) => count[d]).map(([d, k, name]) => ({ days: d, key: k, name, n: count[d], price: +t[k] || 0 }));
+    return { total: best[days].cost, parts };
+  }
+  /* Label tarif yang dipakai, contoh "Perkegiatan (3 hari)" atau "Ekspedisi (5 hari) + 1 malam" */
+  function tierLabel(t, days) {
+    const pl = tierPlan(t, days);
+    if (!pl.parts.length) return `${days} malam`;
+    return pl.parts.map((x) => (x.days === 1 ? `${x.n} malam` : x.n > 1 ? `${x.n}× ${x.name}` : x.name)).join(' + ');
+  }
+  function packageTiers(pk, find) {
+    if (!pk) return { d1: 0, d3: 0, d5: 0 };
+    const sum = (d) => (pk.items || []).reduce((s, i) => s + tierPlan(productTiers(find(i.productId)), d).total * i.qty, 0);
+    return { d1: +pk.price || 0, d3: +pk.price3 || sum(3), d5: +pk.price5 || sum(5) };
+  }
+  const lineTiers = (it) => it.tiers || { d1: +it.pricePerDay || 0 };
+  const lineUnit = (it, days) => tierPlan(lineTiers(it), days).total;
+  const itemsSubtotal = (items, days) => (items || []).reduce((s, it) => s + lineUnit(it, days) * it.qty, 0);
+
   function line(productId, qty, size) {
     const p = PRODUCTS.find((x) => x.id === productId);
-    return Object.assign({ kind: 'product', refId: productId, name: variantName(p, size), img: p.img, qty, pricePerDay: p.rent, components: [size ? { productId, qty: 1, size } : { productId, qty: 1 }] }, size ? { size } : {});
+    return Object.assign({ kind: 'product', refId: productId, name: variantName(p, size), img: p.img, qty, pricePerDay: p.rent, tiers: productTiers(p), components: [size ? { productId, qty: 1, size } : { productId, qty: 1 }] }, size ? { size } : {});
+  }
+  function pkgLine(pkgId, qty) {
+    const pk = PACKAGES.find((x) => x.id === pkgId);
+    return { kind: 'package', refId: pkgId, name: pk.name, img: pk.img, qty, pricePerDay: pk.price, tiers: packageTiers(pk, (id) => PRODUCTS.find((x) => x.id === id)), components: pk.items.map((i) => ({ productId: i.productId, qty: i.qty })) };
   }
   function booking(o) {
     const days = Math.max(1, diffDays(o.start, o.end));
-    const subtotal = o.items.reduce((s, it) => s + it.pricePerDay * it.qty, 0) * days;
+    const subtotal = itemsSubtotal(o.items, days);
     const dp = Math.round(subtotal * SETTINGS.dpPercent / 100);
     return Object.assign({ days, subtotal, total: subtotal, dp, fine: 0, payments: [], refunds: [], changes: [], history: [], delivery: 'ambil', address: '', notes: '' }, o, { days, subtotal, total: subtotal + (o.fine || 0), dp });
   }
@@ -269,29 +474,31 @@
 
   function seedBookings() {
     const B = [];
-    B.push(booking({ id: 'RNT-1001', customer: DIMAS, items: [line('p1', 1), line('p3', 2), line('p4', 1)], start: rel(3), end: rel(5),
+    B.push(booking({ id: 'RNT-1001', customer: DIMAS, items: [line('tnd-4', 1), line('oe-sb', 2), line('ck-kompor', 1)], start: rel(3), end: rel(6),
       status: 'dikonfirmasi', paymentStatus: 'dp_paid', method: 'Transfer BCA', createdAt: stampRel(-2) }));
-    B.push(booking({ id: 'RNT-1002', customer: DIMAS, items: [line('p5', 1, 'M (torso 45–50 cm)'), line('p7', 1)], start: rel(-24), end: rel(-21),
+    B.push(booking({ id: 'RNT-1002', customer: DIMAS, items: [line('crr-60s', 1), line('tnd-2', 1)], start: rel(-24), end: rel(-21),
       status: 'selesai', paymentStatus: 'lunas', method: 'QRIS', createdAt: stampRel(-28) }));
-    B.push(booking({ id: 'RNT-1003', customer: DIMAS, items: [line('p13', 2), line('p6', 1)], start: rel(8), end: rel(10),
+    B.push(booking({ id: 'RNT-1003', customer: DIMAS, items: [line('oe-matras', 2), line('oe-lampu', 1)], start: rel(8), end: rel(9),
       status: 'menunggu_pembayaran', paymentStatus: 'unpaid', method: 'Transfer BRI', createdAt: stampRel(0, 8) }));
-    B.push(booking({ id: 'RNT-1004', customer: cust('Rizky Amalia', '082134567788', 'rizky@mail.com'), items: [line('p1', 2), line('p2', 4), line('p11', 1)], start: rel(-1), end: rel(1),
+    B.push(booking({ id: 'RNT-1004', customer: cust('Rizky Amalia', '082134567788', 'rizky@mail.com'), items: [line('tnd-4', 2), line('oe-kursi', 4), line('ck-ds300', 1)], start: rel(-1), end: rel(2),
       status: 'disewa', paymentStatus: 'lunas', method: 'Transfer BCA', createdAt: stampRel(-6) }));
-    B.push(booking({ id: 'RNT-1005', customer: cust('Andi Pratama', '085712340099', 'andi@mail.com'), items: [line('p7', 1), line('p8', 1), line('p5', 1, 'L (torso 50–55 cm)')], start: rel(-2), end: rel(0),
+    B.push(booking({ id: 'RNT-1005', customer: cust('Andi Pratama', '085712340099', 'andi@mail.com'), items: [line('tnd-2', 1), line('oe-sb', 1), line('crr-60m', 1)], start: rel(-1), end: rel(0),
       status: 'disewa', paymentStatus: 'lunas', method: 'QRIS', createdAt: stampRel(-5) }));
-    B.push(booking({ id: 'RNT-1006', customer: cust('Salsabila Nur Aini', '081227773344', 'salsa@mail.com'), items: [line('p3', 1), line('p14', 1)], start: rel(-4), end: rel(-1),
+    B.push(booking({ id: 'RNT-1006', customer: cust('Salsabila Nur Aini', '081227773344', 'salsa@mail.com'), items: [line('oe-sb', 1), line('oe-matras', 1)], start: rel(-4), end: rel(-1),
       status: 'disewa', paymentStatus: 'lunas', method: 'Transfer BRI', createdAt: stampRel(-7) }));
-    B.push(booking({ id: 'RNT-1007', customer: cust('Bagas Wicaksono', '089612345678', 'bagas@mail.com'), items: [line('p15', 1), line('p2', 4)], start: rel(2), end: rel(4),
+    B.push(booking({ id: 'RNT-1007', customer: cust('Bagas Wicaksono', '089612345678', 'bagas@mail.com'), items: [line('tnd-6', 1), line('oe-kursi', 4)], start: rel(2), end: rel(5),
       status: 'menunggu_konfirmasi', paymentStatus: 'dp_verifying', method: 'Transfer BCA', createdAt: stampRel(0, 9),
-      proof: IMG('demo/bukti-dp-contoh.jpg'), proofMeta: { demo: true, amount: 180000, bank: 'BCA', account: '1234567890', receiver: 'ANNAPURNA ADVENTURE', note: 'DP RNT-1007', at: stampRel(0, 9) } }));
-    B.push(booking({ id: 'RNT-1008', customer: cust('Nadia Putri', '081355556677', 'nadia@mail.com'), items: [line('p1', 1), line('p6', 2), line('p17', 2, 'L'), line('p19', 1, '42')], start: rel(0), end: rel(2),
+      proof: IMG('demo/bukti-dp-contoh.jpg'), proofMeta: { demo: true, amount: 129000, bank: 'BCA', account: '1234567890', receiver: 'ANNAPURNA ADVENTURE', note: 'DP RNT-1007', at: stampRel(0, 9) } }));
+    B.push(booking({ id: 'RNT-1008', customer: cust('Nadia Putri', '081355556677', 'nadia@mail.com'), items: [line('tnd-4', 1), line('oe-lampu', 2), line('fs-gorpcore', 2, 'L'), line('fw-mid', 1, '42')], start: rel(0), end: rel(1),
       status: 'dikonfirmasi', paymentStatus: 'dp_paid', method: 'QRIS', createdAt: stampRel(-3) }));
-    B.push(booking({ id: 'RNT-1009', customer: cust('Fajar Nugroho', '087811112222', 'fajar@mail.com'), items: [line('p10', 2), line('p12', 2)], start: rel(-10), end: rel(-8),
-      status: 'selesai', paymentStatus: 'lunas', method: 'Transfer BCA', createdAt: stampRel(-13), fine: 24000 }));
-    B.push(booking({ id: 'RNT-1010', customer: cust('Laras Kusuma', '082244446666', 'laras@mail.com'), items: [line('p9', 2)], start: rel(5), end: rel(6),
+    B.push(booking({ id: 'RNT-1009', customer: cust('Fajar Nugroho', '087811112222', 'fajar@mail.com'), items: [line('tas-day', 2), line('oe-headlamp', 2)], start: rel(-10), end: rel(-9),
+      status: 'selesai', paymentStatus: 'lunas', method: 'Transfer BCA', createdAt: stampRel(-13), fine: 40000 }));
+    B.push(booking({ id: 'RNT-1010', customer: cust('Laras Kusuma', '082244446666', 'laras@mail.com'), items: [line('oe-kursi', 2)], start: rel(5), end: rel(6),
       status: 'dibatalkan', paymentStatus: 'refunded', method: 'Transfer BRI', createdAt: stampRel(-4) }));
-    B.push(booking({ id: 'RNT-1011', customer: cust('Yoga Pamungkas', '081998887766', 'yoga@mail.com'), items: [line('p1', 1), line('p13', 2), line('p4', 1)], start: rel(4), end: rel(7),
+    B.push(booking({ id: 'RNT-1011', customer: cust('Yoga Pamungkas', '081998887766', 'yoga@mail.com'), items: [line('tnd-4', 1), line('oe-matras', 2), line('ck-kompor', 1)], start: rel(4), end: rel(9),
       status: 'dikonfirmasi', paymentStatus: 'dp_paid', method: 'Transfer BCA', createdAt: stampRel(-1) }));
+    B.push(booking({ id: 'RNT-1012', customer: cust('Wahyu Hidayat', '085799990000', 'wahyu@mail.com'), items: [pkgLine('pk-2p', 1), pkgLine('pk-bbq1', 1)], start: rel(-16), end: rel(-15),
+      status: 'selesai', paymentStatus: 'lunas', method: 'QRIS', createdAt: stampRel(-19) }));
 
     B.forEach((b) => {
       b.history.push({ at: b.createdAt, text: 'Booking dibuat' });
@@ -308,7 +515,7 @@
       }
       if (b.status === 'selesai') {
         const late = b.fine ? 1 : 0;
-        b.ret = { at: addDays(b.end, late) + 'T16:00:00', cond: b.fine ? 'Baik' : 'Baik', lateDays: late, damageFee: 0, fine: b.fine, by: nameOf(shiftOf(addDays(b.end, late) + 'T16:00:00')), note: b.fine ? 'Terlambat 1 hari' : '' };
+        b.ret = { at: addDays(b.end, late) + 'T16:00:00', cond: 'Baik', lateDays: late, damageFee: 0, fine: b.fine, by: nameOf(shiftOf(addDays(b.end, late) + 'T16:00:00')), note: b.fine ? 'Terlambat 1 malam (lewat pukul 22.00)' : '' };
         if (b.fine) b.payments.push({ at: b.ret.at, amount: b.fine, type: 'Denda' });
         b.history.push({ at: b.ret.at, text: 'Barang dikembalikan, booking selesai' });
       }
@@ -320,8 +527,9 @@
       }
     });
     const b11 = B.find((b) => b.id === 'RNT-1011');
-    b11.changes.push({ id: 'CHG-1', at: stampRel(0, 7), lineIndex: 0, fromId: 'p1', fromName: 'Tenda Camping', toId: 'p15', toName: 'Tenda Keluarga 6P', qty: 1,
-      diff: (120000 - 75000) * b11.days, reason: 'Ternyata yang ikut jadi 5 orang', status: 'menunggu' });
+    const T4 = PRODUCTS.find((p) => p.id === 'tnd-4'), T6 = PRODUCTS.find((p) => p.id === 'tnd-6');
+    b11.changes.push({ id: 'CHG-1', at: stampRel(0, 7), lineIndex: 0, fromId: 'tnd-4', fromName: T4.name, toId: 'tnd-6', toName: T6.name, qty: 1,
+      diff: tierPlan(productTiers(T6), b11.days).total - tierPlan(productTiers(T4), b11.days).total, reason: 'Ternyata yang ikut jadi 5 orang', status: 'menunggu' });
     return B;
   }
 
@@ -332,12 +540,12 @@
   const si = (id, qty) => { const p = PRODUCTS.find((x) => x.id === id); return { productId: id, name: p.name, img: p.img, qty, price: p.price }; };
   function seedSales() {
     const S = [
-      sale({ id: 'ORD-2001', customer: DIMAS, items: [si('p16', 4), si('p12', 1)], delivery: 'ambil', status: 'selesai', paymentStatus: 'paid', method: 'QRIS', createdAt: stampRel(-12) }),
-      sale({ id: 'ORD-2002', customer: cust('Rizky Amalia', '082134567788', 'rizky@mail.com'), items: [si('p2', 2)], delivery: 'ambil', status: 'siap_diambil', paymentStatus: 'paid', method: 'Transfer BCA', createdAt: stampRel(-2) }),
-      sale({ id: 'ORD-2003', customer: cust('Hendra Wijaya', '081222333444', 'hendra@mail.com'), items: [si('p5', 1), si('p13', 1)], delivery: 'ambil', status: 'dikemas', paymentStatus: 'paid', method: 'Transfer BRI', createdAt: stampRel(-1) }),
-      sale({ id: 'ORD-2004', customer: cust('Maya Lestari', '085600001111', 'maya@mail.com'), items: [si('p16', 6)], delivery: 'ambil', status: 'diproses', paymentStatus: 'verifying', method: 'QRIS', createdAt: stampRel(0, 8) }),
-      sale({ id: 'ORD-2005', customer: cust('Tegar Prakoso', '087700009999', 'tegar@mail.com'), items: [si('p11', 1)], delivery: 'ambil', status: 'selesai', paymentStatus: 'paid', method: 'Transfer BCA', createdAt: stampRel(0, 10) }),
-      sale({ id: 'ORD-2006', customer: cust('Putri Anjani', '081566667777', 'putri@mail.com'), items: [si('p3', 1), si('p6', 1)], delivery: 'ambil', status: 'selesai', paymentStatus: 'paid', method: 'QRIS', createdAt: stampRel(-5) }),
+      sale({ id: 'ORD-2001', customer: DIMAS, items: [si('gas', 4), si('jl-12', 1)], delivery: 'ambil', status: 'selesai', paymentStatus: 'paid', method: 'QRIS', createdAt: stampRel(-12) }),
+      sale({ id: 'ORD-2002', customer: cust('Rizky Amalia', '082134567788', 'rizky@mail.com'), items: [si('jl-2', 2)], delivery: 'ambil', status: 'siap_diambil', paymentStatus: 'paid', method: 'Transfer BCA', createdAt: stampRel(-2) }),
+      sale({ id: 'ORD-2003', customer: cust('Hendra Wijaya', '081222333444', 'hendra@mail.com'), items: [si('jl-5', 1), si('jl-13', 1)], delivery: 'ambil', status: 'dikemas', paymentStatus: 'paid', method: 'Transfer BRI', createdAt: stampRel(-1) }),
+      sale({ id: 'ORD-2004', customer: cust('Maya Lestari', '085600001111', 'maya@mail.com'), items: [si('gas', 6)], delivery: 'ambil', status: 'diproses', paymentStatus: 'verifying', method: 'QRIS', createdAt: stampRel(0, 8) }),
+      sale({ id: 'ORD-2005', customer: cust('Tegar Prakoso', '087700009999', 'tegar@mail.com'), items: [si('jl-11', 1)], delivery: 'ambil', status: 'selesai', paymentStatus: 'paid', method: 'Transfer BCA', createdAt: stampRel(0, 10) }),
+      sale({ id: 'ORD-2006', customer: cust('Putri Anjani', '081566667777', 'putri@mail.com'), items: [si('jl-3', 1), si('jl-6', 1)], delivery: 'ambil', status: 'selesai', paymentStatus: 'paid', method: 'QRIS', createdAt: stampRel(-5) }),
     ];
     S.forEach((s) => {
       s.history.push({ at: s.createdAt, text: 'Pesanan dibuat' });
@@ -348,7 +556,7 @@
 
   function seedExpenses() {
     return [
-      { id: 'EXP-1', date: rel(-20), category: 'Pembelian Barang', desc: 'Tambah 2 unit Matras Angin Ultralight', amount: 380000 },
+      { id: 'EXP-1', date: rel(-20), category: 'Pembelian Barang', desc: 'Tambah 4 unit Matras', amount: 200000 },
       { id: 'EXP-2', date: rel(-14), category: 'Perawatan Alat', desc: 'Cuci sleeping bag (10 unit)', amount: 150000 },
       { id: 'EXP-3', date: rel(-9), category: 'Operasional', desc: 'Listrik & internet toko', amount: 425000 },
       { id: 'EXP-4', date: rel(-6), category: 'Perawatan Alat', desc: 'Ganti frame tenda patah', amount: 175000 },
@@ -409,10 +617,10 @@
     const ext = (off, h, m, type, action, extra) => { const t = at(off, h, m); add(by(t), t, type, action, extra); };
     ext(-8, 11, 30, 'keuangan', 'Mencatat pemasukan lainnya: Jasa cuci tenda milik customer (2 unit)', { ref: 'INC-1', changes: [{ field: 'Jumlah', from: '', to: rupiah(50000) }] });
     ext(-2, 15, 5, 'keuangan', 'Mencatat pemasukan lainnya: Sewa lapak stand saat acara kampus', { ref: 'INC-2', changes: [{ field: 'Jumlah', from: '', to: rupiah(150000) }] });
-    ext(-20, 11, 20, 'stok', 'Mengubah stok Matras Angin Ultralight', { ref: 'p13', changes: [{ field: 'Stok', from: '6 unit', to: '8 unit' }] });
-    ext(-14, 15, 40, 'tambah', 'Menambahkan barang Lentera LED Retro', { ref: 'p12', changes: [{ field: 'Harga sewa / hari', from: '', to: rupiah(12000) }, { field: 'Harga jual', from: '', to: rupiah(120000) }, { field: 'Stok', from: '', to: '10 unit' }] });
-    ext(-9, 14, 10, 'harga', 'Mengubah harga Tenda Camping', { ref: 'p1', changes: [{ field: 'Harga sewa / hari', from: rupiah(70000), to: rupiah(75000) }] });
-    ext(-6, 10, 5, 'kondisi', 'Mengubah kondisi Kursi Camping Director', { ref: 'p9', changes: [{ field: 'Kondisi', from: 'Perlu Perawatan', to: 'Sangat Baik' }] });
+    ext(-20, 11, 20, 'stok', 'Mengubah stok Matras', { ref: 'oe-matras', changes: [{ field: 'Stok', from: '20 unit', to: '24 unit' }] });
+    ext(-14, 15, 40, 'tambah', 'Menambahkan barang Powerbank 20.000 mAh', { ref: 'oe-pb20', changes: [{ field: 'Harga sewa / malam', from: '', to: rupiah(25000) }, { field: 'Perkegiatan (3 hari)', from: '', to: rupiah(45000) }, { field: 'Ekspedisi (5 hari)', from: '', to: rupiah(65000) }, { field: 'Stok', from: '', to: '4 unit' }] });
+    ext(-9, 14, 10, 'harga', 'Mengubah harga Tenda Kapasitas 4 (Double Layer) sesuai price list baru', { ref: 'tnd-4', changes: [{ field: 'Perkegiatan (3 hari)', from: rupiah(75000), to: rupiah(70000) }] });
+    ext(-6, 10, 5, 'kondisi', 'Mengubah kondisi Meja Lipat', { ref: 'oe-meja', changes: [{ field: 'Kondisi', from: 'Perlu Perawatan', to: 'Sangat Baik' }] });
     ext(-3, 16, 20, 'ulasan', 'Membalas ulasan Putri Anjani (ORD-2006)', { ref: 'REV-5' });
     ext(-11, 9, 40, 'login_gagal', 'Percobaan login gagal: kata sandi salah');
     add('u1', at(-12, 19, 45), 'pengaturan', 'Mengubah pengaturan toko', { changes: [{ field: 'Jam operasional', from: 'Setiap hari, 09.00 – 21.00 WIB', to: 'Setiap hari, 09.00 – 22.00 WIB' }] });
@@ -448,8 +656,8 @@
   function seedUnits(products, bookings) {
     products.forEach((p) => { syncUnits(p); (p.units || []).forEach((u, i) => { u.rents = 4 + ((i * 3) % 9); u.sinceService = (i * 3) % 8; u.lastService = stampRel(-40 + i, 10); }); });
     const P = Object.fromEntries(products.map((p) => [p.id, p]));
-    const t1 = P.p1.units; t1[5].care = 'perbaikan'; t1[5].careInfo = { issue: 'Frame patah satu ruas, menunggu suku cadang', since: stampRel(-4, 16), by: 'Dita' }; t1[5].log.push({ at: stampRel(-4, 16), text: 'Dilaporkan rusak: Frame patah satu ruas — masuk perbaikan', by: 'Dita' });
-    t1[0].sinceService = 11; P.p3.units[2].care = 'cuci'; P.p3.units[2].careInfo = { since: stampRel(-1, 16), by: 'Dita' }; P.p3.units[2].log.push({ at: stampRel(-1, 16), text: 'Masuk antrian cuci', by: 'Dita' });
+    const t1 = P['tnd-4'].units; t1[5].care = 'perbaikan'; t1[5].careInfo = { issue: 'Frame patah satu ruas, menunggu suku cadang', since: stampRel(-4, 16), by: 'Dita' }; t1[5].log.push({ at: stampRel(-4, 16), text: 'Dilaporkan rusak: Frame patah satu ruas — masuk perbaikan', by: 'Dita' });
+    t1[0].sinceService = 11; P['oe-sb'].units[2].care = 'cuci'; P['oe-sb'].units[2].careInfo = { since: stampRel(-1, 16), by: 'Dita' }; P['oe-sb'].units[2].log.push({ at: stampRel(-1, 16), text: 'Masuk antrian cuci', by: 'Dita' });
     bookings.forEach((b) => {
       if (!b.out) return;
       b.items.forEach((it) => { it.units = [];
@@ -479,19 +687,19 @@
       { id: 'n2', email: 'customer@annapurna.id', at: stampRel(0, 8), title: 'Selesaikan pembayaran DP', text: 'Bayar DP untuk RNT-1003 agar barang tidak diambil penyewa lain.', read: false, link: 'pembayaran?ids=RNT-1003' },
       { id: 'n3', email: 'customer@annapurna.id', at: stampRel(-12), title: 'Pesanan selesai', text: 'Pesanan ORD-2001 sudah selesai. Terima kasih sudah belanja!', read: true, link: 'pesanan?tab=beli' },
       ...USERS.filter(isStaff).map((u) => ({ id: 'n4' + u.id, email: u.email, at: stampRel(0, 9), title: 'Bukti DP masuk', text: 'Bagas Wicaksono mengunggah bukti DP untuk RNT-1007.', read: false, link: 'admin/booking?id=RNT-1007' })),
-      ...USERS.filter(isStaff).map((u) => ({ id: 'n5' + u.id, email: u.email, at: stampRel(0, 7), title: 'Permintaan ganti barang', text: 'Yoga Pamungkas ingin mengganti Tenda Camping menjadi Tenda Keluarga 6P (RNT-1011).', read: false, link: 'admin/permintaan' })),
+      ...USERS.filter(isStaff).map((u) => ({ id: 'n5' + u.id, email: u.email, at: stampRel(0, 7), title: 'Permintaan ganti barang', text: 'Yoga Pamungkas ingin mengganti Tenda Kapasitas 4 menjadi Tenda Kapasitas 6 (RNT-1011).', read: false, link: 'admin/permintaan' })),
     ];
   }
 
   function seedReviews() {
     const R = (id, refId, name, email, role, img, rating, text, productIds, daysAgo, extra) => Object.assign({ id, refId, type: refId.startsWith('ORD') ? 'buy' : 'rent', name, email, role, img: img ? IMG(img) : '', rating, text, productIds, createdAt: stampRel(daysAgo, 19), visible: true, featured: false, reply: '', seen: true }, extra || {});
     return [
-      R('REV-1', 'RNT-0981', 'Rizky Amalia', 'rizky@mail.com', 'Pendaki, Purwokerto', 'avatar1.jpg', 5, 'Peralatannya lengkap dan masih bagus banget. Proses sewanya juga gampang. Nanti pasti sewa lagi!', ['p1', 'p2'], -40, { featured: true, order: 0 }),
-      R('REV-2', 'RNT-0987', 'Andi Pratama', 'andi@mail.com', 'Mahasiswa, UIN', 'avatar2.jpg', 5, 'Harga terjangkau, pelayanannya ramah. Sangat membantu untuk trip camping bareng teman-teman.', ['p2', 'p4'], -33, { featured: true, order: 1 }),
-      R('REV-3', 'RNT-0992', 'Salsabila Nur Aini', 'salsa@mail.com', 'Camper, Cilacap', 'avatar3.jpg', 5, 'Tenda dan sleeping bag nya bersih, kualitas oke. Rekomendasi banget buat yang cari rental alat camping di Purwokerto!', ['p1', 'p3'], -27, { featured: true, order: 2, reply: 'Terima kasih Salsabila, ditunggu petualangan berikutnya!', replyAt: stampRel(-26, 9), replySeen: true }),
-      R('REV-4', 'RNT-1009', 'Fajar Nugroho', 'fajar@mail.com', 'Penyewa', '', 5, 'Carrier daypack enak dipakai, lentera LED-nya terang dan awet baterainya. Admin fast respon di WhatsApp.', ['p10', 'p12'], -7, { seen: false }),
-      R('REV-5', 'ORD-2006', 'Putri Anjani', 'putri@mail.com', 'Pembeli', '', 4, 'Kursi dan lampu sesuai foto. Sempat antre sebentar waktu ambil di toko, tapi pelayanannya ramah.', ['p3', 'p6'], -4, { seen: false, reply: 'Terima kasih masukannya, Kak Putri! Sekarang kami tambah satu petugas di jam ramai supaya pengambilan lebih cepat.', replyAt: stampRel(-3, 10), replySeen: false }),
-      R('REV-6', 'ORD-2005', 'Tegar Prakoso', 'tegar@mail.com', 'Pembeli', '', 3, 'Cooking set oke, cuma kotaknya agak penyok. Semoga packing ke depan lebih rapi.', ['p11'], 0, { seen: false }),
+      R('REV-1', 'RNT-0981', 'Rizky Amalia', 'rizky@mail.com', 'Pendaki, Purwokerto', 'avatar1.jpg', 5, 'Peralatannya lengkap dan masih bagus banget. Proses sewanya juga gampang. Nanti pasti sewa lagi!', ['tnd-4', 'oe-kursi'], -40, { featured: true, order: 0 }),
+      R('REV-2', 'RNT-0987', 'Andi Pratama', 'andi@mail.com', 'Mahasiswa, UIN', 'avatar2.jpg', 5, 'Harga terjangkau, pelayanannya ramah. Sangat membantu untuk trip camping bareng teman-teman.', ['oe-kursi', 'ck-kompor'], -33, { featured: true, order: 1 }),
+      R('REV-3', 'RNT-0992', 'Salsabila Nur Aini', 'salsa@mail.com', 'Camper, Cilacap', 'avatar3.jpg', 5, 'Tenda dan sleeping bag nya bersih, kualitas oke. Rekomendasi banget buat yang cari rental alat camping di Purwokerto!', ['tnd-2', 'oe-sb'], -27, { featured: true, order: 2, reply: 'Terima kasih Salsabila, ditunggu petualangan berikutnya!', replyAt: stampRel(-26, 9), replySeen: true }),
+      R('REV-4', 'RNT-1009', 'Fajar Nugroho', 'fajar@mail.com', 'Penyewa', '', 5, 'Daypack enak dipakai, headlamp-nya terang dan awet baterainya. Admin fast respon di WhatsApp.', ['tas-day', 'oe-headlamp'], -7, { seen: false }),
+      R('REV-5', 'ORD-2006', 'Putri Anjani', 'putri@mail.com', 'Pembeli', '', 4, 'Sleeping bag dan lampu sesuai foto. Sempat antre sebentar waktu ambil di toko, tapi pelayanannya ramah.', ['jl-3', 'jl-6'], -4, { seen: false, reply: 'Terima kasih masukannya, Kak Putri! Sekarang kami tambah satu petugas di jam ramai supaya pengambilan lebih cepat.', replyAt: stampRel(-3, 10), replySeen: false }),
+      R('REV-6', 'ORD-2005', 'Tegar Prakoso', 'tegar@mail.com', 'Pembeli', '', 3, 'Kompor & cooking set oke, cuma kotaknya agak penyok. Semoga packing ke depan lebih rapi.', ['jl-11'], 0, { seen: false }),
     ];
   }
 
@@ -506,7 +714,7 @@
     write('settings', SETTINGS);
     const B = seedBookings(), S = seedSales(), E = seedExpenses().map((e) => Object.assign({ status: 'aktif' }, e));
     seedUnits(PR, B);
-    PR.find((p) => p.id === 'p16').minStock = 70; PR.forEach((p) => { if (p.price && p.minStock == null) p.minStock = 2; });
+    PR.find((p) => p.id === 'gas').minStock = 10; PR.forEach((p) => { if (p.price && p.minStock == null) p.minStock = 2; });
     write('products', PR);
     write('bookings', B);
     write('sales', S);
@@ -525,6 +733,31 @@
     write('version', VERSION);
   }
   seed(false);
+  /* Kualitas per unit tidak dipakai lagi: unit lama yang "Tidak layak pakai" dipindah ke status Dalam perbaikan
+     (tetap tidak bisa disewa), dan semua unit kualitasnya disamakan "Baik". */
+  /* Pembaruan data tersimpan: Carrier Eiger 60L tanpa ukuran punggung, Gas Kaleng versi sewa, paket BBQ memakai gas sewa */
+  (function migrateCatalog() {
+    const all = read('products', PRODUCTS); let ch = false;
+    const crr = all.find((x) => x.id === 'jl-5');
+    if (crr && crr.variant && /punggung/i.test(crr.variant.label || '')) { crr.stock = crr.variant.options.reduce((a, o) => a + (+o.stock || 0), 0); delete crr.variant; ch = true; }
+    if (!all.some((x) => x.id === 'gas-sewa')) { const g = JSON.parse(JSON.stringify(PRODUCTS.find((x) => x.id === 'gas-sewa'))); all.push(syncUnits(g)); ch = true; }
+    if (ch) write('products', all);
+    const pk = read('packages', PACKAGES); let pc = false;
+    pk.forEach((k) => (k.items || []).forEach((i) => { if (k.type === 'bbq' && i.productId === 'gas') { i.productId = 'gas-sewa'; pc = true; } }));
+    if (pc) write('packages', pk);
+    const st = read('settings', SETTINGS);
+    if ((st.attributes || []).some((x) => x.id === 'at-punggung')) { st.attributes = st.attributes.filter((x) => x.id !== 'at-punggung'); write('settings', st); }
+  })();
+  (function migrateUnitCond() {
+    const all = read('products', PRODUCTS); let changed = false;
+    all.forEach((p) => (p.units || []).forEach((u) => {
+      if (u.cond && u.cond !== 'Baik') {
+        if (/tidak layak/i.test(u.cond) && u.status === 'aktif' && !u.care) { u.care = 'perbaikan'; u.careInfo = { since: nowStamp(), by: 'Sistem', issue: 'Sebelumnya ditandai "Tidak layak pakai"' }; }
+        u.cond = 'Baik'; changed = true;
+      }
+    }));
+    if (changed) write('products', all);
+  })();
 
   function withRating(list) {
     const rv = read('reviews', []).filter((r) => r.visible);
@@ -550,13 +783,13 @@
   function actorOf(u) { return u ? { userId: u.id, userName: u.name, role: u.role } : null; }
 
   const DB = {
-    get: (k) => read(k, []),
+    get: (k) => { if (k === 'bookings' || k === 'sales') ensureNos(); return read(k, []); },
     set(k, v) { if (k === 'audit') { console.warn('Histori bersifat append-only dan tidak bisa ditimpa.'); return; } write(k, v); },
     reset() {
       const s = read('session', null); seed(true);
       if (s) { write('session', s); DB.audit({ type: 'pengaturan', action: 'Menyetel ulang data demo' }); }
     },
-    settings: () => read('settings', SETTINGS),
+    settings: () => Object.assign({}, SETTINGS, read('settings', SETTINGS)), // kunci baru (mis. howto, receipt) otomatis terisi nilai bawaan
     saveSettings(next) {
       const old = DB.settings();
       const ch = diff(old, next, [['storeName', 'Nama toko'], ['hours', 'Jam operasional'], ['phone', 'Telepon'], ['whatsapp', 'WhatsApp'], ['email', 'Email toko'], ['instagram', 'Instagram'], ['address', 'Alamat'],
@@ -596,7 +829,7 @@
     financeCats: (kind) => ((read('settings', SETTINGS).financeCats || SETTINGS.financeCats)[kind] || []),
     formCfg: (k) => Object.assign({ note: 'opsional', photo: 'opsional', custom: [] }, ((read('settings', SETTINGS).forms || {})[k]) || {}),
     sops: (ctx) => (read('settings', SETTINGS).sops || []).filter((x) => !ctx || x.context === ctx),
-    lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per hari` : `${st.lateFeePercent}% harga sewa per hari untuk setiap barang`; },
+    lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per malam keterlambatan` : st.lateFeePercent === 100 ? 'sebesar harga sewa per malam untuk setiap barang, setiap malam keterlambatan' : `${st.lateFeePercent}% harga sewa per malam untuk setiap barang, setiap malam keterlambatan`; },
     /* Simpan satu bagian konfigurasi + catat di histori */
     saveConfig(key, value, action, changes) {
       const st = DB.settings(); st[key] = value; write('settings', st);
@@ -604,8 +837,8 @@
     },
     packages: () => read('packages', PACKAGES),
     pkg: (id) => read('packages', PACKAGES).find((p) => p.id === id),
-    bookings: () => read('bookings', []),
-    booking: (id) => read('bookings', []).find((b) => b.id === id),
+    bookings: () => (ensureNos(), read('bookings', [])),
+    booking: (id) => (ensureNos(), read('bookings', []).find((b) => b.id === id || b.no === id)),
     /* ---------- Unit ---------- */
     tracked,
     units: (pid) => ((read('products', PRODUCTS).find((p) => p.id === pid) || {}).units || []),
@@ -616,8 +849,15 @@
     unitReady: (u) => u.status === 'aktif' && !u.out && !u.care && condRentable(u.cond),
     unitState(u) {
       if (u.status === 'terjual') return { k: 'off', l: 'Terjual', tone: 'gray' };
-      if (u.status !== 'aktif') return { k: 'off', l: 'Nonaktif', tone: 'gray' };
-      if (u.out) return { k: 'out', l: `Disewa · ${u.out}`, tone: 'blue' };
+      if (u.status !== 'aktif') return { k: 'off', l: OFF_REASON[u.offReason] || 'Nonaktif', tone: u.offReason === 'hilang' || u.offReason === 'rusak' ? 'red' : 'gray', reason: u.offReason || 'lainnya' };
+      if (u.out) {
+        /* Status sewa ikut tanggal kembali: Kembali hari ini (batas jam tutup toko) → Terlambat X malam */
+        const b = DB.booking(u.out); const now = new Date(); const t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const late = b && b.status === 'disewa' ? Rules.lateDays(b, today(), t) : 0;
+        if (late) return { k: 'out', due: 'late', late, l: `Terlambat ${late} malam · ${u.out}`, tone: 'red', booking: u.out };
+        if (b && b.status === 'disewa' && b.end === today()) return { k: 'out', due: 'today', l: `Kembali hari ini · ${u.out}`, tone: 'amber', booking: u.out };
+        return { k: 'out', l: `Disewa · ${u.out}`, tone: 'blue', booking: u.out };
+      }
       if (u.care === 'cuci') return { k: 'cuci', l: 'Perlu dicuci', tone: 'teal' };
       if (u.care === 'perbaikan') return { k: 'perbaikan', l: 'Dalam perbaikan', tone: 'red' };
       if (!condRentable(u.cond)) return { k: 'bad', l: u.cond, tone: 'red' };
@@ -678,7 +918,7 @@
         const by = me ? me.name : '';
         if (res.res === 'cuci') { u.care = 'cuci'; u.careInfo = { since: nowStamp(), by, booking: b.id }; u.log.push({ at: nowStamp(), text: `Kembali dari ${b.id} — masuk antrian cuci`, by }); }
         else if (res.res === 'perbaikan') { u.care = 'perbaikan'; u.careInfo = { since: nowStamp(), by, booking: b.id, issue: res.issue || '-' }; u.log.push({ at: nowStamp(), text: `Kembali dari ${b.id} — rusak: ${res.issue || '-'} (masuk perbaikan)`, by }); }
-        else if (res.res === 'hilang') { u.status = 'nonaktif'; u.notes = `Hilang saat disewa ${b.id}`; u.log.push({ at: nowStamp(), text: `Dilaporkan hilang saat disewa ${b.id} — unit dinonaktifkan`, by }); }
+        else if (res.res === 'hilang') { u.status = 'nonaktif'; u.offReason = 'hilang'; u.notes = `Hilang saat disewa ${b.id}`; u.log.push({ at: nowStamp(), text: `Dilaporkan hilang saat disewa ${b.id} — unit dinonaktifkan`, by }); }
         else { u.care = null; u.careInfo = null; u.log.push({ at: nowStamp(), text: `Kembali dari ${b.id} — bersih, siap disewa`, by }); }
       }));
       all.forEach(syncUnits); write('products', all);
@@ -740,7 +980,9 @@
       read('users', USERS).filter((u) => u.role === 'customer').forEach((u) => { const x = get(u); x.registered = true; });
       read('bookings', []).forEach((b) => { const x = get(b.customer); x.rentals.push(b); if (b.status !== 'dibatalkan') x.total += Rules.paidTotal(b); else x.cancel++; if ((b.ret && b.ret.lateDays) || (b.status === 'disewa' && b.end < today())) x.late++; if (String(b.createdAt) > x.last) x.last = b.createdAt; });
       read('sales', []).forEach((s) => { const x = get(s.customer); x.sales.push(s); if (s.status !== 'dibatalkan') x.total += Rules.paidTotal(s); else x.cancel++; if (String(s.createdAt) > x.last) x.last = s.createdAt; });
-      return Object.values(map).map((x) => Object.assign(x, { meta: DB.customerMeta(x.email), count: x.rentals.length + x.sales.length }));
+      /* Riwayat pelanggan dari data yang sudah dibersihkan (setelah rekap bulanan) tetap dihitung */
+      Object.values(read('customerArchive', {})).forEach((a) => { const x = get(a); x.arcRent = a.rent || 0; x.arcSale = a.sale || 0; x.total += a.total || 0; x.late += a.late || 0; x.cancel += a.cancel || 0; if (String(a.last) > x.last) x.last = a.last; });
+      return Object.values(map).map((x) => Object.assign(x, { meta: DB.customerMeta(x.email), count: x.rentals.length + x.sales.length + (x.arcRent || 0) + (x.arcSale || 0) }));
     },
 
     /* Terapkan pergantian barang pada booking (dipakai saat admin menyetujui / mencatat ganti di toko). */
@@ -752,16 +994,16 @@
       const avail = Rules.available(p.id, b.start, b.end, b.id, size);
       const same = it.refId === p.id && (it.size || null) === size;
       if (!same && avail < qty) return { ok: false, msg: `${variantName(p, size)} hanya tersedia ${avail} unit pada tanggal sewa ini.` };
-      const newLine = Object.assign({ kind: 'product', refId: p.id, name: variantName(p, size), img: p.img, qty, pricePerDay: p.rent, components: [size ? { productId: p.id, qty: 1, size } : { productId: p.id, qty: 1 }] }, size ? { size } : {});
+      const newLine = Object.assign({ kind: 'product', refId: p.id, name: variantName(p, size), img: p.img, qty, pricePerDay: p.rent, tiers: productTiers(p), components: [size ? { productId: p.id, qty: 1, size } : { productId: p.id, qty: 1 }] }, size ? { size } : {});
       if (qty >= it.qty) b.items[ch.lineIndex] = newLine; else { it.qty -= qty; b.items.push(newLine); }
       const oldTotal = b.total;
       Rules.recalc(b);
       return { ok: true, oldTotal, newTotal: b.total, line: newLine };
     },
-    saveBooking(b) { const all = read('bookings', []); const i = all.findIndex((x) => x.id === b.id); if (i >= 0) all[i] = b; else all.unshift(b); write('bookings', all); },
-    sales: () => read('sales', []),
-    sale: (id) => read('sales', []).find((s) => s.id === id),
-    saveSale(s) { const all = read('sales', []); const i = all.findIndex((x) => x.id === s.id); if (i >= 0) all[i] = s; else all.unshift(s); write('sales', all); },
+    saveBooking(b) { ensureNos(); const all = read('bookings', []); const i = all.findIndex((x) => x.id === b.id); if (i >= 0) all[i] = b; else all.unshift(b); write('bookings', all); },
+    sales: () => (ensureNos(), read('sales', [])),
+    sale: (id) => (ensureNos(), read('sales', []).find((s) => s.id === id || s.no === id)),
+    saveSale(s) { ensureNos(); const all = read('sales', []); const i = all.findIndex((x) => x.id === s.id); if (i >= 0) all[i] = s; else all.unshift(s); write('sales', all); },
     saveProduct(p) {
       const all = read('products', PRODUCTS); const i = all.findIndex((x) => x.id === p.id);
       const old = i >= 0 ? all[i] : null;
@@ -772,16 +1014,16 @@
       syncUnits(clean);
       if (i >= 0) all[i] = clean; else all.push(clean); write('products', all);
       if (!old) {
-        DB.audit({ type: 'tambah', action: `Menambahkan barang ${clean.name}`, ref: clean.id, changes: [{ field: 'Harga sewa / hari', from: '', to: money(clean.rent) }, { field: 'Harga jual', from: '', to: money(clean.price) }, { field: 'Stok', from: '', to: unit(clean.stock) }] });
+        DB.audit({ type: 'tambah', action: `Menambahkan barang ${clean.name}`, ref: clean.id, changes: [{ field: 'Harga sewa / malam', from: '', to: money(clean.rent) }, { field: 'Perkegiatan (3 hari)', from: '', to: money(clean.rent3) }, { field: 'Ekspedisi (5 hari)', from: '', to: money(clean.rent5) }, { field: 'Harga jual', from: '', to: money(clean.price) }, { field: 'Stok', from: '', to: unit(clean.stock) }] });
         return;
       }
       const groups = [
-        ['harga', `Mengubah harga ${clean.name}`, [['rent', 'Harga sewa / hari', money], ['price', 'Harga jual', money]]],
+        ['harga', `Mengubah harga ${clean.name}`, [['rent', 'Harga sewa / malam', money], ['rent3', 'Perkegiatan (3 hari)', money], ['rent5', 'Ekspedisi (5 hari)', money], ['price', 'Harga jual', money]]],
         ['stok', `Mengubah stok ${clean.name}`, [['stock', 'Stok', unit]]],
         ['kondisi', `Mengubah kondisi ${clean.name}`, [['cond', 'Kondisi']]],
         ['status', `${clean.active === false ? 'Menonaktifkan' : 'Mengaktifkan'} barang ${clean.name}`, [['active', 'Status', actv]]],
         ['varian', `Mengubah ukuran / varian ${clean.name}`, [['variant', 'Ukuran & stok', (v) => (v && v.options && v.options.length ? `${v.label}: ` + v.options.map((o) => `${o.name} (${o.stock})`).join(', ') : 'Tanpa ukuran')]]],
-        ['edit', `Mengedit data barang ${clean.name}`, [['name', 'Nama'], ['cat', 'Kategori'], ['brand', 'Merek'], ['sku', 'Kode barang'], ['color', 'Warna'], ['material', 'Bahan'], ['weight', 'Berat'], ['dimension', 'Ukuran / kapasitas'], ['includes', 'Kelengkapan'], ['minDays', 'Minimal sewa (hari)'], ['deposit', 'Jaminan / deposit', money], ['attrs', 'Atribut', (v) => Object.entries(v || {}).filter(([, x]) => x !== '' && x != null).map(([k, x]) => `${((read('settings', SETTINGS).attributes || []).find((t) => t.id === k) || { name: k }).name}: ${x}`).join('; ') || '—'], ['badge', 'Label'], ['featured', 'Unggulan beranda', yes], ['desc', 'Deskripsi', (v) => (v ? String(v).slice(0, 60) + (String(v).length > 60 ? '…' : '') : '—')], ['specs', 'Spesifikasi', (v) => (v || []).join('; ')]]],
+        ['edit', `Mengedit data barang ${clean.name}`, [['name', 'Nama'], ['cat', 'Kategori'], ['brand', 'Merek'], ['sku', 'Kode barang'], ['color', 'Warna'], ['material', 'Bahan'], ['weight', 'Berat'], ['dimension', 'Ukuran / kapasitas'], ['includes', 'Kelengkapan'], ['minDays', 'Minimal sewa (malam)'], ['deposit', 'Jaminan / deposit', money], ['attrs', 'Atribut', (v) => Object.entries(v || {}).filter(([, x]) => x !== '' && x != null).map(([k, x]) => `${((read('settings', SETTINGS).attributes || []).find((t) => t.id === k) || { name: k }).name}: ${x}`).join('; ') || '—'], ['badge', 'Label'], ['featured', 'Unggulan beranda', yes], ['desc', 'Deskripsi', (v) => (v ? String(v).slice(0, 60) + (String(v).length > 60 ? '…' : '') : '—')], ['specs', 'Spesifikasi', (v) => (v || []).join('; ')]]],
       ];
       groups.forEach(([type, action, fields]) => {
         const ch = diff(old, clean, fields);
@@ -896,7 +1138,9 @@
     },
     /* Cek pesanan tanpa login: nomor pesanan + nomor HP */
     lookupOrder(id, phone) {
-      const code = String(id || '').toUpperCase().replace(/\s/g, ''); const ph = DB.normPhone(phone);
+      /* Terima nomor nota (028/X/2026, 28/x/2026) maupun kode lama (RNT-1028) */
+      let code = String(id || '').toUpperCase().replace(/\s/g, ''); const ph = DB.normPhone(phone);
+      const mm = code.match(/^(\d{1,4})\/([IVX]{1,4})\/(\d{4})$/); if (mm) code = `${String(+mm[1]).padStart(3, '0')}/${mm[2]}/${mm[3]}`;
       const x = DB.booking(code) || DB.sale(code);
       if (!x || DB.normPhone(x.customer.phone) !== ph) return null;
       return x;
@@ -928,9 +1172,32 @@
       const s = DB.session(); if (!isStaff(s)) return;
       DB.patchUser(s.id, { lastSeen: nowStamp() });
     },
-    logout() {
+    /* Pakai data user dari server (Laravel). Dicocokkan lewat email karena ID database (1, 2, 3, …)
+       tidak sama dengan ID data demo (u1, u2, …). Tanpa ini, login sebagai admin bisa terbaca sebagai customer
+       sehingga dashboard tidak mau terbuka. */
+    adoptSession(su) {
+      if (!su || !su.email) return null;
+      const email = String(su.email).toLowerCase().trim();
+      const users = read('users', USERS);
+      let u = users.find((x) => String(x.email).toLowerCase() === email);
+      if (!u) { u = { id: 'srv' + (su.userId || Date.now()), name: su.name, email, password: '', role: su.role, status: su.status || 'aktif', phone: su.phone || '', address: su.address || '', createdAt: nowStamp() }; users.push(u); }
+      else Object.assign(u, { name: su.name || u.name, role: su.role || u.role, status: su.status || u.status, phone: su.phone || u.phone, address: su.address || u.address });
+      write('users', users);
+      const prev = DB.session(); const same = prev && String(prev.email).toLowerCase() === email;
+      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw,
+        loginAt: (same && prev.loginAt) || su.loginAt || nowStamp(), seen: (same && prev.seen) || {} };
+      write('session', s);
+      return s;
+    },
+    clearSession() { localStorage.removeItem(KEY('session')); },
+    /* opts.auto: logout otomatis karena tidak aktif; jam logout = jam aktivitas terakhir */
+    logout(opts = {}) {
       const s = DB.session();
-      if (isStaff(s)) { DB.audit({ type: 'logout', action: `Logout dari panel ${s.role === 'owner' ? 'owner' : 'admin'}` }); DB.patchUser(s.id, { lastLogout: nowStamp(), lastSeen: nowStamp() }); }
+      if (isStaff(s)) {
+        const at = opts.at || nowStamp();
+        DB.audit(opts.auto ? { type: 'logout', at, meta: { auto: true, idleMin: opts.idleMin }, action: `Logout otomatis setelah tidak aktif ${opts.idleMin} menit` } : { type: 'logout', action: `Logout dari panel ${s.role === 'owner' ? 'owner' : 'admin'}` });
+        DB.patchUser(s.id, { lastLogout: at, lastSeen: at });
+      }
       localStorage.removeItem(KEY('session'));
     },
     tempPassword() { const c = 'abcdefghjkmnpqrstuvwxyz23456789'; let p = ''; for (let i = 0; i < 8; i++) p += c[Math.floor(Math.random() * c.length)]; return 'Ann-' + p; },
@@ -975,7 +1242,7 @@
       if (!actor) return null;
       const list = read('audit', []);
       const prev = list.length ? list[list.length - 1].hash : 'GENESIS';
-      const entry = Object.assign({ id: auditId(list.length + 1), at: nowStamp() }, actor, { type: e.type, action: e.action }, e.ref ? { ref: e.ref } : {}, e.changes && e.changes.length ? { changes: e.changes } : {}, { prev });
+      const entry = Object.assign({ id: auditId(list.length + 1), at: e.at || nowStamp() }, actor, e.meta || {}, { type: e.type, action: e.action }, e.ref ? { ref: e.ref } : {}, e.changes && e.changes.length ? { changes: e.changes } : {}, { prev });
       entry.hash = auditHash(entry, prev);
       list.push(entry); write('audit', list);
       return entry;
@@ -1031,6 +1298,22 @@
   const ACTIVE = ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'];
   const Rules = {
     rentalDays: (start, end) => Math.max(1, diffDays(start, end)),
+    /* ---------- Tarif sewa: per malam / perkegiatan (3 hari) / ekspedisi (5 hari) ---------- */
+    TIERS: TIER_BLOCKS.slice().reverse().map(([days, key, name]) => ({ days, key, name })),
+    productTiers,
+    packageTiers: (pk) => packageTiers(typeof pk === 'string' ? DB.pkg(pk) : pk, (id) => DB.product(id)),
+    tierPlan,
+    tierLabel,
+    /* Harga 1 unit untuk lama sewa tertentu. src: produk, paket, atau baris booking. */
+    unitPrice(src, days) {
+      if (!src) return 0;
+      const t = src.kind ? lineTiers(src) : src.items ? Rules.packageTiers(src) : productTiers(src);
+      return tierPlan(t, days).total;
+    },
+    lineUnit,
+    itemsSubtotal,
+    /* Ringkasan tarif untuk ditampilkan: [{ days, name, price }] */
+    tierRows(t) { return Rules.TIERS.map((x) => ({ days: x.days, name: x.name, price: tierPlan(t, x.days).total, own: !!t[x.key] })); },
     /* Tanggal terdekat (setelah `from`) saat barang tersedia lagi untuk lama sewa yang sama */
     nextAvailable(productId, qty, start, end, size) {
       const days = Math.max(1, diffDays(start, end));
@@ -1075,9 +1358,34 @@
       const p = DB.product(productId); if (!DB.hasVariant(p)) return [];
       return p.variant.options.map((o) => ({ name: o.name, stock: o.stock, avail: start ? Rules.available(productId, start, end, excludeId, o.name) : o.stock }));
     },
-    packageAvailable(pkgId, start, end) {
+    packageAvailable(pkgId, start, end, swaps, sizes) {
       const pk = DB.pkg(pkgId); if (!pk) return 0;
-      return Math.min(...pk.items.map((i) => Math.floor(Rules.available(i.productId, start, end) / i.qty)));
+      const items = swaps ? Rules.customPackage(pk, swaps).items : pk.items;
+      return Math.min(...items.map((i, k) => Math.floor(Rules.available(i.productId, start, end, null, (sizes && sizes[k]) || null) / i.qty)));
+    },
+    /* Isi paket yang punya ukuran (sepatu, jaket, …): [{ k, productId, qty, product }] */
+    packageSized(pk, swaps) {
+      if (!pk) return [];
+      const items = swaps && Object.keys(swaps).length ? Rules.customPackage(pk, swaps).items : pk.items;
+      return items.map((i, k) => ({ k, productId: i.productId, qty: i.qty, product: DB.product(i.productId) })).filter((x) => x.product && DB.hasVariant(x.product));
+    },
+    /* ---------- Paket tektok: tukar item (harga sama) / upgrade item (tambah selisih) ----------
+       Syarat Annapurna: item paket tektok bisa ditukar dengan item lain yang harganya sama, atau di-upgrade
+       dengan menambah selisih harga. Harga paket khusus 1 malam; kegiatan / ekspedisi pakai harga satuan. */
+    swapOptions(pk, idx) {
+      const base = pk && pk.items[idx] && DB.product(pk.items[idx].productId); if (!base) return [];
+      return DB.products().filter((x) => x.id !== base.id && x.cat === base.cat && x.rent > 0 && x.rent >= base.rent && x.active !== false)
+        .sort((a, b) => a.rent - b.rent || a.name.localeCompare(b.name));
+    },
+    customPackage(pk, swaps) {
+      swaps = swaps || {};
+      const items = pk.items.map((i, k) => ({ productId: swaps[k] || i.productId, qty: i.qty }));
+      const changed = pk.items.map((i, k) => ({ k, from: DB.product(i.productId), to: DB.product(swaps[k] || i.productId), qty: i.qty })).filter((x) => x.from && x.to && x.from.id !== x.to.id);
+      const upgrade = changed.reduce((a, x) => a + Math.max(0, x.to.rent - x.from.rent) * x.qty, 0);
+      const satuan = (d) => items.reduce((a, i) => a + Rules.unitPrice(DB.product(i.productId), d) * i.qty, 0);
+      const tiers = { d1: pk.price + upgrade, d3: pk.tektok ? satuan(3) : (pk.price3 || satuan(3)), d5: pk.tektok ? satuan(5) : (pk.price5 || satuan(5)) };
+      const note = changed.map((x) => `${x.from.name} → ${x.to.name}`).join(', ');
+      return { items, tiers, upgrade, changed, name: changed.length ? `${pk.name} (tukar: ${note})` : pk.name };
     },
     rentedNow(productId) {
       return DB.bookings().filter((b) => b.status === 'disewa')
@@ -1095,12 +1403,12 @@
     lateFee(b, lateDays) {
       const st = DB.settings();
       if (st.lateFeeMode === 'nominal') return Math.round((st.lateFeeAmount || 0) * b.items.reduce((s, it) => s + it.qty, 0) * lateDays);
-      return Math.round(b.items.reduce((s, it) => s + it.pricePerDay * it.qty, 0) * lateDays * (st.lateFeePercent / 100));
+      return Math.round(b.items.reduce((s, it) => s + lineTiers(it).d1 * it.qty, 0) * lateDays * (st.lateFeePercent / 100));
     },
     /* Hitung ulang subtotal, diskon promo, total, DP. */
     recalc(b) {
       b.days = Math.max(1, diffDays(b.start, b.end));
-      b.subtotal = b.items.reduce((s, i) => s + i.pricePerDay * i.qty, 0) * b.days;
+      b.subtotal = itemsSubtotal(b.items, b.days);
       if (b.discount) b.discount.amount = b.discount.type === 'persen' ? Math.round(b.subtotal * b.discount.value / 100) : Math.min(b.discount.fixed || b.discount.amount, b.subtotal);
       b.total = b.subtotal - (b.discount ? b.discount.amount : 0) + (b.fine || 0);
       if (!Rules.paidTotal(b)) b.dp = Math.round((b.total - (b.fine || 0)) * DB.settings().dpPercent / 100);
@@ -1112,10 +1420,10 @@
       const from = addDays(b.end, 1); const need = {};
       b.items.forEach((it) => it.components.forEach((c) => { const k = c.productId + '|' + (c.size || ''); need[k] = (need[k] || 0) + c.qty * it.qty; }));
       const short = Object.entries(need).filter(([k, n]) => { const [pid, size] = k.split('|'); return Rules.available(pid, from, newEnd, b.id, size || null) < n; }).map(([k]) => { const [pid, size] = k.split('|'); return variantName(DB.product(pid), size || null); });
-      const perDay = b.items.reduce((s, i) => s + i.pricePerDay * i.qty, 0);
       const maxD = DB.settings().maxRentDays || 60; const total = diffDays(b.start, newEnd);
       if (total > maxD) return { ok: false, extraDays: extra, cost: 0, short, msg: `Total lama sewa maksimal ${maxD} hari.` };
-      return { ok: !short.length, extraDays: extra, cost: perDay * extra, short, msg: short.length ? `Tidak tersedia di tanggal tambahan: ${short.join(', ')}.` : '' };
+      const cost = itemsSubtotal(b.items, total) - itemsSubtotal(b.items, Math.max(1, diffDays(b.start, b.end)));
+      return { ok: !short.length, extraDays: extra, cost, short, msg: short.length ? `Tidak tersedia di tanggal tambahan: ${short.join(', ')}.` : '' };
     },
     refundAmount(b) { const pct = (DB.settings().refundPercent ?? 100) / 100; return Math.round((Rules.paidTotal(b) - (b.refunds || []).reduce((s, r) => s + r.amount, 0)) * pct); },
   };
@@ -1181,5 +1489,139 @@
     laporan: { label: 'Laporan', tone: 'gray', icon: 'fa-file-lines', group: 'lainnya' },
   };
 
-  window.Ann = { DB, Rules, STATUS, AUDIT_TYPES, D: { day, today, addDays, rel, diffDays, toISO, fmtDate, fmtDateTime, fmtRange, nowStamp, BULAN, BULAN_PANJANG, HARI }, rupiah };
+  /* Batalkan otomatis pesanan yang belum dibayar melewati batas waktu pembayaran */
+  DB.expireUnpaid = function () {
+    const hrs = +DB.settings().payWindowHours || 1, now = Date.now(); let changed = 0;
+    const exp = (x) => x.paymentStatus === 'unpaid' && x.status === 'menunggu_pembayaran' && now > new Date(x.createdAt).getTime() + hrs * 3600e3;
+    ensureNos(); const B = read('bookings', []); B.forEach((b) => { if (!exp(b)) return; b.status = 'dibatalkan'; b.cancel = { at: nowStamp(), reason: `Melewati batas waktu pembayaran (${hrs} jam)`, auto: true, refundable: false };
+      (b.history = b.history || []).push({ at: nowStamp(), text: `Dibatalkan otomatis: DP tidak dibayar dalam ${hrs} jam` }); DB.notify(b.customer.email, 'Booking dibatalkan otomatis', `${window.NO(b)} dibatalkan karena DP tidak dibayar dalam ${hrs} jam. Silakan buat booking baru bila masih ingin menyewa.`, 'pesanan'); changed++; });
+    if (changed) write('bookings', B);
+    const S = read('sales', []); let sc = 0; S.forEach((o) => { if (!exp(o)) return; o.status = 'dibatalkan'; (o.history = o.history || []).push({ at: nowStamp(), text: `Dibatalkan otomatis: belum dibayar dalam ${hrs} jam` }); DB.notify(o.customer.email, 'Pesanan dibatalkan otomatis', `${window.NO(o)} dibatalkan karena belum dibayar dalam ${hrs} jam.`, 'pesanan'); sc++; });
+    if (sc) write('sales', S);
+    return changed + sc;
+  };
+  /* Jumlah unit yang disewa per barang (booking tidak dibatalkan, isi paket ikut dihitung) dalam N hari terakhir (0 = semua).
+     Dipakai di beranda ("Produk Rental Terlaris") dan dashboard admin ("Barang paling sering disewa") agar konsisten. */
+  DB.rentCounts = function (days) {
+    const from = days ? addDays(today(), -days) : '';
+    const cnt = {};
+    read('bookings', []).filter((b) => b.status !== 'dibatalkan' && (!from || b.start >= from)).forEach((b) => b.items.forEach((i) => (i.components || [{ productId: i.refId, qty: 1 }]).forEach((c) => { cnt[c.productId] = (cnt[c.productId] || 0) + c.qty * i.qty; })));
+    return cnt;
+  };
+  /* Daftar barang untuk section beranda sesuai pengaturan owner. Hasil: [{ p, n (jumlah disewa), rank (urutan laris, 0 = tidak dihitung), pinned }] */
+  DB.homeBest = function () {
+    const cfg = Object.assign({ mode: 'gabungan', days: 90, count: 6, onlyAvailable: true }, DB.settings().homeBest || {});
+    const T = today();
+    const ok = (p) => p.active !== false && p.rent > 0 && (!cfg.onlyAvailable || Rules.availableOn(p.id, T) > 0);
+    const prods = DB.products().filter(ok);
+    const cnt = DB.rentCounts(+cfg.days || 0);
+    const ranked = prods.filter((p) => cnt[p.id]).sort((a, b) => cnt[b.id] - cnt[a.id] || (b.rating || 0) - (a.rating || 0));
+    const rankOf = new Map(ranked.map((p, i) => [p.id, i + 1]));
+    /* Barang tersemat diurutkan dari yang paling sering disewa; di mode gabungan maksimal setengah dari jumlah tampil */
+    const pinned = prods.filter((p) => p.featured).sort((a, b) => (cnt[b.id] || 0) - (cnt[a.id] || 0));
+    let list;
+    if (cfg.mode === 'manual') list = pinned;
+    else if (cfg.mode === 'otomatis') list = ranked;
+    else { const pin = pinned.slice(0, Math.floor(cfg.count / 2)); list = [...pin, ...ranked.filter((p) => !pin.includes(p))]; }
+    /* Cadangan bila data sewa masih sedikit: barang rating tertinggi */
+    if (cfg.mode !== 'manual' && list.length < cfg.count) list = [...list, ...prods.filter((p) => !list.includes(p)).sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.reviews || 0) - (a.reviews || 0))];
+    return { cfg, items: list.slice(0, cfg.count).map((p) => ({ p, n: cnt[p.id] || 0, rank: rankOf.get(p.id) || 0, pinned: !!p.featured })) };
+  };
+  /* ---------- Label kartu produk ----------
+     Label pilihan admin (informasi/promosi, bukan klaim data): */
+  DB.ADMIN_BADGES = ['Baru', 'Premium', 'Rekomendasi', 'Promo'];
+  /* Label otomatis dari data (maks. 1 per kartu, prioritas: Terlaris → Hampir habis → Rating Tertinggi) */
+  let topCache = null;
+  DB.topRented = function () {
+    if (topCache) return topCache;
+    const days = +((DB.settings().homeBest || {}).days ?? 90);
+    const cnt = DB.rentCounts(days);
+    const ids = DB.products().filter((p) => p.rent > 0 && p.active !== false && cnt[p.id]).sort((a, b) => cnt[b.id] - cnt[a.id]).slice(0, 3).map((p) => p.id);
+    topCache = { ids, cnt, days }; setTimeout(() => { topCache = null; }, 0);
+    return topCache;
+  };
+  /* Ketersediaan barang sewa dengan SATU acuan tanggal (dipakai label kartu & teks stok):
+     tanggal trip yang dipilih customer, atau hari ini bila belum memilih. */
+  DB.stockState = function (p) {
+    const trip = DB.trip();
+    const left = trip ? Rules.available(p.id, trip.start, trip.end) : Rules.availableOn(p.id, today());
+    const total = Math.max(1, +p.stock || 0);
+    return { left, total, trip, when: trip ? fmtRange(trip.start, trip.end) : 'hari ini',
+      /* Hampir habis: sisa 1–2 unit DAN sudah ada yang tersewa (sisa ≤ 50% dari total) — barang yang memang hanya punya 2 unit & belum disewa tidak dianggap hampir habis */
+      hampir: left > 0 && left <= 2 && left < total && left / total <= 0.5, penuh: left <= 0 };
+  };
+  DB.autoBadge = function (p, mode) {
+    if (!p) return null;
+    mode = mode || (p.rent ? 'rent' : 'buy');
+    if (mode === 'rent') {
+      const ss = DB.stockState(p);
+      if (ss.penuh) return { key: 'penuh', label: ss.trip ? 'Penuh di tanggal ini' : 'Sedang disewa semua', title: `Tidak ada unit tersedia ${ss.when}` };
+      const t = DB.topRented();
+      if (t.ids.includes(p.id)) return { key: 'terlaris', label: 'Terlaris', title: `${t.cnt[p.id]}× disewa ${t.days ? `dalam ${t.days} hari terakhir` : 'sepanjang waktu'}` };
+      if (ss.hampir) return { key: 'hampir', label: 'Hampir habis', title: `Sisa ${ss.left} dari ${ss.total} unit ${ss.when}` };
+    } else {
+      const left = DB.sizeStock ? DB.sizeStock(p) : p.stock;
+      if (left > 0 && left <= 2 && left < (+p.stock || 0) + 1 && left <= Math.max(2, (p.minStock || 0))) return { key: 'hampir', label: 'Hampir habis', title: `Sisa stok ${left}` };
+    }
+    /* Rating Tertinggi: hanya 3 barang dengan rating terbaik (≥ 4,8 dan minimal 5 ulasan) di mode yang sama */
+    const topRated = DB.products().filter((x) => x.active !== false && (mode === 'rent' ? x.rent > 0 : x.price > 0) && (x.rating || 0) >= 4.8 && (x.reviews || 0) >= 5)
+      .sort((a, b) => b.rating - a.rating || b.reviews - a.reviews).slice(0, 3).map((x) => x.id);
+    if (topRated.includes(p.id)) return { key: 'rating', label: 'Rating Tertinggi', title: `Rating ${String(p.rating).replace('.', ',')} dari ${p.reviews} ulasan` };
+    return null;
+  };
+  /* Label lama yang berupa klaim (Best Seller, Populer, Terlaris) dikosongkan; label admin di luar daftar juga dikosongkan */
+  (function migrateBadges() {
+    const all = read('products', PRODUCTS); let ch = false;
+    all.forEach((p) => { if (p.badge && !DB.ADMIN_BADGES.includes(p.badge)) { p.badge = ''; ch = true; } });
+    if (ch) write('products', all);
+  })();
+  /* ---------- Pembersihan data setelah rekap bulanan ----------
+     Syarat: rekap bulan tsb sudah tersimpan di Google Drive & email terkirim (ada arsip + snapshot laporan).
+     DIHAPUS (bertanggal ≤ akhir bulan arsip): pesanan sewa/beli yang SELESAI/DIBATALKAN & tanpa tunggakan,
+       log aktivitas & login, notifikasi, email keluar (kecuali email rekap), catatan kas manual.
+     TIDAK PERNAH DIHAPUS: barang, unit, kategori, paket, pengguna/staff, promo, pengaturan, ulasan,
+       pesanan aktif / belum lunas / ada denda, arsip rekap. Ringkasan angka & riwayat pelanggan disimpan. */
+  /* Mode pembersihan & permintaan persetujuan owner */
+  DB.cleanupMode = () => { const c = DB.settings().cleanup || {}; return c.mode || (c.enabled === false ? 'off' : 'approve'); };
+  DB.cleanupReq = () => read('cleanupReq', { snoozeUntil: '', skipUntil: '' });
+  DB.setCleanupReq = (r) => write('cleanupReq', r);
+  /* Bulan yang sudah direkap (arsip + email) tapi datanya belum dibersihkan dan masih ada yang bisa dihapus */
+  DB.cleanupPending = () => read('archives', []).filter((a) => a.mailId && !a.purged).map((a) => ({ a, p: DB.cleanupArchived(a.period, true) })).filter((x) => x.p.ok && x.p.total).sort((x, y) => x.a.period.localeCompare(y.a.period));
+  DB.cleanupArchived = function (period, dry) {
+    const arc = read('archives', []).find((a) => a.period === period);
+    if (!arc || !arc.mailId) return { ok: false, reason: 'Rekap bulan ini belum tersimpan di Google Drive / email belum terkirim. Pembersihan dibatalkan.' };
+    if (!arc.snap && !dry) return { ok: false, reason: 'Isi laporan bulan ini belum disalin ke arsip. Buat ulang rekap dulu.' };
+    const [y, m] = period.split('-').map(Number);
+    const endD = `${period}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    const day = (iso) => String(iso || '').replace(' ', 'T').slice(0, 10);
+    const old = (iso) => { const d = day(iso); return d && d <= endD; };
+    const B = read('bookings', []), S = read('sales', []);
+    const bDone = (b) => (b.status === 'dibatalkan' || (b.status === 'selesai' && Rules.paidTotal(b) >= (b.total || 0))) && old((b.ret && b.ret.at) || (b.cancel && b.cancel.at) || b.end || b.createdAt);
+    const sDone = (s) => (s.status === 'dibatalkan' || (s.status === 'selesai' && s.paymentStatus === 'paid')) && old(s.createdAt);
+    const rmB = B.filter(bDone), rmS = S.filter(sDone);
+    const A = read('audit', []), N = read('notifications', []), O = read('outbox', []), E = read('expenses', []), I = read('incomes', []);
+    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at)), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = E.filter((e) => old(e.date)), rmI = I.filter((e) => old(e.date));
+    const photos = [...rmB, ...rmS].filter((x) => x.proof || (x.out && x.out.photo) || (x.ret && x.ret.photo)).length;
+    const counts = { bookings: rmB.length, sales: rmS.length, logs: rmA.length, notifications: rmN.length, emails: rmO.length, finance: rmE.length + rmI.length, photos };
+    const total = counts.bookings + counts.sales + counts.logs + counts.notifications + counts.emails + counts.finance;
+    if (dry) return { ok: true, period, counts, total, endD };
+    /* Simpan riwayat pelanggan sebelum pesanannya dihapus */
+    const CA = read('customerArchive', {}); const key = (c) => String(c.email || c.phone || c.name).toLowerCase();
+    const acc = (c) => (CA[key(c)] = CA[key(c)] || { name: c.name, email: c.email || '', phone: c.phone || '', rent: 0, sale: 0, total: 0, late: 0, cancel: 0, last: '' });
+    rmB.forEach((b) => { const x = acc(b.customer); x.rent++; if (b.status === 'dibatalkan') x.cancel++; else x.total += Rules.paidTotal(b); if (b.ret && b.ret.lateDays) x.late++; if (String(b.createdAt) > x.last) x.last = b.createdAt; });
+    rmS.forEach((s) => { const x = acc(s.customer); x.sale++; if (s.status === 'dibatalkan') x.cancel++; else x.total += Rules.paidTotal(s); if (String(s.createdAt) > x.last) x.last = s.createdAt; });
+    write('customerArchive', CA);
+    const keep = (L, rm) => { const set = new Set(rm); return L.filter((x) => !set.has(x)); };
+    write('bookings', keep(B, rmB)); write('sales', keep(S, rmS)); write('audit', keep(A, rmA)); write('notifications', keep(N, rmN));
+    write('outbox', keep(O, rmO)); write('expenses', keep(E, rmE)); write('incomes', keep(I, rmI));
+    arc.purged = { at: nowStamp(), counts, total, by: (DB.session() || {}).name || 'Sistem (terjadwal)' };
+    const all = read('archives', []); const i = all.findIndex((a) => a.period === period); all[i] = arc; write('archives', all);
+    DB.audit({ type: 'laporan', system: !DB.session(), action: `Pembersihan data bulan ${period} setelah rekap tersimpan di Google Drive: ${counts.bookings} sewa, ${counts.sales} pembelian, ${counts.logs} log, ${counts.notifications} notifikasi, ${counts.emails} email, ${counts.finance} catatan kas`, ref: period });
+    return { ok: true, period, counts, total, endD };
+  };
+  DB.payDeadline = (x) => new Date(new Date(x.createdAt).getTime() + (+DB.settings().payWindowHours || 1) * 3600e3);
+  /* Revisi mitra: batas bayar DP menjadi 1 jam (pengaturan lama 2 jam ikut diperbarui sekali) */
+  (function migratePayWindow() { const st = read('settings', SETTINGS); if (!st.payWindowV2) { st.payWindowHours = 1; st.payWindowV2 = true; write('settings', st); } })();
+  try { DB.expireUnpaid(); } catch (e) { /* abaikan */ }
+  window.Ann = { DEFAULT_SETTINGS: SETTINGS, DB, Rules, STATUS, AUDIT_TYPES, D: { day, today, addDays, rel, diffDays, toISO, fmtDate, fmtDateTime, fmtRange, nowStamp, BULAN, BULAN_PANJANG, HARI }, rupiah };
 })();

@@ -38,7 +38,7 @@
         validate(form, { [data.field || 'email']: () => data.msg || (data.errors ? Object.values(data.errors)[0][0] : 'Gagal mendaftar.') });
         return;
       }
-      DB.set('session', data.user);
+      DB.adoptSession(data.user);
       DB.notify(data.user.email, 'Selamat datang di Annapurna!', 'Akunmu sudah aktif. Yuk cek alat yang tersedia untuk petualangan berikutnya.', 'katalog');
       toast('Akun berhasil dibuat.');
       setTimeout(() => (location.href = data.redirect || next || './'), 450);

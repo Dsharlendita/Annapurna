@@ -5,13 +5,14 @@
   const ids = (param('ids') || '').split(',').filter(Boolean);
   const orders = ids.map((id) => (id.startsWith('RNT') ? Object.assign({ _t: 'rent' }, DB.booking(id)) : Object.assign({ _t: 'buy' }, DB.sale(id)))).filter((o) => o.id && (o.customer.email === user.email || DB.isStaff(user)));
   const root = $('#root');
-  const pending = orders.filter((o) => o.paymentStatus === 'unpaid');
+  const pending = orders.filter((o) => o.paymentStatus === 'unpaid' && o.status !== 'dibatalkan');
   if (!orders.length) { root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-receipt"></i></div><h3>Tagihan tidak ditemukan</h3><p>Buka halaman Pesanan Saya untuk melihat semua tagihanmu.</p><a class="btn btn-primary" href="pesanan">Buka Pesanan Saya</a></div>`; return; }
+  if (!pending.length && orders.every((o) => o.status === 'dibatalkan')) { root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-ban"></i></div><h3>Pesanan dibatalkan otomatis</h3><p>${orders.map((o) => o.id).join(', ')} dibatalkan karena pembayaran tidak dilakukan dalam ${+DB.settings().payWindowHours || 1} jam. Barang sudah bisa disewa kembali, silakan buat pesanan baru.</p><a class="btn btn-primary" href="katalog">Sewa lagi</a></div>`; return; }
   if (!pending.length) { root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-circle-check"></i></div><h3>Semua tagihan sudah dibayar</h3><p>Admin akan memverifikasi pembayaranmu. Status terbaru bisa dilihat di Pesanan Saya.</p><a class="btn btn-primary" href="pesanan">Buka Pesanan Saya</a></div>`; return; }
   const due = (o) => (o._t === 'rent' ? o.dp : o.total);
   const total = pending.reduce((s, o) => s + due(o), 0);
   const method = pending[0].method;
-  const deadline = new Date(new Date(pending[0].createdAt).getTime() + 24 * 3600e3);
+  const deadline = DB.payDeadline(pending[0]);
   const bank = st.banks.find((b) => method.includes(b.bank));
   let qr = ''; let seed = total % 997 + 7;
   for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++) { seed = (seed * 9301 + 49297) % 233280; const corner = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13); const on = corner ? (x % 6 === 0 || y % 6 === 0 || (x % 7 > 1 && x % 7 < 5 && y % 7 > 1 && y % 7 < 5)) : seed / 233280 > .5; if (on) qr += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }
@@ -19,8 +20,8 @@
   root.innerHTML = `<div class="layout-2">
     <div>
       <div class="card">
-        <div class="card-title"><i class="fa-regular fa-clock"></i> Selesaikan pembayaran sebelum ${D.fmtDateTime(deadline.toISOString())}</div>
-        <p class="muted">Booking yang belum dibayar sampai batas waktu akan dibatalkan otomatis supaya alat bisa disewa orang lain.</p>
+        <div class="pay-timer"><div><span class="pay-timer-l"><i class="fa-regular fa-clock"></i> Selesaikan pembayaran dalam</span>${UI.cdSpan(deadline.toISOString(), 'pay')}<small>Batas: ${D.fmtDateTime(deadline.toISOString())} WIB</small></div></div>
+        <p class="muted">Kamu punya waktu <b>${+DB.settings().payWindowHours || 1} jam</b> sejak pesanan dibuat. Booking yang belum dibayar sampai batas waktu akan dibatalkan otomatis supaya alat bisa disewa orang lain.</p>
         <div style="margin-top:18px">
           ${bank ? `<div class="bank"><div><small class="muted">${esc(method)} · a.n. ${esc(bank.holder)}</small><br><strong id="accNo">${esc(bank.number)}</strong></div><button class="btn btn-light btn-sm" id="copyAcc"><i class="fa-regular fa-copy"></i> Salin</button></div>`
             : `<div style="text-align:center"><svg class="qris" viewBox="-1 -1 23 23" role="img" aria-label="Kode QRIS pembayaran"><g fill="#15311f">${qr}</g></svg><p class="muted" style="font-size:13px">Scan QRIS dengan aplikasi e-wallet atau m-banking</p></div>`}
@@ -39,7 +40,7 @@
     </div>
     <aside class="card sticky-side">
       <div class="card-title">Rincian tagihan</div>
-      ${pending.map((o) => `<div style="padding:10px 0;border-bottom:1px dashed var(--line)">
+      ${pending.map((o, i) => `<div style="padding:10px 0;${i < pending.length - 1 ? 'border-bottom:1px dashed var(--line)' : ''}">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong>${o.id}</strong>${pill(o._t === 'rent' ? 'rental' : 'sale', o.status)}</div>
         <small class="muted">${o._t === 'rent' ? `Sewa ${D.fmtRange(o.start, o.end)} · ${o.items.length} item` : `Pembelian · ${o.items.length} item`}</small>
         <div class="kv" style="padding-bottom:0"><span>${o._t === 'rent' ? `DP ${st.dpPercent}% dari ${rupiah(o.total)}` : 'Total belanja'}</span><span>${rupiah(due(o))}</span></div>

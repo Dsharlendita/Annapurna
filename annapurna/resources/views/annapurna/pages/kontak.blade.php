@@ -17,7 +17,7 @@
     <div class="card track-card">
       <div class="card-title"><i class="fa-solid fa-magnifying-glass-location"></i> Cek status pesanan tanpa login</div>
       <form class="track-f" id="trackF" novalidate>
-        <div class="field"><label for="tId">Nomor pesanan</label><input class="input" id="tId" placeholder="Contoh: RNT-1003 atau ORD-2004" autocomplete="off"></div>
+        <div class="field"><label for="tId">Nomor pesanan</label><input class="input" id="tId" placeholder="Contoh: 028/X/2026 (lihat di nota)" autocomplete="off"></div>
         <div class="field"><label for="tPh">Nomor WhatsApp saat memesan</label><input class="input" id="tPh" inputmode="tel" placeholder="08xxxxxxxxxx"></div>
         <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Cek</button>
       </form>
@@ -33,8 +33,14 @@
       </div>
       <a class="btn btn-light btn-sm" id="mapLink" target="_blank" rel="noopener" style="margin-top:12px"><i class="fa-solid fa-diamond-turn-right"></i> Buka di Google Maps</a>
     </div>
+    <div class="contact-side">
+    <div class="card ask-ai-card" style="margin-top:0">
+      <div class="card-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Tanya Asisten Trip dulu</div>
+      <p class="muted" style="font-size:13.5px;margin:0 0 12px">Jawaban instan 24 jam untuk harga, durasi sewa, denda, stok, dan rekomendasi alat. Butuh keputusan admin (pengantaran, keluhan, permintaan khusus)? Asisten akan meneruskannya ke WhatsApp admin.</p>
+      <button type="button" class="btn btn-primary btn-sm" data-ai-open><i class="fa-solid fa-wand-magic-sparkles"></i> Buka Asisten Trip</button>
+    </div>
     <div class="card" style="margin-top:0">
-      <div class="card-title"><i class="fa-regular fa-paper-plane"></i> Kirim pesan</div>
+      <div class="card-title"><i class="fa-regular fa-paper-plane"></i> Kirim pesan ke admin</div>
       <form id="cForm" novalidate>
         <div class="grid-2">
           <div class="field"><label for="cName">Nama</label><input class="input" id="cName" name="name" autocomplete="name"></div>
@@ -48,6 +54,7 @@
           <button class="btn btn-light" type="button" id="cEmail"><i class="fa-solid fa-envelope"></i> Kirim lewat email</button>
         </div>
       </form>
+    </div>
     </div>
   </div>
 </main>

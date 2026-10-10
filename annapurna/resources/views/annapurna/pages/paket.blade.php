@@ -8,7 +8,7 @@
   <div class="wrap">
     <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Paket</span></div>
     <h1>Paket sewa sekali ambil, langsung berangkat</h1>
-    <p>Satu paket berisi semua alat inti untuk camping atau mendaki. Harganya lebih hemat dibanding sewa satuan.</p>
+    <p>Paket Tenda, Paket BBQ, dan Paket Tektok Annapurna. Tersedia tarif per malam, perkegiatan (3 hari), dan ekspedisi (5 hari) — lebih hemat dibanding sewa satuan.</p>
   </div>
 </section>
 
@@ -18,9 +18,9 @@
       <div class="input-icon pk-search"><i class="fa-solid fa-magnifying-glass"></i><input class="input" id="q" placeholder="Cari paket atau nama alat…" aria-label="Cari paket"></div>
       <div class="seg" id="typeSeg" role="tablist" aria-label="Jenis paket">
         <button class="active" data-type="">Semua</button>
-        <button data-type="hiking">Hiking</button>
-        <button data-type="camping">Camping</button>
-        <button data-type="pelengkap">Pelengkap</button>
+        <button data-type="tenda">Paket Tenda</button>
+        <button data-type="bbq">Paket BBQ</button>
+        <button data-type="tektok">Paket Tektok</button>
       </div>
       <select class="select pk-sort" id="sort" aria-label="Urutkan">
         <option value="rec">Rekomendasi</option>

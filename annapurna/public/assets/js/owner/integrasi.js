@@ -41,6 +41,35 @@
     toast(DB.saveSettings(next) ? 'Pengaturan integrasi disimpan.' : 'Tidak ada perubahan.'); load();
   });
 
+  /* ---------- Pembersihan data setelah rekap ---------- */
+  function drawCleanup() {
+    const mode = DB.cleanupMode(); $$('input[name="clMode"]').forEach((r) => { r.checked = r.value === mode; });
+    const pend = DB.cleanupPending(); const req = DB.cleanupReq();
+    const A = DB.archives().slice().sort((a, b) => b.period.localeCompare(a.period));
+    const todo = A.filter((a) => !a.purged);
+    const done = A.filter((a) => a.purged);
+    const lbl = { bookings: 'pesanan sewa', sales: 'pembelian', logs: 'log', notifications: 'notifikasi', emails: 'email', finance: 'catatan kas', photos: 'berisi foto' };
+    const txt = (c) => Object.entries(c).filter(([k, v]) => v && k !== 'photos').map(([k, v]) => `${v} ${lbl[k]}`).join(' · ') || 'tidak ada data lama';
+    $('#clPrev').innerHTML = `${pend.length && mode === 'approve' ? `<div class="cl-wait"><i class="fa-solid fa-hourglass-half"></i><div><b>Menunggu persetujuanmu</b><small>${pend.map((x) => Reports.monthName(x.a.period)).join(', ')} · ${pend.reduce((a, x) => a + x.p.total, 0)} data${req.snoozeUntil > T ? ` · diingatkan lagi ${D.fmtDate(req.snoozeUntil, true)}` : ''}${req.skipUntil > T ? ` · dilewati sampai ${D.fmtDate(req.skipUntil, true)}` : ''}</small></div><button class="btn btn-primary btn-sm" type="button" id="clReview2">Tinjau &amp; putuskan</button></div>` : ''}${todo.length ? `<h4 class="cfg-sub">Siap dibersihkan</h4>${todo.map((a) => { const p = DB.cleanupArchived(a.period, true);
+      return `<div class="cl-row"><span><i class="fa-solid fa-folder"></i> <b>${esc(Reports.monthName(a.period))}</b> · rekap tersimpan ${D.fmtDateTime(a.createdAt)}</span><small>${p.ok ? txt(p.counts) : esc(p.reason)}</small><button class="btn btn-light btn-xs" data-clean="${a.period}" ${p.ok && p.total ? '' : 'disabled'}><i class="fa-solid fa-broom"></i> Bersihkan sekarang</button></div>`; }).join('')}` : ''}
+      ${done.length ? `<h4 class="cfg-sub">Riwayat pembersihan</h4>${done.map((a) => `<div class="cl-row done"><span><i class="fa-solid fa-circle-check"></i> <b>${esc(Reports.monthName(a.period))}</b> · ${D.fmtDateTime(a.purged.at)} oleh ${esc(a.purged.by)}</span><small>${txt(a.purged.counts)} dihapus. Laporan tetap bisa diunduh dari arsip.</small></div>`).join('')}` : ''}
+      ${!A.length ? '<p class="muted" style="font-size:13px">Belum ada rekap bulanan. Pembersihan berjalan setelah rekap pertama tersimpan.</p>' : ''}`;
+  }
+  const MODE_LBL = { approve: 'Minta persetujuan owner', auto: 'Otomatis', off: 'Nonaktif' };
+  document.querySelector('.cl-modes').addEventListener('change', (e) => { if (e.target.name !== 'clMode') return; const st = DB.settings(); const from = DB.cleanupMode();
+    DB.set('settings', Object.assign({}, st, { cleanup: { mode: e.target.value } }));
+    DB.audit({ type: 'konfigurasi', action: 'Mengubah mode pembersihan data setelah rekap', changes: [{ field: 'Mode pembersihan', from: MODE_LBL[from], to: MODE_LBL[e.target.value] }] });
+    toast(`Mode pembersihan: ${MODE_LBL[e.target.value]}.`); drawCleanup(); });
+  document.addEventListener('click', (e) => { if (e.target.closest('#clReview2')) { const P = DB.cleanupPending(); if (P.length) Admin.cleanupModal(P); } });
+  window.onCleanupDone = () => { drawCleanup(); drawDrive(); };
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-clean]'); if (!b) return;
+    const p = b.dataset.clean; const pv = DB.cleanupArchived(p, true); if (!pv.ok) { toast(pv.reason, 'err'); return; }
+    if (!(await confirmBox({ title: `Bersihkan data ${Reports.monthName(p)}?`, text: `Akan dihapus: ${pv.counts.bookings} pesanan sewa, ${pv.counts.sales} pembelian, ${pv.counts.logs} log, ${pv.counts.notifications} notifikasi, ${pv.counts.emails} email, ${pv.counts.finance} catatan kas (s.d. ${D.fmtDate(pv.endD, true)}). Semua sudah tersimpan di rekap Google Drive. Pesanan aktif & data barang tidak tersentuh.`, ok: 'Ya, bersihkan', danger: true }))) return;
+    Reports.snapshot(p);
+    const r = DB.cleanupArchived(p); if (!r.ok) toast(r.reason, 'err'); if (r.ok) { DB.setCleanupReq({ snoozeUntil: '', skipUntil: '' }); toast(`${r.total} data ${Reports.monthName(p)} dibersihkan.`); drawCleanup(); drawDrive(); }
+  });
+
   function drawDrive() {
     const x = ig(); const A = DB.archives(); const open = param('folder');
     const years = [...new Set([T.slice(0, 4), ...A.map((a) => a.period.slice(0, 4))])].sort().reverse();
@@ -84,4 +113,5 @@
     if (rg) { const p = rg.dataset.regen; if (!(await confirmBox({ title: `Perbarui rekap ${Reports.monthName(p)}?`, text: 'Folder diperbarui dengan data terbaru dan email ringkasan dikirim ulang ke Owner.', ok: 'Perbarui & kirim' }))) return; Reports.generateMonthly(p); toast('Rekap diperbarui.'); drawDrive(); drawOutbox(); }
   });
   load(); drawDrive(); drawOutbox();
+  drawCleanup();
 })();

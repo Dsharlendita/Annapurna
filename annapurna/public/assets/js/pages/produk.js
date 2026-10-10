@@ -10,13 +10,14 @@
   const cat = DB.categories().find((c) => c.id === p.cat) || { name: '' };
   const st = DB.settings();
   let mode = param('mode') === 'beli' && p.price ? 'buy' : p.rent ? 'rent' : 'buy';
-  const gallery = [p.img, cat.img, ...DB.products().filter((x) => x.cat === p.cat && x.id !== p.id).map((x) => x.img)].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 4);
+  /* Galeri hanya berisi foto barang ini sendiri (bukan foto barang lain di kategori yang sama, supaya tidak menyesatkan) */
+  const gallery = [p.img, ...(p.gallery || [])].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 4);
 
   const detailRows = [
-    ['Merek', p.brand], ['Kode barang', p.sku], ['Kategori', cat.name], ['Kondisi', p.cond], ['Warna', p.color], ['Bahan', p.material], ['Berat', p.weight], ['Ukuran / kapasitas', p.dimension],
+    ['Merek', p.brand], ['Kode barang', p.sku], ['Kategori', cat.name], ['Warna', p.color], ['Bahan', p.material], ['Berat', p.weight], ['Ukuran / kapasitas', p.dimension],
     [DB.hasVariant(p) ? p.variant.label : 'Pilihan ukuran', DB.hasVariant(p) ? p.variant.options.map((o) => o.name).join(', ') : ''],
     ...Object.entries(p.attrs || {}).map(([k, v]) => [(DB.attributes(true).find((a) => a.id === k) || { name: '' }).name, v]).filter(([k]) => k),
-    ['Status', DB.condRentable(p.cond) ? '' : `${p.cond} — sementara tidak bisa disewa`], ['Kelengkapan', p.includes], ['Minimal sewa', p.rent && p.minDays > 1 ? `${p.minDays} hari` : ''],
+    ['Status', DB.condRentable(p.cond) ? '' : `${p.cond} — sementara tidak bisa disewa`], ['Kelengkapan', p.includes], ['Minimal sewa', p.rent && p.minDays > 1 ? `${p.minDays} malam` : ''],
     ['Jaminan', p.deposit ? rupiah(p.deposit) + ' (dikembalikan saat barang kembali)' : ''],
   ].filter(([, v]) => v).map(([k, v]) => [k, esc(v)]);
   const alts = p.brand ? DB.products().filter((x) => x.id !== p.id && x.cat === p.cat && x.brand && x.brand !== p.brand && (p.rent ? x.rent : x.price)).slice(0, 4) : [];
@@ -25,7 +26,9 @@
     ['fa-id-card', 'Bawa identitas asli', 'KTP / KTM / SIM asli dititipkan sebagai jaminan selama masa sewa.'],
     ['fa-wallet', `DP ${stx.dpPercent}% saat booking`, `Sisanya dilunasi saat mengambil barang. Pembayaran: ${stx.banks.map((b) => b.bank).join(', ')} atau QRIS.`],
     ['fa-store', 'Ambil & kembalikan di toko', `${esc(stx.hours)}. Tidak ada layanan antar.`],
-    ['fa-clock', 'Batas pengembalian', `Hari terakhir sewa${stx.lateAfterReturnTime ? `, paling lambat pukul ${esc(stx.returnTime)}` : ''}. Terlambat dikenakan denda ${esc(DB.lateFeeText())}.`],
+    ['fa-calendar-days', 'Durasi sewa', (stx.durations || []).map((d) => `${esc(d.name)}: ${esc(d.note.toLowerCase())}`).join(' · ') || 'Per malam, kegiatan 3 hari, atau ekspedisi 5 hari.'],
+    ['fa-clock', 'Batas pengembalian', `Tanggal kembali${stx.lateAfterReturnTime ? `, paling lambat pukul ${esc(String(stx.returnTime).replace(':', '.'))} WIB (jam tutup toko)` : ''}. Terlambat dikenakan biaya ${esc(DB.lateFeeText())}.`],
+    ['fa-soap', 'Sewa bersih, kembali kotor', 'Biar kami yang membersihkan. Kamu cukup memakainya dengan happy tanpa harus mencuci.'],
     ['fa-rotate-left', 'Pembatalan', `Batal paling lambat H-${stx.cancelDays}: DP dikembalikan ${stx.refundPercent ?? 100}%. Lewat dari itu DP hangus.`],
   ] : [
     ['fa-store', 'Ambil di toko', `${esc(stx.hours)}. Tunjukkan nota digital saat mengambil.`],
@@ -38,17 +41,17 @@
     <div class="detail" style="margin-top:14px">
       <div>
         <div class="gallery">
-          <div class="main"><img id="mainImg" src="${asset(gallery[0])}" alt="${esc(p.name)}">${p.badge ? `<span class="badge-tag ${p.badge === 'Populer' ? 'l' : 'r'}">${p.badge}</span>` : ''}</div>
-          <div class="thumbs">${gallery.map((g, i) => `<button class="${i === 0 ? 'active' : ''}" data-img="${asset(g)}" aria-label="Foto ${i + 1}"><img src="${asset(g)}" alt=""></button>`).join('')}</div>
+          <div class="main"><img id="mainImg" src="${asset(gallery[0])}" alt="${esc(p.name)}">${(() => { const ab = DB.autoBadge(p, mode === 'buy' ? 'buy' : 'rent'); const ic = { terlaris: 'fa-fire', hampir: 'fa-hourglass-half', rating: 'fa-star', penuh: 'fa-ban' }; return ab ? `<span class="pc-badge auto ${ab.key} pd-badge-l" title="${esc(ab.title)}"><i class="fa-solid ${ic[ab.key]}"></i> ${ab.label}</span>` : ''; })()}${p.badge ? `<span class="pc-badge adm ${String(p.badge).toLowerCase()} pd-badge-r">${esc(p.badge)}</span>` : ''}</div>
+          <div class="thumbs" ${gallery.length > 1 ? '' : 'hidden'}>${gallery.map((g, i) => `<button class="${i === 0 ? 'active' : ''}" data-img="${asset(g)}" aria-label="Foto ${i + 1}"><img src="${asset(g)}" alt=""></button>`).join('')}</div>
         </div>
         <div class="calendar" id="calBox"></div>
       </div>
       <div>
         <span class="pill green plain">${esc(cat.name)}</span>
         <h1 style="margin-top:10px">${esc(p.name)}</h1>
-        <div class="meta">${stars(p.rating)}<a href="#ulasan" class="link" style="font-size:inherit">${p.reviews} ulasan</a><span><i class="fa-solid fa-circle-check" style="color:var(--g600)"></i> Kondisi ${esc(p.cond)}</span></div>
+        <div class="meta">${stars(p.rating, false)}<a href="#ulasan" class="link" style="font-size:inherit">${p.reviews ? `${Number(p.rating).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} · ${p.reviews} ulasan` : 'Belum ada ulasan'}</a></div>
         <div class="price-box">
-          ${p.rent ? `<div><small>Harga sewa</small><strong>${rupiah(p.rent)}</strong> <small style="display:inline">/ hari</small></div>` : ''}
+          ${p.rent ? Rules.tierRows(Rules.productTiers(p)).filter((x) => x.price).map((x) => `<div><small>${esc(x.name)}</small><span class="pb-val"><strong>${rupiah(x.price)}</strong>${x.days === 1 ? '<small>/ malam</small>' : ''}</span></div>`).join('') : ''}
           ${p.price ? `<div><small>Harga beli</small><strong>${rupiah(p.price)}</strong></div>` : ''}
         </div>
         <p style="color:var(--ink-2)">${esc(p.desc || '')}</p>
@@ -56,15 +59,15 @@
         ${DB.hasVariant(p) ? `<p class="size-note"><i class="fa-solid fa-ruler"></i> Tersedia ${esc(p.variant.label.toLowerCase())}: <b>${esc(p.variant.options.map((o) => o.name.replace(/\s*\(.*\)/, '')).join(', '))}</b>. Pilih ukuran di bawah.</p>` : ''}
 
         <div class="mode-switch" role="tablist">
-          <button data-m="rent" ${p.rent ? '' : 'disabled title="Produk ini tidak disewakan"'}><i class="fa-solid fa-campground"></i> Sewa</button>
-          <button data-m="buy" ${p.price ? '' : 'disabled title="Produk ini tidak dijual"'}><i class="fa-solid fa-bag-shopping"></i> Beli</button>
+          <button data-m="rent" class="${p.rent ? '' : 'na'}"><i class="fa-solid fa-campground"></i> Sewa${p.rent ? '' : '<em>Tidak tersedia</em>'}</button>
+          <button data-m="buy" class="${p.price ? '' : 'na'}"><i class="fa-solid fa-bag-shopping"></i> Beli${p.price ? '' : '<em>Tidak tersedia</em>'}</button>
         </div>
         <div id="orderBox"></div>
       </div>
     </div>
 
     <div class="card info-rent" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-circle-info"></i> Info penting sebelum ${p.rent ? 'sewa' : 'beli'}</div><ul class="ir-list">${infoRows.map(([ic, t, d]) => `<li><span class="ir-ic"><i class="fa-solid ${ic}"></i></span><div><b>${t}</b><small>${d}</small></div></li>`).join('')}</ul></div>
-    ${alts.length ? `<div class="card alt-brands" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-code-compare"></i> Pilihan merek lain untuk ${esc(cat.name.toLowerCase())}</div><div class="alt-list">${alts.map((x) => `<a class="alt-it" href="produk?id=${x.id}"><img src="${asset(x.img)}" alt=""><span><small>${esc(x.brand)}</small><b>${esc(x.name)}</b><em>${x.rent ? `${rupiah(x.rent)}/hari` : rupiah(x.price)}${x.attrs && x.attrs['at-kapasitas'] ? ` · ${esc(x.attrs['at-kapasitas'])}` : ''}</em></span></a>`).join('')}</div></div>` : ''}
+    ${alts.length ? `<div class="card alt-brands" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-code-compare"></i> Pilihan merek lain untuk ${esc(cat.name.toLowerCase())}</div><div class="alt-list">${alts.map((x) => `<a class="alt-it" href="produk?id=${x.id}"><img src="${asset(x.img)}" alt=""><span><small>${esc(x.brand)}</small><b>${esc(x.name)}</b><em>${x.rent ? `${rupiah(x.rent)}/malam` : rupiah(x.price)}${x.attrs && x.attrs['at-kapasitas'] ? ` · ${esc(x.attrs['at-kapasitas'])}` : ''}</em></span></a>`).join('')}</div></div>` : ''}
     ${detailRows.length ? `<div class="card prod-detail" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-list-check"></i> Detail produk</div><table class="spec-tbl">${detailRows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table></div>` : ''}
     <div class="grid-2" style="gap:18px;margin-top:${detailRows.length ? 18 : 36}px">
       <div class="card" id="ketentuan"><div class="card-title"><i class="fa-solid fa-file-lines"></i> Ketentuan sewa</div><ul style="list-style:disc;padding-left:18px;color:var(--ink-2);font-size:14px">${st.rentalTerms.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}</ul></div>
@@ -81,12 +84,34 @@
   const box = $('#orderBox');
   function drawOrder() {
     $$('.mode-switch button').forEach((b) => b.classList.toggle('active', b.dataset.m === mode));
+    /* Mode yang tidak tersedia untuk barang ini: tampilkan pemberitahuan + barang serupa yang tersedia */
+    if ((mode === 'rent' && !p.rent) || (mode === 'buy' && !p.price)) {
+      const rentNA = mode === 'rent';
+      /* Urutkan saran: nama paling mirip dulu (mis. "Gas Kompor" → "Gas Kaleng"), lalu barang sekategori */
+      const words = (t) => String(t).toLowerCase().replace(/\(.*?\)/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+      const mine = new Set(words(p.name));
+      const head = words(p.name)[0];
+      const score = (x) => (head && words(x.name)[0] === head ? 20 : 0) + words(x.name).filter((w) => mine.has(w)).length * 10 + (x.cat === p.cat ? 1 : 0);
+      const sim = DB.products().filter((x) => x.active !== false && x.id !== p.id && (rentNA ? x.rent > 0 : x.price > 0) && score(x) > 0)
+        .sort((x, y) => score(y) - score(x)).slice(0, 3);
+      const top = sim[0] && score(sim[0]) >= 10 ? sim[0] : null;
+      const sbx = $('#stickyBuy'); if (sbx) sbx.remove();
+      box.innerHTML = `<div class="na-box">
+        <div class="notice red"><i class="fa-solid fa-circle-info"></i><div><strong>Maaf, barang ini tidak tersedia untuk ${rentNA ? 'disewakan' : 'dibeli'}.</strong><br>${esc(p.name)} ${rentNA ? 'hanya dijual' : 'hanya disewakan'}. ${top ? `Kamu bisa ${rentNA ? 'menyewa' : 'membeli'} barang yang mirip di bawah ini.` : sim.length ? `Berikut ${esc(cat.name.toLowerCase())} lain yang bisa ${rentNA ? 'disewa' : 'dibeli'}:` : ''}</div></div>
+        ${top ? `<a class="na-top" href="produk?id=${encodeURIComponent(top.id)}${rentNA ? '' : '&mode=beli'}"><img src="${asset(top.img)}" alt=""><span><small>Yang paling mirip untuk ${rentNA ? 'disewa' : 'dibeli'}</small><b>${esc(top.name)}</b><em>${rentNA ? `${rupiah(top.rent)} / malam` : rupiah(top.price)}</em></span><span class="btn btn-primary btn-sm">${rentNA ? 'Sewa' : 'Beli'} ${esc(top.name)} <i class="fa-solid fa-arrow-right"></i></span></a>` : ''}
+        ${sim.length > (top ? 1 : 0) ? `<div class="na-list">${sim.filter((x) => x !== top).map((x) => `<a class="na-item" href="produk?id=${encodeURIComponent(x.id)}${rentNA ? '' : '&mode=beli'}"><img src="${asset(x.img)}" alt=""><span><b>${esc(x.name)}</b><small>${rentNA ? `${rupiah(x.rent)} / malam` : rupiah(x.price)}</small></span><i class="fa-solid fa-chevron-right"></i></a>`).join('')}</div>` : ''}
+        <div class="na-acts"><a class="btn btn-light btn-sm" href="${rentNA ? 'katalog' : 'belanja'}?cat=${encodeURIComponent(p.cat)}">Lihat semua ${esc(cat.name.toLowerCase())} ${rentNA ? 'untuk disewa' : 'untuk dibeli'}</a><button class="btn btn-primary btn-sm" type="button" id="naBack">${rentNA ? 'Beli barang ini' : 'Sewa barang ini'}</button></div>
+      </div>`;
+      $('#naBack').addEventListener('click', () => { mode = rentNA ? 'buy' : 'rent'; drawOrder(); });
+      return;
+    }
     if (mode === 'rent') {
       box.innerHTML = `
         <div class="grid-2">
           <div class="field"><label for="dStart">Tanggal ambil</label><input type="date" class="input" id="dStart" value="${sel.start}"></div>
           <div class="field"><label for="dEnd">Tanggal kembali</label><input type="date" class="input" id="dEnd" value="${sel.end}"></div>
         </div>
+        <div id="dDur"></div>
         <div id="dSize"></div>
         <div class="field"><label>Jumlah</label><div class="qty"><button type="button" data-q="-1" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input id="dQty" type="number" min="1" value="1" aria-label="Jumlah"><button type="button" data-q="1" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div></div>
         <div class="avail-msg" id="dAvail"></div>
@@ -102,6 +127,7 @@
         <a class="btn btn-ghost btn-sm" style="margin-top:8px" href="${waLink('Halo Annapurna, saya mau tanya ketersediaan ' + p.name)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya lewat WhatsApp</a>`;
       const s = $('#dStart'), e = $('#dEnd'), q = $('#dQty');
       dateGuard(s, e);
+      $('#dDur').appendChild(UI.durationChips(s, e));
       const calc = () => {
         sel.start = s.value; sel.end = e.value;
         const days = Rules.rentalDays(s.value, e.value);
@@ -113,12 +139,13 @@
         const ok = qty <= avail && days >= minD && days <= maxD;
         const szTxt = selSize ? ` ukuran ${esc(selSize.replace(/\s*\(.*\)/, ''))}` : '';
         $('#dAvail').className = 'avail-msg ' + (ok ? 'ok' : 'no');
-        $('#dAvail').innerHTML = !DB.condRentable(p.cond) ? `<i class="fa-solid fa-circle-xmark"></i> Barang sedang <b>${esc(p.cond.toLowerCase())}</b> dan belum bisa disewa. Coba lagi nanti atau tanya admin via WhatsApp.` : days > maxD ? `<i class="fa-solid fa-circle-xmark"></i> Maksimal lama sewa ${maxD} hari.` : days < minD ? `<i class="fa-solid fa-circle-xmark"></i> Minimal sewa ${minD} hari.` : ok ? `<i class="fa-solid fa-circle-check"></i> ${avail} unit${szTxt} tersedia untuk ${D.fmtRange(s.value, e.value)}` : sized && !selSize ? '<i class="fa-solid fa-circle-xmark"></i> Semua ukuran habis di tanggal ini. Pilih tanggal lain di kalender.' : `<i class="fa-solid fa-circle-xmark"></i> ${Rules.availMsg(p, qty, s.value, e.value, selSize, avail)}`;
-        $('#dLine').textContent = `${rupiah(p.rent)} × ${qty} × ${days} hari`;
-        $('#dTotal').textContent = rupiah(p.rent * qty * days);
-        $('#dDp').textContent = rupiah(p.rent * qty * days * st.dpPercent / 100);
+        $('#dAvail').innerHTML = !DB.condRentable(p.cond) ? `<i class="fa-solid fa-circle-xmark"></i> Barang sedang <b>${esc(p.cond.toLowerCase())}</b> dan belum bisa disewa. Coba lagi nanti atau tanya admin via WhatsApp.` : days > maxD ? `<i class="fa-solid fa-circle-xmark"></i> Maksimal lama sewa ${maxD} malam.` : days < minD ? `<i class="fa-solid fa-circle-xmark"></i> Minimal sewa ${minD} malam.` : ok ? `<i class="fa-solid fa-circle-check"></i> ${avail} unit${szTxt} tersedia untuk ${D.fmtRange(s.value, e.value)}` : sized && !selSize ? '<i class="fa-solid fa-circle-xmark"></i> Semua ukuran habis di tanggal ini. Pilih tanggal lain di kalender.' : `<i class="fa-solid fa-circle-xmark"></i> ${Rules.availMsg(p, qty, s.value, e.value, selSize, avail)}`;
+        const tiers = Rules.productTiers(p); const unitTotal = Rules.tierPlan(tiers, days).total;
+        $('#dLine').textContent = `${Rules.tierLabel(tiers, days)} · ${rupiah(unitTotal)} × ${qty}`;
+        $('#dTotal').textContent = rupiah(unitTotal * qty);
+        $('#dDp').textContent = rupiah(Math.round(unitTotal * qty * st.dpPercent / 100));
         $('#dCart').disabled = $('#dNow').disabled = !ok;
-        const sb = $('#stickyBuy'); if (sb) { sb.querySelector('b').textContent = rupiah(p.rent * qty * days); sb.querySelector('small').textContent = `${qty} unit · ${days} hari${selSize ? ' · ' + selSize.replace(/\s*\(.*\)/, '') : ''}`; sb.querySelector('button').disabled = !ok; }
+        const sb = $('#stickyBuy'); if (sb) { sb.querySelector('b').textContent = rupiah(unitTotal * qty); sb.querySelector('small').textContent = `${qty} unit · ${days} malam${selSize ? ' · ' + selSize.replace(/\s*\(.*\)/, '') : ''}`; sb.querySelector('button').disabled = !ok; }
         drawCal();
         return ok;
       };
@@ -157,7 +184,11 @@
       drawCal();
     }
   }
-  $$('.mode-switch button').forEach((b) => b.addEventListener('click', () => { if (b.disabled) return; mode = b.dataset.m; drawOrder(); }));
+  $$('.mode-switch button').forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.m;
+    if (b.classList.contains('na')) UI.toast(`Maaf, barang ini tidak tersedia untuk ${mode === 'rent' ? 'disewakan' : 'dibeli'}.`, 'err');
+    drawOrder();
+  }));
 
   const sel = Object.assign({}, UI.tripDefault());
   let viewMonth = new Date(); viewMonth.setDate(1);
@@ -217,5 +248,13 @@
 
   $('#related').innerHTML = rel.map((x) => productCard(x, 'rent')).join('');
   bindProductActions($('#related'));
+  /* HP / tablet: kalender ketersediaan dipindah ke bawah form sewa, supaya customer melihat nama, harga & pilihan sewa dulu */
+  (function placeCalendar() {
+    const cal = document.getElementById('calBox'); if (!cal) return;
+    const home = cal.parentElement, info = home && home.nextElementSibling; if (!info) return;
+    const mq = matchMedia('(max-width: 1024px)');
+    const place = () => { const target = mq.matches ? info : home; if (cal.parentElement !== target) target.appendChild(cal); cal.classList.toggle('cal-below', mq.matches); };
+    place(); if (mq.addEventListener) mq.addEventListener('change', place); else mq.addListener(place);
+  })();
 })();
 

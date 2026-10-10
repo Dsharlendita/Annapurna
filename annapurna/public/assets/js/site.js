@@ -13,7 +13,8 @@
 
   const LINKS = [
     { href: './', label: 'Beranda', key: 'home', icon: 'fa-house' },
-    { href: 'katalog', label: 'Produk Rental', key: 'katalog', icon: 'fa-campground' },
+    { href: 'katalog', label: 'Sewa Alat', key: 'katalog', icon: 'fa-campground' },
+    { href: 'belanja', label: 'Beli Alat', key: 'belanja', icon: 'fa-bag-shopping' },
     { href: 'paket', label: 'Paket', key: 'paket', icon: 'fa-box-open' },
     { href: 'tentang', label: 'Tentang Kami', key: 'tentang', icon: 'fa-mountain-sun' },
     { href: 'kontak', label: 'Kontak', key: 'kontak', icon: 'fa-phone' },
@@ -58,7 +59,7 @@
       <aside class="drawer-panel" aria-label="Menu">
         <div class="dh"><img src="${asset('assets/img/logo.png')}" alt="Annapurna Adventure"><button class="icon-btn" data-close-drawer aria-label="Tutup menu"><i class="fa-solid fa-xmark"></i></button></div>
         ${LINKS.map((l) => `<a class="dl ${page === l.key ? 'active' : ''}" href="${url(l.href)}"><i class="fa-solid ${l.icon}"></i>${l.label}</a>`).join('')}
-        <a class="dl ${page === 'belanja' ? 'active' : ''}" href="${url('katalog?mode=beli')}"><i class="fa-solid fa-bag-shopping"></i>Belanja Alat</a>
+        <a class="dl ${page === 'belanja' ? 'active' : ''}" href="${url('belanja')}"><i class="fa-solid fa-bag-shopping"></i>Belanja Alat</a>
         <a class="dl" href="${url('keranjang')}"><i class="fa-solid fa-cart-shopping"></i>Keranjang</a>
         ${s ? `<a class="dl" href="${url('pesanan')}"><i class="fa-solid fa-receipt"></i>Pesanan Saya</a>
                <a class="dl" href="${url('profil')}"><i class="fa-regular fa-user"></i>Profil</a>
@@ -93,7 +94,7 @@
     document.addEventListener('click', (e) => { if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach((o) => o.classList.remove('open')); });
 
     const s = DB.session();
-    const logout = () => { DB.logout(); toast('Kamu sudah keluar.'); setTimeout(() => (location.href = url('./')), 500); };
+    const logout = () => { toast('Kamu sudah keluar.'); UI.serverLogout(url('./')); };
     $('#logoutBtn') && $('#logoutBtn').addEventListener('click', logout);
     $('#logoutBtn2') && $('#logoutBtn2').addEventListener('click', logout);
     if ($('#nxBox')) UI.notifMenu($('#nxBox'), s.email, renderHeader);
@@ -109,7 +110,7 @@
       const q = inp.value.trim().toLowerCase();
       const cats = DB.categories();
       const list = DB.products().filter((p) => !q || p.name.toLowerCase().includes(q) || (cats.find((c) => c.id === p.cat) || {}).name.toLowerCase().includes(q)).slice(0, 8);
-      res.innerHTML = list.length ? list.map((p) => `<a href="${url('produk?id=' + p.id)}"><img src="${asset(p.img)}" alt=""><div><strong>${esc(p.name)}</strong><small>${p.rent ? rupiah(p.rent) + ' / hari' : 'Beli ' + rupiah(p.price)}</small></div></a>`).join('')
+      res.innerHTML = list.length ? list.map((p) => `<a href="${url('produk?id=' + p.id)}"><img src="${asset(p.img)}" alt=""><div><strong>${esc(p.name)}</strong><small>${p.rent ? rupiah(p.rent) + ' / malam' : 'Beli ' + rupiah(p.price)}</small></div></a>`).join('')
         + (q ? `<a href="${url('katalog?q=' + encodeURIComponent(q))}" style="justify-content:center;color:var(--g700);font-weight:600">Lihat semua hasil untuk “${esc(q)}”</a>` : '')
         : `<div class="empty">Tidak ada alat yang cocok dengan “${esc(q)}”. Coba kata lain, misalnya “tenda” atau “matras”.</div>`;
     };
@@ -133,7 +134,7 @@
       <div class="wrap footer-grid">
         <div>
           <img class="flogo" src="${asset('assets/img/logo-white.png')}" alt="Annapurna Adventure">
-          <p>Rental alat camping dan outdoor untuk mendukung setiap petualanganmu.</p>
+          <p>Annapurna Adventure Shop &amp; Rental. Sewa mudah, harga bersahabat, kenangan tak terlupakan. Teman terbaik setiap petualanganmu!</p>
         </div>
         <div>
           <h5>Menu</h5>
@@ -142,8 +143,10 @@
         <div>
           <h5>Kontak</h5>
           <ul class="kontak">
+            <li><i class="fa-solid fa-wand-magic-sparkles"></i><button type="button" class="link-btn f-ai" data-ai-open>Tanya Asisten Trip (instan, 24 jam)</button></li>
             <li><i class="fa-brands fa-whatsapp"></i><a href="${waLink()}" target="_blank" rel="noopener">${esc(st.phone)}</a></li>
             <li><i class="fa-brands fa-instagram"></i><a href="https://instagram.com/${st.instagram.replace('@', '')}" target="_blank" rel="noopener">${esc(st.instagram)}</a></li>
+            <li><i class="fa-brands fa-tiktok"></i><a href="https://www.tiktok.com/${(st.tiktok || st.instagram).replace(/^@?/, '@')}" target="_blank" rel="noopener">${esc(st.tiktok || st.instagram)}</a></li>
             <li><i class="fa-solid fa-envelope"></i><a href="mailto:${st.email}">${esc(st.email)}</a></li>
             <li><i class="fa-solid fa-location-dot"></i><a href="${url('kontak#lokasi')}">${esc(st.address)}</a></li>
           </ul>
@@ -152,8 +155,7 @@
           <h5>Ikuti Kami</h5>
           <div class="soc">
             <a href="https://instagram.com/${st.instagram.replace('@', '')}" target="_blank" rel="noopener" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
-            <a href="https://tiktok.com/${st.instagram}" target="_blank" rel="noopener" aria-label="TikTok"><i class="fa-brands fa-tiktok"></i></a>
-            <a href="https://youtube.com" target="_blank" rel="noopener" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a>
+            <a href="https://www.tiktok.com/${(st.tiktok || st.instagram).replace(/^@?/, '@')}" target="_blank" rel="noopener" aria-label="TikTok"><i class="fa-brands fa-tiktok"></i></a>
           </div>
           <div class="f-deco"><span style="color:#b9d3a6">${MTN.line}</span><span class="script">Jangan Cuma Mimpi,<br>Rasakan Petualangannya!</span></div>
         </div>
@@ -179,10 +181,10 @@
   function bottomNav(s) {
     if (document.getElementById('bnav')) return;
     const cart = DB.cart().reduce((a, c) => a + c.qty, 0);
-    const items = [['./', 'Beranda', 'fa-house', 'home'], ['katalog', 'Katalog', 'fa-tent', 'katalog'], ['keranjang', 'Keranjang', 'fa-cart-shopping', 'keranjang'], ['pesanan', 'Pesanan', 'fa-receipt', 'pesanan'], [s ? 'profil' : 'masuk', s ? 'Akun' : 'Masuk', s ? 'fa-user' : 'fa-right-to-bracket', s ? 'profil' : 'masuk']];
-    document.body.insertAdjacentHTML('beforeend', `<nav class="bnav" id="bnav" aria-label="Menu bawah">${items.map(([h, l, ic, k]) => `<a href="${url(h)}" class="${page === k || (k === 'katalog' && ['produk', 'belanja'].includes(page)) ? 'on' : ''}"><i class="fa-solid ${ic}"></i>${k === 'keranjang' && cart ? `<b>${cart}</b>` : ''}<span>${l}</span></a>`).join('')}</nav>`);
+    const items = [['./', 'Beranda', 'fa-house', 'home'], ['katalog', 'Sewa', 'fa-campground', 'katalog'], ['belanja', 'Beli', 'fa-bag-shopping', 'belanja'], ['keranjang', 'Keranjang', 'fa-cart-shopping', 'keranjang'], ['pesanan', 'Pesanan', 'fa-receipt', 'pesanan'], [s ? 'profil' : 'masuk', s ? 'Akun' : 'Masuk', s ? 'fa-user' : 'fa-right-to-bracket', s ? 'profil' : 'masuk']];
+    document.body.insertAdjacentHTML('beforeend', `<nav class="bnav" id="bnav" aria-label="Menu bawah">${items.map(([h, l, ic, k]) => `<a href="${url(h)}" class="${page === k || (k === 'katalog' && page === 'produk') ? 'on' : ''}"><i class="fa-solid ${ic}"></i>${k === 'keranjang' && cart ? `<b>${cart}</b>` : ''}<span>${l}</span></a>`).join('')}</nav>`);
     document.body.classList.add('has-bnav');
-    document.addEventListener('cart:change', () => { const n = DB.cart().reduce((a, c) => a + c.qty, 0); const a = document.querySelector('#bnav a:nth-child(3)'); if (!a) return; const b = a.querySelector('b'); if (n) { if (b) b.textContent = n; else a.insertAdjacentHTML('beforeend', `<b>${n}</b>`); } else if (b) b.remove(); });
+    document.addEventListener('cart:change', () => { const n = DB.cart().reduce((a, c) => a + c.qty, 0); const a = document.querySelector('#bnav a:nth-child(4)'); if (!a) return; const b = a.querySelector('b'); if (n) { if (b) b.textContent = n; else a.insertAdjacentHTML('beforeend', `<b>${n}</b>`); } else if (b) b.remove(); });
   }
   /* Pengingat otomatis untuk customer: H-1 & hari-H ambil, H-1 & hari-H kembali, terlambat */
   function remindCustomer(s) {

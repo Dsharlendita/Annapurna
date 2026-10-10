@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 Route::controller(PageController::class)->group(function () {
     Route::get('/', 'home')->name('home');
     Route::get('/katalog', 'katalog')->name('katalog');
+    Route::get('/belanja', 'belanja')->name('belanja');
     Route::get('/produk', 'produk')->name('produk');
     Route::get('/paket', 'paket')->name('paket');
     Route::get('/tentang', 'tentang')->name('tentang');
@@ -68,6 +69,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,owner'])
     Route::get('/sop', 'sop')->name('sop');
     Route::get('/perawatan', 'perawatan')->name('perawatan');
     Route::get('/kalender', 'kalender')->name('kalender');
+    Route::get('/kasir', 'kasir')->name('kasir');
 });
 
 // Panel Owner / Super Admin (Khusus Role: Owner)

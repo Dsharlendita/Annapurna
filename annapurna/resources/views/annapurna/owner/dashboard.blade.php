@@ -13,15 +13,17 @@
     <a class="btn btn-light btn-sm" href="{{ route('owner.histori') }}"><i class="fa-solid fa-clock-rotate-left"></i> Histori sistem</a>
     <a class="btn btn-light btn-sm" href="{{ route('admin.laporan') }}"><i class="fa-solid fa-file-lines"></i> Laporan</a>
   </div>
+  <div class="seg biz-view" id="bizView" role="tablist" aria-label="Tampilan data"><button type="button" data-v="all" class="active" role="tab"><i class="fa-solid fa-layer-group"></i> Gabungan</button><button type="button" data-v="rent" role="tab"><i class="fa-solid fa-campground"></i> Rental</button><button type="button" data-v="sale" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan</button></div>
+  <p class="muted biz-note" id="bizNote"></p>
   <h2 class="sec-lbl">Ringkasan keuangan</h2>
   <div class="fin-grid" id="fin"></div>
   <h2 class="sec-lbl">Transaksi</h2>
   <div class="stat-grid" id="tx"></div>
-  <h2 class="sec-lbl">Stok barang</h2>
+  <h2 class="sec-lbl" id="stkLbl">Stok barang</h2>
   <div class="stat-grid cols-3" id="stk"></div>
   <div class="grid-dash">
     <div class="panel">
-      <div class="panel-h"><h3>Pemasukan &amp; pengeluaran 6 bulan</h3><a class="btn btn-light btn-xs" href="{{ route('admin.keuangan') }}">Detail keuangan <i class="fa-solid fa-arrow-right"></i></a></div>
+      <div class="panel-h"><h3 id="chartTitle">Pemasukan &amp; pengeluaran 6 bulan</h3><a class="btn btn-light btn-xs" href="{{ route('admin.keuangan') }}">Detail keuangan <i class="fa-solid fa-arrow-right"></i></a></div>
       <div class="chart-box"><canvas id="chart" aria-label="Grafik pemasukan dan pengeluaran"></canvas></div>
     </div>
     <div class="panel">

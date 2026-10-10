@@ -27,7 +27,7 @@ File catatan ini merangkum perbandingan detail komponen per komponen serta peta 
 | **Bab 2.7** | Scheduler & Queue Jobs (`bookings:expire-unpaid`, dsb.) | ❌ **Belum Ada** | Belum ada scheduled commands di `app/Console/Commands` atau [console.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/routes/console.php). |
 | **Bab 3 & 4** | Kebutuhan Sistem & 22 Use Case (UC-01 s/d UC-22) | ⚠️ **Sebagian** | UI dan simulasi lengkap; integrasi penuh database di backend masih perlu disambungkan. |
 | **Bab 3 (NF-02)** | Audit Trail Hash Chain SHA-256 (`activity_logs`) | ✅ **100% Sesuai** | Model [ActivityLog.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/app/Models/ActivityLog.php) dan [Audit.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/app/Support/Audit.php) sudah memiliki append-only, genesis 64 nol, dan fungsi verifikasi `firstBrokenId()`. |
-| **Bab 5** | Siklus Status & Formula Bisnis (DP 50%, denda jam 18.00, refund H-2) | ✅ **Sesuai** | Logika perhitungan dan enum status sudah sesuai di rule sistem dan [ApiController.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/app/Http/Controllers/Annapurna/ApiController.php). |
+| **Bab 5** | Siklus Status & Formula Bisnis (DP 50%, denda lewat jam 22.00, refund H-2) | ✅ **Sesuai** | Logika perhitungan dan enum status sudah sesuai di rule sistem dan [ApiController.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/app/Http/Controllers/Annapurna/ApiController.php). |
 | **Bab 6 & 7** | ERD & Kamus Data (32 Tabel Database) | ⚠️ **Perlu Penyesuaian** | Baru ada 15 tabel migrasi bisnis di backend. 17 tabel pendukung belum dimigrasikan. |
 | **Bab 8.1** | Service Layer Backend (`app/Services/`) | ❌ **Belum Ada** | Belum ada direktori `app/Services/`. Logika bisnis masih berada di frontend dan controller. |
 | **Bab 9** | Route & Endpoint API | ⚠️ **Sebagian** | Route halaman web lengkap. Endpoint backend untuk panel Admin & Owner (`/api/admin/*`, `/api/owner/*`) belum dibuat. |
@@ -122,7 +122,7 @@ Fitur yang harus disiapkan:
 Perintah Artisan yang perlu dibuat:
 * `php artisan bookings:expire-unpaid`: Menghapus/membatalkan booking tanpa bukti DP melewati batas waktu 60 menit (tiap 15 menit).
 * `php artisan rentals:return-reminder`: Kirim notifikasi pengingat ke penyewa yang jadwal kembalinya hari ini (tiap hari jam 08.00).
-* `php artisan rentals:mark-overdue`: Menandai rental yang belum kembali lewat jam 18.00 dan menghitung denda harian (tiap hari jam 00.05).
+* `php artisan rentals:mark-overdue`: Menandai rental yang belum kembali lewat jam 22.00 (jam tutup toko) dan menghitung denda per malam (tiap hari jam 00.05).
 * `php artisan reports:monthly-archive`: Membuat arsip PDF/Excel bulanan dan unggah ke Google Drive (tanggal 1 jam 06.00).
 
 ---
@@ -164,3 +164,18 @@ Akun yang sudah terpasang dan aktif di [DatabaseSeeder.php](file:///d:/KULIAH%20
 * **Owner:** `owner@annapurna.id` / `owner123`
 * **Admin / Staff:** `dita@annapurna.id` / `dita123`
 * **Customer:** `customer@annapurna.id` / `customer123`
+
+---
+
+## 6. Pembaruan 8 Oktober 2026 — Aturan FE disesuaikan dengan price list WhatsApp
+
+Sumber: 12 poster price list & syarat ketentuan Annapurna Adventure (WhatsApp).
+
+* **Tarif sewa bertingkat:** setiap barang/paket punya 3 tarif — `rent` (per malam), `rent3` (perkegiatan 3 hari 3 malam), `rent5` (ekspedisi 5 hari 5 malam). Paket memakai `price`, `price3`, `price5`.
+  Lama sewa lain dihitung dari kombinasi tarif termurah (`Rules.tierPlan` di `data.js`), mis. 4 malam = perkegiatan + 1 malam.
+  Setiap baris booking menyimpan `tiers` ({ d1, d3, d5 }) saat checkout agar harga tidak berubah bila price list diubah.
+* **Paket Tektok** (Standar Rp60.000, Premium Rp110.000) hanya punya harga 1 malam; untuk 3 / 5 hari dihitung dari harga satuan isinya.
+* **Batas pengembalian:** tanggal kembali pukul 22.00 WIB (jam tutup toko). Lewat dari itu = terlambat; denda = tarif per malam × jumlah barang × malam keterlambatan.
+* **Kategori:** Tenda, Tas Backpack / Rucksack, Footwear, Fashion, Outdoor Equipment, Cooking Equipment (53 barang sewa).
+* **Barang jual:** price list tidak memuat barang jual. Hanya Gas Kaleng (isi Paket BBQ) yang dijual, harga Rp18.000 masih perlu dikonfirmasi.
+* **Belum disesuaikan:** `database/seeders/AnnapurnaSeeder.php` dan tabel `products` / `packages` di backend masih memakai katalog lama & satu kolom harga sewa. Perlu kolom `rent_price_3`, `rent_price_5` (produk) dan `price_3`, `price_5` (paket) saat backend disambungkan.

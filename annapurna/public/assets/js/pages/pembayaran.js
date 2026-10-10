@@ -83,7 +83,7 @@
         s.history.push({ at: now, text: 'Bukti pembayaran diunggah' });
         DB.saveSale(s);
       }
-      DB.notifyStaff('Bukti pembayaran masuk', `${o.customer.name} mengunggah bukti pembayaran untuk ${o.id}.`, o._t === 'rent' ? 'admin/booking?id=' + o.id : 'admin/penjualan?id=' + o.id);
+      DB.notifyStaff('Bukti pembayaran masuk', `${o.customer.name} mengunggah bukti pembayaran untuk ${NO(o)}.`, o._t === 'rent' ? 'admin/booking?id=' + o.id : 'admin/penjualan?id=' + o.id);
     });
     DB.notify(user.email, 'Bukti pembayaran terkirim', `Admin sedang memverifikasi pembayaran ${pending.map((o) => o.id).join(', ')}.`, 'pesanan');
     location.href = 'pesanan?paid=1';

@@ -127,7 +127,7 @@
       <div class="tg-steps">${canShare
         ? '<span><b>1</b> Tekan <b>Bagikan</b>, pilih WhatsApp, lalu pilih chat customer. Gambar nota & pesan terkirim bersamaan.</span>'
         : `<span><b>1</b> ${canCopy ? 'Tekan <b>Salin gambar nota</b>' : 'Tekan <b>Unduh gambar</b>'}</span><span><b>2</b> Tekan <b>Buka WhatsApp</b> — pesan sudah terisi</span><span><b>3</b> Di chat WhatsApp, ${canCopy ? 'tekan <b>Ctrl+V</b> untuk menempel gambar' : 'lampirkan gambar yang diunduh'}, lalu kirim</span>`}</div>
-      <div class="tg-prev"><img src="${imgUrl}" alt="Nota tagihan ${b.id}"></div>
+      <div class="tg-prev"><img src="${imgUrl}" alt="Nota tagihan ${NO(b)}"></div>
       <details class="tg-msg"><summary>Lihat isi pesan WhatsApp</summary><pre>${esc(text)}</pre></details>`,
       foot: `<button class="btn btn-light" id="tgDl"><i class="fa-solid fa-download"></i> Unduh gambar</button>
         ${canShare ? '<button class="btn btn-wa" id="tgShare"><i class="fa-solid fa-share-nodes"></i> Bagikan ke WhatsApp</button>'
@@ -556,7 +556,7 @@
       const from = b.status; b.paymentStatus = 'dp_paid'; b.status = 'dikonfirmasi';
       log(b, 'Pembayaran DP diverifikasi, booking dikonfirmasi', 'rental', `Mengonfirmasi booking ${b.id} (DP ${rupiah(b.dp)} diverifikasi)`, chg('Status booking', rl(from), rl('dikonfirmasi')));
       DB.saveBooking(b);
-      DB.notify(b.customer.email, 'Booking dikonfirmasi', `DP ${rupiah(b.dp)} untuk ${b.id} diterima. Barang bisa diambil ${D.fmtDate(b.start, true)}.`, `pesanan?id=${b.id}`);
+      DB.notify(b.customer.email, 'Booking dikonfirmasi', `DP ${rupiah(b.dp)} untuk ${NO(b)} diterima. Barang bisa diambil ${D.fmtDate(b.start, true)}.`, `pesanan?id=${b.id}`);
       toast(`${NO(b)} dikonfirmasi.`);
     },
     async rejectProof(b) {
@@ -565,7 +565,7 @@
       b.status = 'menunggu_pembayaran'; b.paymentStatus = 'unpaid'; b.proof = null;
       log(b, `Bukti pembayaran ditolak${val(r) ? ': ' + val(r) : ''}`, 'rental', `Menolak bukti pembayaran ${b.id}${val(r) ? ` (${val(r)})` : ''}`, chg('Status booking', rl('menunggu_konfirmasi'), rl('menunggu_pembayaran')));
       DB.saveBooking(b);
-      DB.notify(b.customer.email, 'Bukti pembayaran ditolak', `Bukti DP ${b.id} ditolak${val(r) ? ` (${val(r)})` : ''}. Silakan unggah ulang.`, `pembayaran?ids=${b.id}`);
+      DB.notify(b.customer.email, 'Bukti pembayaran ditolak', `Bukti DP ${NO(b)} ditolak${val(r) ? ` (${val(r)})` : ''}. Silakan unggah ulang.`, `pembayaran?ids=${b.id}`);
       toast('Bukti pembayaran ditolak.'); return true;
     },
     pickup(b, done) {
@@ -600,7 +600,7 @@
         b.paymentStatus = 'lunas'; b.status = 'disewa';
         log(b, 'Barang keluar / diambil customer', 'barang_keluar', `Mencatat barang keluar ${b.id}: ${itemsText(b)}`, [{ field: 'Status booking', from: rl('dikonfirmasi'), to: rl('disewa') }, { field: 'Kondisi keluar', from: '', to: b.out.cond }, ...(due ? [{ field: 'Pelunasan diterima', from: '', to: rupiah(due) }] : [])]);
         DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Selamat bertualang!', `Barang ${b.id} sudah diambil. Harap kembalikan paling lambat ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
+        DB.notify(b.customer.email, 'Selamat bertualang!', `Barang ${NO(b)} sudah diambil. Harap kembalikan paling lambat ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Barang keluar tercatat. Status: Sedang disewa.'); done && done();
       });
     },
@@ -665,7 +665,7 @@
         log(b, `Barang kembali (${b.ret.cond})${r.late ? `, terlambat ${r.late} hari` : ''}${r.fine ? `, denda ${rupiah(r.fine)}` : ''}`, 'pengembalian', `Mencatat barang kembali ${b.id} (kondisi ${b.ret.cond}${r.late ? `, terlambat ${r.late} hari` : ''})`,
           [{ field: 'Status booking', from: rl('disewa'), to: rl('selesai') }, { field: 'Kondisi kembali', from: b.out ? b.out.cond : '', to: b.ret.cond }, ...(r.fine ? [{ field: 'Denda', from: '', to: rupiah(r.fine) }] : [])]);
         DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Rental selesai — beri ulasan yuk!', `Terima kasih! ${b.id} sudah dikembalikan${r.fine ? ` dengan denda ${rupiah(r.fine)}` : ''}. Bagikan pengalamanmu dengan memberi bintang & ulasan.`, `pesanan?tab=riwayat&review=${b.id}`);
+        DB.notify(b.customer.email, 'Rental selesai — beri ulasan yuk!', `Terima kasih! ${NO(b)} sudah dikembalikan${r.fine ? ` dengan denda ${rupiah(r.fine)}` : ''}. Bagikan pengalamanmu dengan memberi bintang & ulasan.`, `pesanan?tab=riwayat&review=${b.id}`);
         m.close(); toast('Pengembalian tercatat.'); done && done();
         if (hasUnits) setTimeout(() => afterReturnPopup(b, uc), 250);
       });
@@ -698,7 +698,7 @@
       b.paymentStatus = 'refunded'; if (b.cancel) b.cancel.refundStatus = 'selesai';
       log(b, `DP ${rupiah(amt)} dikembalikan`, 'refund', `Memproses refund DP ${b.id} sebesar ${rupiah(amt)}${val(r) ? ` (ref. ${val(r)})` : ''}`, chg('Status pembayaran', STATUS.payment.refund_pending.label, STATUS.payment.refunded.label));
       DB.saveBooking(b);
-      DB.notify(b.customer.email, 'DP sudah dikembalikan', `Refund ${rupiah(amt)} untuk ${b.id} sudah ditransfer.`, `pesanan?tab=riwayat`);
+      DB.notify(b.customer.email, 'DP sudah dikembalikan', `Refund ${rupiah(amt)} untuk ${NO(b)} sudah ditransfer.`, `pesanan?tab=riwayat`);
       toast('Refund tercatat.'); return true;
     },
     approveChange(b, ch) {
@@ -708,7 +708,7 @@
       ch.status = 'disetujui'; ch.decidedAt = D.nowStamp();
       log(b, `Ganti barang disetujui: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menyetujui pergantian barang ${b.id}: ${ch.fromName} → ${ch.toName}`, [{ field: 'Barang', from: `${ch.qty}× ${ch.fromName}`, to: `${ch.qty}× ${ch.toName}` }, { field: 'Total booking', from: rupiah(oldTotal), to: rupiah(b.total) }]);
       DB.saveBooking(b);
-      DB.notify(b.customer.email, 'Ganti barang disetujui', `${ch.fromName} diganti ${ch.toName} (${b.id}). ${ch.diff > 0 ? `Tambahan ${rupiah(ch.diff)} dibayar saat pengambilan.` : ch.diff < 0 ? `Sisa bayar berkurang ${rupiah(-ch.diff)}.` : ''}`, `pesanan?id=${b.id}`);
+      DB.notify(b.customer.email, 'Ganti barang disetujui', `${ch.fromName} diganti ${ch.toName} (${NO(b)}). ${ch.diff > 0 ? `Tambahan ${rupiah(ch.diff)} dibayar saat pengambilan.` : ch.diff < 0 ? `Sisa bayar berkurang ${rupiah(-ch.diff)}.` : ''}`, `pesanan?id=${b.id}`);
       toast('Permintaan ganti barang disetujui.'); return true;
     },
     /* Perpanjangan sewa. req = permintaan customer (opsional) */
@@ -735,14 +735,14 @@
         else b.extensions.push({ id: 'EXT-' + Date.now(), at: D.nowStamp(), from: oldEnd, to, days: r.extraDays, cost: r.cost, status: 'disetujui', source: 'toko', by: me.name });
         log(b, `Sewa diperpanjang sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari)`, 'perpanjangan', `${req ? 'Menyetujui' : 'Mencatat'} perpanjangan ${b.id} sampai ${D.fmtDate(to, true)}`, [{ field: 'Tanggal kembali', from: D.fmtDate(oldEnd, true), to: D.fmtDate(to, true) }, { field: 'Total sewa', from: rupiah(oldTotal), to: rupiah(b.total) }]);
         DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Sewa diperpanjang', `${b.id} diperpanjang sampai ${D.fmtDate(to, true)}. Tambahan biaya ${rupiah(r.cost)}${m.$('#exPaid').checked ? ' (sudah dibayar)' : ', dibayar saat pengembalian'}.`, `pesanan?id=${b.id}`);
+        DB.notify(b.customer.email, 'Sewa diperpanjang', `${NO(b)} diperpanjang sampai ${D.fmtDate(to, true)}. Tambahan biaya ${rupiah(r.cost)}${m.$('#exPaid').checked ? ' (sudah dibayar)' : ', dibayar saat pengembalian'}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Perpanjangan disimpan.'); done && done();
       });
       const no = m.$('#exNo'); if (no) no.addEventListener('click', async () => {
         const r = await confirmBox({ title: 'Tolak perpanjangan?', text: 'Customer akan diberi tahu.', ok: 'Tolak', danger: true, input: { label: 'Alasan (opsional)' } }); if (r === false) return;
         Object.assign(b.extensions.find((x) => x.id === req.id), { status: 'ditolak', decidedAt: D.nowStamp(), by: me.name, note: val(r) });
         log(b, 'Perpanjangan ditolak', 'perpanjangan', `Menolak perpanjangan ${b.id}${val(r) ? `: ${val(r)}` : ''}`); DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Perpanjangan ditolak', `Permintaan perpanjangan ${b.id} ditolak${val(r) ? `: ${val(r)}` : ''}. Barang tetap dikembalikan ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
+        DB.notify(b.customer.email, 'Perpanjangan ditolak', `Permintaan perpanjangan ${NO(b)} ditolak${val(r) ? `: ${val(r)}` : ''}. Barang tetap dikembalikan ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Perpanjangan ditolak.'); done && done();
       });
     },
@@ -762,7 +762,7 @@
         if (b.status === 'disewa') b.paymentStatus = sisa(b) > 0 ? 'dp_paid' : 'lunas';
         log(b, `Ganti barang di toko: ${r.qty}× ${ch.fromName} → ${ch.toName}`, 'pergantian', `Mencatat ganti barang di toko ${b.id}: ${r.qty}× ${ch.fromName} → ${ch.toName}`, changes);
         DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Barang sewa diganti', `${r.qty}× ${ch.fromName} diganti ${ch.toName} (${b.id}). Total sewa sekarang ${rupiah(b.total)}.`, `pesanan?id=${b.id}`);
+        DB.notify(b.customer.email, 'Barang sewa diganti', `${r.qty}× ${ch.fromName} diganti ${ch.toName} (${NO(b)}). Total sewa sekarang ${rupiah(b.total)}.`, `pesanan?id=${b.id}`);
         toast('Penggantian barang disimpan.'); done && done();
       } });
     },
@@ -772,7 +772,7 @@
       ch.status = 'ditolak'; ch.decidedAt = D.nowStamp(); ch.note = val(r);
       log(b, `Ganti barang ditolak: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menolak pergantian barang ${b.id}: ${ch.fromName} → ${ch.toName}${ch.note ? ` (${ch.note})` : ''}`);
       DB.saveBooking(b);
-      DB.notify(b.customer.email, 'Ganti barang ditolak', `Permintaan ganti ${ch.fromName} → ${ch.toName} (${b.id}) ditolak${ch.note ? `: ${ch.note}` : ''}.`, `pesanan?id=${b.id}`);
+      DB.notify(b.customer.email, 'Ganti barang ditolak', `Permintaan ganti ${ch.fromName} → ${ch.toName} (${NO(b)}) ditolak${ch.note ? `: ${ch.note}` : ''}.`, `pesanan?id=${b.id}`);
       toast('Permintaan ditolak.'); return true;
     },
   };
@@ -893,7 +893,7 @@
       DB.sellStock(s.items, 1);
       s.payments.push({ at: D.nowStamp(), amount: s.total, type: 'Pembayaran' }); s.paymentStatus = 'paid'; s.status = 'diproses';
       log(s, 'Pembayaran diverifikasi, pesanan diproses', 'penjualan', `Memverifikasi pembayaran ${s.id} (${rupiah(s.total)})`, chg('Status pesanan', sl('menunggu_pembayaran'), sl('diproses'))); DB.saveSale(s);
-      DB.notify(s.customer.email, 'Pembayaran diterima', `Pesanan ${s.id} sedang diproses.`, 'pesanan?tab=beli');
+      DB.notify(s.customer.email, 'Pembayaran diterima', `Pesanan ${NO(s)} sedang diproses.`, 'pesanan?tab=beli');
       toast('Pembayaran diverifikasi.'); fin();
     }
     if (act === 'snext') {
@@ -944,8 +944,8 @@
     });
     DB.sales().forEach((s) => (s.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: s.id, cat: 'Penjualan', desc: `Penjualan${p.via ? ' · ' + p.via : ''} · ${s.customer.name}`, amount: p.amount, offline: s.channel === 'offline' }); }));
     const voided = [];
-    DB.expenses().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'out', voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : expense).push(row); });
-    DB.incomes().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'in', manual: true, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : income).push(row); });
+    DB.expenses().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'out', ln: e.line, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : expense).push(row); });
+    DB.incomes().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'in', manual: true, ln: e.line, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : income).push(row); });
     const sort = (a, b) => String(b.date).localeCompare(String(a.date));
     income.sort(sort); expense.sort(sort);
     const sum = (l) => l.reduce((s, x) => s + x.amount, 0);
@@ -955,6 +955,7 @@
        sale = jual (pembayaran pesanan beli, pembelian/restock barang)
        umum = pemasukan/pengeluaran manual lainnya (operasional, promosi, dll.) */
     const lineOf = (x, kind) => {
+      if (['rent', 'sale', 'umum'].includes(x.ln)) return x.ln; /* lini dipilih manual di form */
       if (/^RNT|^R-/.test(String(x.ref))) return 'rent';
       if (/^ORD|^S-/.test(String(x.ref))) return 'sale';
       if (kind === 'out' && /perawatan|perbaikan|refund/i.test(x.cat)) return 'rent';
@@ -965,6 +966,7 @@
     const by = { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: 0, out: 0 } };
     income.forEach((x) => { x.line = lineOf(x, 'in'); by[x.line].in += x.amount; });
     expense.forEach((x) => { x.line = lineOf(x, 'out'); by[x.line].out += x.amount; });
+    voided.forEach((x) => { x.line = lineOf(x, x.kind); });
     /* Bulan yang data mentahnya sudah dibersihkan: angka diambil dari ringkasan arsip */
     const per = from && to && from.endsWith('-01') ? from.slice(0, 7) : null;
     const arc = per && DB.archive ? DB.archive(per) : null;

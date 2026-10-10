@@ -802,7 +802,7 @@
   ];
   const nCat = (n) => NCAT.find((c) => c[2].test(n.title + ' ' + n.text)) || NCAT[NCAT.length - 1];
   const nDay = (iso) => { const d = D.day(iso), t = D.today(); return d === t ? 'Hari ini' : d === D.addDays(t, -1) ? 'Kemarin' : D.fmtDate(d, true); };
-  const nItem = (n) => { const c = nCat(n); return `<a class="nx ${n.read ? '' : 'unread'}" href="${n.link ? url(n.link) : '#'}" data-nx="${n.id}"><span class="nx-ic ${c[4]}"><i class="fa-solid ${c[3]}"></i></span><span class="nx-bd"><strong>${esc(n.title)}${n.count > 1 ? ` <em>${n.count}×</em>` : ''}</strong><span>${esc(n.text)}</span><small>${D.fmtDateTime(n.at)}</small></span></a>`; };
+  const nItem = (n) => { const c = nCat(n); return `<a class="nx ${n.read ? '' : 'unread'}" href="${n.link ? url(n.link) : '#'}" data-nx="${n.id}"><span class="nx-ic ${c[4]}"><i class="fa-solid ${c[3]}"></i></span><span class="nx-bd"><strong>${esc(n.title)}${n.count > 1 ? ` <em>${n.count}×</em>` : ''}</strong><span>${esc(NOTXT(n.text))}</span><small>${D.fmtDateTime(n.at)}</small></span></a>`; };
   const nGrouped = (list) => { let last = ''; return list.map((n) => { const g = nDay(n.at); const h = g !== last ? `<div class="nx-day">${g}</div>` : ''; last = g; return h + nItem(n); }).join(''); };
   function notifMenu(box, email, onChange, tab) {
     tab = tab || 'unread';
@@ -826,7 +826,7 @@
       foot: '<button class="btn btn-light" id="nxClear"><i class="fa-regular fa-trash-can"></i> Bersihkan yang sudah dibaca</button><button class="btn btn-light" id="nxRead">Tandai semua dibaca</button><button class="btn btn-primary" data-close>Tutup</button>' });
     const draw = () => {
       const all = DB.notifications(email);
-      const base = all.filter((n) => (st.tab === 'all' || !n.read) && (!st.q || (n.title + ' ' + n.text).toLowerCase().includes(st.q)));
+      const base = all.filter((n) => (st.tab === 'all' || !n.read) && (!st.q || (n.title + ' ' + NOTXT(n.text)).toLowerCase().includes(st.q)));
       m.$('#nxCats').innerHTML = [['', 'Semua kategori', base.length], ...NCAT.map((c) => [c[0], c[1], base.filter((n) => nCat(n)[0] === c[0]).length]).filter((c) => c[2])].map(([k, l, c]) => `<button type="button" data-cc="${k}" class="${st.cat === k ? 'on' : ''}">${l} <b>${c}</b></button>`).join('');
       const L = base.filter((n) => !st.cat || nCat(n)[0] === st.cat);
       m.$('#nxList').innerHTML = (L.length ? nGrouped(L.slice(0, st.n)) : '<div class="nx-empty"><i class="fa-regular fa-bell-slash"></i>Tidak ada notifikasi.</div>') + (L.length > st.n ? `<button type="button" class="nx-more" data-nmore>Muat ${Math.min(20, L.length - st.n)} lagi</button>` : '');

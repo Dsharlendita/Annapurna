@@ -128,7 +128,7 @@
     if (hasDp) b.paymentStatus = refundable ? 'refund_pending' : 'forfeited';
     b.history.push({ at: D.nowStamp(), text: `Customer membatalkan booking (${reason})` });
     DB.saveBooking(b);
-    DB.notifyStaff('Pembatalan booking', `${b.customer.name} membatalkan ${b.id}.${hasDp && refundable ? ' DP perlu dikembalikan.' : ''}`, 'admin/permintaan');
+    DB.notifyStaff('Pembatalan booking', `${b.customer.name} membatalkan ${NO(b)}.${hasDp && refundable ? ' DP perlu dikembalikan.' : ''}`, 'admin/permintaan');
     toast(hasDp && refundable ? 'Booking dibatalkan. Pengembalian DP sedang diproses.' : 'Booking dibatalkan.');
     draw();
   }
@@ -148,7 +148,7 @@
     m.$('#xOk').addEventListener('click', () => { const r = calc(); if (!r.ok) return; const to = m.$('#xEnd').value;
       b.extensions = b.extensions || []; b.extensions.push({ id: 'EXT-' + Date.now(), at: D.nowStamp(), from: b.end, to, days: r.extraDays, cost: r.cost, reason: m.$('#xWhy').value.trim(), status: 'menunggu', source: 'customer' });
       b.history.push({ at: D.nowStamp(), text: `Mengajukan perpanjangan sampai ${D.fmtDate(to, true)}` }); DB.saveBooking(b);
-      DB.notifyStaff('Permintaan perpanjangan', `${b.customer.name} ingin memperpanjang ${b.id} sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari).`, 'admin/permintaan?tab=extend');
+      DB.notifyStaff('Permintaan perpanjangan', `${b.customer.name} ingin memperpanjang ${NO(b)} sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari).`, 'admin/permintaan?tab=extend');
       m.close(); toast('Permintaan perpanjangan terkirim ke admin.'); draw(); });
   }
 
@@ -158,7 +158,7 @@
       b.changes.push({ id: 'CHG-' + Date.now(), at: D.nowStamp(), lineIndex: r.lineIndex, fromId: r.line.refId, fromName: r.line.name, toId: r.p.id, toName: r.toName, toSize: r.size || null, qty: r.qty, diff: r.diff, reason: r.reason, status: 'menunggu', source: 'customer' });
       b.history.push({ at: D.nowStamp(), text: `Mengajukan ganti ${r.qty}× ${r.line.name} → ${r.toName}` });
       DB.saveBooking(b);
-      DB.notifyStaff('Permintaan ganti barang', `${b.customer.name} ingin mengganti ${r.qty}× ${r.line.name} menjadi ${r.toName} (${b.id}).`, 'admin/permintaan');
+      DB.notifyStaff('Permintaan ganti barang', `${b.customer.name} ingin mengganti ${r.qty}× ${r.line.name} menjadi ${r.toName} (${NO(b)}).`, 'admin/permintaan');
       toast('Permintaan ganti barang terkirim ke admin.'); draw();
     } });
   }

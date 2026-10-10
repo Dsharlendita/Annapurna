@@ -61,6 +61,8 @@
   }
   /* Nomor yang ditampilkan untuk pesanan (sewa/beli) */
   window.NO = (x) => (x ? (x.no || (ensureNos(), ((read('bookings', []).concat(read('sales', []))).find((y) => y.id === x.id) || {}).no) || x.id) : '');
+  /* Ganti kode internal (RNT-…/ORD-…) di dalam teks dengan nomor nota (001/X/2026) untuk ditampilkan */
+  window.NOTXT = (t) => String(t == null ? '' : t).replace(/\b(RNT|ORD)-\d+\b/g, (m) => window.NO({ id: m }));
   const OFF_REASON = { hilang: 'Hilang', rusak: 'Rusak total', lainnya: 'Nonaktif' };
   /* Kategori mengikuti price list resmi Annapurna Adventure (WhatsApp). */
   const CATEGORIES = [
@@ -877,7 +879,7 @@
       const txt = was === 'cuci' ? 'Selesai dicuci — siap disewa' : `Selesai diperbaiki${opts.note ? ': ' + opts.note : ''}`;
       const ex = opts.cost ? [{ field: 'Biaya perbaikan', from: '', to: rupiah(opts.cost) }] : [];
       DB.updateUnit(pid, code, patch, txt, ex);
-      if (opts.cost) DB.saveFinance('out', { id: DB.nextId('EXP', DB.expenses()), date: today(), category: DB.financeCats('out').find((c) => /perbaikan/i.test(c)) || 'Perbaikan Barang', desc: `Perbaikan ${code} (${p.name})${opts.note ? ': ' + opts.note : ''}`, amount: opts.cost });
+      if (opts.cost) DB.saveFinance('out', { id: DB.nextId('EXP', DB.expenses()), date: today(), category: DB.financeCats('out').find((c) => /perbaikan/i.test(c)) || 'Perbaikan Barang', desc: `Perbaikan ${code} (${p.name})${opts.note ? ': ' + opts.note : ''}`, amount: opts.cost, line: 'rent' });
       return true;
     },
     careQueue() {
@@ -1036,8 +1038,8 @@
     saveFinance(kind, obj) {
       const key = kind === 'in' ? 'incomes' : 'expenses'; const all = read(key, []); const i = all.findIndex((x) => x.id === obj.id);
       const label = kind === 'in' ? 'pemasukan lainnya' : 'pengeluaran';
-      if (i < 0) { all.unshift(Object.assign({ status: 'aktif' }, obj)); write(key, all); DB.audit({ type: 'keuangan', action: `Mencatat ${label} ${obj.category}: ${obj.desc}`, ref: obj.id, changes: [{ field: 'Jumlah', from: '', to: rupiah(obj.amount) }] }); return; }
-      const ch = diff(all[i], obj, [['date', 'Tanggal'], ['category', 'Kategori'], ['desc', 'Keterangan'], ['amount', 'Jumlah', rupiah]]);
+      if (i < 0) { all.unshift(Object.assign({ status: 'aktif' }, obj)); write(key, all); DB.audit({ type: 'keuangan', action: `Mencatat ${label} ${obj.category}: ${obj.desc}`, ref: obj.id, changes: [{ field: 'Jumlah', from: '', to: rupiah(obj.amount) }, ...(obj.line ? [{ field: 'Lini usaha', from: '', to: ({ rent: 'Rental', sale: 'Penjualan', umum: 'Umum' }[obj.line] || obj.line) }] : [])] }); return; }
+      const ch = diff(all[i], obj, [['date', 'Tanggal'], ['category', 'Kategori'], ['desc', 'Keterangan'], ['amount', 'Jumlah', rupiah], ['line', 'Lini usaha', (v) => ({ rent: 'Rental', sale: 'Penjualan', umum: 'Umum' }[v] || 'Otomatis')]]);
       all[i] = Object.assign({}, all[i], obj); write(key, all);
       if (ch.length) DB.audit({ type: 'keuangan', action: `Mengedit ${label} ${obj.id}`, ref: obj.id, changes: ch });
     },

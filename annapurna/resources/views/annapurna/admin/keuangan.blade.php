@@ -15,6 +15,15 @@
     <button class="btn btn-light btn-sm" id="addInc"><i class="fa-solid fa-plus"></i> Pemasukan lain</button>
     <button class="btn btn-primary btn-sm" id="addExp"><i class="fa-solid fa-plus"></i> Catat pengeluaran</button>
   </div>
+  <div class="lini-bar">
+    <div class="seg" id="lini" role="tablist" aria-label="Lini usaha">
+      <button type="button" data-l="all" role="tab"><i class="fa-solid fa-layer-group"></i> Gabungan</button>
+      <button type="button" data-l="rent" role="tab"><i class="fa-solid fa-campground"></i> Rental</button>
+      <button type="button" data-l="sale" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan</button>
+      <button type="button" data-l="umum" role="tab"><i class="fa-solid fa-store"></i> Umum</button>
+    </div>
+    <p class="muted lini-note" id="liniNote"></p>
+  </div>
   <div class="stat-grid" id="quick"></div>
   <div class="sum-grid" id="sum"></div>
   <div class="grid-dash">

@@ -34,7 +34,7 @@
     $('#nCnt').textContent = list.filter((n) => !n.read).length;
     $('#nList').innerHTML = list.length ? list.map((n) => `<a class="notif-item ${n.read ? '' : 'unread'}" href="${n.link ? url(n.link) : '#'}" data-id="${n.id}">
         <span class="ic"><i class="fa-regular fa-bell"></i></span>
-        <span style="flex:1;min-width:0"><strong>${esc(n.title)}</strong><br><span style="font-size:13.5px">${esc(n.text)}</span><br><small class="muted">${D.fmtDateTime(n.at)}</small></span></a>`).join('')
+        <span style="flex:1;min-width:0"><strong>${esc(n.title)}</strong><br><span style="font-size:13.5px">${esc(NOTXT(n.text))}</span><br><small class="muted">${D.fmtDateTime(n.at)}</small></span></a>`).join('')
       : `<div class="empty-state"><div class="ic"><i class="fa-regular fa-bell-slash"></i></div><h3>Belum ada notifikasi</h3><p>Info booking dan pembayaranmu akan muncul di sini.</p></div>`;
   }
   $('#nList').addEventListener('click', (e) => { const a = e.target.closest('[data-id]'); if (a) DB.markRead(user.email, a.dataset.id); });

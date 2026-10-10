@@ -6,7 +6,8 @@
   const T = D.today();
   $('#type').innerHTML = Reports.TYPES.filter(([, , ownerOnly]) => !ownerOnly || Admin.isOwner).map(([k, l, o]) => `<option value="${k}">${l}${o ? ' (Owner)' : ''}</option>`).join('');
   $('#from').value = T.slice(0, 8) + '01'; $('#to').value = T;
-  if (param('type') && $(`#type option[value="${param('type')}"]`)) $('#type').value = param('type');
+  /* Nilai ?type= dicocokkan dengan daftar yang ada, tidak dipakai langsung sebagai selector */
+  if ([...$('#type').options].some((o) => o.value === param('type'))) $('#type').value = param('type');
   let cur;
   function draw() {
     let f = $('#from').value || T, t = $('#to').value || T; if (f > t) { t = f; $('#to').value = f; }

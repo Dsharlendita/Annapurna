@@ -11,7 +11,7 @@
     <div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input class="input" id="q" placeholder="Cari nama, isi ulasan, no. transaksi…"></div>
     <select class="select" id="fRate"><option value="">Semua bintang</option><option value="5">★★★★★ 5</option><option value="4">★★★★ 4</option><option value="3">★★★ 3</option><option value="2">★★ 2</option><option value="1">★ 1</option></select>
     <span style="flex:1"></span>
-    <a class="btn btn-light btn-sm" id="viewHome" href="#" target="_blank"><i class="fa-regular fa-eye"></i> Lihat di beranda</a>
+    <a class="btn btn-light btn-sm" id="viewHome" href="#" target="_blank" rel="noopener noreferrer"><i class="fa-regular fa-eye"></i> Lihat di beranda</a>
   </div>
   <div id="list" class="rv-admin"></div>
 @endsection

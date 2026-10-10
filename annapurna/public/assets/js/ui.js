@@ -9,12 +9,25 @@
   const url = (p) => BASE + p;
   const param = (k) => new URLSearchParams(location.search).get(k);
 
+  /* Isi toast boleh memuat format sederhana (<b>, <strong>, <i>, <em>, <br>), tapi tidak pernah HTML lain.
+     Teks dari pengguna (nama, nama barang, pesan server) aman walau lupa di-esc() di pemanggil. */
+  const SAFE_TAGS = ['B', 'STRONG', 'I', 'EM', 'BR'];
+  function safeHtml(msg) {
+    const doc = new DOMParser().parseFromString(`<div>${String(msg == null ? '' : msg)}</div>`, 'text/html');
+    const walk = (node) => [...node.childNodes].map((n) => {
+      if (n.nodeType === 3) return esc(n.textContent);
+      if (n.nodeType === 1 && ['SCRIPT', 'STYLE', 'TEMPLATE'].includes(n.tagName)) return '';
+      if (n.nodeType === 1 && SAFE_TAGS.includes(n.tagName)) return n.tagName === 'BR' ? '<br>' : `<${n.tagName.toLowerCase()}>${walk(n)}</${n.tagName.toLowerCase()}>`;
+      return n.nodeType === 1 ? walk(n) : '';
+    }).join('');
+    return walk(doc.body.firstChild);
+  }
   function toast(msg, type) {
     let box = $('.toasts');
     if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('aria-live', 'polite'); document.body.appendChild(box); }
     const t = document.createElement('div');
     t.className = 'toast' + (type === 'err' ? ' err' : '');
-    t.innerHTML = `<i class="fa-solid ${type === 'err' ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i><div>${msg}</div>`;
+    t.innerHTML = `<i class="fa-solid ${type === 'err' ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i><div>${safeHtml(msg)}</div>`;
     box.appendChild(t);
     setTimeout(() => { t.style.transition = '.3s'; t.style.opacity = '0'; t.style.transform = 'translateY(-8px)'; setTimeout(() => t.remove(), 300); }, 3200);
   }

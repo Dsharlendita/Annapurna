@@ -22,7 +22,7 @@
         </div>
         <div class="field"><label for="password">Kata sandi</label><div class="input-icon"><i class="fa-solid fa-lock"></i><input class="input" id="password" name="password" type="password" autocomplete="new-password" placeholder="Minimal 6 karakter"><button type="button" class="toggle-pw" aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
         <div class="field"><label for="password2">Ulangi kata sandi</label><input class="input" id="password2" name="password2" type="password" autocomplete="new-password"></div>
-        <div class="field"><label class="check"><input type="checkbox" name="agree" id="agree"> <span>Saya setuju dengan <a class="link" href="{{ route('tentang') }}#ketentuan" target="_blank">ketentuan sewa</a> dan kebijakan pembatalan.</span></label></div>
+        <div class="field"><label class="check"><input type="checkbox" name="agree" id="agree"> <span>Saya setuju dengan <a class="link" href="{{ route('tentang') }}#ketentuan" target="_blank" rel="noopener noreferrer">ketentuan sewa</a> dan kebijakan pembatalan.</span></label></div>
         <button class="btn btn-primary btn-block" type="submit">Buat akun</button>
       </form>
     </div>

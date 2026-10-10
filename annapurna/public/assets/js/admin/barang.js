@@ -55,7 +55,7 @@
           <div class="act-more"><button class="btn btn-light btn-xs act-more-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Aksi lainnya"><i class="fa-solid fa-ellipsis"></i></button>
             <div class="act-menu" role="menu" hidden>
               <button type="button" role="menuitem" data-hist="${p.id}"><i class="fa-solid fa-clock-rotate-left"></i> ${KIND === 'rent' ? 'Riwayat penyewaan' : 'Riwayat penjualan'}</button>
-              <a role="menuitem" href="${url('produk?id=' + p.id + (KIND === 'buy' ? '&mode=beli' : ''))}" target="_blank"><i class="fa-regular fa-eye"></i> Lihat di website</a>
+              <a role="menuitem" href="${url('produk?id=' + p.id + (KIND === 'buy' ? '&mode=beli' : ''))}" target="_blank" rel="noopener noreferrer"><i class="fa-regular fa-eye"></i> Lihat di website</a>
               <button type="button" role="menuitem" data-toggle="${p.id}" class="${off ? '' : 'danger'}"><i class="fa-solid ${off ? 'fa-toggle-off' : 'fa-toggle-on'}"></i> ${off ? 'Aktifkan kembali' : 'Nonaktifkan barang'}</button>
             </div></div></div></td>`;
     $('#rows').innerHTML = L.length ? L.map((p) => {

@@ -43,7 +43,7 @@
         <div class="pickup-box">
           <span class="rc-ic"><i class="fa-solid fa-store"></i></span>
           <div><strong>Ambil &amp; kembalikan di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></div>
-          <a class="btn btn-light btn-xs" href="kontak#lokasi" target="_blank"><i class="fa-solid fa-location-dot"></i> Lihat peta</a>
+          <a class="btn btn-light btn-xs" href="kontak#lokasi" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-location-dot"></i> Lihat peta</a>
         </div>
         <p class="deliv-hint"><i class="fa-solid fa-truck-fast"></i> <span>Ingin barang diantar? <a href="${UI.waLink('Halo admin Annapurna, saya ingin menanyakan apakah barang sewaan saya bisa diantar. Alamat saya: ')}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Hubungi admin via WhatsApp</a> untuk menanyakan ketersediaan dan ongkirnya.</span></p>
         <p class="muted" style="font-size:13px;margin-top:8px"><i class="fa-solid fa-circle-info"></i> Tunjukkan nota digital${rent.length ? ' dan kartu identitas asli' : ''} saat mengambil barang.</p>
@@ -60,7 +60,7 @@
 
       ${rent.length ? `<div class="notice" style="margin-top:18px"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Kebijakan pembatalan sewa</strong><ul>${st.cancelPolicy.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
         <p style="margin-top:6px">Tanggal ambil paling awal: <strong>${D.fmtDate(earliest, true)}</strong>. Batas pembatalan dengan DP kembali: <strong>${D.fmtDate(D.addDays(earliest, -st.cancelDays), true)}</strong>.</p></div></div>
-        <div class="field" style="margin-top:14px"><label class="check"><input type="checkbox" name="agree" id="agree"> <span>Saya sudah membaca dan setuju dengan <a class="link" href="tentang#ketentuan" target="_blank">ketentuan sewa</a> dan kebijakan pembatalan.</span></label></div>` : ''}
+        <div class="field" style="margin-top:14px"><label class="check"><input type="checkbox" name="agree" id="agree"> <span>Saya sudah membaca dan setuju dengan <a class="link" href="tentang#ketentuan" target="_blank" rel="noopener noreferrer">ketentuan sewa</a> dan kebijakan pembatalan.</span></label></div>` : ''}
     </div>
 
     <aside class="card sticky-side">
@@ -110,7 +110,7 @@
     proceed();
   });
   function blockedNotice() {
-    UI.modal({ title: 'Pesanan tidak bisa dibuat', body: '<div class="notice red"><i class="fa-solid fa-user-lock"></i><div>Data ini sedang tidak bisa membuat pesanan baru. Silakan hubungi admin Annapurna via WhatsApp untuk informasi lebih lanjut.</div></div>', foot: `<a class="btn btn-primary" href="${UI.waLink('Halo Annapurna, saya tidak bisa membuat pesanan di website.')}" target="_blank"><i class="fa-brands fa-whatsapp"></i> Hubungi admin</a>` });
+    UI.modal({ title: 'Pesanan tidak bisa dibuat', body: '<div class="notice red"><i class="fa-solid fa-user-lock"></i><div>Data ini sedang tidak bisa membuat pesanan baru. Silakan hubungi admin Annapurna via WhatsApp untuk informasi lebih lanjut.</div></div>', foot: `<a class="btn btn-primary" href="${UI.waLink('Halo Annapurna, saya tidak bisa membuat pesanan di website.')}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Hubungi admin</a>` });
   }
   function loginFirst(r, F) {
     const m = UI.modal({ title: 'Kamu sudah punya akun', body: `<p style="font-size:14px;margin-bottom:12px">${r.by === 'email' ? 'Email' : 'Nomor WhatsApp'} ini sudah terdaftar atas nama <strong>${esc(r.user.name)}</strong>. Masuk dulu untuk melanjutkan — isi keranjangmu tetap aman.</p>

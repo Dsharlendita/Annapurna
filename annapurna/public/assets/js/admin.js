@@ -272,7 +272,7 @@
           return link(m);
         }).join(''); })()}</nav>
       <div class="sf">
-        <a href="${url('./')}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat Website</a>
+        <a href="${url('./')}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat Website</a>
         <a href="#" id="admLogout"><i class="fa-solid fa-right-from-bracket"></i> Keluar</a>
       </div>`;
     const notifs = DB.notifications(me.email);
@@ -294,7 +294,7 @@
           <a href="${A('pengaturan?tab=akun')}"><i class="fa-solid fa-user-pen"></i> Akun saya</a>
           <a href="${A('sop')}"><i class="fa-solid fa-clipboard-list"></i> SOP & Peraturan</a>
           ${isOwner ? `<a href="${A('pengaturan')}"><i class="fa-solid fa-store"></i> Profil toko & rekening</a>` : ''}
-          <a href="${url('./')}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat website</a>
+          <a href="${url('./')}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat website</a>
           <a href="#" id="whoLogout" class="danger"><i class="fa-solid fa-right-from-bracket"></i> Keluar</a>
         </div></div>`;
     subTabs(active);
@@ -837,7 +837,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${pill('rental', b.status)} ${pill('payment', b.paymentStatus)}${b.group ? `<span class="grp-tag" style="margin:0"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · terkait ' + mates.map((x) => `${x.id} (${esc(itemsText(x))}, kembali ${D.fmtDate(x.end)})`).join(', ') : ''}</span>` : ''}</div>
       <div class="kv-grid">
         <div class="kv"><span>Customer</span><strong>${esc(b.customer.name)}</strong></div>
-        <div class="kv"><span>Telepon</span><a href="${custLink(b.customer)}" target="_blank" style="color:var(--g700);font-weight:600"><i class="fa-brands fa-whatsapp"></i> ${esc(b.customer.phone)}</a></div>
+        <div class="kv"><span>Telepon</span><a href="${custLink(b.customer)}" target="_blank" rel="noopener noreferrer" style="color:var(--g700);font-weight:600"><i class="fa-brands fa-whatsapp"></i> ${esc(b.customer.phone)}</a></div>
         <div class="kv"><span>Periode</span><span>${D.fmtRange(b.start, b.end)} (${b.days} malam)</span></div>
         <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
         <div class="kv"><span>Metode bayar</span><span>${esc(b.method || '-')}</span></div>
@@ -920,7 +920,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${pill('sale', s.status)} ${pill('payment', s.paymentStatus)}</div>
       <div class="kv-grid">
         <div class="kv"><span>Customer</span><strong>${esc(s.customer.name)}</strong></div>
-        <div class="kv"><span>Telepon</span><a href="${custLink(s.customer)}" target="_blank" style="color:var(--g700);font-weight:600"><i class="fa-brands fa-whatsapp"></i> ${esc(s.customer.phone)}</a></div>
+        <div class="kv"><span>Telepon</span><a href="${custLink(s.customer)}" target="_blank" rel="noopener noreferrer" style="color:var(--g700);font-weight:600"><i class="fa-brands fa-whatsapp"></i> ${esc(s.customer.phone)}</a></div>
         <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
         <div class="kv"><span>Metode bayar</span><span>${esc(s.method || '-')}</span></div>
         <div class="kv"><span>Dibuat</span><span>${D.fmtDateTime(s.createdAt)}</span></div>

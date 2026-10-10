@@ -43,7 +43,7 @@
           <td>${c.at ? D.fmtDateTime(c.at) : '-'}<small>oleh ${c.by === 'admin' ? 'admin' : 'customer'}</small></td><td><strong>${NO(b)}</strong></td><td>${esc(b.customer.name)}<small>${esc(b.customer.phone)}</small></td>
           <td>${D.fmtRange(b.start, b.end)}</td><td style="max-width:200px">${esc(c.reason || '-')}</td><td class="num">${rupiah(Rules.paidTotal(b))}</td>
           <td><span class="pill ${L[0]}">${L[1]}</span></td>
-          <td><div class="acts"><button class="btn btn-light btn-xs" data-open="${b.id}"><i class="fa-regular fa-file-lines"></i> Detail</button>${b.paymentStatus === 'refund_pending' ? `<button class="btn btn-gold btn-xs" data-refund="${b.id}"><i class="fa-solid fa-hand-holding-dollar"></i> Proses refund</button>` : ''}<a class="btn btn-light btn-xs" href="${Admin.custLink(b.customer)}" target="_blank" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a></div></td></tr>`; }).join('')}</tbody></table></div>`
+          <td><div class="acts"><button class="btn btn-light btn-xs" data-open="${b.id}"><i class="fa-regular fa-file-lines"></i> Detail</button>${b.paymentStatus === 'refund_pending' ? `<button class="btn btn-gold btn-xs" data-refund="${b.id}"><i class="fa-solid fa-hand-holding-dollar"></i> Proses refund</button>` : ''}<a class="btn btn-light btn-xs" href="${Admin.custLink(b.customer)}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a></div></td></tr>`; }).join('')}</tbody></table></div>`
         : '<div class="panel empty-state"><div class="ic"><i class="fa-solid fa-ban"></i></div><h3>Belum ada pembatalan</h3><p>Booking yang dibatalkan akan tercatat di sini.</p></div>';
     }
   }

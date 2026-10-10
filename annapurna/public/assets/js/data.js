@@ -62,6 +62,8 @@
   /* Nomor yang ditampilkan untuk pesanan (sewa/beli) */
   window.NO = (x) => (x ? (x.no || (ensureNos(), ((read('bookings', []).concat(read('sales', []))).find((y) => y.id === x.id) || {}).no) || x.id) : '');
   /* Ganti kode internal (RNT-…/ORD-…) di dalam teks dengan nomor nota (001/X/2026) untuk ditampilkan */
+  /* Nomor nota dari kode internal; kosong bila transaksinya tidak ada (mis. data lama sebelum sistem) */
+  window.NOREF = (id) => { if (!id) return ''; const x = (read('bookings', []).concat(read('sales', []))).find((y) => y.id === id || y.no === id); return x ? window.NO(x) : ''; };
   window.NOTXT = (t) => String(t == null ? '' : t).replace(/\b(RNT|ORD)-\d+\b/g, (m) => window.NO({ id: m }));
   const OFF_REASON = { hilang: 'Hilang', rusak: 'Rusak total', lainnya: 'Nonaktif' };
   /* Kategori mengikuti price list resmi Annapurna Adventure (WhatsApp). */
@@ -490,7 +492,7 @@
       status: 'disewa', paymentStatus: 'lunas', method: 'Transfer BRI', createdAt: stampRel(-7) }));
     B.push(booking({ id: 'RNT-1007', customer: cust('Bagas Wicaksono', '089612345678', 'bagas@mail.com'), items: [line('tnd-6', 1), line('oe-kursi', 4)], start: rel(2), end: rel(5),
       status: 'menunggu_konfirmasi', paymentStatus: 'dp_verifying', method: 'Transfer BCA', createdAt: stampRel(0, 9),
-      proof: IMG('demo/bukti-dp-contoh.jpg'), proofMeta: { demo: true, amount: 129000, bank: 'BCA', account: '1234567890', receiver: 'ANNAPURNA ADVENTURE', note: 'DP RNT-1007', at: stampRel(0, 9) } }));
+      proof: IMG('demo/bukti-dp-contoh.jpg'), proofMeta: { demo: true, amount: 129000, bank: 'BCA', account: '1234567890', receiver: 'ANNAPURNA ADVENTURE', note: 'DP sewa alat', at: stampRel(0, 9) } }));
     B.push(booking({ id: 'RNT-1008', customer: cust('Nadia Putri', '081355556677', 'nadia@mail.com'), items: [line('tnd-4', 1), line('oe-lampu', 2), line('fs-gorpcore', 2, 'L'), line('fw-mid', 1, '42')], start: rel(0), end: rel(1),
       status: 'dikonfirmasi', paymentStatus: 'dp_paid', method: 'QRIS', createdAt: stampRel(-3) }));
     B.push(booking({ id: 'RNT-1009', customer: cust('Fajar Nugroho', '087811112222', 'fajar@mail.com'), items: [line('tas-day', 2), line('oe-headlamp', 2)], start: rel(-10), end: rel(-9),
@@ -930,7 +932,7 @@
     assignUnits(b, picks) {
       const all = read('products', PRODUCTS); const me = DB.session();
       b.items.forEach((it, i) => { it.units = picks[i] || [];
-        it.units.forEach(({ pid, code }) => { const u = (all.find((p) => p.id === pid).units || []).find((x) => x.code === code); if (u) { u.out = b.id; u.log.push({ at: nowStamp(), text: `Keluar untuk ${b.id}`, by: me ? me.name : '' }); } }); });
+        it.units.forEach(({ pid, code }) => { const u = (all.find((p) => p.id === pid).units || []).find((x) => x.code === code); if (u) { u.out = b.id; u.log.push({ at: nowStamp(), text: `Keluar untuk ${NO(b)}`, by: me ? me.name : '' }); } }); });
       write('products', all);
     },
     releaseUnits(b, conds) {
@@ -940,10 +942,10 @@
         const r = (conds && conds[code]) || { res: 'siap' }; const res = typeof r === 'string' ? { res: 'siap', cond: r } : r;
         u.out = null; u.rents += 1; u.sinceService += 1; if (res.cond) u.cond = res.cond;
         const by = me ? me.name : '';
-        if (res.res === 'cuci') { u.care = 'cuci'; u.careInfo = { since: nowStamp(), by, booking: b.id }; u.log.push({ at: nowStamp(), text: `Kembali dari ${b.id} — masuk antrian cuci`, by }); }
-        else if (res.res === 'perbaikan') { u.care = 'perbaikan'; u.careInfo = { since: nowStamp(), by, booking: b.id, issue: res.issue || '-' }; u.log.push({ at: nowStamp(), text: `Kembali dari ${b.id} — rusak: ${res.issue || '-'} (masuk perbaikan)`, by }); }
-        else if (res.res === 'hilang') { u.status = 'nonaktif'; u.offReason = 'hilang'; u.notes = `Hilang saat disewa ${b.id}`; u.log.push({ at: nowStamp(), text: `Dilaporkan hilang saat disewa ${b.id} — unit dinonaktifkan`, by }); }
-        else { u.care = null; u.careInfo = null; u.log.push({ at: nowStamp(), text: `Kembali dari ${b.id} — bersih, siap disewa`, by }); }
+        if (res.res === 'cuci') { u.care = 'cuci'; u.careInfo = { since: nowStamp(), by, booking: b.id }; u.log.push({ at: nowStamp(), text: `Kembali dari ${NO(b)} — masuk antrian cuci`, by }); }
+        else if (res.res === 'perbaikan') { u.care = 'perbaikan'; u.careInfo = { since: nowStamp(), by, booking: b.id, issue: res.issue || '-' }; u.log.push({ at: nowStamp(), text: `Kembali dari ${NO(b)} — rusak: ${res.issue || '-'} (masuk perbaikan)`, by }); }
+        else if (res.res === 'hilang') { u.status = 'nonaktif'; u.offReason = 'hilang'; u.notes = `Hilang saat disewa ${NO(b)}`; u.log.push({ at: nowStamp(), text: `Dilaporkan hilang saat disewa ${NO(b)} — unit dinonaktifkan`, by }); }
+        else { u.care = null; u.careInfo = null; u.log.push({ at: nowStamp(), text: `Kembali dari ${NO(b)} — bersih, siap disewa`, by }); }
       }));
       all.forEach(syncUnits); write('products', all);
     },

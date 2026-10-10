@@ -29,7 +29,7 @@
   const tf = document.getElementById('trackF');
   if (tf) {
     const { DB: DB2, D: D2, rupiah: rp, STATUS: ST } = Ann;
-    const qp = new URLSearchParams(location.search); if (qp.get('id')) document.getElementById('tId').value = qp.get('id');
+    const qp = new URLSearchParams(location.search); if (qp.get('id')) document.getElementById('tId').value = NOREF(qp.get('id')); /* tampilkan nomor nota, bukan kode internal */
     tf.addEventListener('submit', (e) => {
       e.preventDefault();
       const id = document.getElementById('tId').value, ph = document.getElementById('tPh').value;

@@ -121,7 +121,7 @@
   function drawFeed() {
     const L = DB.audits().filter((a) => a.type !== 'akses').slice(-12).reverse();
     $('#feed').innerHTML = L.length ? `<ul class="feed">${L.map((a) => { const ty = AUDIT_TYPES[a.type] || { label: a.type, tone: 'gray', icon: 'fa-circle' };
-      return `<li><span class="feed-ic ${ty.tone}"><i class="fa-solid ${ty.icon}"></i></span><div><strong>${esc(a.userName)}</strong> <span class="muted">·</span> ${esc(a.action)}${(a.changes || []).length && a.changes[0].from ? `<small class="chg-inline">${esc(a.changes[0].field)}: ${esc(a.changes[0].from)} → ${esc(a.changes[0].to)}</small>` : ''}<small>${D.fmtDateTime(a.at)} · ${Admin.relTime(a.at)}</small></div></li>`; }).join('')}</ul>`
+      return `<li><span class="feed-ic ${ty.tone}"><i class="fa-solid ${ty.icon}"></i></span><div><strong>${esc(a.userName)}</strong> <span class="muted">·</span> ${esc(NOTXT(a.action))}${(a.changes || []).length && a.changes[0].from ? `<small class="chg-inline">${esc(a.changes[0].field)}: ${esc(a.changes[0].from)} → ${esc(a.changes[0].to)}</small>` : ''}<small>${D.fmtDateTime(a.at)} · ${Admin.relTime(a.at)}</small></div></li>`; }).join('')}</ul>`
       : '<p class="muted">Belum ada aktivitas.</p>';
   }
 

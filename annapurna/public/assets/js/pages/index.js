@@ -104,7 +104,7 @@
     const box = $('#mineBox'); const first = u.name.split(' ')[0];
     if (act) {
       const more = acts.slice(1, 3);
-      box.innerHTML = `<div class="mine-card"><div class="mc-h"><div><small>Halo, ${esc(first)} · ${acts.length > 1 ? `${acts.length} pesanan aktif` : 'Pesanan aktifmu'}</small><strong>${act.id} · ${Ann.D.fmtRange(act.start, act.end)}</strong></div><a class="btn btn-light btn-sm" href="pesanan?id=${act.id}">Lihat pesanan</a></div>${UI.orderTracker(act)}
+      box.innerHTML = `<div class="mine-card"><div class="mc-h"><div><small>Halo, ${esc(first)} · ${acts.length > 1 ? `${acts.length} pesanan aktif` : 'Pesanan aktifmu'}</small><strong>${NO(act)} · ${Ann.D.fmtRange(act.start, act.end)}</strong></div><a class="btn btn-light btn-sm" href="pesanan?id=${act.id}">Lihat pesanan</a></div>${UI.orderTracker(act)}
         ${more.length ? `<div class="mine-more">${more.map((b) => { const [tone, lab, txt] = rowInfo(b); return `<a class="mine-row" href="pesanan?id=${b.id}"><span class="pill ${tone}">${lab}</span><span class="mr-main"><b>${NO(b)}</b> · ${Ann.D.fmtRange(b.start, b.end)}<small>${txt}</small></span><i class="fa-solid fa-chevron-right"></i></a>`; }).join('')}${acts.length > 3 ? `<a class="mine-all" href="pesanan">Lihat semua pesanan (${acts.length})</a>` : ''}</div>` : ''}</div>`;
     } else if (last) {
       const items = last.items;

@@ -278,7 +278,7 @@
             : S.k === 'cuci' ? `<button class="btn btn-primary btn-xs" data-uclean="${u.code}"><i class="fa-solid fa-check"></i> Sudah bersih</button>`
             : S.k === 'perbaikan' ? `<a class="btn btn-primary btn-xs" href="perawatan"><i class="fa-solid fa-screwdriver-wrench"></i> Proses perbaikan</a>`
             : `<button class="btn btn-light btn-xs" data-uwash="${u.code}" title="Kirim ke antrian cuci"><i class="fa-solid fa-soap"></i> Cuci</button><button class="btn btn-light btn-xs" data-ubroke="${u.code}" title="Laporkan kerusakan"><i class="fa-solid fa-triangle-exclamation"></i> Rusak</button>${due ? `<button class="btn btn-gold btn-xs" data-usvc="${u.code}" title="Catat perawatan berkala"><i class="fa-solid fa-clipboard-check"></i> Perawatan</button>` : ''}`;
-          return `<tr class="${off ? 'row-off' : ''}"><td><b class="mono">${u.code}</b>${u.notes ? `<small class="unit-note">${esc(u.notes)}</small>` : ''}</td>${sz ? `<td>${esc(String(u.size || '').replace(/\s*\(.*\)/, ''))}</td>` : ''}
+          return `<tr class="${off ? 'row-off' : ''}"><td><b class="mono">${u.code}</b>${u.notes ? `<small class="unit-note">${esc(NOTXT(u.notes))}</small>` : ''}</td>${sz ? `<td>${esc(String(u.size || '').replace(/\s*\(.*\)/, ''))}</td>` : ''}
           <td><span class="pill ${S.tone} plain">${esc(S.l)}</span>${S.k === 'perbaikan' ? `<small class="issue">${esc(ci.issue || '')}</small>` : S.k === 'cuci' && ci.booking ? `<small>dari ${ci.booking}</small>` : ''}</td>
           <td class="num">${u.rents}×</td>
           <td>${due ? '<span class="pill amber plain">Perlu servis</span>' : `<span class="muted">${u.sinceService}/${every}×</span>`}<small>${u.lastService ? 'terakhir ' + D.fmtDate(u.lastService) : 'belum pernah'}</small></td>
@@ -314,7 +314,7 @@
         });
       }
       if (lg) { const u = DB.units(pid).find((x) => x.code === lg.dataset.ulog);
-        modal({ title: `Riwayat unit ${u.code}`, body: u.log.length ? `<ul class="timeline">${u.log.slice().reverse().map((l) => `<li>${esc(l.text)}${l.by ? ` · ${esc(l.by)}` : ''}<small>${D.fmtDateTime(l.at)}</small></li>`).join('')}</ul>` : '<p class="muted">Belum ada riwayat.</p>' }); }
+        modal({ title: `Riwayat unit ${u.code}`, body: u.log.length ? `<ul class="timeline">${u.log.slice().reverse().map((l) => `<li>${esc(NOTXT(l.text))}${l.by ? ` · ${esc(l.by)}` : ''}<small>${D.fmtDateTime(l.at)}</small></li>`).join('')}</ul>` : '<p class="muted">Belum ada riwayat.</p>' }); }
       if (off) { offUnit(pid, off.dataset.uoff, draw); return; }
       const wa = e.target.closest('[data-uwa]'); if (wa) { Admin.remindCustomer(DB.booking(wa.dataset.uwa)); return; }
       if (on) { DB.updateUnit(pid, on.dataset.uon, { status: 'aktif', offReason: null, notes: '' }, 'Unit diaktifkan kembali'); toast(`${on.dataset.uon} aktif kembali.`); draw(); }
@@ -335,7 +335,7 @@
       if (!b.out && ['dikonfirmasi', 'menunggu_konfirmasi', 'menunggu_pembayaran'].includes(b.status)) rows.push({ at: b.start, t: 'Dipesan', b, q, cond: '-' });
     })));
     rows.sort((a, b) => String(b.at).localeCompare(a.at));
-    modal({ title: `Riwayat · ${esc(p.name)}`, size: 'lg', body: rows.length ? `<div class="table-wrap"><table class="table wide"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Booking</th><th>Customer</th><th class="num">Jml</th><th>Kondisi</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r.at.length > 10 ? D.fmtDateTime(r.at) : D.fmtDate(r.at)}</td><td><span class="pill ${r.t === 'Keluar' ? 'amber' : r.t === 'Kembali' ? 'green' : 'blue'}">${r.t}</span></td><td>${r.b.id}</td><td>${esc(r.b.customer.name)}</td><td class="num">${r.q}</td><td>${esc(r.cond)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Belum ada riwayat penyewaan untuk barang ini.</p>' });
+    modal({ title: `Riwayat · ${esc(p.name)}`, size: 'lg', body: rows.length ? `<div class="table-wrap"><table class="table wide"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Booking</th><th>Customer</th><th class="num">Jml</th><th>Kondisi</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r.at.length > 10 ? D.fmtDateTime(r.at) : D.fmtDate(r.at)}</td><td><span class="pill ${r.t === 'Keluar' ? 'amber' : r.t === 'Kembali' ? 'green' : 'blue'}">${r.t}</span></td><td>${NO(r.b)}</td><td>${esc(r.b.customer.name)}</td><td class="num">${r.q}</td><td>${esc(r.cond)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Belum ada riwayat penyewaan untuk barang ini.</p>' });
   }
   /* Riwayat barang jual: penjualan (ORD) + perubahan stok, bukan riwayat penyewaan */
   function saleHistory(p) {
@@ -347,8 +347,8 @@
     const qty = done.reduce((n, r) => n + r.i.qty, 0), omzet = done.reduce((n, r) => n + r.i.qty * r.i.price, 0);
     const sum = `<div class="stat-mini"><span>Terjual <b>${qty} unit</b></span><span>Pendapatan <b>${rupiah(omzet)}</b></span><span>Stok sekarang <b>${p.stock}</b></span><span>Stok minimum <b>${p.minStock ?? 0}</b></span></div>`;
     modal({ title: `Riwayat Penjualan · ${esc(p.name)}`, size: 'lg', body: rows.length ? `${sum}<div class="table-wrap" data-no-paginate><table class="table wide"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Referensi</th><th>Keterangan</th><th class="num">Jml</th><th class="num">Nilai</th></tr></thead><tbody>${rows.map((r) => r.s
-      ? `<tr><td class="nw">${D.fmtDateTime ? D.fmtDateTime(r.at) : D.fmtDate(r.at)}</td><td><span class="pill ${r.s.status === 'dibatalkan' ? 'red' : 'blue'} plain">Penjualan</span></td><td><b>${r.s.id}</b></td><td>${esc(r.s.customer.name)}${r.i.size ? ` · ${esc(r.i.size)}` : ''}<small>${(SL[r.s.status] || { label: r.s.status }).label}</small></td><td class="num">${r.i.qty}</td><td class="num">${rupiah(r.i.qty * r.i.price)}</td></tr>`
-      : `<tr><td class="nw">${D.fmtDateTime ? D.fmtDateTime(r.at) : D.fmtDate(r.at)}</td><td><span class="pill gray plain">${r.a.type === 'tambah' ? 'Barang baru' : r.a.type === 'harga' ? 'Harga' : 'Stok'}</span></td><td class="muted">${esc(r.a.by || '-')}</td><td>${esc(r.a.action)}${(r.a.changes || []).length ? `<small>${r.a.changes.map((c) => `${esc(c.field)}: ${esc(c.from || '–')} → ${esc(c.to || '–')}`).join(' · ')}</small>` : ''}</td><td class="num">—</td><td class="num">—</td></tr>`).join('')}</tbody></table></div>`
+      ? `<tr><td class="nw">${D.fmtDateTime ? D.fmtDateTime(r.at) : D.fmtDate(r.at)}</td><td><span class="pill ${r.s.status === 'dibatalkan' ? 'red' : 'blue'} plain">Penjualan</span></td><td><b>${NO(r.s)}</b></td><td>${esc(r.s.customer.name)}${r.i.size ? ` · ${esc(r.i.size)}` : ''}<small>${(SL[r.s.status] || { label: r.s.status }).label}</small></td><td class="num">${r.i.qty}</td><td class="num">${rupiah(r.i.qty * r.i.price)}</td></tr>`
+      : `<tr><td class="nw">${D.fmtDateTime ? D.fmtDateTime(r.at) : D.fmtDate(r.at)}</td><td><span class="pill gray plain">${r.a.type === 'tambah' ? 'Barang baru' : r.a.type === 'harga' ? 'Harga' : 'Stok'}</span></td><td class="muted">${esc(r.a.by || '-')}</td><td>${esc(NOTXT(r.a.action))}${(r.a.changes || []).length ? `<small>${r.a.changes.map((c) => `${esc(c.field)}: ${esc(c.from || '–')} → ${esc(c.to || '–')}`).join(' · ')}</small>` : ''}</td><td class="num">—</td><td class="num">—</td></tr>`).join('')}</tbody></table></div>`
       : `${sum}<p class="muted">Belum ada riwayat penjualan untuk barang ini.</p>` });
   }
   function catForm(c) {

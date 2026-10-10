@@ -41,7 +41,7 @@
     <aside class="card sticky-side">
       <div class="card-title">Rincian tagihan</div>
       ${pending.map((o, i) => `<div style="padding:10px 0;${i < pending.length - 1 ? 'border-bottom:1px dashed var(--line)' : ''}">
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong>${o.id}</strong>${pill(o._t === 'rent' ? 'rental' : 'sale', o.status)}</div>
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong>${NO(o)}</strong>${pill(o._t === 'rent' ? 'rental' : 'sale', o.status)}</div>
         <small class="muted">${o._t === 'rent' ? `Sewa ${D.fmtRange(o.start, o.end)} · ${o.items.length} item` : `Pembelian · ${o.items.length} item`}</small>
         <div class="kv" style="padding-bottom:0"><span>${o._t === 'rent' ? `DP ${st.dpPercent}% dari ${rupiah(o.total)}` : 'Total belanja'}</span><span>${rupiah(due(o))}</span></div>
       </div>`).join('')}

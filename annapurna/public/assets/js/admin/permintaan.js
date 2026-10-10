@@ -54,7 +54,7 @@
     const m = modal({ title: 'Catat ganti barang di toko', body: `<p class="muted" style="font-size:13.5px;margin-bottom:12px">Pilih booking milik customer yang sedang di toko.</p>
       <div class="input-icon" style="margin-bottom:10px"><i class="fa-solid fa-magnifying-glass"></i><input class="input" id="bkQ" placeholder="Cari no. booking atau nama customer…"></div><div id="bkList" class="bk-pick"></div>`, foot: '<button class="btn btn-light" data-close>Batal</button>' });
     const drawL = () => { const q = m.$('#bkQ').value.trim().toLowerCase(); const F = L.filter((b) => !q || `${b.id} ${NO(b)} ${b.customer.name}`.toLowerCase().includes(q));
-      m.$('#bkList').innerHTML = F.length ? F.map((b) => `<button type="button" class="chg-line" data-bk="${b.id}"><span><b>${b.id} · ${esc(b.customer.name)}</b><small>${D.fmtRange(b.start, b.end)} · ${esc(Admin.itemsText(b))}</small></span>${pill('rental', b.status)}</button>`).join('') : '<p class="muted">Tidak ada booking aktif yang cocok.</p>'; };
+      m.$('#bkList').innerHTML = F.length ? F.map((b) => `<button type="button" class="chg-line" data-bk="${b.id}"><span><b>${NO(b)} · ${esc(b.customer.name)}</b><small>${D.fmtRange(b.start, b.end)} · ${esc(Admin.itemsText(b))}</small></span>${pill('rental', b.status)}</button>`).join('') : '<p class="muted">Tidak ada booking aktif yang cocok.</p>'; };
     m.$('#bkQ').addEventListener('input', drawL); drawL();
     m.$('#bkList').addEventListener('click', (e) => { const x = e.target.closest('[data-bk]'); if (!x) return; m.close(); Admin.BK.storeChange(DB.booking(x.dataset.bk), () => { tab = 'change'; Admin.refreshShell(); draw(); }); });
   });
@@ -64,7 +64,7 @@
     const ok = e.target.closest('[data-ok]'), no = e.target.closest('[data-no]'), rf = e.target.closest('[data-refund]');
     if (ok || no) {
       const [bid, cid] = (ok || no).dataset[ok ? 'ok' : 'no'].split('|'); const b = DB.booking(bid); const c = b.changes.find((x) => x.id === cid);
-      if (ok) { if (!(await confirmBox({ title: 'Setujui ganti barang?', text: `${c.qty}× ${esc(c.fromName)} diganti <strong>${esc(c.toName)}</strong> pada ${b.id}. Total booking akan disesuaikan.`, ok: 'Setujui' }))) return; if (Admin.BK.approveChange(b, c)) { Admin.refreshShell(); draw(); } }
+      if (ok) { if (!(await confirmBox({ title: 'Setujui ganti barang?', text: `${c.qty}× ${esc(c.fromName)} diganti <strong>${esc(c.toName)}</strong> pada ${NO(b)}. Total booking akan disesuaikan.`, ok: 'Setujui' }))) return; if (Admin.BK.approveChange(b, c)) { Admin.refreshShell(); draw(); } }
       else if (await Admin.BK.rejectChange(b, c)) { Admin.refreshShell(); draw(); }
     }
     if (rf) { if (await Admin.BK.refund(DB.booking(rf.dataset.refund))) { Admin.refreshShell(); draw(); } }

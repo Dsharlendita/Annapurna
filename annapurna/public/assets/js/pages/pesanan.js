@@ -34,7 +34,7 @@
     if (b.status === 'selesai') { acts.push(revBtn(b)); acts.push(`<button class="btn btn-primary btn-sm" data-act="again" data-id="${b.id}"><i class="fa-solid fa-rotate-right"></i> Sewa lagi</button>`); }
     const late = b.status === 'disewa' && D.today() > b.end;
     return `<article class="order-card">
-      <div class="oh"><div><strong>${NO(b)}</strong><small>Dibuat ${D.fmtDateTime(b.createdAt)}</small>${b.group ? (() => { const mates = DB.bookings().filter((x) => x.group === b.group && x.id !== b.id); return mates.length ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan · ${mates.map((x) => `${x.id} kembali ${D.fmtDate(x.end)}`).join(', ')}</small>` : ''; })() : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div></div>
+      <div class="oh"><div><strong>${NO(b)}</strong><small>Dibuat ${D.fmtDateTime(b.createdAt)}</small>${b.group ? (() => { const mates = DB.bookings().filter((x) => x.group === b.group && x.id !== b.id); return mates.length ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan · ${mates.map((x) => `${NO(x)} kembali ${D.fmtDate(x.end)}`).join(', ')}</small>` : ''; })() : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div></div>
       ${UI.orderTracker(b)}
       <div class="ob">
         <div>

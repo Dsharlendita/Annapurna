@@ -496,7 +496,7 @@
     const pids = isRent ? [...new Set(tx.items.flatMap((i) => i.components.map((c) => c.productId)))] : [...new Set(tx.items.map((i) => i.productId))];
     let rating = old ? old.rating : 0;
     const m = modal({ title: old ? 'Ulasan kamu' : 'Beri ulasan', body: `
-      <p class="muted" style="font-size:13.5px;margin-bottom:12px">${isRent ? 'Rental' : 'Pembelian'} <strong>${tx.id}</strong> · ${esc(tx.items.map((i) => `${i.qty}× ${i.name}`).join(', '))}</p>
+      <p class="muted" style="font-size:13.5px;margin-bottom:12px">${isRent ? 'Rental' : 'Pembelian'} <strong>${NO(tx)}</strong> · ${esc(tx.items.map((i) => `${i.qty}× ${i.name}`).join(', '))}</p>
       <div class="star-input" id="rvStars" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-label="${n} bintang" data-n="${n}"><i class="fa-solid fa-star"></i></button>`).join('')}<span id="rvLbl" class="muted"></span></div>
       <div class="field" style="margin-top:14px"><label for="rvText">Ceritakan pengalamanmu</label><textarea class="textarea" id="rvText" rows="4" maxlength="400" placeholder="Bagaimana kondisi alat, pelayanan, dan proses ${isRent ? 'sewanya' : 'pembeliannya'}?">${esc(old ? old.text : '')}</textarea><span class="hint"><span id="rvCnt">0</span>/400 · minimal 10 karakter</span></div>
       <p class="muted" style="font-size:12.5px"><i class="fa-regular fa-eye"></i> Ulasan tampil di halaman produk dengan nama <strong>${esc(user.name)}</strong>. Admin dapat memilih ulasan untuk ditampilkan sebagai testimoni di beranda.</p>
@@ -517,7 +517,7 @@
       const r = Object.assign(old || { id: DB.nextId('REV', DB.reviews()), refId: tx.id, type: isRent ? 'rent' : 'buy', email: user.email, img: '', role: isRent ? 'Penyewa' : 'Pembeli', createdAt: D.nowStamp(), visible: true, featured: false, reply: '' },
         { name: user.name, rating, text, productIds: pids, updatedAt: D.nowStamp(), seen: false });
       DB.saveReview(r);
-      if (!old) DB.notifyStaff(`Ulasan baru ★${rating}`, `${user.name} memberi ulasan untuk ${tx.id}: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`, 'admin/ulasan');
+      if (!old) DB.notifyStaff(`Ulasan baru ★${rating}`, `${user.name} memberi ulasan untuk ${NO(tx)}: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`, 'admin/ulasan');
       m.close(); toast(old ? 'Ulasan diperbarui.' : 'Terima kasih atas ulasanmu!'); onDone && onDone(r);
     });
   }
@@ -1211,7 +1211,7 @@
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'); cx.fillStyle = '#f4f1ea'; cx.fillRect(0, 0, W, H);
       let yy = 0; parts.forEach((c) => { cx.drawImage(c, 0, yy); yy += c.height + GAP; });
       const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
-      const name = `nota-${pick.map((o) => o.x.id).join('_')}.png`;
+      const name = `nota-${pick.map((o) => NO(o.x).replace(/\//g, '-')).join('_')}.png`;
       const file = blob && typeof File !== 'undefined' ? new File([blob], name, { type: 'image/png' }) : null;
       m.close();
       /* HP: menu Bagikan (gambar + pesan sekaligus). Laptop: pratinjau → salin gambar / buka WhatsApp / unduh */

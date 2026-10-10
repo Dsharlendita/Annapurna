@@ -82,7 +82,7 @@
     const a = DB.audits().find((x) => x.id === id); if (!a) return; const t = ty(a.type); const link = refLink(a.ref);
     modal({ title: 'Detail aktivitas', size: 'lg', body: `
       <div style="margin-bottom:12px"><span class="pill ${t.tone} plain"><i class="fa-solid ${t.icon}"></i> ${t.label}</span></div>
-      <p style="font-size:15px;font-weight:600;margin-bottom:12px">${esc(a.action)}</p>
+      <p style="font-size:15px;font-weight:600;margin-bottom:12px">${esc(Reports.refText(a.action))}</p>
       <div class="kv-grid">
         <div class="kv"><span>Waktu</span><span>${D.HARI[new Date(a.at).getDay()]}, ${D.fmtDateTime(a.at)}</span></div>
         <div class="kv"><span>Dilakukan oleh</span><strong>${esc(a.userName)}</strong></div>

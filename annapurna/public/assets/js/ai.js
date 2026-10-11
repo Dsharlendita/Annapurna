@@ -250,6 +250,95 @@
 
   const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
+  /* =====================================================================
+     Asisten Trip + Tanya jawab memakai Gemini (Google) LEWAT SERVER.
+     - Kunci API Gemini hanya ada di .env server Laravel, tidak pernah di JavaScript.
+     - FE mengirim pertanyaan ke POST /api/chat dan teks rencana ke POST /api/ai/rencana.
+     - Harga, stok, dan status pesanan dihitung sistem (server / Rules), bukan ditebak model.
+     - Bila endpoint belum ada, server error, kuota habis (429), atau terlalu lama (408),
+       asisten otomatis memakai jawaban berbasis aturan di file ini sebagai cadangan.
+     Kontrak lengkap: dokumen teknis Bagian 16.
+     ===================================================================== */
+  const AI_TIMEOUT = 25000;
+  const useFallback = (r) => !r || (!r.ok && (r.status === 0 || r.status === 404 || r.status === 405 || r.status === 408 || r.status === 429 || r.status >= 500));
+  /* Teks polos dari HTML gelembung chat (untuk riwayat yang dikirim ke server) */
+  const plainOf = (html) => { const d = new DOMParser().parseFromString(`<div>${html || ''}</div>`, 'text/html'); return (d.body.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 600); };
+  /* Jawaban server berupa TEKS (bukan HTML). Diubah aman: escape dulu, lalu **tebal**, daftar "- ", dan baris baru. */
+  function mdLite(t) {
+    const lines = String(t || '').replace(/\r/g, '').split('\n');
+    let html = '', inList = false;
+    const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    lines.forEach((ln) => {
+      const m = ln.match(/^\s*(?:[-•*]|\d+[.)])\s+(.*)$/);
+      if (m) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(m[1])}</li>`; return; }
+      if (inList) { html += '</ul>'; inList = false; }
+      html += ln.trim() ? `${inline(ln)}<br>` : '<br>';
+    });
+    if (inList) html += '</ul>';
+    return html.replace(/(<br>)+$/, '').replace(/^(<br>)+/, '');
+  }
+  /* Hanya alamat internal situs (tanpa "//", "javascript:", atau domain lain) */
+  const safeHref = (h) => { h = String(h || '').trim().replace(/^\//, ''); return /^[a-z0-9][a-z0-9/_.?=&%+-]*$/i.test(h) && !h.includes('//') ? url(h) : null; };
+  const validDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? d : null);
+  /* Tombol aksi dari server divalidasi terhadap data yang ada; yang tidak dikenal dibuang */
+  function serverActions(list) {
+    const trip = DB.trip() || {};
+    return (Array.isArray(list) ? list : []).slice(0, 4).map((a) => {
+      if (!a || typeof a !== 'object') return null;
+      const label = String(a.label || '').slice(0, 60); if (!label) return null;
+      const jenis = a.jenis || a.type;
+      if (jenis === 'link') { const href = safeHref(a.href); return href ? { label, href } : null; }
+      if (jenis === 'rencana') return { label, plan: String(a.teks || a.text || '').slice(0, 200) };
+      if (jenis === 'keranjang') {
+        const qty = Math.min(20, Math.max(1, parseInt(a.qty, 10) || 1));
+        const start = validDate(a.mulai) || trip.start || nextWeekend();
+        const end = validDate(a.selesai) && a.selesai > start ? a.selesai : (trip.end > start ? trip.end : D.addDays(start, 1));
+        if ((a.kind || a.tipe) === 'package') { const pk = DB.packages().find((k) => k.id === a.id); return pk ? { label, addPkg: { id: pk.id, qty, start, end } } : null; }
+        return P(a.id) ? { label, add: { id: a.id, qty, start, end } } : null;
+      }
+      return null;
+    }).filter(Boolean);
+  }
+  /* Konteks yang dikirim: halaman, tanggal trip, isi keranjang. TANPA data pribadi (nama, HP, alamat, identitas). */
+  function aiContext() {
+    const page = pageKind();
+    return {
+      halaman: page,
+      produk: page === 'produk' ? new URLSearchParams(location.search).get('id') : null,
+      trip: DB.trip() || null,
+      keranjang: Cart.all().slice(0, 20).map((c) => ({ tipe: c.type, jenis: c.kind, id: c.refId, qty: c.qty, ukuran: c.size || null, mulai: c.start || null, selesai: c.end || null })),
+    };
+  }
+  async function serverAnswer(text, history) {
+    if (!window.Api) return null;
+    const r = await Api.post('api/chat', { pesan: String(text).slice(0, 500), riwayat: history, konteks: aiContext() }, { timeout: AI_TIMEOUT, redirectOn401: false });
+    if (useFallback(r)) return null;
+    if (!r.ok) return { html: esc(r.msg || 'Maaf, asisten belum bisa menjawab pertanyaan ini.'), wa: true, src: 'gemini' };
+    const d = r.data || {};
+    const html = mdLite(d.teks || d.text || '');
+    if (!html) return null;
+    return { html, actions: serverActions(d.aksi || d.actions), chips: (Array.isArray(d.saran) ? d.saran : []).filter((x) => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 4), wa: !!(d.wa || d.handoff), handoff: !!d.handoff, src: 'gemini' };
+  }
+  /* Rencana trip: Gemini hanya MEMAHAMI cerita (jumlah orang, malam, jenis, tempat, alat yang sudah dimiliki).
+     Daftar alat, stok, dan harga tetap dihitung recommend() dengan aturan toko. */
+  async function understandPlan(text, start, end) {
+    const base = parsePlan(text);
+    if (!window.Api) return base;
+    const r = await Api.post('api/ai/rencana', { teks: String(text).slice(0, 500), mulai: start || null, selesai: end || null }, { timeout: AI_TIMEOUT, redirectOn401: false });
+    if (!r.ok || !r.data || typeof r.data !== 'object') return base;
+    const d = r.data; const int = (v, lo, hi) => { const n = parseInt(v, 10); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
+    const OWN = ['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair'];
+    const people = int(d.orang, 1, 50), nights = int(d.malam, 0, 14);
+    return {
+      people: people != null ? people : base.people,
+      nights: nights != null ? nights : base.nights,
+      type: ['hiking', 'camping'].includes(d.jenis) ? d.jenis : base.type,
+      place: typeof d.tempat === 'string' && d.tempat.trim() ? d.tempat.trim().slice(0, 60) : base.place,
+      own: Array.isArray(d.sudah_punya) ? d.sudah_punya.filter((x) => OWN.includes(x)) : base.own,
+      raw: text, src: 'gemini',
+    };
+  }
+
   function mdIcon() { return '<i class="fa-solid fa-wand-magic-sparkles"></i>'; }
 
   /* Saran pertanyaan sesuai halaman yang sedang dibuka */
@@ -336,16 +425,19 @@
       text = String(text || '').trim(); if (!text) return;
       if (text === 'Rencanakan trip') { tab('plan'); return; }
       const map = { 'Cek pesanan': 'status pesanan saya', 'Rencanakan trip': 'rencanakan trip', 'Pembayaran & DP': 'pembayaran dp', 'Pembatalan': 'pembatalan', 'Syarat sewa': 'syarat sewa', 'Hitungan hari': 'hitungan hari', 'Lokasi toko': 'lokasi toko', 'Jam buka': 'jam buka', 'Pengantaran': 'diantar', 'Denda': 'denda', 'Cara sewa': 'cara sewa' };
-      log.push({ who: 'me', html: esc(text) }); bubble('me', esc(text)); setChips([]); input.value = '';
+      const history = log.slice(-8).map((m) => ({ peran: m.who === 'me' ? 'user' : 'model', teks: plainOf(m.html) }));
+      log.push({ who: 'me', html: esc(text) }); bubble('me', esc(text)); setChips([]); input.value = ''; input.disabled = true;
       const typing = bubble('bot', '<span class="ai-dots"><i></i><i></i><i></i></span>');
-      await wait(450 + Math.random() * 450);
-      const r = answer(map[text] || text);
-      typing.remove();
+      /* Gemini lewat server dulu; bila tidak tersedia → jawaban berbasis aturan (cadangan) */
+      let r = await serverAnswer(map[text] || text, history);
+      if (!r) { await wait(350 + Math.random() * 350); r = answer(map[text] || text); }
+      typing.remove(); input.disabled = false; input.focus();
       const extra = actionsHtml(r, text);
       const el = bubble('bot', r.html, extra); log.push({ who: 'bot', html: r.html, extra }); save();
       el.querySelectorAll('.ai-act[data-i]').forEach((b) => b.addEventListener('click', () => {
         const act = r.actions[+b.dataset.i];
         if (act.href) location.href = act.href;
+        if (act.addPkg) { Cart.add({ type: 'rent', kind: 'package', refId: act.addPkg.id, qty: act.addPkg.qty || 1, start: act.addPkg.start, end: act.addPkg.end }); toast('Paket masuk ke keranjang.'); return; }
         if (act.plan != null) openPlanner(act.plan);
         if (act.add) { const pp = P(act.add.id); if (!pp) return; if (DB.hasVariant(pp)) { UI.quickRent('product', pp.id); return; } Cart.add({ type: 'rent', kind: 'product', refId: pp.id, qty: act.add.qty || 1, start: act.add.start, end: act.add.end }); b.disabled = true; b.textContent = `✓ ${pp.name} ditambahkan`; toast(`${esc(pp.name)} masuk keranjang.`); if (pageKind() === 'keranjang') setTimeout(() => location.reload(), 700); }
       }));
@@ -371,13 +463,15 @@
     const planGo = () => {
       const text = $('#aiPlanText').value.trim();
       if (!text) { $('#aiPlanText').classList.add('err'); $('#aiPlanText').focus(); return; }
-      close(); openPlanner(text, { start: $('#aiStart').value, end: $('#aiEnd').value });
+      /* Tanggal kembali bawaan (+1 hari) hanya dipakai bila diubah sendiri; selain itu lama trip diambil dari cerita ("2 malam") */
+      close(); openPlanner(text, { start: $('#aiStart').value, end: $('#aiEnd').dataset.touched ? $('#aiEnd').value : '' });
     };
     $('#aiPlanGo').addEventListener('click', planGo);
     $('#aiPlanText').addEventListener('input', () => $('#aiPlanText').classList.remove('err'));
     $('#aiPlanText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); planGo(); } });
     wrap.querySelectorAll('.ai-ex button').forEach((b) => b.addEventListener('click', () => { $('#aiPlanText').value = b.textContent; $('#aiPlanText').classList.remove('err'); $('#aiPlanText').focus(); }));
     UI.dateGuard && UI.dateGuard($('#aiStart'), $('#aiEnd'));
+    $('#aiEnd').addEventListener('change', () => { $('#aiEnd').dataset.touched = '1'; });
     $('#aiFab').addEventListener('click', () => ($('#aiPanel').hidden ? open() : close()));
     $('#aiClose').addEventListener('click', close);
     $('#aiReset').addEventListener('click', () => { log = []; save(); render(); $('#aiPlanText').value = ''; });
@@ -432,12 +526,13 @@
     const run = async (auto) => {
       const text = m.$('#tpText').value.trim();
       if (!text) { m.$('#tpText').classList.add('err'); m.$('#tpText').focus(); return; }
-      const plan = parsePlan(text);
+      m.$('#tpOut').innerHTML = '<div class="tp-loading"><span class="ai-dots"><i></i><i></i><i></i></span> Memahami rencanamu…</div>';
+      const plan = await understandPlan(text, m.$('#tpStart').value || s0, m.$('#tpEnd').value);
       let s = m.$('#tpStart').value || s0, e = m.$('#tpEnd').value;
       if (auto && plan.nights != null) { e = D.addDays(s, Math.max(1, plan.nights)); m.$('#tpEnd').value = e; }
       if (!e || e <= s) { e = D.addDays(s, 1); m.$('#tpEnd').value = e; }
       m.$('#tpOut').innerHTML = '<div class="tp-loading"><span class="ai-dots"><i></i><i></i><i></i></span> Menyusun rekomendasi…</div>';
-      await wait(650);
+      if (plan.src !== 'gemini') await wait(450);
       last = recommend(plan, s, e);
       const missing = [];
       if (!plan.people) missing.push('jumlah orang (dianggap 2)');

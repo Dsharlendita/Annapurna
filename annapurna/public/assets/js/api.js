@@ -33,6 +33,7 @@
     401: 'Sesi login berakhir. Silakan masuk kembali.',
     403: 'Kamu tidak punya akses untuk tindakan ini.',
     404: 'Data atau alamat yang diminta tidak ditemukan.',
+    408: 'Server terlalu lama menjawab. Coba lagi sebentar lagi.',
     413: 'Ukuran file terlalu besar.',
     419: 'Sesi halaman sudah kedaluwarsa. Muat ulang halaman, lalu coba lagi.',
     422: 'Periksa kembali isian yang ditandai.',
@@ -49,11 +50,15 @@
     const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() };
     if (body != null && !isForm) headers['Content-Type'] = 'application/json';
     let res;
+    /* opts.timeout (ms): batalkan permintaan yang terlalu lama (mis. jawaban AI) → status 408 */
+    const ctrl = opts.timeout && typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), opts.timeout) : null;
     try {
-      res = await fetch(toUrl(path), { method, headers, credentials: 'same-origin', body: body == null ? undefined : isForm ? body : JSON.stringify(body) });
+      res = await fetch(toUrl(path), { method, headers, credentials: 'same-origin', body: body == null ? undefined : isForm ? body : JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined });
     } catch (e) {
+      if (ctrl && ctrl.signal.aborted) return { ok: false, status: 408, data: null, msg: MSG[408], field: null, errors: null, raw: null, source: 'server', timeout: true };
       return { ok: false, status: 0, data: null, msg: MSG[0], field: null, errors: null, raw: null, source: 'server', offline: true };
-    }
+    } finally { if (timer) clearTimeout(timer); }
     let raw = null;
     const type = res.headers.get('content-type') || '';
     if (type.includes('application/json')) { try { raw = await res.json(); } catch (e) { raw = null; } }

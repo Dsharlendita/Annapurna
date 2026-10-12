@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = 'ann-v18';
+  const VERSION = 'ann-v19'; /* v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
   const KEY = (k) => `annapurna:${k}`;
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -35,33 +35,48 @@
 
   const IMG = (p) => `assets/img/${p}`;
   /* Alasan unit sewa dinonaktifkan (barang sewa tidak dijual, jadi tidak ada alasan "dijual") */
-  /* ---------- Nomor nota: 001/X/2026 (urut per bulan, bulan romawi, satu urutan untuk sewa & beli, mulai 001 tiap bulan) ----------
-     Kode internal (RNT-…/ORD-…) tetap dipakai untuk link, QR & data; nomor ini yang ditampilkan ke customer & staff. */
+  /* ---------- Nomor nota ----------
+     Sewa      : RNT/028/X/2026  (RNT / nomor urut / bulan Romawi / tahun)
+     Pembelian : ODR/028/X/2026  (ODR / nomor urut / bulan Romawi / tahun)
+     Urutan sewa dan pembelian terpisah, dimulai lagi dari 001 setiap bulan, mengikuti waktu transaksi dibuat.
+     Kode internal (RNT-1028 / ORD-2007) tetap dipakai untuk link, QR & data; nomor nota yang ditampilkan ke customer & staff. */
   const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+  const NOTA_PREFIX = { bookings: 'RNT', sales: 'ODR' };
+  const NOTA_OK = /^(RNT|ODR)\/(\d{3,5})\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\/(\d{4})$/;
+  /* Ubah ketikan bebas ("rnt/28/x/2026", "ODR / 5 / X / 2026") menjadi bentuk baku "RNT/028/X/2026"; null bila bukan nomor nota */
+  window.NOPARSE = (txt) => {
+    const m = String(txt || '').toUpperCase().replace(/\s+/g, '').match(/(RNT|ODR)\/(\d{1,5})\/([IVX]{1,4})\/(\d{4})/);
+    if (!m || !ROMAN.includes(m[3])) return null;
+    return `${m[1]}/${String(+m[2]).padStart(3, '0')}/${m[3]}/${m[4]}`;
+  };
   let numbering = false;
   function ensureNos() {
     if (numbering) return; numbering = true;
     try {
       const B = read('bookings', []), S = read('sales', []);
-      const all = [...B, ...S];
-      const todo = all.filter((x) => !x.no);
-      if (todo.length) {
-        const seq = {};
-        all.filter((x) => x.no).forEach((x) => { const m = String(x.no).match(/^(\d+)\/([IVX]+)\/(\d{4})$/); if (m) { const k = m[3] + '-' + (ROMAN.indexOf(m[2]) + 1); seq[k] = Math.max(seq[k] || 0, +m[1]); } });
-        /* Format waktu dibuat bisa "2026-10-07T11:15" atau "2026-10-07 10:15" — disamakan dulu agar urutan kronologis */
-        const ts = (x) => Date.parse(String(x.createdAt || '').replace(' ', 'T')) || Date.now();
-        todo.sort((a, b) => ts(a) - ts(b)).forEach((x) => {
-          const d = new Date(ts(x)); const k = d.getFullYear() + '-' + (d.getMonth() + 1);
+      const lists = [['bookings', B], ['sales', S]];
+      const okFor = (x, key) => { const m = String(x.no || '').match(NOTA_OK); return !!m && m[1] === NOTA_PREFIX[key]; };
+      /* Data dengan format lain (028/X/2026, RNT/028/X/2026) → seluruh nomor disusun ulang supaya urutannya tetap rapi */
+      const reset = lists.some(([key, arr]) => arr.some((x) => x.no && !okFor(x, key)));
+      if (reset) lists.forEach(([, arr]) => arr.forEach((x) => { delete x.no; }));
+      if (!lists.some(([, arr]) => arr.some((x) => !x.no))) return;
+      /* Format waktu dibuat bisa "2026-10-07T11:15" atau "2026-10-07 10:15" — disamakan dulu agar urutan kronologis */
+      const ts = (x) => Date.parse(String(x.createdAt || '').replace(' ', 'T')) || Date.now();
+      lists.forEach(([key, arr]) => {
+        const pre = NOTA_PREFIX[key]; const seq = {};
+        arr.filter((x) => x.no).forEach((x) => { const m = String(x.no).match(NOTA_OK); const k = `${m[4]}-${m[3]}`; seq[k] = Math.max(seq[k] || 0, +m[2]); });
+        arr.filter((x) => !x.no).sort((a, b) => ts(a) - ts(b)).forEach((x) => {
+          const d = new Date(ts(x)); const mon = ROMAN[d.getMonth()], y = d.getFullYear(); const k = `${y}-${mon}`;
           seq[k] = (seq[k] || 0) + 1;
-          x.no = `${String(seq[k]).padStart(3, '0')}/${ROMAN[d.getMonth()]}/${d.getFullYear()}`;
+          x.no = `${pre}/${String(seq[k]).padStart(3, '0')}/${mon}/${y}`;
         });
-        write('bookings', B); write('sales', S);
-      }
+      });
+      write('bookings', B); write('sales', S);
     } finally { numbering = false; }
   }
   /* Nomor yang ditampilkan untuk pesanan (sewa/beli) */
   window.NO = (x) => (x ? (x.no || (ensureNos(), ((read('bookings', []).concat(read('sales', []))).find((y) => y.id === x.id) || {}).no) || x.id) : '');
-  /* Ganti kode internal (RNT-…/ORD-…) di dalam teks dengan nomor nota (001/X/2026) untuk ditampilkan */
+  /* Ganti kode internal (RNT-…/ORD-…) di dalam teks dengan nomor nota (RNT/001/X/2026, ODR/001/X/2026) untuk ditampilkan */
   /* Nomor nota dari kode internal; kosong bila transaksinya tidak ada (mis. data lama sebelum sistem) */
   window.NOREF = (id) => { if (!id) return ''; const x = (read('bookings', []).concat(read('sales', []))).find((y) => y.id === id || y.no === id); return x ? window.NO(x) : ''; };
   window.NOTXT = (t) => String(t == null ? '' : t).replace(/\b(RNT|ORD)-\d+\b/g, (m) => window.NO({ id: m }));
@@ -698,9 +713,9 @@
   function seedReviews() {
     const R = (id, refId, name, email, role, img, rating, text, productIds, daysAgo, extra) => Object.assign({ id, refId, type: refId.startsWith('ORD') ? 'buy' : 'rent', name, email, role, img: img ? IMG(img) : '', rating, text, productIds, createdAt: stampRel(daysAgo, 19), visible: true, featured: false, reply: '', seen: true }, extra || {});
     return [
-      R('REV-1', 'RNT-0981', 'Rizky Amalia', 'rizky@mail.com', 'Pendaki, Purwokerto', 'avatar1.jpg', 5, 'Peralatannya lengkap dan masih bagus banget. Proses sewanya juga gampang. Nanti pasti sewa lagi!', ['tnd-4', 'oe-kursi'], -40, { featured: true, order: 0 }),
-      R('REV-2', 'RNT-0987', 'Andi Pratama', 'andi@mail.com', 'Mahasiswa, UIN', 'avatar2.jpg', 5, 'Harga terjangkau, pelayanannya ramah. Sangat membantu untuk trip camping bareng teman-teman.', ['oe-kursi', 'ck-kompor'], -33, { featured: true, order: 1 }),
-      R('REV-3', 'RNT-0992', 'Salsabila Nur Aini', 'salsa@mail.com', 'Camper, Cilacap', 'avatar3.jpg', 5, 'Tenda dan sleeping bag nya bersih, kualitas oke. Rekomendasi banget buat yang cari rental alat camping di Purwokerto!', ['tnd-2', 'oe-sb'], -27, { featured: true, order: 2, reply: 'Terima kasih Salsabila, ditunggu petualangan berikutnya!', replyAt: stampRel(-26, 9), replySeen: true }),
+      R('REV-1', '', 'Rizky Amalia', 'rizky@mail.com', 'Pendaki, Purwokerto', 'avatar1.jpg', 5, 'Peralatannya lengkap dan masih bagus banget. Proses sewanya juga gampang. Nanti pasti sewa lagi!', ['tnd-4', 'oe-kursi'], -40, { featured: true, order: 0 }),
+      R('REV-2', '', 'Andi Pratama', 'andi@mail.com', 'Mahasiswa, UIN', 'avatar2.jpg', 5, 'Harga terjangkau, pelayanannya ramah. Sangat membantu untuk trip camping bareng teman-teman.', ['oe-kursi', 'ck-kompor'], -33, { featured: true, order: 1 }),
+      R('REV-3', '', 'Salsabila Nur Aini', 'salsa@mail.com', 'Camper, Cilacap', 'avatar3.jpg', 5, 'Tenda dan sleeping bag nya bersih, kualitas oke. Rekomendasi banget buat yang cari rental alat camping di Purwokerto!', ['tnd-2', 'oe-sb'], -27, { featured: true, order: 2, reply: 'Terima kasih Salsabila, ditunggu petualangan berikutnya!', replyAt: stampRel(-26, 9), replySeen: true }),
       R('REV-4', 'RNT-1009', 'Fajar Nugroho', 'fajar@mail.com', 'Penyewa', '', 5, 'Daypack enak dipakai, headlamp-nya terang dan awet baterainya. Admin fast respon di WhatsApp.', ['tas-day', 'oe-headlamp'], -7, { seen: false }),
       R('REV-5', 'ORD-2006', 'Putri Anjani', 'putri@mail.com', 'Pembeli', '', 4, 'Sleeping bag dan lampu sesuai foto. Sempat antre sebentar waktu ambil di toko, tapi pelayanannya ramah.', ['jl-3', 'jl-6'], -4, { seen: false, reply: 'Terima kasih masukannya, Kak Putri! Sekarang kami tambah satu petugas di jam ramai supaya pengambilan lebih cepat.', replyAt: stampRel(-3, 10), replySeen: false }),
       R('REV-6', 'ORD-2005', 'Tegar Prakoso', 'tegar@mail.com', 'Pembeli', '', 3, 'Kompor & cooking set oke, cuma kotaknya agak penyok. Semoga packing ke depan lebih rapi.', ['jl-11'], 0, { seen: false }),
@@ -743,6 +758,15 @@
     write('reviews', seedReviews());
     write('cart', []);
     write('version', VERSION);
+    /* Data contoh: setelah nomor nota dibuat, teks notifikasi & riwayat unit langsung memakai nomor nota
+       (RNT/…/X/2026, ODR/…/X/2026), bukan kode internal. Histori sistem (audit) tidak diubah karena dikunci hash. */
+    ensureNos();
+    const nb = read('bookings', []), ns = read('sales', []);
+    const toNota = (t) => String(t == null ? '' : t).replace(/\b(RNT|ORD)-\d+\b/g, (m) => ((m[0] === 'R' ? nb : ns).find((x) => x.id === m) || {}).no || m);
+    write('notifications', read('notifications', []).map((n) => Object.assign(n, { title: toNota(n.title), text: toNota(n.text) })));
+    const prs = read('products', []);
+    prs.forEach((p) => (p.units || []).forEach((u) => { if (u.notes) u.notes = toNota(u.notes); (u.log || []).forEach((l) => { l.text = toNota(l.text); }); }));
+    write('products', prs);
   }
   seed(false);
   /* Hapus kata sandi teks asli yang pernah tersimpan di browser (versi lama): akun demo bawaan dikosongkan
@@ -1165,9 +1189,9 @@
     },
     /* Cek pesanan tanpa login: nomor pesanan + nomor HP */
     lookupOrder(id, phone) {
-      /* Terima nomor nota (028/X/2026, 28/x/2026) maupun kode lama (RNT-1028) */
+      /* Terima nomor nota (RNT/028/X/2026, rnt/28/x/2026, ODR/005/X/2026) maupun kode lama (RNT-1028) */
       let code = String(id || '').toUpperCase().replace(/\s/g, ''); const ph = DB.normPhone(phone);
-      const mm = code.match(/^(\d{1,4})\/([IVX]{1,4})\/(\d{4})$/); if (mm) code = `${String(+mm[1]).padStart(3, '0')}/${mm[2]}/${mm[3]}`;
+      code = window.NOPARSE(code) || code;
       const x = DB.booking(code) || DB.sale(code);
       if (!x || DB.normPhone(x.customer.phone) !== ph) return null;
       return x;

@@ -108,7 +108,7 @@
     const text = reminderText(b); const bill = UI.billOf(b);
     const cv = await UI.tagihanCanvas(b);
     const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
-    const name = `nota-tagihan-${NO(b).replace(/\//g, '-')}.png`;
+    const name = `nota-tagihan-${NO(b).replace(/\//g, '_')}.png`;
     const file = blob && typeof File !== 'undefined' ? new File([blob], name, { type: 'image/png' }) : null;
     const canShare = matchMedia('(pointer: coarse)').matches && file && navigator.canShare && navigator.canShare({ files: [file] });
     const canCopy = !!(navigator.clipboard && window.ClipboardItem && window.isSecureContext);
@@ -155,23 +155,22 @@
   }
 
   /* ---------- Scan QR nota ---------- */
-  /* Kenali kode dari QR / ketikan: nomor nota (028/X/2026, 28/x/2026), kode internal (RNT-1028 / ORD-2007), atau link nota (…invoice?id=RNT-1028) */
+  /* Kenali kode dari QR / ketikan: nomor nota (RNT/028/X/2026, ODR/005/X/2026, rnt/28/x/2026), kode internal (RNT-1028 / ORD-2007), atau link nota (…invoice?id=RNT-1028) */
   function findRef(txt) {
     const raw = String(txt || '').trim(); const up = raw.toUpperCase();
-    const code = (up.match(/(RNT|ORD)-\d{3,6}/) || [])[0];
-    if (code) { const x = code.startsWith('RNT') ? DB.booking(code) : DB.sale(code); return x ? { x, kind: code.startsWith('RNT') ? 'rent' : 'sale' } : { miss: code }; }
-    const m = up.replace(/\s+/g, '').match(/(\d{1,4})\/([IVX]{1,4})\/(\d{4})/);
-    if (m) {
-      const no = `${String(+m[1]).padStart(3, '0')}/${m[2]}/${m[3]}`;
-      const b = DB.bookings().find((y) => y.no === no); if (b) return { x: b, kind: 'rent' };
-      const s = DB.sales().find((y) => y.no === no); if (s) return { x: s, kind: 'sale' };
+    const no = NOPARSE(up);
+    if (no) {
+      const b = no.startsWith('RNT') && DB.bookings().find((y) => y.no === no); if (b) return { x: b, kind: 'rent' };
+      const s = no.startsWith('ODR') && DB.sales().find((y) => y.no === no); if (s) return { x: s, kind: 'sale' };
       return { miss: no };
     }
+    const code = (up.match(/(RNT|ORD)-\d{3,6}/) || [])[0];
+    if (code) { const x = code.startsWith('RNT') ? DB.booking(code) : DB.sale(code); return x ? { x, kind: code.startsWith('RNT') ? 'rent' : 'sale' } : { miss: code }; }
     return null;
   }
   function openRef(txt) {
     const r = findRef(txt);
-    if (!r) { toast('Kode tidak dikenali. Ketik nomor nota (contoh: 028/X/2026) atau scan QR di nota customer.', 'err'); return false; }
+    if (!r) { toast('Kode tidak dikenali. Ketik nomor nota (contoh: RNT/028/X/2026 atau ODR/005/X/2026) atau scan QR di nota customer.', 'err'); return false; }
     if (r.miss) { toast(`Pesanan ${r.miss} tidak ditemukan.`, 'err'); return false; }
     DB.audit({ type: 'akses', action: `Membuka ${NO(r.x)} lewat scan QR / nomor nota`, ref: r.x.id });
     location.href = A(r.kind === 'rent' ? 'booking?id=' + r.x.id : 'penjualan?id=' + r.x.id); return true;
@@ -179,7 +178,7 @@
   async function scanQR() {
     let stream = null, raf = 0, stop = false;
     const m = UI.modal({ title: 'Scan QR nota customer', body: `<div class="scan-box"><video id="qrV" playsinline muted></video><div class="scan-frame"></div><p id="qrMsg" class="muted">Menyalakan kamera…</p></div>
-      <div class="field" style="margin-top:14px"><label>Atau ketik nomor booking / pesanan</label><div style="display:flex;gap:8px"><input class="input" id="qrCode" placeholder="Contoh: 028/X/2026" autocomplete="off"><button class="btn btn-primary" id="qrGo">Buka</button></div></div>`,
+      <div class="field" style="margin-top:14px"><label>Atau ketik nomor booking / pesanan</label><div style="display:flex;gap:8px"><input class="input" id="qrCode" placeholder="Contoh: RNT/028/X/2026" autocomplete="off"><button class="btn btn-primary" id="qrGo">Buka</button></div></div>`,
       foot: '<button class="btn btn-light" data-close>Tutup</button>' });
     const end = () => { stop = true; cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); };
     new MutationObserver((mu, ob) => { if (!document.body.contains(m.el)) { end(); ob.disconnect(); } }).observe(document.body, { childList: true });

@@ -17,7 +17,7 @@
     <div class="card track-card">
       <div class="card-title"><i class="fa-solid fa-magnifying-glass-location"></i> Cek status pesanan tanpa login</div>
       <form class="track-f" id="trackF" novalidate>
-        <div class="field"><label for="tId">Nomor pesanan</label><input class="input" id="tId" placeholder="Contoh: 028/X/2026 (lihat di nota)" autocomplete="off"></div>
+        <div class="field"><label for="tId">Nomor pesanan</label><input class="input" id="tId" placeholder="Contoh: RNT/028/X/2026 (lihat di nota)" autocomplete="off"></div>
         <div class="field"><label for="tPh">Nomor WhatsApp saat memesan</label><input class="input" id="tPh" inputmode="tel" placeholder="08xxxxxxxxxx"></div>
         <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Cek</button>
       </form>

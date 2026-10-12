@@ -7,7 +7,7 @@
   const inR = (iso, f, t) => { const d = D.day(iso || ''); return d && d >= f && d <= t; };
   const typeLabel = (k) => (AUDIT_TYPES[k] || { label: k }).label;
   const roleLabel = (r) => DB.ROLE_LABEL[r] || r;
-  /* Kode internal pesanan (RNT-…/ORD-…) ditampilkan sebagai nomor nota (001/X/2026) */
+  /* Kode internal pesanan (RNT-…/ORD-…) ditampilkan sebagai nomor nota (RNT/001/X/2026, ODR/001/X/2026) */
   const refNo = (r) => { if (!r) return '-'; const x = DB.booking(r) || DB.sale(r); return x ? NO(x) : r; };
   const refText = (t) => String(t || '').replace(/\b(RNT|ORD)-\d+\b/g, (m) => refNo(m));
   const durasi = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} mnt` : `${Math.floor(m / 60)} jam ${m % 60} mnt`; };

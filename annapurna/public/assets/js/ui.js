@@ -1211,7 +1211,7 @@
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'); cx.fillStyle = '#f4f1ea'; cx.fillRect(0, 0, W, H);
       let yy = 0; parts.forEach((c) => { cx.drawImage(c, 0, yy); yy += c.height + GAP; });
       const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
-      const name = `nota-${pick.map((o) => NO(o.x).replace(/\//g, '-')).join('_')}.png`;
+      const name = `nota-${pick.map((o) => NO(o.x).replace(/\//g, '_')).join('_')}.png`;
       const file = blob && typeof File !== 'undefined' ? new File([blob], name, { type: 'image/png' }) : null;
       m.close();
       /* HP: menu Bagikan (gambar + pesan sekaligus). Laptop: pratinjau → salin gambar / buka WhatsApp / unduh */
@@ -1366,5 +1366,18 @@
   /* to (opsional) = nomor customer, mis. 0812… → 62812… ; tanpa to = nomor WhatsApp toko */
   function waLink(text, to) { const num = to ? String(to).replace(/[^\d]/g, '').replace(/^0/, '62') : DB.settings().whatsapp; return `https://wa.me/${num}?text=${encodeURIComponent(text || 'Halo Annapurna Adventure, saya mau tanya soal sewa alat camping.')}`; }
 
-  window.UI = { buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  /* Avatar pengulas: foto bila ada, selain itu inisial nama (maks. 2 huruf) dengan warna tetap per nama.
+     Warna diambil dari palet Annapurna, jadi orang yang sama selalu mendapat warna yang sama. */
+  const AV_COLORS = 8;
+  function initials(name) {
+    const w = String(name || '').trim().split(/\s+/).map((x) => x.replace(/[^A-Za-zÀ-ÿ0-9]/g, '')).filter(Boolean);
+    if (!w.length) return '?';
+    return (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0][0]).toUpperCase();
+  }
+  function avatar(name, img) {
+    if (img) return `<span class="rv-av"><img loading="lazy" decoding="async" src="${asset(img)}" alt=""></span>`;
+    let h = 0; for (const ch of String(name || '').toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return `<span class="rv-av av-c${h % AV_COLORS}" aria-hidden="true">${esc(initials(name))}</span>`;
+  }
+  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

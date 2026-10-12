@@ -55,7 +55,7 @@
   const drawTesti = (L) => { $('#testiCards').innerHTML = L.length ? L.map((t) => `
     <figure class="t-card">
       <i class="fa-solid fa-quote-right q" aria-hidden="true"></i>
-      <div class="who"><span class="rv-av">${t.img ? `<img loading="lazy" decoding="async" src="${asset(t.img)}" alt="">` : esc(t.name.charAt(0))}</span><div><strong>${esc(t.name)}</strong><small>${esc(t.role || (t.type === 'rent' ? 'Penyewa' : 'Pembeli'))}</small>${stars(t.rating, false)}</div></div>
+      <div class="who">${UI.avatar(t.name, t.img)}<div><strong>${esc(t.name)}</strong><small>${esc(t.role || (t.type === 'rent' ? 'Penyewa' : 'Pembeli'))}</small>${stars(t.rating, false)}</div></div>
       ${ctx(t)}
       <p>“${esc(t.text)}”</p>
       ${t.reply ? `<div class="t-reply"><strong><i class="fa-solid fa-store"></i> Balasan Annapurna</strong><span>${esc(t.reply)}</span></div>` : ''}

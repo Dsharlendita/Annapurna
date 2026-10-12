@@ -33,7 +33,7 @@
         const link = txLink(r.refId); const prods = r.productIds.map((id) => DB.product(id)).filter(Boolean);
         return `<article class="rv-card ${r.visible ? '' : 'is-hidden'}">
           <div class="rv-h">
-            <span class="rv-av">${r.img ? `<img loading="lazy" decoding="async" src="${asset(r.img)}" alt="">` : esc(r.name.charAt(0))}</span>
+            ${UI.avatar(r.name, r.img)}
             <div class="who"><strong>${esc(r.name)}</strong>${fresh.has(r.id) ? ' <span class="pill amber plain">Baru</span>' : ''}${r.featured && r.visible ? ' <span class="pill green plain"><i class="fa-solid fa-thumbtack"></i> Beranda</span>' : ''}${!r.visible ? ' <span class="pill gray plain">Disembunyikan</span>' : ''}
               <small>${D.fmtDateTime(r.createdAt)} · ${r.type === 'rent' ? 'Rental' : 'Pembelian'} ${NOREF(r.refId) ? (link ? `<a href="${link}" style="color:var(--g700);font-weight:700">${NOREF(r.refId)}</a>` : NOREF(r.refId)) : ''}</small></div>
             <span class="rv-stars">${UI.stars(r.rating, false)}</span>

@@ -235,7 +235,7 @@
             ${R.length ? `<ul class="rv-dist">${dist.map((c, i) => `<li><span>${5 - i}</span><i class="fa-solid fa-star"></i><div class="bar"><i style="width:${R.length ? (c / R.length) * 100 : 0}%"></i></div><span>${c}</span></li>`).join('')}</ul>` : ''}
             <p class="muted" style="font-size:12.5px;margin-top:10px">Ulasan hanya bisa ditulis oleh pelanggan yang sudah menyelesaikan rental / pembelian.</p></div>
           <div class="rv-list">${list.length ? list.map((r) => `<article class="rv-item">
-              <div class="rv-h"><span class="rv-av">${r.img ? `<img loading="lazy" decoding="async" src="${asset(r.img)}" alt="">` : esc(r.name.charAt(0))}</span><div><strong>${esc(r.name)}</strong><small>${r.type === 'rent' ? 'Menyewa' : 'Membeli'} · ${D.fmtDate(r.createdAt, true)}</small></div>${stars(r.rating, false)}</div>
+              <div class="rv-h">${UI.avatar(r.name, r.img)}<div><strong>${esc(r.name)}</strong><small>${r.type === 'rent' ? 'Menyewa' : 'Membeli'} · ${D.fmtDate(r.createdAt, true)}</small></div>${stars(r.rating, false)}</div>
               <p>${esc(r.text)}</p>
               ${r.reply ? `<div class="rv-reply"><strong><i class="fa-solid fa-store"></i> Balasan Annapurna Adventure${r.replyAt ? ` · ${D.fmtDate(r.replyAt, true)}` : ''}</strong> ${esc(r.reply)}</div>` : ''}
             </article>`).join('') : '<p class="muted">Belum ada ulasan tertulis untuk barang ini. Jadilah yang pertama setelah menyewa!</p>'}

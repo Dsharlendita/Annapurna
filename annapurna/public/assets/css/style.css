@@ -2717,3 +2717,20 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .lini-bar { margin-bottom: 12px; } .lini-note { font-size: 13px; margin: 6px 0 0; } .lini-hint { display: block; margin-top: 2px; font-size: 12.5px; }
 .lini { display: inline-block; margin-right: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; vertical-align: middle; }
 .lini.rent { background: var(--g50); color: var(--g700); } .lini.sale { background: #fff6dc; color: #8a5a12; } .lini.umum { background: #eef1f5; color: #4a5568; }
+
+/* Testimoni beranda: beri jarak antara bintang dan label barang (Sewa/Beli · …).
+   Label boleh dua baris, jadi sudut dibuat membulat biasa agar tidak terlihat seperti kapsul gepeng. */
+.t-card .t-ctx { display: flex; align-items: flex-start; margin: 14px 0 4px; padding: 7px 12px; border-radius: 12px; line-height: 1.45; }
+.t-card .t-ctx i { margin-top: 2px; }
+
+/* Avatar inisial pengulas (UI.avatar): warna tetap per nama, teks putih tetap terbaca (kontras ≥ 4.5:1) */
+.rv-av { letter-spacing: .02em; font-size: 15px; }
+.rv-av.av-c0 { background: #1f4d2f; }
+.rv-av.av-c1 { background: #2b6340; }
+.rv-av.av-c2 { background: #8a5a12; }
+.rv-av.av-c3 { background: #a4530f; }
+.rv-av.av-c4 { background: #2563a8; }
+.rv-av.av-c5 { background: #6b4fa0; }
+.rv-av.av-c6 { background: #9a3b2e; }
+.rv-av.av-c7 { background: #3a5a6b; }
+.t-card .rv-av { font-size: 16px; }

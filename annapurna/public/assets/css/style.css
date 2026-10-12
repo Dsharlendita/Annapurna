@@ -2720,7 +2720,8 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 
 /* Testimoni beranda: beri jarak antara bintang dan label barang (Sewa/Beli · …).
    Label boleh dua baris, jadi sudut dibuat membulat biasa agar tidak terlihat seperti kapsul gepeng. */
-.t-card .t-ctx { display: flex; align-items: flex-start; margin: 14px 0 4px; padding: 7px 12px; border-radius: 12px; line-height: 1.45; }
+.t-card .t-ctx { display: flex; align-items: flex-start; margin: 20px 0 4px; padding: 7px 12px; border-radius: 12px; line-height: 1.45; }
+.t-card .who .stars { margin-bottom: 2px; }
 .t-card .t-ctx i { margin-top: 2px; }
 
 /* Avatar inisial pengulas (UI.avatar): warna tetap per nama, teks putih tetap terbaca (kontras ≥ 4.5:1) */

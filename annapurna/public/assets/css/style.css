@@ -3145,3 +3145,40 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .dash-sec i { color: var(--g600); }
 #dashSewa > .dash-sec:first-child { margin-top: 6px; }
 @media (max-width: 640px) { .lb-i { min-width: 0; flex: 1 1 40%; } .lb-op { display: none; } }
+
+/* ===== Dashboard Owner (tata letak baru) ===== */
+.od-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 18px; }
+.od-bar .biz-view { margin: 0; }
+.od-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.od-period { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 4px 0 12px; border: 1px solid var(--line-2); border-radius: 999px; background: #fff; }
+.od-period i { color: var(--g600); font-size: 13px; }
+.od-period .input { border: 0; height: 34px; padding: 0 8px; background: transparent; width: 150px; font-weight: 600; }
+.od-period .input:focus { box-shadow: none; }
+.od-fin { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; margin-bottom: 10px; }
+.od-fin-side { display: grid; gap: 16px; }
+.od-fin-side .fin-card { padding: 18px 20px; gap: 6px; }
+.od-fin-side .fin-card strong { font-size: clamp(22px, 1.9vw, 26px); }
+.fin-card.big { padding: 26px; gap: 10px; justify-content: space-between; }
+.fin-card.big strong { font-size: clamp(32px, 3.4vw, 44px); letter-spacing: -.02em; }
+.fin-card.big.neg { background: linear-gradient(135deg, #7a2e22, #a23f30); border-color: #a23f30; }
+.fin-card.big .fin-cmp { font-size: 13px; }
+.lb-strip.in-card { margin-top: 6px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .16); display: flex; flex-wrap: wrap; gap: 8px; }
+.lb-strip.in-card .lb-i { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .14); min-width: 0; flex: 1 1 0; padding: 8px 12px; }
+.lb-strip.in-card .lb-i small { color: rgba(255, 255, 255, .7); }
+.lb-strip.in-card .lb-i b { color: #fff; font-size: 14.5px; white-space: nowrap; }
+.lb-strip.in-card .lb-op { color: rgba(255, 255, 255, .55); font-size: 16px; }
+.biz-note { font-size: 12.5px; margin: 0 0 18px; }
+.od-ops { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; padding: 0; margin-bottom: 22px; overflow: hidden; }
+.od-ops-col { padding: 18px 20px; }
+.od-ops-col + .od-ops-col { border-left: 1px solid var(--line); }
+.od-h { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 12px; }
+.od-h i { color: var(--g600); }
+.mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mini-grid .stat { padding: 12px 14px; gap: 10px; border-radius: 14px; background: var(--cream); border-color: transparent; box-shadow: none; }
+.mini-grid .stat:hover { border-color: var(--g200); background: #fff; }
+.mini-grid .stat .ic { width: 34px; height: 34px; font-size: 14px; border-radius: 10px; }
+.mini-grid .stat strong { font-size: 20px; }
+.mini-grid .stat small { font-size: 12px; }
+.mini-grid .stat .d { font-size: 11.5px; }
+@media (max-width: 1100px) { .od-fin { grid-template-columns: 1fr; } .od-fin-side { grid-template-columns: 1fr 1fr; } .od-ops { grid-template-columns: 1fr; } .od-ops-col + .od-ops-col { border-left: 0; border-top: 1px solid var(--line); } }
+@media (max-width: 640px) { .od-fin-side { grid-template-columns: 1fr; } .mini-grid { grid-template-columns: 1fr; } .od-tools { width: 100%; } .od-period { flex: 1; } .od-period .input { width: 100%; } }

@@ -6,22 +6,24 @@
 
 @section('content')
   <p class="page-sub" id="greet"></p>
-  <div class="filters">
-    <label for="period" class="muted" style="font-size:13.5px">Periode ringkasan</label>
-    <input class="input" type="month" id="period">
-    <span style="flex:1"></span>
-    <a class="btn btn-light btn-sm" href="{{ route('owner.histori') }}"><i class="fa-solid fa-clock-rotate-left"></i> Histori sistem</a>
-    <a class="btn btn-light btn-sm" href="{{ route('admin.laporan') }}"><i class="fa-solid fa-file-lines"></i> Laporan</a>
+  {{-- Bilah kontrol: lini usaha (kiri) · periode & pintasan (kanan) --}}
+  <div class="od-bar">
+    <div class="seg biz-view" id="bizView" role="tablist" aria-label="Tampilan data"><button type="button" data-v="all" class="active" role="tab"><i class="fa-solid fa-layer-group"></i> Gabungan</button><button type="button" data-v="rent" role="tab"><i class="fa-solid fa-campground"></i> Rental</button><button type="button" data-v="sale" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan</button></div>
+    <div class="od-tools">
+      <label class="od-period"><i class="fa-regular fa-calendar"></i><input class="input" type="month" id="period" aria-label="Periode ringkasan"></label>
+      <a class="btn btn-light btn-sm" href="{{ route('admin.laporan') }}"><i class="fa-solid fa-file-lines"></i> Laporan</a>
+      <a class="btn btn-light btn-sm" href="{{ route('owner.histori') }}"><i class="fa-solid fa-clock-rotate-left"></i> Histori</a>
+    </div>
   </div>
-  <div class="seg biz-view" id="bizView" role="tablist" aria-label="Tampilan data"><button type="button" data-v="all" class="active" role="tab"><i class="fa-solid fa-layer-group"></i> Gabungan</button><button type="button" data-v="rent" role="tab"><i class="fa-solid fa-campground"></i> Rental</button><button type="button" data-v="sale" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan</button></div>
+  {{-- Ringkasan keuangan: kartu Laba besar di kiri, Pemasukan & Pengeluaran di kanan --}}
+  <div class="od-fin" id="fin"></div>
   <p class="muted biz-note" id="bizNote"></p>
-  <h2 class="sec-lbl">Ringkasan keuangan</h2>
-  <div class="fin-grid" id="fin"></div>
   <div id="profitTbl"></div>
-  <h2 class="sec-lbl">Transaksi</h2>
-  <div class="stat-grid" id="tx"></div>
-  <h2 class="sec-lbl" id="stkLbl">Stok barang</h2>
-  <div class="stat-grid cols-3" id="stk"></div>
+  {{-- Sekilas operasional: transaksi & stok dalam satu panel ringkas --}}
+  <div class="panel od-ops">
+    <div class="od-ops-col"><h3 class="od-h"><i class="fa-solid fa-receipt"></i> Transaksi</h3><div class="mini-grid" id="tx"></div></div>
+    <div class="od-ops-col"><h3 class="od-h" id="stkLbl"><i class="fa-solid fa-boxes-stacked"></i> Stok barang</h3><div class="mini-grid" id="stk"></div></div>
+  </div>
   <div class="grid-dash">
     <div class="panel">
       <div class="panel-h"><h3 id="chartTitle">Pemasukan &amp; pengeluaran 6 bulan</h3><a class="btn btn-light btn-xs" href="{{ route('admin.keuangan') }}">Detail keuangan <i class="fa-solid fa-arrow-right"></i></a></div>
@@ -32,7 +34,6 @@
       <div id="rekap"></div>
     </div>
   </div>
-  <h2 class="sec-lbl">Aktivitas staff</h2>
   <div class="grid-dash">
     <div class="panel">
       <div class="panel-h"><h3>Aktivitas terbaru</h3><a class="btn btn-light btn-xs" href="{{ route('owner.histori') }}">Semua histori <i class="fa-solid fa-arrow-right"></i></a></div>

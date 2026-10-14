@@ -27,8 +27,13 @@
     const net = L.totalIn - L.totalOut;
     const lbl = Reports.monthName(period);
     const prev = Reports.prevPeriod(f); const [pf, pt0] = Reports.monthRange(prev); const LP = Admin.ledger(pf, pt0);
-    const cmp = (cur, old, goodUp) => { if (!old) return `<span class="fin-cmp">Belum ada data ${Reports.monthName(prev)}</span>`; const pct = Math.round(((cur - old) / Math.abs(old)) * 100); const up = pct >= 0; const good = goodUp ? up : !up;
-      return `<span class="fin-cmp ${pct === 0 ? '' : good ? 'good' : 'bad'}"><i class="fa-solid ${up ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i> ${up ? '+' : ''}${pct}% dari ${Reports.monthName(prev).split(' ')[0]}</span>`; };
+    /* Perbandingan dengan bulan lalu: selisih rupiah (persen hanya bila wajar, supaya tidak muncul angka seperti +1589%) */
+    const short = (n) => { const a = Math.abs(n); return a >= 1e6 ? `Rp ${(a / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt` : a >= 1e3 ? `Rp ${Math.round(a / 1e3).toLocaleString('id-ID')} rb` : rupiah(a); };
+    const cmp = (cur, old, goodUp) => { const pm = Reports.monthName(prev).split(' ')[0];
+      if (!old) return `<span class="fin-cmp">Belum ada data ${pm} untuk dibandingkan</span>`;
+      const diff = cur - old; if (!diff) return `<span class="fin-cmp">Sama dengan ${pm}</span>`;
+      const up = diff > 0; const good = goodUp ? up : !up; const pct = Math.round((diff / Math.abs(old)) * 100);
+      return `<span class="fin-cmp ${good ? 'good' : 'bad'}"><i class="fa-solid ${up ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i> ${up ? 'Naik' : 'Turun'} ${short(diff)}${Math.abs(pct) <= 300 ? ` (${up ? '+' : ''}${pct}%)` : ''} dari ${pm}</span>`; };
     const fin = (ic, tone, label, val, extra, href) => `<a class="fin-card ${tone}" href="${href}"><div class="fin-h"><span class="ic"><i class="fa-solid ${ic}"></i></span><small>${label}</small></div><strong>${val}</strong>${extra}</a>`;
     /* Tampilan: Gabungan | Rental | Penjualan (data keuangan dipisah per lini bisnis) */
     const V = VIEW;
@@ -37,17 +42,25 @@
     /* Laba memakai logika bisnis: Rental = pemasukan; Penjualan = jual − modal barang terjual; Gabungan = laba bersih toko */
     const netV = LIN.profit;
     const nm = { all: '', rent: ' rental', sale: ' penjualan' }[V];
-    $('#bizNote').innerHTML = V === 'all'
-      ? `<span class="lb-strip"><span class="lb-i"><small>Laba Rental</small><b>${rupiah(L.by.rent.profit)}</b></span><span class="lb-op">+</span><span class="lb-i"><small>Laba Penjualan</small><b>${rupiah(L.by.sale.profit)}</b></span><span class="lb-op">${L.by.umum.profit < 0 ? '−' : '+'}</span><span class="lb-i"><small>${L.by.umum.profit < 0 ? 'Biaya operasional (Umum)' : 'Umum'}</small><b>${rupiah(Math.abs(L.by.umum.profit))}</b></span><span class="lb-op">=</span><span class="lb-i tot"><small>Laba bersih toko</small><b>${L.profit < 0 ? '− ' : ''}${rupiah(Math.abs(L.profit))}</b></span></span><span class="lb-hint">Kartu Pemasukan &amp; Pengeluaran = uang masuk/keluar sebenarnya (termasuk belanja stok).</span>`
-      : V === 'rent' ? '<span class="lb-hint">Rental = sewa, denda, laundry, jasa tenda &amp; ongkir (refund DP mengurangi). Biaya operasional dicatat di lini Umum, jadi pengeluaran Rental Rp0.</span>'
-      : `Laba penjualan = pemasukan − modal barang terjual (harga beli × jumlah). Belanja/restock stok tercatat sebagai uang keluar, tidak mengurangi laba.${L.by.sale.missingCost ? ` <b style="color:var(--red)">${L.by.sale.missingCost} transaksi memuat barang tanpa harga beli</b> (modal dihitung Rp0).` : ''}`;
-    $('#fin').innerHTML = [
+    const strip = `<div class="lb-strip in-card"><span class="lb-i"><small>Rental</small><b>${short(L.by.rent.profit)}</b></span><span class="lb-op">+</span><span class="lb-i"><small>Penjualan</small><b>${short(L.by.sale.profit)}</b></span><span class="lb-op">${L.by.umum.profit < 0 ? '−' : '+'}</span><span class="lb-i"><small>${L.by.umum.profit < 0 ? 'Biaya operasional' : 'Umum'}</small><b>${short(L.by.umum.profit)}</b></span></div>`;
+    const ri = (re) => L.income.filter((x) => x.line === 'rent' && re.test(x.cat)).reduce((q, x) => q + x.amount, 0);
+    const box = (l, v) => `<span class="lb-i"><small>${l}</small><b>${short(v)}</b></span>`;
+    const stripSale = `<div class="lb-strip in-card">${box('Pemasukan', L.by.sale.in)}<span class="lb-op">−</span>${box('Modal barang terjual', L.by.sale.cogs)}</div>`;
+    const stripRent = `<div class="lb-strip in-card">${box('Sewa &amp; denda', ri(/^Rental$|^Denda$|refund/i))}<span class="lb-op">+</span>${box('Laundry', ri(/laundry/i))}<span class="lb-op">+</span>${box('Jasa tenda &amp; ongkir', ri(/tenda|bongkar|ongkir/i))}</div>`;
+    $('#bizNote').innerHTML = V === 'all' ? 'Kartu Pemasukan &amp; Pengeluaran = uang yang benar-benar masuk/keluar (termasuk belanja stok). Laba dihitung per lini usaha.'
+      : V === 'rent' ? 'Rental = sewa, denda, laundry, jasa tenda &amp; ongkir (refund DP mengurangi). Biaya operasional dicatat di lini Umum, jadi pengeluaran Rental Rp0.'
+      : `Laba penjualan = pemasukan − modal barang terjual (harga beli × jumlah). Belanja stok tidak mengurangi laba.${L.by.sale.missingCost ? ` <b style="color:var(--red)">${L.by.sale.missingCost} transaksi memuat barang tanpa harga beli</b> (modal dihitung Rp0).` : ''}`;
+    const big = `<a class="fin-card net big ${netV < 0 ? 'neg' : ''}" href="${A('laporan?type=' + (V === 'sale' ? 'penjualan' : V === 'rent' ? 'rental' : 'keuangan'))}">
+        <div class="fin-h"><span class="ic"><i class="fa-solid fa-scale-balanced"></i></span><small>${V === 'all' ? 'Laba bersih toko' : 'Laba' + nm} · ${lbl}</small></div>
+        <strong>${netV < 0 ? '− ' : ''}${rupiah(Math.abs(netV))}</strong>
+        <span class="fin-cmp">${netV >= 0 ? 'Surplus' : 'Defisit'} · margin ${LIN.in ? Math.round((netV / LIN.in) * 100) : 0}% · ${cmp(netV, LPV.profit, true).replace(/<\/?span[^>]*>/g, '')}</span>
+        ${V === 'all' ? strip : V === 'sale' ? stripSale : stripRent}</a>`;
+    $('#fin').innerHTML = big + `<div class="od-fin-side">${[
       fin('fa-arrow-trend-up', 'in', `Pemasukan${nm} · ${lbl}`, rupiah(LIN.in), cmp(LIN.in, LPV.in, true), A('keuangan' + (V !== 'all' ? '?lini=' + V : ''))),
       V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), '<span class="fin-cmp">Harga beli × jumlah terjual · rincian di tabel bawah</span>', A('laporan?type=penjualan'))
         : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(0), '<span class="fin-cmp">Biaya operasional dicatat di lini Umum</span>', A('keuangan?tab=out&lini=umum'))
         : fin('fa-arrow-trend-down', 'out', `Pengeluaran · ${lbl}`, rupiah(LIN.out), cmp(LIN.out, LPV.out, false), A('keuangan?tab=out')),
-      fin('fa-scale-balanced', netV >= 0 ? 'net' : 'out', `${V === 'all' ? 'Laba bersih toko' : 'Laba' + nm} · ${lbl}`, `${netV < 0 ? '− ' : ''}${rupiah(Math.abs(netV))}`, `<span class="fin-cmp ${netV >= 0 ? 'good' : 'bad'}">${netV >= 0 ? 'Surplus' : 'Defisit'} · margin ${LIN.in ? Math.round((netV / LIN.in) * 100) : 0}%</span>`, A('laporan?type=keuangan')),
-    ].join('');
+    ].join('')}</div>`;
     /* Tab Penjualan: rincian laba per produk (total = kartu di atas) + belanja stok bulan ini */
     $('#profitTbl').innerHTML = V !== 'sale' ? '' : (() => {
       const X = Reports.salesByProduct(f, t); const top = X.rows.slice(0, 5);
@@ -87,7 +100,7 @@
       ],
     };
     $('#tx').innerHTML = TX[V].join('');
-    $('#stkLbl').textContent = V === 'sale' ? 'Stok barang jual' : V === 'rent' ? 'Stok barang sewa' : 'Stok barang';
+    $('#stkLbl').innerHTML = `<i class="fa-solid fa-boxes-stacked"></i> ${V === 'sale' ? 'Stok barang jual' : V === 'rent' ? 'Stok barang sewa' : 'Stok barang'}`;
     $('#stk').innerHTML = (V === 'sale' ? [
       stat('fa-boxes-stacked', 'blue', 'Stok barang jual', SP.reduce((a, p) => a + (+p.stock || 0), 0) + ' unit', `${SP.length} jenis barang`, A('barang?tab=jual')),
       stat('fa-warehouse', 'gold', 'Nilai stok (harga beli)', rupiah(SP.reduce((a, p) => a + (+p.stock || 0) * (+p.cost || 0), 0)), `${SP.filter((p) => p.cost == null || p.cost === '').length ? SP.filter((p) => p.cost == null || p.cost === '').length + ' barang belum ada harga beli' : 'uang belanja stok yang tersimpan di gudang'}`, A('barang?jenis=jual')),

@@ -16,19 +16,21 @@
   };
   /* Jadwal antar & jemput staff (layanan antar / jasa tenda) pada rentang kalender */
   const tbl = $('#cal'); const host = tbl.closest('.table-wrap') || tbl.parentElement;
-  host.insertAdjacentHTML('beforebegin', '<div class="card" id="schedCard" style="margin-bottom:16px"><div class="card-title"><i class="fa-solid fa-truck-fast"></i> Jadwal antar &amp; jemput <small class="muted" id="schedCnt" style="font-weight:500;font-size:13px"></small></div><div class="sched-list" id="sched"></div></div>');
+  host.insertAdjacentHTML('beforebegin', '<div id="schedAlert"></div><div class="card" id="schedCard" style="margin-bottom:16px"><div class="card-title"><i class="fa-solid fa-truck-fast"></i> Jadwal antar &amp; jemput <small class="muted" id="schedCnt" style="font-weight:500;font-size:13px"></small></div><div class="sched-list" id="sched"></div></div>');
   function drawSched(f) {
-    const to = D.addDays(f, DAYS - 1); const ev = [];
-    DB.bookings().filter((b) => Svc.has(b) && !['dibatalkan', 'selesai'].includes(b.status)).forEach((b) => {
-      const d = b.deliv || {};
-      const ad = d.date || b.start; if (Svc.delivers(b) && ad >= f && ad <= to && b.status !== 'disewa') ev.push({ date: ad, time: d.time, b, kind: Svc.outLabel(b), ic: 'fa-truck-fast' });
-      if (Svc.returnMode(b) === 'jemput') { const bd = d.backDate || b.end; if (bd >= f && bd <= to) ev.push({ date: bd, time: d.backTime, b, kind: Svc.backLabel(b), ic: 'fa-rotate-left' }); }
-    });
-    ev.sort((a, c) => (a.date + (a.time || '')).localeCompare(c.date + (c.time || '')));
+    const to = D.addDays(f, DAYS - 1); const ev = Admin.svcSchedule(f, to);
+    /* Pengingat di atas: antar / jemput hari ini & besok */
+    const near = Admin.svcSchedule(T, D.addDays(T, 1)); const tod = near.filter((e) => e.date === T), tom = near.filter((e) => e.date !== T);
+    const cnt = (L, k) => L.filter((e) => e.type === k).length;
+    $('#schedAlert').innerHTML = near.length ? `<div class="sched-alert ${tod.length ? 'now' : ''}"><i class="fa-solid fa-bell"></i><div>
+      ${tod.length ? `<b>Hari ini: ${[cnt(tod, 'antar') && cnt(tod, 'antar') + ' antar', cnt(tod, 'jemput') && cnt(tod, 'jemput') + ' jemput'].filter(Boolean).join(' & ')}</b> · ${tod.map((e) => `${Svc.fmtT(e.time) || '—'} ${esc(e.kind.toLowerCase())} ${NO(e.b)} (${esc(e.b.customer.name)})`).join(' · ')}` : ''}
+      ${tod.length && tom.length ? '<br>' : ''}${tom.length ? `<span>Besok: ${[cnt(tom, 'antar') && cnt(tom, 'antar') + ' antar', cnt(tom, 'jemput') && cnt(tom, 'jemput') + ' jemput'].filter(Boolean).join(' & ')} — siapkan barang &amp; kendaraan.</span>` : ''}
+    </div></div>` : '';
     $('#schedCnt').textContent = ev.length ? `· ${ev.length} jadwal, ${D.fmtDate(f)} – ${D.fmtDate(to)}` : '';
-    $('#sched').innerHTML = ev.length ? ev.map((e) => { const x = new Date(e.date + 'T00:00:00'); return `<div class="sched-it ${e.date === T ? 'today' : ''}"><div class="when">${D.HARI[x.getDay()]}, ${D.fmtDate(e.date)}<b>${e.time ? Svc.fmtT(e.time) : '—'}</b></div>
+    $('#sched').innerHTML = ev.length ? ev.map((e) => { const x = new Date(e.date + 'T00:00:00'); const wa = UI.waLink(`Halo ${e.b.customer.name}, kami dari Annapurna Adventure ingin mengonfirmasi jadwal ${e.kind.toLowerCase()} untuk ${NO(e.b)} pada ${D.fmtDate(e.date, true)}${e.time ? ' pukul ' + Svc.fmtT(e.time) : ''} di ${(e.b.deliv || {}).address || '-'}. Terima kasih.`, e.b.customer.phone);
+      return `<div class="sched-it ${e.date === T ? 'today' : e.date === D.addDays(T, 1) ? 'tomorrow' : ''}"><div class="when">${e.date === T ? '<em>Hari ini</em>' : e.date === D.addDays(T, 1) ? '<em>Besok</em>' : ''}${D.HARI[x.getDay()]}, ${D.fmtDate(e.date)}<b>${e.time ? Svc.fmtT(e.time) : '—'}</b></div>
       <div class="nm"><strong><i class="fa-solid ${e.ic}" style="color:var(--g600)"></i> ${e.kind}${Svc.isTent(e.b) ? ` (${esc(Svc.short(e.b).toLowerCase())}${e.b.deliv.tents ? ', ' + e.b.deliv.tents + ' tenda' : ''})` : ''} · ${NO(e.b)}</strong><small>${esc(e.b.customer.name)} · ${esc((e.b.deliv || {}).address || '-')}</small><small>${esc(Admin.itemsText(e.b))}</small></div>
-      <a class="btn btn-light btn-xs" href="booking?id=${e.b.id}">Buka</a></div>`; }).join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal antar atau jemput di rentang tanggal ini.</p>';
+      <div class="acts"><a class="btn btn-wa btn-xs" href="${wa}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Konfirmasi</a><a class="btn btn-light btn-xs" href="booking?id=${e.b.id}">Buka</a></div></div>`; }).join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal antar atau jemput di rentang tanggal ini.</p>';
   }
   function draw() {
     const f = $('#from').value || T;

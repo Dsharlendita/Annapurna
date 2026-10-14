@@ -7,7 +7,10 @@
   <p class="page-sub" id="greet"></p>
   <div class="seg biz-view" id="dashView" role="tablist" aria-label="Jenis operasional"><button type="button" data-v="sewa" class="active" role="tab"><i class="fa-solid fa-campground"></i> Operasional Sewa <b class="cnt" id="cntSewa"></b></button><button type="button" data-v="jual" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan <b class="cnt" id="cntJual"></b></button></div>
   <div id="dashSewa">
+  <h4 class="dash-sec"><i class="fa-solid fa-list-check"></i> Tugas hari ini</h4>
   <div class="stat-grid" id="stats"></div>
+  <h4 class="dash-sec"><i class="fa-solid fa-store"></i> Kondisi toko</h4>
+  <div class="stat-grid" id="stats2"></div>
   <div class="grid-dash">
     <div class="panel">
       <div class="panel-h"><h3>Pemasukan 7 hari terakhir</h3><a class="btn btn-light btn-xs" href="{{ route('admin.keuangan') }}">Detail keuangan <i class="fa-solid fa-arrow-right"></i></a></div>

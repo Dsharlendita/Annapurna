@@ -159,7 +159,7 @@
       $('#cfgMain').innerHTML = head('Nota & Struk', 'Pengaturan struk yang dicetak dari menu Kasir (printer thermal) dan pesan penutup di struk.') + `<div class="panel"><form id="ntf" novalidate>
         <h4 class="cfg-sub" style="margin-top:0">Ukuran kertas struk</h4>
         <div class="pk-opts nt-paper">${[[58, '58 mm', 'Printer thermal kecil (paling umum, kertas 57–58 mm).'], [80, '80 mm', 'Printer thermal besar (kertas 79–80 mm), tulisan lebih lega.']].map(([v, t, d]) => `<label class="pk-opt"><input type="radio" name="paper" value="${v}" ${+r.paper === v ? 'checked' : ''}><span><i class="fa-solid fa-receipt"></i><b>${t}</b><small>${d}</small></span></label>`).join('')}</div>
-        <p class="muted" style="font-size:12.5px;margin:8px 0 0"><i class="fa-solid fa-circle-info"></i> Ukuran ini dipakai tombol <b>Cetak struk</b> di Kasir. Panjang kertas mengikuti isi struk secara otomatis. Di jendela cetak, pilih printer thermal dan atur <b>Margin: Tidak ada</b>.</p>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0"><i class="fa-solid fa-circle-info"></i> Ukuran ini dipakai semua tombol <b>Cetak struk</b>: struk sewa &amp; jual di Kasir, serta struk laundry. Default <b>58 mm</b>. Panjang kertas mengikuti isi struk secara otomatis. Di jendela cetak, pilih printer thermal dan atur <b>Margin: Tidak ada</b>.</p>
         <h4 class="cfg-sub">Pesan penutup struk</h4>
         <div class="field"><label>Struk sewa</label><textarea class="textarea" name="footerRent" rows="2" maxlength="200">${esc(r.footerRent)}</textarea></div>
         <div class="field"><label>Struk penjualan</label><textarea class="textarea" name="footerSale" rows="2" maxlength="200">${esc(r.footerSale)}</textarea></div>

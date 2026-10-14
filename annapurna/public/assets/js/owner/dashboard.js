@@ -38,8 +38,8 @@
     const netV = LIN.profit;
     const nm = { all: '', rent: ' rental', sale: ' penjualan' }[V];
     $('#bizNote').innerHTML = V === 'all'
-      ? `Laba bersih toko = laba Rental <b>${rupiah(L.by.rent.profit)}</b> + laba Penjualan <b>${rupiah(L.by.sale.profit)}</b> + Umum <b>${L.by.umum.profit < 0 ? '− ' : ''}${rupiah(Math.abs(L.by.umum.profit))}</b>. Pemasukan &amp; pengeluaran di bawah adalah uang masuk/keluar sebenarnya (termasuk belanja stok).`
-      : V === 'rent' ? 'Rental = sewa, denda, laundry, jasa tenda &amp; ongkir (refund DP mengurangi pemasukan). Lini Rental tidak punya pengeluaran: biaya operasional (perawatan alat, deterjen, listrik, dll.) dicatat di lini Umum.'
+      ? `<span class="lb-strip"><span class="lb-i"><small>Laba Rental</small><b>${rupiah(L.by.rent.profit)}</b></span><span class="lb-op">+</span><span class="lb-i"><small>Laba Penjualan</small><b>${rupiah(L.by.sale.profit)}</b></span><span class="lb-op">${L.by.umum.profit < 0 ? '−' : '+'}</span><span class="lb-i"><small>${L.by.umum.profit < 0 ? 'Biaya operasional (Umum)' : 'Umum'}</small><b>${rupiah(Math.abs(L.by.umum.profit))}</b></span><span class="lb-op">=</span><span class="lb-i tot"><small>Laba bersih toko</small><b>${L.profit < 0 ? '− ' : ''}${rupiah(Math.abs(L.profit))}</b></span></span><span class="lb-hint">Kartu Pemasukan &amp; Pengeluaran = uang masuk/keluar sebenarnya (termasuk belanja stok).</span>`
+      : V === 'rent' ? '<span class="lb-hint">Rental = sewa, denda, laundry, jasa tenda &amp; ongkir (refund DP mengurangi). Biaya operasional dicatat di lini Umum, jadi pengeluaran Rental Rp0.</span>'
       : `Laba penjualan = pemasukan − modal barang terjual (harga beli × jumlah). Belanja/restock stok tercatat sebagai uang keluar, tidak mengurangi laba.${L.by.sale.missingCost ? ` <b style="color:var(--red)">${L.by.sale.missingCost} transaksi memuat barang tanpa harga beli</b> (modal dihitung Rp0).` : ''}`;
     $('#fin').innerHTML = [
       fin('fa-arrow-trend-up', 'in', `Pemasukan${nm} · ${lbl}`, rupiah(LIN.in), cmp(LIN.in, LPV.in, true), A('keuangan' + (V !== 'all' ? '?lini=' + V : ''))),
@@ -137,7 +137,7 @@
   }
 
   function drawFeed() {
-    const L = DB.audits().filter((a) => a.type !== 'akses').slice(-12).reverse();
+    const L = DB.audits().filter((a) => a.type !== 'akses').slice(-6).reverse(); /* ringkas: 6 aktivitas terakhir, sisanya di Histori sistem */
     $('#feed').innerHTML = L.length ? `<ul class="feed">${L.map((a) => { const ty = AUDIT_TYPES[a.type] || { label: a.type, tone: 'gray', icon: 'fa-circle' };
       return `<li><span class="feed-ic ${ty.tone}"><i class="fa-solid ${ty.icon}"></i></span><div><strong>${esc(a.userName)}</strong> <span class="muted">·</span> ${esc(NOTXT(a.action))}${(a.changes || []).length && a.changes[0].from ? `<small class="chg-inline">${esc(a.changes[0].field)}: ${esc(a.changes[0].from)} → ${esc(a.changes[0].to)}</small>` : ''}<small>${D.fmtDateTime(a.at)} · ${Admin.relTime(a.at)}</small></div></li>`; }).join('')}</ul>`
       : '<p class="muted">Belum ada aktivitas.</p>';

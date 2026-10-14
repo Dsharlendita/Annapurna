@@ -57,7 +57,7 @@
   const PARENT = { kalender: 'booking', permintaan: 'booking', perawatan: 'pengembalian', 'owner-integrasi': 'laporan', pengaturan: isOwner ? 'owner-konfigurasi' : '', sop: '', ...(isOwner ? { dashboard: 'owner-dashboard' } : {}) };
   const SUBTABS = {
     pengembalian: [['pengembalian', 'Barang keluar & kembali', A('pengembalian'), 'fa-right-left'], ['perawatan', 'Perawatan unit', A('perawatan'), 'fa-soap', () => { const q = DB.careQueue(); return q.cuci.length + q.perbaikan.length; }]],
-    booking: [['booking', 'Daftar booking', A('booking'), 'fa-list'], ['kalender', 'Kalender', A('kalender'), 'fa-calendar-days'], ['permintaan', 'Permintaan', A('permintaan'), 'fa-arrows-rotate', () => pendingRequests().length]],
+    booking: [['booking', 'Daftar booking', A('booking'), 'fa-list'], ['kalender', 'Kalender', A('kalender'), 'fa-calendar-days', () => svcSchedule(D.today(), D.addDays(D.today(), 1)).length], ['permintaan', 'Permintaan', A('permintaan'), 'fa-arrows-rotate', () => pendingRequests().length]],
     ...(isOwner ? {
       'owner-dashboard': [['owner-dashboard', 'Ringkasan bisnis', O('dashboard'), 'fa-chart-line'], ['dashboard', 'Operasional hari ini', A('dashboard'), 'fa-sun']],
       laporan: [['laporan', 'Laporan', A('laporan'), 'fa-file-lines'], ['owner-integrasi', 'Rekap otomatis (Drive & Email)', O('integrasi'), 'fa-cloud-arrow-up']],
@@ -154,6 +154,23 @@
       sent.push(key);
     });
     DB.set('dueNotices', sent);
+    /* Antar / jemput hari ini & besok (layanan antar / jasa tenda) → notifikasi staff, sekali per jadwal */
+    svcSchedule(T, D.addDays(T, 1)).forEach((e) => {
+      const key = `svc|${e.b.id}|${e.type}|${e.date}`; if (sent.includes(key)) return;
+      DB.notifyStaff(`${e.date === T ? 'Hari ini' : 'Besok'}: ${e.kind.toLowerCase()} ${e.time ? 'pukul ' + Svc.fmtT(e.time) : ''}`.trim(), `${NO(e.b)} · ${e.b.customer.name} · ${(e.b.deliv || {}).address || '-'}`, 'admin/kalender');
+      sent.push(key);
+    });
+    DB.set('dueNotices', sent);
+  }
+  /* Jadwal antar & jemput staff pada rentang tanggal (booking yang sudah dibayar / terlihat admin) */
+  function svcSchedule(from, to) {
+    const ev = [];
+    DB.staffBookings().filter((b) => Svc.has(b) && !['dibatalkan', 'selesai'].includes(b.status)).forEach((b) => {
+      const d = b.deliv || {};
+      const ad = d.date || b.start; if (Svc.delivers(b) && b.status !== 'disewa' && ad >= from && ad <= to) ev.push({ type: 'antar', date: ad, time: d.time, b, kind: Svc.outLabel(b), ic: 'fa-truck-fast' });
+      if (Svc.returnMode(b) === 'jemput') { const bd = d.backDate || b.end; if (bd >= from && bd <= to) ev.push({ type: 'jemput', date: bd, time: d.backTime, b, kind: Svc.backLabel(b), ic: 'fa-rotate-left' }); }
+    });
+    return ev.sort((a, c) => (a.date + (a.time || '')).localeCompare(c.date + (c.time || '')));
   }
 
   /* ---------- Scan QR nota ---------- */
@@ -790,7 +807,9 @@
   const svcLine = (b) => (Svc.has(b) ? `<small class="svc-line">${svcTag(b)} ${esc(Svc.brief(b))}</small>` : '');
   function svcSection(b) {
     const md = Svc.mode(b); const d = b.deliv || {}; const live = !['selesai', 'dibatalkan'].includes(b.status);
-    if (md === 'ambil') return live ? `<p style="font-size:12.5px;margin:-4px 0 10px"><button type="button" class="link-btn" data-svcact="edit"><i class="fa-solid fa-truck-fast"></i> Atur antar / jasa tenda</button></p>` : '';
+    /* Booking ambil di toko: tidak ada tombol layanan di sini (membingungkan). Layanan antar / jasa tenda dipilih customer saat checkout
+       atau dicatat kasir; bila ada, bagian ini muncul lengkap dengan tombol Ubah layanan & Perbarui nota. */
+    if (md === 'ambil') return '';
     const rm = Svc.returnMode(b); const paid = Svc.paid(b); const tent = Svc.isTent(b);
     return `<div class="mini-sec"><h4>${esc(Svc.label(b))}</h4><div class="svc-box">
       <div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>
@@ -974,10 +993,36 @@
       <script>window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 150); };<\/script></body></html>`);
     w.document.close();
   }
-  function ldWa(o) {
+  /* Pesan WhatsApp laundry mengikuti status saat ini, beserta nota (rincian barang, total, status bayar) */
+  const hariTgl = (iso) => { const x = new Date(String(iso).slice(0, 10) + 'T00:00:00'); return `${['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][x.getDay()]}, ${D.fmtDate(iso, true)}`; };
+  function ldNotaText(o) {
     const total = Laundry.total(o), paid = Laundry.paid(o);
-    const t = `Halo ${o.customer.name}, ${o.status === 'siap' ? 'laundry kamu sudah selesai dan siap diambil di toko' : 'laundry kamu sudah kami terima'}.\nNo. nota: ${o.no}\nTanggal terima: ${D.fmtDate(o.createdAt, true)}\nEstimasi selesai: ${D.fmtDate(Laundry.est(o), true)}\n${o.items.map((i) => `• ${i.qty}× ${i.name}`).join('\n')}\nTotal: ${rupiah(total)}${paid >= total ? ' (lunas)' : paid ? ` · dibayar ${rupiah(paid)}, sisa ${rupiah(total - paid)}` : ' · dibayar saat diambil'}\nTerima kasih, ${DB.settings().storeName}`;
-    return UI.waLink(t, o.customer.phone);
+    return [`*NOTA LAUNDRY ${o.no}*`, `Tanggal terima: ${D.fmtDate(o.createdAt, true)}`, `Estimasi selesai: ${hariTgl(Laundry.est(o))}`,
+      ...o.items.map((i) => `• ${i.qty}× ${i.name} = ${rupiah(i.qty * i.price)}`), ...(o.discount ? [`Diskon: −${rupiah(o.discount)}`] : []),
+      `*Total: ${rupiah(total)}*`, paid >= total ? 'Status bayar: LUNAS' : paid ? `Dibayar ${rupiah(paid)} · sisa ${rupiah(total - paid)} (dibayar saat ambil)` : `Dibayar saat pengambilan: ${rupiah(total)}`].join('\n');
+  }
+  function ldWaText(o) {
+    const st = DB.settings(); const n = o.customer.name;
+    const head = {
+      diterima: `Halo ${n}, laundry Anda telah kami terima. Untuk estimasi selesainya di hari ${hariTgl(Laundry.est(o))}, tapi akan kami kabari lagi ya.`,
+      dicuci: `Halo ${n}, laundry Anda sedang kami cuci. Estimasi selesai ${hariTgl(Laundry.est(o))}, nanti kami kabari begitu sudah siap ya.`,
+      siap: `Halo ${n}, cucian Anda sudah selesai dan siap diambil di toko ${st.storeName} (${st.address}, ${st.hours || ''}). Jangan lupa tunjukkan nota ini saat mengambil ya.`,
+      selesai: `Halo ${n}, terima kasih sudah mempercayakan laundry perlengkapan outdoor Anda ke ${st.storeName}. Sampai jumpa di petualangan berikutnya!`,
+      dibatalkan: `Halo ${n}, laundry ${o.no} dibatalkan. Silakan hubungi kami bila ada pertanyaan.`,
+    }[o.status] || `Halo ${n}, berikut info laundry Anda.`;
+    return `${head}\n\n${ldNotaText(o)}\n\nTerima kasih,\n${st.storeName}`;
+  }
+  function ldWa(o) { return UI.waLink(ldWaText(o), o.customer.phone); }
+  /* Setelah status laundry berubah (mulai dicuci / siap diambil): kabari customer via WhatsApp + cetak struk */
+  function ldNotify(o, done) {
+    const lbl = (STATUS.laundry[o.status] || {}).label || o.status; let sent = false;
+    const m = modal({ title: `${o.no}: ${lbl}`, body: `
+      <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div>Status laundry diperbarui menjadi <b>${lbl}</b>. ${o.status === 'siap' ? 'Kabari customer bahwa cucian sudah bisa diambil.' : 'Kabari customer tentang perkembangan laundry-nya.'}</div></div>
+      <p class="svc-msg-l">Pesan WhatsApp (beserta nota)</p><div class="svc-msg">${esc(ldWaText(o))}</div>`,
+      foot: `<button class="btn btn-light" id="lnLater">Nanti saja</button><button class="btn btn-light" id="lnPrint"><i class="fa-solid fa-print"></i> Cetak struk</button><a class="btn btn-wa" id="lnWa" href="${ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim ke customer</a>` });
+    m.$('#lnPrint').addEventListener('click', () => ldStruk(DB.laundryOrder(o.id)));
+    m.$('#lnWa').addEventListener('click', () => { sent = true; const x = DB.laundryOrder(o.id); x.history.push({ at: D.nowStamp(), text: `Customer dikabari via WhatsApp (${lbl}) oleh ${me.name}` }); DB.saveLaundry(x); setTimeout(() => { m.close(); done && done(); }, 400); });
+    m.$('#lnLater').addEventListener('click', () => { m.close(); done && done(); });
   }
   function ldPay(o, done) {
     const due = Math.max(0, Laundry.total(o) - Laundry.paid(o));
@@ -1001,7 +1046,8 @@
     o.history.push({ at, text: `${(STATUS.laundry[to] || {}).label || to} · ${me.name}` });
     DB.saveLaundry(o);
     DB.audit({ type: 'laundry', action: `Status laundry ${o.no} (${o.customer.name}): ${(STATUS.laundry[from] || {}).label} → ${(STATUS.laundry[to] || {}).label}`, ref: o.id, changes: [{ field: 'Status', from: (STATUS.laundry[from] || {}).label, to: (STATUS.laundry[to] || {}).label }] });
-    toast(`${o.no}: ${(STATUS.laundry[to] || {}).label}.`); refreshShell(); done && done();
+    toast(`${o.no}: ${(STATUS.laundry[to] || {}).label}.`); refreshShell();
+    if (to === 'dicuci' || to === 'siap') ldNotify(DB.laundryOrder(o.id), done); else if (done) done();
   }
   function laundryModal(id, done) {
     const o = DB.laundryOrder(id); if (!o) { toast('Data laundry tidak ditemukan.', 'err'); return; }
@@ -1286,5 +1332,5 @@
     return { key: 'idle', label: 'Offline', tone: 'gray' };
   }
 
-  window.Admin = { svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, ledger, sisa, itemsText, custLink };
+  window.Admin = { ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, ledger, sisa, itemsText, custLink };
 })();

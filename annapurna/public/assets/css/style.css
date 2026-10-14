@@ -3109,3 +3109,39 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .rep-sec-h h4 { font-size: 16px; font-weight: 800; color: var(--g800); margin: 2px 0 2px; }
 .rep-sec-h p { font-size: 12.5px; color: var(--muted); max-width: 110ch; }
 @media print { .rep-sec { break-inside: auto; } .rep-sec-h { break-after: avoid; } }
+/* Kalender: pengingat antar & jemput */
+.sched-alert { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; margin-bottom: 14px; border-radius: 14px; background: #eef5ff; border: 1px solid #c9dcf5; color: #23415f; font-size: 13.5px; line-height: 1.55; }
+.sched-alert > i { margin-top: 3px; color: #2f6db0; }
+.sched-alert.now { background: #fff8e6; border-color: #f1dca0; color: #5a4210; }
+.sched-alert.now > i { color: #b67b06; animation: bellShake 1.6s ease-in-out 2; }
+@keyframes bellShake { 0%, 100% { transform: rotate(0); } 15%, 45% { transform: rotate(-14deg); } 30%, 60% { transform: rotate(14deg); } 75% { transform: rotate(0); } }
+.sched-it .when em { display: inline-block; font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; background: var(--gold); color: var(--g950); margin-bottom: 3px; }
+.sched-it.tomorrow { border-color: #c9dcf5; }
+.sched-it.tomorrow .when em { background: #dbe8f8; color: #23415f; }
+.sched-it .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .sched-it { grid-template-columns: 1fr; } .sched-it .acts { justify-content: flex-start; } }
+.card-title .btn i, .panel-h .btn i { color: inherit !important; }
+/* Kasir laundry: langkah wajib setelah simpan */
+.ld-steps-req { display: grid; gap: 10px; margin-bottom: 12px; }
+.ld-steps-req li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .2s, background .2s; }
+.ld-steps-req li small { display: block; color: var(--muted); font-size: 12.5px; }
+.ld-steps-req .ck { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line-2); display: grid; place-items: center; font-size: 12px; color: transparent; }
+.ld-steps-req li.done { border-color: var(--g200); background: var(--g50); }
+.ld-steps-req li.done .ck { background: var(--g700); border-color: var(--g700); color: #fff; }
+.ld-msg-prev summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--g700); }
+.ld-msg-prev .svc-msg { margin-top: 8px; }
+#kNew:disabled { opacity: .5; cursor: not-allowed; }
+/* Dashboard Owner: rumus laba bersih dibuat visual (bukan paragraf panjang) */
+.biz-note .lb-strip { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin-bottom: 6px; }
+.lb-i { display: grid; padding: 8px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--line); min-width: 130px; }
+.lb-i small { font-size: 11.5px; color: var(--muted); }
+.lb-i b { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.lb-i.tot { background: var(--g800); border-color: var(--g800); }
+.lb-i.tot small { color: rgba(255, 255, 255, .75); } .lb-i.tot b { color: #fff; }
+.lb-op { display: grid; place-items: center; font-weight: 800; font-size: 18px; color: var(--muted); padding: 0 2px; }
+.lb-hint { display: block; font-size: 12.5px; color: var(--muted); }
+/* Dashboard Admin: judul kelompok kartu */
+.dash-sec { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 18px 0 10px; }
+.dash-sec i { color: var(--g600); }
+#dashSewa > .dash-sec:first-child { margin-top: 6px; }
+@media (max-width: 640px) { .lb-i { min-width: 0; flex: 1 1 40%; } .lb-op { display: none; } }

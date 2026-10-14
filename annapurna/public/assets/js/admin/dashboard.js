@@ -24,18 +24,29 @@
     const txToday = [...B.flatMap((b) => [...(b.payments || []), ...(b.refunds || [])]), ...S.flatMap((s) => s.payments || [])].filter((p) => D.day(p.at) === T).length
       + DB.expenses().filter((e) => e.status !== 'dibatalkan' && e.date === T).length + DB.incomes().filter((e) => e.status !== 'dibatalkan' && e.date === T).length;
     const salesTodo = S.filter((s) => ['diproses', 'dikemas'].includes(s.status) || s.paymentStatus === 'verifying').length;
+    const { Svc, Laundry } = Ann;
+    const svcToday = Admin.svcSchedule(T, T), svcTom = Admin.svcSchedule(D.addDays(T, 1), D.addDays(T, 1));
+    const LD = DB.laundry(); const ldReady = LD.filter((o) => o.status === 'siap').length, ldRun = LD.filter((o) => ['diterima', 'dicuci'].includes(o.status)).length;
+    const ldLate = LD.filter((o) => ['diterima', 'dicuci'].includes(o.status) && Laundry.est(o) < T).length;
+    const verif = B.filter((b) => b.paymentStatus === 'dp_verifying').length;
+    /* Tugas hari ini: yang harus dikerjakan staff (klik untuk langsung ke tempatnya) */
     $('#stats').innerHTML = [
-      stat('fa-calendar-plus', '', 'Booking hari ini', newToday, `${pickToday} diambil hari ini · ${outToday} unit keluar`, 'booking'),
-      stat('fa-person-hiking', '', 'Rental aktif', active, '', 'booking?tab=disewa'),
-      stat('fa-rotate-left', 'blue', 'Barang harus kembali hari ini', dueToday, `${retToday} sudah kembali hari ini`, 'pengembalian'),
-      stat('fa-triangle-exclamation', 'red', 'Barang terlambat', late, late ? 'Segera hubungi customer' : 'Semua tepat waktu', 'pengembalian'),
-      stat('fa-hourglass-half', 'gold', 'DP perlu diverifikasi', B.filter((b) => b.paymentStatus === 'dp_verifying').length, 'cek bukti transfer customer', 'booking?tab=menunggu_konfirmasi'),
-      stat('fa-boxes-stacked', '', 'Barang tersedia', units.av + ' unit', `${units.out} unit sedang disewa`, 'barang'),
-      stat('fa-wallet', 'blue', 'Pemasukan sewa hari ini', rupiah(L.by.rent.in), `Penjualan ${rupiah(L.by.sale.in)} ada di tab Penjualan`, 'keuangan'),
-      stat('fa-receipt', 'gold', 'Transaksi hari ini', txToday, 'Pembayaran, refund & kas manual', 'keuangan'),
+      stat('fa-hand-holding', pickToday ? 'gold' : '', 'Diambil customer hari ini', pickToday, `${outToday} unit sudah keluar`, 'pengembalian'),
+      stat('fa-truck-fast', svcToday.length ? 'gold' : '', 'Antar / jemput hari ini', svcToday.length, svcToday.length ? svcToday.map((e) => `${Svc.fmtT(e.time) || ''} ${e.type}`.trim()).join(' · ') : (svcTom.length ? `Besok ${svcTom.length} jadwal` : 'Tidak ada jadwal'), 'kalender'),
+      stat('fa-rotate-left', dueToday ? 'blue' : '', 'Harus kembali hari ini', dueToday, `${retToday} sudah kembali`, 'pengembalian'),
+      stat('fa-triangle-exclamation', late ? 'red' : '', 'Terlambat kembali', late, late ? 'Segera hubungi customer' : 'Semua tepat waktu', 'pengembalian'),
+    ].join('');
+    /* Kondisi toko: gambaran umum */
+    $('#stats2').innerHTML = [
+      stat('fa-hourglass-half', verif ? 'gold' : '', 'DP perlu diverifikasi', verif, verif ? 'cek bukti transfer customer' : 'Tidak ada', 'booking?tab=menunggu_konfirmasi'),
+      stat('fa-person-hiking', '', 'Rental aktif', active, `${units.av} unit tersedia di toko`, 'booking?tab=disewa'),
+      stat('fa-jug-detergent', ldReady || ldLate ? 'gold' : '', 'Laundry berjalan', ldRun + ldReady, `${ldReady} siap diambil${ldLate ? ` · ${ldLate} lewat estimasi` : ''}`, 'laundry'),
+      stat('fa-wallet', 'blue', 'Pemasukan rental hari ini', rupiah(L.by.rent.in), 'sewa, laundry & jasa tenda', 'keuangan?lini=rent'),
     ].join('');
 
     const todo = [];
+    svcToday.forEach((e) => todo.push({ ic: e.ic, t: `${e.kind} ${e.time ? 'pukul ' + Svc.fmtT(e.time) : 'hari ini'} · ${NO(e.b)}`, s: `${e.b.customer.name} · ${(e.b.deliv || {}).address || '-'}`, href: 'kalender' }));
+    LD.filter((o) => ['diterima', 'dicuci'].includes(o.status) && Laundry.est(o) < T).forEach((o) => todo.push({ ic: 'fa-jug-detergent', t: `Laundry ${o.no} lewat estimasi`, s: `${o.customer.name} · estimasi ${D.fmtDate(Laundry.est(o))}`, href: 'laundry?id=' + o.id, red: 1 }));
     B.filter((b) => b.status === 'menunggu_konfirmasi').forEach((b) => todo.push({ ic: 'fa-receipt', t: `Verifikasi DP ${NO(b)}`, s: `${b.customer.name} · ${rupiah(b.dp)}`, act: 'detail', id: b.id }));
     B.filter((b) => b.status === 'disewa' && b.end === T).forEach((b) => todo.push({ ic: 'fa-bell', t: `${NO(b)} harus kembali hari ini`, s: `${b.customer.name}${Admin.remindedToday(b) ? ' · sudah diingatkan' : ' · belum diingatkan'}`, remind: b.id, done: Admin.remindedToday(b) }));
     B.filter((b) => b.status === 'disewa' && b.end < T).forEach((b) => todo.push({ ic: 'fa-triangle-exclamation', t: `${NO(b)} terlambat ${D.diffDays(b.end, T)} hari`, s: b.customer.name, act: 'return', id: b.id, red: 1 }));
@@ -55,17 +66,19 @@
     const fitLatest = () => {
       const panel = $('#latest').closest('.panel'); if (!panel) return;
       panel.style.alignSelf = 'start';
-      [...$('#latest').children].forEach((r, i) => (r.style.display = i < 10 ? '' : 'none'));
+      [...$('#latest').children].forEach((r, i) => (r.style.display = i < 6 ? '' : 'none'));
     };
     fitLatest();
     if (!window.__fitLatest) { window.__fitLatest = true; window.addEventListener('resize', () => requestAnimationFrame(fitLatest)); window.addEventListener('load', fitLatest); }
 
     const pick = B.filter((b) => b.status === 'dikonfirmasi' && b.start === T);
     const due = B.filter((b) => b.status === 'disewa' && b.end <= T);
-    $('#today').innerHTML = (pick.length || due.length) ? [
+    const svcRow = (e) => `<div class="list-row"><span class="pill gold plain">${e.type === 'antar' ? 'Antar' : 'Jemput'}</span><div class="nm"><strong>${e.time ? Svc.fmtT(e.time) + ' · ' : ''}${NO(e.b)} · ${esc(e.b.customer.name)}</strong><small>${esc(e.kind)} · ${esc((e.b.deliv || {}).address || '-')}</small></div><a class="btn btn-light btn-xs" href="kalender">Jadwal</a></div>`;
+    $('#today').innerHTML = (pick.length || due.length || svcToday.length) ? [
+      ...svcToday.map(svcRow),
       ...pick.map((b) => `<div class="list-row"><span class="pill blue plain">Ambil</span><div class="nm"><strong>${NO(b)} · ${esc(b.customer.name)}</strong><small>${esc(Admin.itemsText(b))}</small></div><button class="btn btn-primary btn-xs" data-act="pickup" data-id="${b.id}">Catat keluar</button></div>`),
       ...due.map((b) => `<div class="list-row"><span class="pill ${b.end < T ? 'red' : 'amber'} plain">${b.end < T ? 'Terlambat' : 'Kembali'}</span><div class="nm"><strong>${NO(b)} · ${esc(b.customer.name)}</strong><small>${esc(Admin.itemsText(b))}</small></div><button class="btn btn-primary btn-xs" data-act="return" data-id="${b.id}">Terima</button></div>`),
-    ].join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal ambil/kembali hari ini.</p>';
+    ].join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal ambil, kembali, antar, atau jemput hari ini.</p>';
 
     /* Sama dengan perhitungan "Produk Rental Terlaris" di beranda (periode mengikuti pengaturan owner) */
     const hb = DB.settings().homeBest || {}; const cnt = DB.rentCounts(+hb.days || 0);
@@ -84,7 +97,7 @@
     const by = (cat) => days.map((d) => L.income.filter((x) => D.day(x.date) === d && cat(x.cat)).reduce((s, x) => s + x.amount, 0));
     const data = { labels: days.map((d) => { const x = new Date(d + 'T00:00:00'); return `${D.HARI[x.getDay()]} ${x.getDate()}`; }),
       datasets: [
-        { label: 'Rental & denda', data: by((c) => c !== 'Penjualan'), backgroundColor: '#1f4d2f', borderRadius: 6 },
+        { label: 'Rental (sewa, laundry & jasa)', data: by((c) => c !== 'Penjualan'), backgroundColor: '#1f4d2f', borderRadius: 6 },
         { label: 'Penjualan', data: by((c) => c === 'Penjualan'), backgroundColor: '#f2c14e', borderRadius: 6 },
       ] };
     if (!window.Chart) { $('#chart').parentElement.innerHTML = '<p class="muted">Grafik tidak dapat dimuat.</p>'; return; }

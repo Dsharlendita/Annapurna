@@ -814,6 +814,7 @@
     write('bookings', B);
     write('sales', S);
     write('laundry', seedLaundry());
+    localStorage.removeItem(KEY('restocks')); /* dibuat ulang dari catatan pembelian barang contoh (lihat migrateRestock) */
     write('promos', seedPromos());
     write('customerMeta', { 'fajar@mail.com': { flag: 'normal', note: 'Pernah terlambat 1 hari, tapi kooperatif.' }, 'laras@mail.com': { flag: 'jaminan', note: 'Sering batal mendadak. Minta jaminan KTP + KTM.' } });
     const users = USERS.map((u) => Object.assign({}, u));
@@ -1163,6 +1164,33 @@
       });
     },
     expenses: () => read('expenses', []),
+    /* ---------- Restock barang jual ----------
+       Satu kali simpan: stok bertambah, harga beli diperbarui, dan pengeluaran "Pembelian Barang" (lini Penjualan)
+       tercatat otomatis di Keuangan. Belanja stok = uang keluar (kas), BUKAN pengurang laba. */
+    restocks: () => read('restocks', []),
+    restock({ productId, size, qty, cost, date, supplier, note }) {
+      const all = read('products', PRODUCTS); const p = all.find((x) => x.id === productId); if (!p) return { ok: false, msg: 'Barang tidak ditemukan.' };
+      qty = Math.max(0, parseInt(qty, 10) || 0); cost = Math.max(0, +cost || 0);
+      if (!qty) return { ok: false, msg: 'Isi jumlah barang masuk.' };
+      if (hasVariant(p) && !size) return { ok: false, msg: 'Pilih ukuran yang di-restock.' };
+      const me = DB.session() || { name: 'Sistem' }; const at = nowStamp(); const d = date || today();
+      const before = DB.sizeStock(p, size); const oldCost = p.cost;
+      if (hasVariant(p)) { const o = p.variant.options.find((x) => x.name === size); o.stock = (+o.stock || 0) + qty; p.stock = p.variant.options.reduce((a, x) => a + (+x.stock || 0), 0); }
+      else p.stock = (+p.stock || 0) + qty;
+      if (cost) p.cost = cost;
+      write('products', all);
+      const id = DB.nextId('RST', read('restocks', []));
+      const r = { id, productId, name: p.name, size: size || '', qty, cost, date: d, supplier: (supplier || '').trim(), note: (note || '').trim(), by: me.name, at, expenseId: null };
+      if (qty * cost > 0) {
+        const eid = DB.nextId('EXP', DB.expenses());
+        DB.saveFinance('out', { id: eid, date: d, category: 'Pembelian Barang', desc: `Restock ${p.name}${size ? ' · ' + size : ''} (${qty} × ${rupiah(cost)})${r.supplier ? ' · ' + r.supplier : ''}`, amount: qty * cost, line: 'sale', ref: id });
+        r.expenseId = eid;
+      }
+      const L = read('restocks', []); L.unshift(r); write('restocks', L);
+      DB.audit({ type: 'stok', action: `Restock ${p.name}${size ? ' · ' + size : ''}: +${qty} unit @ ${rupiah(cost)}`, ref: productId,
+        changes: [{ field: 'Stok', from: String(before), to: String(before + qty) }, ...(cost && cost !== oldCost ? [{ field: 'Harga beli', from: oldCost != null ? rupiah(oldCost) : '—', to: rupiah(cost) }] : []), { field: 'Belanja stok', from: '', to: rupiah(qty * cost) }] });
+      return { ok: true, restock: r };
+    },
     incomes: () => read('incomes', []),
     saveFinance(kind, obj) {
       const key = kind === 'in' ? 'incomes' : 'expenses'; const all = read(key, []); const i = all.findIndex((x) => x.id === obj.id);
@@ -1800,6 +1828,15 @@
   })();
   /* Harga beli: barang contoh bawaan yang belum punya harga beli diisi dari data contoh; barang buatan Owner tetap kosong */
   (function migrateCost() { const L = read('products', null); if (!L) return; let ch = false; L.forEach((p) => { if (p.cost === undefined) { const d = PRODUCTS.find((x) => x.id === p.id); if (d && d.cost != null && p.price) { p.cost = d.cost; ch = true; } } }); if (ch) write('products', L); })();
+  /* Riwayat restock: pengeluaran "Restock …" lama (sebelum fitur Restock) dijadikan catatan restock supaya laporannya lengkap */
+  (function migrateRestock() {
+    if (read('restocks', null) !== null) return; const L = [];
+    read('expenses', []).filter((e) => e.status !== 'dibatalkan' && /pembelian barang/i.test(e.category) && /restock gas/i.test(e.desc || '')).forEach((e) => {
+      const q = +((e.desc.match(/(\d+)\s*pcs/) || [])[1]) || 0; if (!q) return;
+      L.push({ id: 'RST-' + (1001 + L.length), productId: 'gas', name: (read('products', PRODUCTS).find((x) => x.id === 'gas') || {}).name || 'Gas Kaleng', size: '', qty: q, cost: Math.round(e.amount / q), date: e.date, supplier: '', note: 'Dicatat sebelum fitur Restock', by: 'Dita', at: e.date, expenseId: e.id });
+    });
+    write('restocks', L);
+  })();
   /* Instagram resmi: @annapurnaadv (perbarui pengaturan lama yang masih memakai akun lama) */
   (function migrateInstagram() { const st = read('settings', null); if (st && (!st.instagram || st.instagram === '@annapurna_adv')) { st.instagram = '@annapurnaadv'; write('settings', st); } })();
   /* Revisi mitra (jasa tenda 3 pilihan, laundry tanpa antar jemput): nama kategori pemasukan & ketentuan sewa */

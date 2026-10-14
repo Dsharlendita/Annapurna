@@ -42,6 +42,8 @@
     const P = prods();
     $('#cS').textContent = P.filter((p) => kindOf(p) === 'rent').length; $('#cJ').textContent = P.filter((p) => kindOf(p) === 'buy').length; $('#cK').textContent = cats().length;
     $('#add').innerHTML = `<i class="fa-solid fa-plus"></i> Tambah barang ${KIND === 'rent' ? 'sewa' : 'jual'}`;
+    if (!$('#rsHist')) $('#add').insertAdjacentHTML('beforebegin', '<button class="btn btn-light btn-sm" id="rsHist" type="button" hidden><i class="fa-solid fa-truck-ramp-box"></i> Riwayat restock</button>');
+    $('#rsHist').hidden = KIND !== 'buy';
     $('#th').innerHTML = KIND === 'rent'
       ? '<tr><th>Barang</th><th>Kategori</th><th class="num">Tarif sewa</th><th>Unit / stok</th><th>Kondisi</th><th class="num">Aksi</th></tr>'
       : '<tr><th>Barang</th><th>Kategori</th><th class="num">Harga beli · jual</th><th title="Stok saat ini & batas restock (stok minimum)">Stok &amp; batas restock</th><th class="num">Terjual</th><th class="num">Aksi</th></tr>';
@@ -51,6 +53,7 @@
     /* Aksi per baris: tombol utama (Unit, Edit) + menu "⋯" untuk riwayat, lihat di website, dan aktif/nonaktif */
     const actions = (p, off) => `<td><div class="acts acts-compact">
           ${KIND === 'rent' && p.units ? `<button class="btn btn-light btn-xs" data-units="${p.id}" title="Unit fisik"><i class="fa-solid fa-barcode"></i> Unit${needsCare(p) ? ' <span class="dot-warn" title="Ada unit yang perlu perawatan"></span>' : ''}</button>` : ''}
+          ${KIND === 'buy' ? `<button class="btn btn-primary btn-xs" data-restock="${p.id}" title="Catat barang masuk dari supplier"><i class="fa-solid fa-truck-ramp-box"></i> Restock</button>` : ''}
           <button class="btn btn-light btn-xs" data-edit="${p.id}"><i class="fa-solid fa-pen"></i> Edit</button>
           <div class="act-more"><button class="btn btn-light btn-xs act-more-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Aksi lainnya"><i class="fa-solid fa-ellipsis"></i></button>
             <div class="act-menu" role="menu" hidden>
@@ -138,7 +141,7 @@
         ${sec('fa-ruler', 'Ukuran / varian & stok', 'Pilihan varian mengikuti atribut yang diatur Owner untuk kategori barang ini. Centang nilai yang tersedia lalu isi stoknya.')}
         <div class="grid-3">
           <div class="field" style="grid-column:span 2"><label>Varian stok</label><select class="select" id="vType"></select><span class="hint" id="vHint"></span></div>
-          <div class="field" id="stockF"><label>Stok total (unit)</label><input class="input" type="number" min="0" name="stock" value="${p.stock}"></div>
+          <div class="field" id="stockF"><label>Stok total (unit)</label><input class="input" type="number" min="0" name="stock" value="${p.stock}"><span class="hint" data-k="buy">${p.id ? 'Untuk barang masuk dari supplier, pakai tombol <b>Restock</b> supaya pengeluarannya tercatat. Ubah di sini hanya untuk koreksi stok.' : 'Stok awal saat barang pertama kali ditambahkan.'}</span></div>
         </div>
         <div id="vBox"></div>
         <div id="attrBox"></div>
@@ -251,6 +254,44 @@
       if (!variant) delete obj.variant;
       DB.saveProduct(obj); m.close(); toast(isNew ? 'Barang baru ditambahkan.' : 'Perubahan disimpan.'); draw();
     });
+  }
+  /* ---------- Restock barang jual ----------
+     Stok bertambah + harga beli diperbarui + pengeluaran "Pembelian Barang" (lini Penjualan) tercatat otomatis. */
+  function restockModal(pid) {
+    const p = DB.product(pid); if (!p) return; const sized = DB.hasVariant(p);
+    const m = modal({ title: `Restock ${esc(p.name)}`, body: `
+      <div class="rs-head"><img src="${asset(p.img)}" alt=""><div><b>${esc(p.name)}</b><small>Stok sekarang <b>${p.stock}</b> unit · harga jual ${rupiah(p.price)}</small></div></div>
+      ${sized ? `<div class="field"><label>Ukuran <span class="req">*</span></label><select class="select" id="rsSize"><option value="">Pilih ukuran…</option>${p.variant.options.map((o) => `<option value="${esc(o.name)}">${esc(o.name)} · stok ${o.stock}</option>`).join('')}</select></div>` : ''}
+      <div class="grid-2">
+        <div class="field"><label>Jumlah masuk <span class="req">*</span></label><input class="input" type="number" min="1" id="rsQty" placeholder="Contoh: 48"></div>
+        <div class="field"><label>Harga beli per unit (Rp) <span class="req">*</span></label><input class="input" type="number" min="0" id="rsCost" value="${p.cost != null && p.cost !== '' ? p.cost : ''}"><small class="muted">Terisi harga beli terakhir. Ubah bila harga supplier berubah.</small></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Tanggal</label><input class="input" type="date" id="rsDate" value="${T}" max="${T}"></div>
+        <div class="field"><label>Supplier <span class="opt">(opsional)</span></label><input class="input" id="rsSup" placeholder="Contoh: Toko Sumber Gas"></div>
+      </div>
+      <div class="rs-sum" id="rsSum"></div>
+      <p class="muted" style="font-size:12.5px;margin-top:10px"><i class="fa-solid fa-circle-info"></i> Otomatis: stok bertambah, harga beli diperbarui, dan pengeluaran <b>Pembelian Barang</b> tercatat di Keuangan (lini Penjualan). Belanja stok tidak mengurangi laba; modal baru dihitung saat barangnya terjual.</p>`,
+      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="rsOk"><i class="fa-solid fa-check"></i> Simpan restock</button>' });
+    const n = (id) => +String((m.$(id) || {}).value || '').replace(/[^\d]/g, '') || 0;
+    const sum = () => { const q = n('#rsQty'), c = n('#rsCost'); const mg = p.price && c ? Math.round(((p.price - c) / p.price) * 100) : null;
+      m.$('#rsSum').innerHTML = `<div class="kv"><span>Total belanja stok</span><strong>${q && c ? `${q} × ${rupiah(c)} = ${rupiah(q * c)}` : '-'}</strong></div><div class="kv"><span>Stok setelah restock</span><span>${p.stock + q} unit</span></div>${mg != null ? `<div class="kv"><span>Margin dengan harga jual sekarang</span><span style="color:${mg < 0 ? 'var(--red)' : 'var(--g700)'};font-weight:700">${mg}%</span></div>` : ''}`; };
+    m.el.addEventListener('input', sum); sum(); setTimeout(() => m.$('#rsQty').focus(), 50);
+    m.$('#rsOk').addEventListener('click', () => {
+      if (!n('#rsQty')) { toast('Isi jumlah barang masuk.', 'err'); m.$('#rsQty').focus(); return; }
+      if (!n('#rsCost')) { toast('Isi harga beli per unit.', 'err'); m.$('#rsCost').focus(); return; }
+      const r = DB.restock({ productId: pid, size: sized ? m.$('#rsSize').value : '', qty: n('#rsQty'), cost: n('#rsCost'), date: m.$('#rsDate').value || T, supplier: m.$('#rsSup').value });
+      if (!r.ok) { toast(r.msg, 'err'); return; }
+      m.close(); toast(`Restock tersimpan: +${r.restock.qty} ${esc(p.name)}. Pengeluaran ${rupiah(r.restock.qty * r.restock.cost)} tercatat di Keuangan.`); draw();
+    });
+  }
+  function restockHistory() {
+    const L = DB.restocks().filter((r) => r.status !== 'dibatalkan');
+    const tot = L.reduce((a, r) => a + r.qty * r.cost, 0);
+    modal({ title: 'Riwayat restock', size: 'lg', body: L.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Tanggal</th><th>Barang</th><th class="num">Jumlah</th><th class="num">Harga beli</th><th class="num">Total</th><th>Supplier</th><th>Oleh</th></tr></thead><tbody>
+      ${L.map((r) => `<tr><td>${D.fmtDate(r.date)}</td><td>${esc(r.name)}${r.size ? ` · ${esc(r.size)}` : ''}</td><td class="num">${r.qty}</td><td class="num">${rupiah(r.cost)}</td><td class="num">${rupiah(r.qty * r.cost)}</td><td>${esc(r.supplier || '-')}</td><td>${esc(r.by || '-')}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td colspan="4">Total belanja stok</td><td class="num">${rupiah(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>` : '<p class="muted">Belum ada restock.</p>',
+      foot: `<a class="btn btn-light" href="${Admin.A ? Admin.A('laporan?type=penjualan#sec-restock') : 'laporan?type=penjualan#sec-restock'}"><i class="fa-solid fa-file-lines"></i> Laporan restock</a><button class="btn btn-primary" data-close>Tutup</button>` });
   }
   /* Nonaktifkan unit sewa: Hilang / Rusak total / Lainnya (catatan wajib untuk Lainnya) */
   function offUnit(pid, code, done, preset) {
@@ -407,6 +448,8 @@
   if (Admin.isOwner) $('#addCat').addEventListener('click', () => { location.href = Admin.O('konfigurasi?s=kategori'); }); else $('#addCat').remove();
   document.querySelector('.content').addEventListener('click', async (e) => {
     const un = e.target.closest('[data-units]'); if (un) { unitsModal(un.dataset.units); return; }
+    const rs = e.target.closest('[data-restock]'); if (rs) { restockModal(rs.dataset.restock); return; }
+    if (e.target.closest('#rsHist')) { restockHistory(); return; }
     const ed = e.target.closest('[data-edit]'), tg = e.target.closest('[data-toggle]'), h = e.target.closest('[data-hist]'), ce = e.target.closest('[data-cedit]'), ct = e.target.closest('[data-ctoggle]');
     if (ed) form(DB.product(ed.dataset.edit));
     if (h) history(h.dataset.hist);

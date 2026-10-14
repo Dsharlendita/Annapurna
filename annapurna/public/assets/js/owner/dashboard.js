@@ -43,11 +43,25 @@
       : `Laba penjualan = pemasukan − modal barang terjual (harga beli × jumlah). Belanja/restock stok tercatat sebagai uang keluar, tidak mengurangi laba.${L.by.sale.missingCost ? ` <b style="color:var(--red)">${L.by.sale.missingCost} transaksi memuat barang tanpa harga beli</b> (modal dihitung Rp0).` : ''}`;
     $('#fin').innerHTML = [
       fin('fa-arrow-trend-up', 'in', `Pemasukan${nm} · ${lbl}`, rupiah(LIN.in), cmp(LIN.in, LPV.in, true), A('keuangan' + (V !== 'all' ? '?lini=' + V : ''))),
-      V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), `<span class="fin-cmp">Belanja stok (kas) ${rupiah(LIN.out)}</span>`, A('laporan?type=penjualan'))
+      V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), '<span class="fin-cmp">Harga beli × jumlah terjual · rincian di tabel bawah</span>', A('laporan?type=penjualan'))
         : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(0), '<span class="fin-cmp">Biaya operasional dicatat di lini Umum</span>', A('keuangan?tab=out&lini=umum'))
         : fin('fa-arrow-trend-down', 'out', `Pengeluaran · ${lbl}`, rupiah(LIN.out), cmp(LIN.out, LPV.out, false), A('keuangan?tab=out')),
       fin('fa-scale-balanced', netV >= 0 ? 'net' : 'out', `${V === 'all' ? 'Laba bersih toko' : 'Laba' + nm} · ${lbl}`, `${netV < 0 ? '− ' : ''}${rupiah(Math.abs(netV))}`, `<span class="fin-cmp ${netV >= 0 ? 'good' : 'bad'}">${netV >= 0 ? 'Surplus' : 'Defisit'} · margin ${LIN.in ? Math.round((netV / LIN.in) * 100) : 0}%</span>`, A('laporan?type=keuangan')),
     ].join('');
+    /* Tab Penjualan: rincian laba per produk (total = kartu di atas) + belanja stok bulan ini */
+    $('#profitTbl').innerHTML = V !== 'sale' ? '' : (() => {
+      const X = Reports.salesByProduct(f, t); const top = X.rows.slice(0, 5);
+      const RS = DB.restocks().filter((r) => r.status !== 'dibatalkan' && inR(r.date, f, t)); const rsTot = RS.reduce((a, r) => a + r.qty * r.cost, 0);
+      const otherBuy = Math.max(0, L.by.sale.out - rsTot);
+      return `<div class="panel pt-panel"><div class="panel-h"><h3><i class="fa-solid fa-table-list"></i> Rincian laba per produk · ${lbl}</h3><a class="btn btn-light btn-xs" href="${A('laporan?type=penjualan')}">Lihat semua ${X.rows.length} produk <i class="fa-solid fa-arrow-right"></i></a></div>
+        ${X.rows.length ? `<div class="table-wrap" data-no-paginate><table class="table pt-tbl"><thead><tr><th>Produk</th><th class="num">Harga beli</th><th class="num">Harga jual</th><th class="num">Terjual</th><th class="num">Total modal</th><th class="num">Total jual</th><th class="num">Laba</th><th class="num">Margin</th></tr></thead><tbody>
+          ${top.map((r) => `<tr><td><b>${esc(r.name)}</b>${r.missing ? '<small style="color:var(--red)">harga beli belum diisi</small>' : ''}</td><td class="num">${rupiah(r.costUnit)}</td><td class="num">${rupiah(r.priceUnit)}</td><td class="num">${r.qty}</td><td class="num"><small class="pt-calc">${rupiah(r.costUnit)} × ${r.qty}</small>${rupiah(r.cost)}</td><td class="num">${rupiah(r.revenue)}</td><td class="num"><b>${rupiah(r.profit)}</b></td><td class="num">${r.margin}%</td></tr>`).join('')}
+          ${X.rows.length > top.length ? `<tr class="pt-more"><td colspan="8">+ ${X.rows.length - top.length} produk lainnya (laba ${rupiah(X.rows.slice(5).reduce((a, r) => a + r.profit, 0))})</td></tr>` : ''}
+          </tbody><tfoot><tr><td>Total semua produk</td><td></td><td></td><td class="num">${X.total.qty} unit</td><td class="num">${rupiah(X.total.cost)}</td><td class="num">${rupiah(X.total.revenue)}</td><td class="num">${rupiah(X.total.profit)}</td><td class="num">${X.total.margin}%</td></tr></tfoot></table></div>` : '<p class="muted" style="padding:6px 0">Belum ada penjualan yang dibayar pada periode ini.</p>'}
+        <div class="pt-note"><span><i class="fa-solid fa-calculator"></i> <b>Total modal</b> = harga beli × jumlah terjual, dijumlahkan per produk. <b>Laba</b> = total jual − total modal.</span></div>
+        <div class="pt-restock"><div><b><i class="fa-solid fa-truck-ramp-box"></i> Uang keluar untuk restock bulan ini: ${rupiah(L.by.sale.out)}</b><small>${RS.length} kali restock (${RS.reduce((a, r) => a + r.qty, 0)} unit masuk)${otherBuy ? ` + pembelian lain ${rupiah(otherBuy)}` : ''}. Tidak mengurangi laba, karena barangnya masih tersimpan sebagai stok sampai terjual.</small></div><a class="btn btn-light btn-xs" href="${A('laporan?type=penjualan#sec-restock')}">Rincian restock</a></div>
+      </div>`;
+    })();
     const salesPaid = sales.filter((s) => s.paymentStatus === 'paid');
     const units = salesPaid.reduce((a, s) => a + s.items.reduce((x, i) => x + i.qty, 0), 0);
     const SP = DB.products(true).filter((p) => p.price && p.active !== false);

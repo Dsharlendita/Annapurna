@@ -561,7 +561,9 @@
       pageSetup: { paperSize: 9, orientation: spec.orientation || 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
       headerFooter: { oddFooter: `&L${st.storeName}&RHalaman &P dari &N` },
     });
-    const n = spec.columns.length; const GREEN = 'FF1F4D2F', CREAM = 'FFF6F4EE', LINE = 'FFE3DED2';
+    /* spec.sections (opsional): beberapa tabel dalam satu laporan, masing-masing dengan judul pembatas */
+    const SECS = spec.sections && spec.sections.length ? spec.sections : [{ columns: spec.columns, rows: spec.rows, foot: spec.foot }];
+    const n = Math.max(...SECS.map((x) => x.columns.length)); const GREEN = 'FF1F4D2F', CREAM = 'FFF6F4EE', LINE = 'FFE3DED2';
     const merge = (r, text, font, h) => { ws.mergeCells(r, 1, r, n); const c = ws.getCell(r, 1); c.value = text; c.font = font; c.alignment = { vertical: 'middle' }; if (h) ws.getRow(r).height = h; };
     try {
       const logo = wb.addImage({ base64: await imgData('assets/img/logo.png'), extension: 'png' });
@@ -588,45 +590,57 @@
       ws.getRow(r).height = 18; r++;
     });
     if ((spec.summary || []).length) r++;
-    const head = r;
-    spec.columns.forEach((c, i) => {
-      const cell = ws.getCell(r, i + 1); cell.value = c.header;
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10.5 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
-      cell.alignment = { vertical: 'middle', horizontal: c.type === 'money' || c.type === 'number' ? 'right' : 'left', wrapText: true, indent: c.type === 'money' || c.type === 'number' ? 0 : 1 };
-      cell.border = { top: { style: 'thin', color: { argb: GREEN } }, bottom: { style: 'thin', color: { argb: GREEN } } };
-    });
-    ws.getRow(r).height = 22; r++;
     const fmt = (cell, c) => { if (c.type === 'money') cell.numFmt = '"Rp" #,##0'; else if (c.type === 'number') cell.numFmt = '#,##0'; };
-    spec.rows.forEach((row, ri) => {
-      spec.columns.forEach((c, i) => {
-        const cell = ws.getCell(r, i + 1); const v = row[i];
-        cell.value = v === '' || v == null ? null : v; fmt(cell, c);
-        cell.font = { size: 10 };
-        cell.alignment = { vertical: 'top', wrapText: true, horizontal: c.type === 'money' || c.type === 'number' ? 'right' : 'left', indent: c.type === 'money' || c.type === 'number' ? 0 : 1 };
-        cell.border = { bottom: { style: 'thin', color: { argb: LINE } } };
-        if (ri % 2) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CREAM } };
+    let firstHead = null;
+    SECS.forEach((sec, si) => {
+      if (sec.title) {
+        ws.mergeCells(r, 1, r, n); const tc = ws.getCell(r, 1); tc.value = `${si + 1}. ${sec.title}`; tc.font = { bold: true, size: 12.5, color: { argb: GREEN } };
+        tc.border = { bottom: { style: 'medium', color: { argb: GREEN } } }; ws.getRow(r).height = 22; r++;
+        if (sec.note) { ws.mergeCells(r, 1, r, n); const nc = ws.getCell(r, 1); nc.value = sec.note; nc.font = { size: 9, italic: true, color: { argb: 'FF5B6B5E' } }; nc.alignment = { wrapText: true, vertical: 'top' }; ws.getRow(r).height = 28; r++; }
+      }
+      const head = r; if (firstHead == null) firstHead = head;
+      sec.columns.forEach((c, i) => {
+        const cell = ws.getCell(r, i + 1); cell.value = c.header;
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10.5 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+        cell.alignment = { vertical: 'middle', horizontal: c.type === 'money' || c.type === 'number' ? 'right' : 'left', wrapText: true, indent: c.type === 'money' || c.type === 'number' ? 0 : 1 };
+        cell.border = { top: { style: 'thin', color: { argb: GREEN } }, bottom: { style: 'thin', color: { argb: GREEN } } };
       });
-      r++;
+      ws.getRow(r).height = 22; r++;
+      sec.rows.forEach((row, ri) => {
+        sec.columns.forEach((c, i) => {
+          const cell = ws.getCell(r, i + 1); const v = row[i];
+          cell.value = v === '' || v == null ? null : v; fmt(cell, c);
+          cell.font = { size: 10 };
+          cell.alignment = { vertical: 'top', wrapText: true, horizontal: c.type === 'money' || c.type === 'number' ? 'right' : 'left', indent: c.type === 'money' || c.type === 'number' ? 0 : 1 };
+          cell.border = { bottom: { style: 'thin', color: { argb: LINE } } };
+          if (ri % 2) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CREAM } };
+        });
+        r++;
+      });
+      if (!sec.rows.length) { merge(r++, 'Tidak ada data pada periode ini.', { italic: true, color: { argb: 'FF8A958C' } }); }
+      if (sec.foot && sec.rows.length) {
+        sec.columns.forEach((c, i) => {
+          const cell = ws.getCell(r, i + 1); const v = sec.foot[i];
+          cell.value = v === '' || v == null ? null : v; fmt(cell, c);
+          cell.font = { bold: true, size: 10.5 };
+          cell.alignment = { horizontal: c.type === 'money' || c.type === 'number' ? 'right' : 'left' };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEBE2' } };
+          cell.border = { top: { style: 'medium', color: { argb: GREEN } }, bottom: { style: 'medium', color: { argb: GREEN } } };
+        });
+        r++;
+      }
+      if (SECS.length > 1) r += 2; /* jarak pembatas antar bagian */
     });
-    if (!spec.rows.length) { merge(r++, 'Tidak ada data pada periode ini.', { italic: true, color: { argb: 'FF8A958C' } }); }
-    if (spec.foot && spec.rows.length) {
-      spec.columns.forEach((c, i) => {
-        const cell = ws.getCell(r, i + 1); const v = spec.foot[i];
-        cell.value = v === '' || v == null ? null : v; fmt(cell, c);
-        cell.font = { bold: true, size: 10.5 };
-        cell.alignment = { horizontal: c.type === 'money' || c.type === 'number' ? 'right' : 'left' };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEBE2' } };
-        cell.border = { top: { style: 'medium', color: { argb: GREEN } }, bottom: { style: 'medium', color: { argb: GREEN } } };
-      });
-      r++;
+    for (let i = 0; i < n; i++) {
+      const lens = SECS.flatMap((sec) => { const c = sec.columns[i]; return c ? [c.header, ...sec.rows.map((row) => cellText(row[i], c))] : []; }).map((t) => Math.min(48, String(t).length));
+      const c0 = SECS.map((sec) => sec.columns[i]).find(Boolean) || {};
+      ws.getColumn(i + 1).width = (SECS.length === 1 && c0.width) || Math.max(c0.type === 'money' ? 16 : 10, Math.max(10, ...lens) + 3);
     }
-    spec.columns.forEach((c, i) => {
-      const lens = [c.header, ...spec.rows.map((row) => cellText(row[i], c))].map((t) => Math.min(48, String(t).length));
-      ws.getColumn(i + 1).width = c.width || Math.max(c.type === 'money' ? 16 : 10, Math.max(...lens) + 3);
-    });
-    ws.views = [{ state: 'frozen', ySplit: head }];
-    if (spec.rows.length) ws.autoFilter = { from: { row: head, column: 1 }, to: { row: head + spec.rows.length, column: n } };
+    if (SECS.length === 1) {
+      ws.views = [{ state: 'frozen', ySplit: firstHead }];
+      if (SECS[0].rows.length) ws.autoFilter = { from: { row: firstHead, column: 1 }, to: { row: firstHead + SECS[0].rows.length, column: n } };
+    }
     const buf = await wb.xlsx.writeBuffer();
     saveBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), spec.filename + '.xlsx');
   }
@@ -660,24 +674,38 @@
       y += 20;
     }
     const align = (c) => (c.type === 'money' || c.type === 'number' ? 'right' : 'left');
-    doc.autoTable({
-      startY: y, margin: { left: M, right: M, bottom: 16 },
-      head: [spec.columns.map((c) => ({ content: pdfText(c.header), styles: { halign: align(c) } }))],
-      body: spec.rows.length ? spec.rows.map((row) => spec.columns.map((c, i) => pdfText(cellText(row[i], c)))) : [[{ content: 'Tidak ada data pada periode ini.', colSpan: spec.columns.length, styles: { halign: 'center', textColor: [138, 149, 140], fontStyle: 'italic' } }]],
-      foot: spec.foot && spec.rows.length ? [spec.columns.map((c, i) => ({ content: pdfText(cellText(spec.foot[i], c)), styles: { halign: align(c) } }))] : undefined,
-      showFoot: 'lastPage',
-      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, textColor: [33, 43, 36], lineColor: [227, 222, 210], lineWidth: { bottom: 0.2 }, overflow: 'linebreak' },
-      headStyles: { fillColor: [31, 77, 47], textColor: 255, fontStyle: 'bold', fontSize: 8.8 },
-      footStyles: { fillColor: [239, 235, 226], textColor: [21, 49, 31], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [246, 244, 238] },
-      columnStyles: Object.fromEntries(spec.columns.map((c, i) => [i, { halign: align(c), cellWidth: c.pdfWidth || (c.type === 'money' || c.type === 'number' || i === 0 ? 'wrap' : 'auto') }])),
-      didDrawPage: () => {
-        const H = doc.internal.pageSize.getHeight();
-        doc.setFontSize(7.5); doc.setTextColor(138, 149, 140); doc.setFont('helvetica', 'normal');
-        doc.text(pdfText(`${st.storeName} · ${spec.title}`), M, H - 7);
-        doc.text(`Halaman ${doc.internal.getNumberOfPages()}`, W - M, H - 7, { align: 'right' });
-      },
+    const PSECS = spec.sections && spec.sections.length ? spec.sections : [{ columns: spec.columns, rows: spec.rows, foot: spec.foot }];
+    PSECS.forEach((sec, si) => {
+      const H0 = doc.internal.pageSize.getHeight();
+      if (sec.title) {
+        if (y > H0 - 60) { doc.addPage(); y = 16; } /* judul bagian tidak boleh tertinggal sendirian di bawah halaman */
+        doc.setDrawColor(31, 77, 47); doc.setLineWidth(0.5); doc.line(M, y, W - M, y); y += 6;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(31, 77, 47); doc.text(pdfText(`${si + 1}. ${sec.title}`), M, y); y += 4.5;
+        if (sec.note) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(91, 107, 94); const ln = doc.splitTextToSize(pdfText(sec.note), W - 2 * M); doc.text(ln, M, y); y += ln.length * 3.6; }
+        y += 1.5;
+      }
+      doc.autoTable({
+        startY: y, margin: { left: M, right: M, bottom: 16 },
+        head: [sec.columns.map((c) => ({ content: pdfText(c.header), styles: { halign: align(c) } }))],
+        body: sec.rows.length ? sec.rows.map((row) => sec.columns.map((c, i) => pdfText(cellText(row[i], c)))) : [[{ content: 'Tidak ada data pada periode ini.', colSpan: sec.columns.length, styles: { halign: 'center', textColor: [138, 149, 140], fontStyle: 'italic' } }]],
+        foot: sec.foot && sec.rows.length ? [sec.columns.map((c, i) => ({ content: pdfText(cellText(sec.foot[i], c)), styles: { halign: align(c) } }))] : undefined,
+        showFoot: 'lastPage',
+        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, textColor: [33, 43, 36], lineColor: [227, 222, 210], lineWidth: { bottom: 0.2 }, overflow: 'linebreak' },
+        headStyles: { fillColor: [31, 77, 47], textColor: 255, fontStyle: 'bold', fontSize: 8.8 },
+        footStyles: { fillColor: [239, 235, 226], textColor: [21, 49, 31], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [246, 244, 238] },
+        columnStyles: Object.fromEntries(sec.columns.map((c, i) => [i, { halign: align(c), cellWidth: c.pdfWidth || (c.type === 'money' || c.type === 'number' || i === 0 ? 'wrap' : 'auto') }])),
+        didDrawPage: () => {
+          const H = doc.internal.pageSize.getHeight();
+          doc.setFontSize(7.5); doc.setTextColor(138, 149, 140); doc.setFont('helvetica', 'normal');
+          doc.text(pdfText(`${st.storeName} · ${spec.title}`), M, H - 7);
+        },
+      });
+      y = doc.lastAutoTable.finalY + 10;
     });
+    /* Nomor halaman ditulis terakhir supaya benar ("Halaman x dari y") */
+    const NP = doc.internal.getNumberOfPages();
+    for (let pg = 1; pg <= NP; pg++) { doc.setPage(pg); const H = doc.internal.pageSize.getHeight(); doc.setFontSize(7.5); doc.setTextColor(138, 149, 140); doc.setFont('helvetica', 'normal'); doc.text(`Halaman ${pg} dari ${NP}`, W - M, H - 7, { align: 'right' }); }
     doc.save(spec.filename + '.pdf');
   }
 

@@ -3082,3 +3082,30 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .inv-grand .grand-due span:first-child, .inv-grand .kv.total span:first-child { color: var(--ink); }
 @media (min-width: 1181px) { .sum-grid.cols-4 { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 1180px) and (min-width: 721px) { .sum-grid.cols-4 { grid-template-columns: 1fr 1fr; } }
+/* Dashboard Owner · tab Penjualan: rincian laba per produk */
+#profitTbl:empty { display: none; }
+.pt-panel { margin: 4px 0 22px; }
+.pt-panel .panel-h h3 i { color: var(--g600); margin-right: 6px; }
+.pt-tbl td small { display: block; }
+.pt-tbl .pt-calc { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.pt-tbl tfoot td { font-weight: 800; background: var(--g50); border-top: 2px solid var(--g200); }
+.pt-tbl .pt-more td { font-size: 12.5px; color: var(--muted); font-style: italic; }
+.pt-note { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.pt-note i { color: var(--g600); margin-right: 4px; }
+.pt-restock { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #fff8e6; border: 1px solid #f1dca0; font-size: 13.5px; }
+.pt-restock b i { color: #9a6508; margin-right: 6px; }
+.pt-restock small { display: block; color: var(--ink-2); font-size: 12.5px; margin-top: 2px; }
+/* Modal restock */
+.rs-head { display: flex; gap: 12px; align-items: center; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.rs-head img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; }
+.rs-head > div > b { display: block; } .rs-head small { color: var(--muted); font-size: 12.5px; }
+.rs-sum { padding: 10px 14px; border-radius: 12px; background: var(--g50); border: 1px solid var(--g200); }
+.rs-sum .kv { padding: 4px 0; font-size: 13.5px; }
+/* Laporan berbagian (Penjualan): pembatas antar bagian */
+.rep-sec { margin-top: 26px; }
+.rep-sec:first-child { margin-top: 8px; }
+.rep-sec-h { display: flex; gap: 12px; align-items: flex-start; padding-top: 16px; margin-bottom: 12px; border-top: 2px solid var(--g700); }
+.rep-sec-h .n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--g700); color: #fff; font-weight: 800; font-size: 13px; display: grid; place-items: center; }
+.rep-sec-h h4 { font-size: 16px; font-weight: 800; color: var(--g800); margin: 2px 0 2px; }
+.rep-sec-h p { font-size: 12.5px; color: var(--muted); max-width: 110ch; }
+@media print { .rep-sec { break-inside: auto; } .rep-sec-h { break-after: avoid; } }

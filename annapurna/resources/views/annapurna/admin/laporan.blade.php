@@ -19,7 +19,8 @@
     <h3 id="title" style="font-size:18px;margin-bottom:4px"></h3>
     <p class="muted" id="range" style="font-size:13px;margin-bottom:14px"></p>
     <div class="sum-grid" id="sum"></div>
-    <div class="table-wrap"><table class="table"><thead id="th"></thead><tbody id="rows"></tbody><tfoot id="tf"></tfoot></table></div>
+    <div class="table-wrap" id="mainTbl"><table class="table"><thead id="th"></thead><tbody id="rows"></tbody><tfoot id="tf"></tfoot></table></div>
+    <div id="secs"></div>
   </div>
 @endsection
 

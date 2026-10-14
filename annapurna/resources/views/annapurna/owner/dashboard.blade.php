@@ -17,6 +17,7 @@
   <p class="muted biz-note" id="bizNote"></p>
   <h2 class="sec-lbl">Ringkasan keuangan</h2>
   <div class="fin-grid" id="fin"></div>
+  <div id="profitTbl"></div>
   <h2 class="sec-lbl">Transaksi</h2>
   <div class="stat-grid" id="tx"></div>
   <h2 class="sec-lbl" id="stkLbl">Stok barang</h2>

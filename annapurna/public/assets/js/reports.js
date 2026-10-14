@@ -12,7 +12,66 @@
   const refText = (t) => String(t || '').replace(/\b(RNT|ORD|DRY)-\d+\b/g, (m) => refNo(m));
   const durasi = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} mnt` : `${Math.floor(m / 60)} jam ${m % 60} mnt`; };
 
+  /* Rincian laba per produk pada periode f–t. Dihitung dari pembayaran penjualan yang masuk di periode itu
+     (sama persis dengan kartu Pemasukan / Modal / Laba di Dashboard & Keuangan):
+       total jual  = uang yang diterima, dibagi ke tiap barang sesuai porsi harga jualnya (diskon ikut terbagi)
+       total modal = harga beli × jumlah terjual (harga beli yang dicatat saat transaksi) */
+  function salesByProduct(f, t) {
+    const map = {};
+    DB.sales().forEach((s) => {
+      if (s.status === 'dibatalkan') return; const tot = +s.total || 0; if (!tot) return;
+      const gross = (s.items || []).reduce((a, i) => a + i.qty * i.price, 0) || 1;
+      (s.payments || []).forEach((p) => {
+        if (!inR(p.at, f, t)) return; const part = Math.min(1, (+p.amount || 0) / tot);
+        s.items.forEach((i) => {
+          const pr = DB.product(i.productId); let c = i.cost; if (c == null || c === '') c = pr && pr.cost != null && pr.cost !== '' ? +pr.cost : null;
+          const k = i.productId; const r = map[k] || (map[k] = { id: k, name: pr ? pr.name : i.name.replace(/\s*\(.*\)$/, ''), qty: 0, revenue: 0, cost: 0, missing: false });
+          r.qty += i.qty * part; r.revenue += (+p.amount || 0) * ((i.qty * i.price) / gross); r.cost += (+c || 0) * i.qty * part; if (c == null) r.missing = true;
+        });
+      });
+    });
+    const rows = Object.values(map).map((r) => Object.assign(r, { qty: Math.round(r.qty * 100) / 100, revenue: Math.round(r.revenue), cost: Math.round(r.cost) }))
+      .map((r) => Object.assign(r, { profit: r.revenue - r.cost, costUnit: r.qty ? Math.round(r.cost / r.qty) : 0, priceUnit: r.qty ? Math.round(r.revenue / r.qty) : 0, margin: r.revenue ? Math.round(((r.revenue - r.cost) / r.revenue) * 100) : 0 }))
+      .sort((a, b) => b.profit - a.profit);
+    const sum = (k) => rows.reduce((a, r) => a + r[k], 0);
+    const total = { qty: sum('qty'), revenue: sum('revenue'), cost: sum('cost'), profit: sum('profit') }; total.margin = total.revenue ? Math.round((total.profit / total.revenue) * 100) : 0;
+    return { rows, total, missing: rows.filter((r) => r.missing).length };
+  }
+
   const R = {
+    /* Laporan Penjualan = satu laporan dengan 3 bagian berpembatas:
+       1. Laba per produk  2. Rincian per transaksi  3. Restock barang (uang keluar untuk stok) */
+    penjualan(f, t) {
+      const A = R.penjualan_produk(f, t), B = R.penjualan_trx(f, t), C = R.restock(f, t);
+      const X = salesByProduct(f, t); const rsTot = C.foot ? C.foot[4] : 0;
+      const ok = DB.sales().filter((s) => inR(s.createdAt, f, t) && s.status !== 'dibatalkan');
+      return { title: 'Laporan Penjualan', note: 'Laba = total jual − total modal (harga beli × jumlah terjual). Belanja/restock stok adalah uang keluar dan tidak mengurangi laba.',
+        sum: [['Pesanan', `${ok.length} pesanan`], ['Unit terjual', X.total.qty + ' unit'], ['Total jual', rupiah(X.total.revenue)], ['Total modal', rupiah(X.total.cost)], ['Laba penjualan', rupiah(X.total.profit)], ['Margin', X.total.margin + '%'], ['Belanja stok (restock)', rupiah(rsTot || 0)]],
+        sections: [
+          Object.assign({}, A, { title: 'Laba per produk', key: 'produk', sum: undefined }),
+          Object.assign({}, B, { title: 'Rincian per transaksi', key: 'trx', sortable: true, sum: undefined }),
+          Object.assign({}, C, { title: 'Restock barang (uang keluar untuk stok)', key: 'restock', sortable: true, sum: undefined }),
+        ] };
+    },
+    /* Laporan penjualan per produk: harga beli, harga jual, terjual, total modal, total jual, laba, margin */
+    penjualan_produk(f, t) {
+      const X = salesByProduct(f, t);
+      return { title: 'Laporan Laba per Produk', note: `Penjualan yang sudah dibayar pada periode ini, dikelompokkan per produk. Total modal = harga beli × jumlah terjual. Laba = total jual − total modal. Total di bawah sama dengan kartu Pemasukan, Modal & Laba di Dashboard.${X.missing ? ` ${X.missing} produk belum punya harga beli (modal dihitung Rp0).` : ''}`,
+        sum: [['Produk terjual', X.rows.length + ' jenis'], ['Unit terjual', X.total.qty + ' unit'], ['Total jual', rupiah(X.total.revenue)], ['Total modal', rupiah(X.total.cost)], ['Laba', rupiah(X.total.profit)], ['Margin', X.total.margin + '%']],
+        cols: ['Produk', 'Harga beli', 'Harga jual', 'Terjual', 'Total modal', 'Total jual', 'Laba', 'Margin'], num: [1, 2, 3, 4, 5, 6], money: [1, 2, 4, 5, 6],
+        rows: X.rows.map((r) => [r.name + (r.missing ? ' (harga beli belum diisi)' : ''), r.costUnit, r.priceUnit, r.qty, r.cost, r.revenue, r.profit, r.margin + '%']),
+        foot: ['Total', '', '', X.total.qty, X.total.cost, X.total.revenue, X.total.profit, X.total.margin + '%'] };
+    },
+    /* Restock barang jual: uang keluar untuk membeli stok (dicatat lewat tombol Restock di Data Barang) */
+    restock(f, t) {
+      const L = DB.restocks().filter((r) => inR(r.date, f, t) && r.status !== 'dibatalkan').sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const amt = L.reduce((a, r) => a + r.qty * r.cost, 0), q = L.reduce((a, r) => a + r.qty, 0);
+      return { title: 'Laporan Restock Barang', note: 'Pembelian stok barang jual dari supplier. Ini uang keluar (kas), bukan pengurang laba: modal baru dihitung saat barangnya terjual.',
+        sum: [['Restock', L.length + ' kali'], ['Unit masuk', q + ' unit'], ['Total belanja stok', rupiah(amt)]],
+        cols: ['Tanggal', 'Barang', 'Jumlah', 'Harga beli/unit', 'Total', 'Supplier', 'Dicatat oleh'], num: [2, 3, 4], money: [3, 4],
+        rows: L.map((r) => [D.fmtDate(r.date), r.name + (r.size ? ' · ' + r.size : ''), r.qty, r.cost, r.qty * r.cost, r.supplier || '-', r.by || '-']),
+        foot: ['Total', '', q, '', amt, '', ''] };
+    },
     rental(f, t) {
       /* Lini Rental = sewa + laundry + jasa tenda + ongkir (ketentuan mitra: satu lini, tanpa pengeluaran) */
       const L = DB.bookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
@@ -30,7 +89,7 @@
           ...LD.map((o) => [o.no, 'Laundry', o.customer.name, Admin.ldItems(o), `${D.fmtDate(o.createdAt)} – ${D.fmtDate(Ann.Laundry.est(o))}`, Ann.Laundry.total(o), Ann.Laundry.paid(o), (STATUS.laundry[o.status] || {}).label || o.status])],
         foot: ['Total', '', '', '', '', ok.reduce((s, b) => s + b.total + svcPaid(b), 0) + ldOk.reduce((a, o) => a + Ann.Laundry.total(o), 0), L.reduce((s, b) => s + Rules.paidTotal(b) + svcPaid(b), 0) + LD.reduce((a, o) => a + Ann.Laundry.paid(o), 0), ''] };
     },
-    penjualan(f, t) {
+    penjualan_trx(f, t) {
       /* Per barang terjual: harga jual, harga modal (harga beli saat transaksi), laba & margin */
       const L = DB.sales().filter((s) => inR(s.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const ok = L.filter((s) => s.status !== 'dibatalkan');
@@ -122,6 +181,9 @@
   ];
 
   function toSpec(cur, filename, subtitle) {
+    const cols = (x) => { const money = x.money || x.num; return x.cols.map((h, i) => ({ header: h, type: money.includes(i) ? 'money' : x.num.includes(i) ? 'number' : 'text', width: /Aktivitas|Perubahan|Barang|Keterangan|Produk/.test(h) ? 36 : undefined })); };
+    if (cur.sections) return { filename, title: cur.title, subtitle, orientation: 'landscape', summary: cur.sum.map(([l, v]) => [l, String(v)]),
+      sections: cur.sections.map((x) => ({ title: x.title, note: x.note, columns: cols(x), rows: x.rows, foot: x.foot || null })) };
     const money = cur.money || cur.num;
     return { filename, title: cur.title, subtitle, orientation: cur.cols.length > 6 ? 'landscape' : 'portrait',
       summary: cur.sum.map(([l, v]) => [l, String(v)]),
@@ -251,5 +313,5 @@
     UI.modal({ title: 'Pratinjau email', size: 'lg', body: mailHtml(m), foot: `<a class="btn btn-light" href="${mailto}"><i class="fa-regular fa-envelope"></i> Buka di aplikasi email</a><button class="btn btn-primary" data-close>Tutup</button>` });
   }
 
-  window.Reports = { refNo, refText, R, TYPES, build: (type, f, t) => R[type](f, t), toSpec, MONTHLY, monthName, monthRange, prevPeriod, folderName, fileName, monthSummary, generateMonthly, autoMonthly, snapshot, downloadArchiveFile, mailHtml, mailText, mailModal };
+  window.Reports = { salesByProduct, refNo, refText, R, TYPES, build: (type, f, t) => R[type](f, t), toSpec, MONTHLY, monthName, monthRange, prevPeriod, folderName, fileName, monthSummary, generateMonthly, autoMonthly, snapshot, downloadArchiveFile, mailHtml, mailText, mailModal };
 })();

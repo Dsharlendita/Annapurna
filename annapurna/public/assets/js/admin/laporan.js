@@ -13,7 +13,21 @@
     let f = $('#from').value || T, t = $('#to').value || T; if (f > t) { t = f; $('#to').value = f; }
     cur = Reports.build($('#type').value, f, t);
     /* Default terbaru di atas; pilihan "Terlama di atas" membalik urutan baris (kecuali laporan stok) */
-    if ($('#order').value === 'asc' && $('#type').value !== 'stok') cur = Object.assign({}, cur, { rows: cur.rows.slice().reverse() });
+    if ($('#order').value === 'asc' && $('#type').value !== 'stok') cur = cur.sections ? Object.assign({}, cur, { sections: cur.sections.map((x) => (x.sortable ? Object.assign({}, x, { rows: x.rows.slice().reverse() }) : x)) }) : Object.assign({}, cur, { rows: cur.rows.slice().reverse() });
+    /* Laporan berbagian (mis. Penjualan): beberapa tabel dengan pembatas & judul masing-masing */
+    $('#mainTbl').hidden = !!cur.sections;
+    if (cur.sections) {
+      $('#title').textContent = cur.title; $('#rhTitle').textContent = cur.title;
+      $('#range').textContent = `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)} · ${cur.note}`; $('#rhRange').textContent = `${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`;
+      $('#sum').innerHTML = cur.sum.map(([l, v]) => `<div class="sum-card"><small>${l}</small><strong>${v}</strong></div>`).join('');
+      $('#secs').innerHTML = cur.sections.map((x, si) => { const mny = x.money || x.num; const fm = (v, i) => (mny.includes(i) && typeof v === 'number' ? rupiah(v) : esc(v));
+        return `<section class="rep-sec" id="sec-${esc(x.key || si)}"><div class="rep-sec-h"><span class="n">${si + 1}</span><div><h4>${esc(x.title)}</h4><p>${esc(x.note || '')}</p></div></div>
+          <div class="table-wrap" data-no-paginate><table class="table"><thead><tr>${x.cols.map((c, i) => `<th class="${x.num.includes(i) ? 'num' : ''}">${c}</th>`).join('')}</tr></thead>
+          <tbody>${x.rows.length ? x.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${x.num.includes(i) ? 'num' : ''}">${fm(v, i)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${x.cols.length}" class="muted" style="text-align:center;padding:20px">Tidak ada data pada periode ini.</td></tr>`}</tbody>
+          ${x.foot && x.rows.length ? `<tfoot><tr>${x.foot.map((v, i) => `<td class="${x.num.includes(i) ? 'num' : ''}">${fm(v, i)}</td>`).join('')}</tr></tfoot>` : ''}</table></div></section>`; }).join('');
+      return;
+    }
+    $('#secs').innerHTML = '';
     const money = cur.money || cur.num;
     const fmt = (v, i) => (money.includes(i) && typeof v === 'number' ? rupiah(v) : esc(v));
     $('#title').textContent = cur.title; $('#rhTitle').textContent = cur.title;
@@ -26,4 +40,6 @@
   ['#type', '#from', '#to', '#order'].forEach((s) => $(s).addEventListener('change', draw));
   bindExport($('#exp'), () => Reports.toSpec(cur, `${$('#type').value}-${$('#from').value}_${$('#to').value}`, $('#range').textContent));
   draw();
+  /* Tautan langsung ke bagian tertentu (mis. #sec-restock dari Dashboard) */
+  if (/^#sec-[\w-]+$/.test(location.hash)) setTimeout(() => { const el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
 })();

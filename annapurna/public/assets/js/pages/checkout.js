@@ -135,7 +135,7 @@
   $('#promoBtn').addEventListener('click', applyPromo);
   $('#promoIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyPromo(); } });
   const pre = new URLSearchParams(location.search).get('promo'); if (pre) { $('#promoIn').value = pre; applyPromo(); }
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     /* Paket berisi barang berukuran wajib sudah dipilih ukurannya */
     const noSz = Cart.all().filter((it) => it.type === 'rent' && it.kind === 'package' && ((Cart.resolve(it) || {}).missingSizes || []).length);
@@ -151,11 +151,29 @@
     if (blocked) { toast('Akun ini tidak bisa membuat pesanan. Hubungi admin.', 'err'); return; }
     const F = { name: form.elements.name.value.trim(), phone: form.phone.value.trim(), email: form.email.value.trim() };
     if (!user) {
-      const r = DB.quickAccount(F);
-      if (r.status === 'blocked') { blockedNotice(); return; }
-      if (r.status === 'staff') { toast('Email/nomor ini milik akun staff. Gunakan data pribadi customer.', 'err'); return; }
-      if (r.status === 'exists') { loginFirst(r, F); return; }
-      user = r.user; toast('Akunmu dibuat otomatis. Pesanan bisa dicek di menu Pesanan.');
+      /* Checkout tanpa daftar: akun customer dibuat otomatis DAN langsung login di server, supaya halaman
+         pembayaran terbuka tanpa diarahkan ke halaman Masuk. Bila server tidak tersedia, akun lokal yang dipakai. */
+      const pre = DB.accountStatus(F);
+      if (pre.status === 'blocked') { blockedNotice(); return; }
+      if (pre.status === 'staff') { toast('Email/nomor ini milik akun staff. Gunakan data pribadi customer.', 'err'); return; }
+      if (pre.status === 'exists') { loginFirst(pre, F); return; }
+      const btn = form.querySelector('[type=submit]');
+      const pw = Math.random().toString(36).slice(2, 10) + 'Aa1';
+      const sv = await Api.busy(btn, () => Api.post('daftar', { name: F.name, email: F.email, phone: F.phone, password: pw }, { redirectOn401: false }), 'Menyiapkan pesanan…');
+      if (sv === undefined) return; /* tombol sedang diproses (klik ganda) */
+      if (sv && sv.ok && sv.raw && sv.raw.user) {
+        user = DB.adoptSession(sv.raw.user);
+        const L = DB.get('users') || []; const me = L.find((u) => String(u.email).toLowerCase() === String(user.email).toLowerCase()); if (me) { me.autoCreated = true; me.needsPassword = true; DB.set('users', L); }
+      } else if (sv && sv.errors && sv.errors.email) {
+        /* Email sudah terdaftar di server: masuk dulu, keranjang tetap aman */
+        loginFirst({ user: { name: F.name, email: F.email.trim().toLowerCase() }, by: 'email' }, F); return;
+      } else if (!sv || sv.offline || sv.status === 404 || sv.status === 405) {
+        const r = DB.quickAccount(F);
+        if (r.status === 'exists') { loginFirst(r, F); return; }
+        if (r.status !== 'created') { toast('Data tidak bisa dipakai untuk membuat pesanan.', 'err'); return; }
+        user = r.user;
+      } else { toast(sv.msg || 'Gagal menyiapkan akun. Coba lagi.', 'err'); return; }
+      toast('Akunmu dibuat otomatis. Pesanan bisa dicek di menu Pesanan.');
     } else if (DB.blockedContact(F.email, F.phone)) { blockedNotice(); return; }
     proceed();
   });
@@ -166,7 +184,8 @@
     const m = UI.modal({ title: 'Kamu sudah punya akun', body: `<p style="font-size:14px;margin-bottom:12px">${r.by === 'email' ? 'Email' : 'Nomor WhatsApp'} ini sudah terdaftar atas nama <strong>${esc(r.user.name)}</strong>. Masuk dulu untuk melanjutkan — isi keranjangmu tetap aman.</p>
       <div class="seg" id="lfTab" style="margin-bottom:14px"><button type="button" class="active" data-t="code">Kode verifikasi</button><button type="button" data-t="pw">Kata sandi</button></div>
       <div id="lfBody"></div>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="lfOk">Masuk &amp; lanjutkan</button>' });
-    let mode = 'code', sent = null;
+    /* Akun yang hanya ada di server tidak bisa memakai kode verifikasi lokal: langsung tampilkan kata sandi */
+    let mode = DB.accountStatus({ email: r.user.email }).status === 'exists' ? 'code' : 'pw', sent = null;
     const draw = () => {
       m.$$('#lfTab button').forEach((b) => b.classList.toggle('active', b.dataset.t === mode));
       m.$('#lfBody').innerHTML = mode === 'pw' ? `<div class="field"><label>Kata sandi</label><input class="input" type="password" id="lfPw" autocomplete="current-password"></div>`

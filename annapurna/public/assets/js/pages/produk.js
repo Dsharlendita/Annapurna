@@ -130,6 +130,15 @@
       $('#dDur').appendChild(UI.durationChips(s, e));
       const calc = () => {
         sel.start = s.value; sel.end = e.value;
+        /* Tanggal wajib dipilih customer (tidak diisi otomatis) */
+        if (!s.value || !e.value || e.value <= s.value) {
+          if (DB.hasVariant(p)) $('#dSize').innerHTML = '';
+          $('#dAvail').className = 'avail-msg no'; $('#dAvail').innerHTML = `<i class="fa-regular fa-calendar"></i> ${!s.value ? 'Pilih tanggal ambil' : 'Pilih tanggal kembali'} dulu untuk melihat stok &amp; harga.`;
+          $('#dLine').textContent = '-'; $('#dTotal').textContent = '-'; $('#dDp').textContent = '-';
+          $('#dCart').disabled = $('#dNow').disabled = true;
+          const sb = $('#stickyBuy'); if (sb) { sb.querySelector('b').textContent = 'Pilih tanggal'; sb.querySelector('small').textContent = 'Tanggal ambil & kembali'; }
+          drawCal(); return false;
+        }
         const days = Rules.rentalDays(s.value, e.value);
         const sized = DB.hasVariant(p);
         if (sized) { const list = Rules.sizeAvailability(p.id, s.value, e.value); selSize = UI.firstAvailSize(list, selSize); $('#dSize').innerHTML = UI.sizePicker(p, list, selSize); }

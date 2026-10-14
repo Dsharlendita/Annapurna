@@ -1213,8 +1213,10 @@
       return { ok: true, user: s };
     },
     /* ---------- Tanggal trip (dipilih sekali, dipakai di seluruh website) ---------- */
-    trip() { const t = read('trip', null); if (!t || !t.start || t.end <= t.start || t.start < today()) return null; return t; },
-    setTrip(start, end) { if (!start || !end || end <= start) { localStorage.removeItem(KEY('trip')); return; } write('trip', { start, end }); document.dispatchEvent(new CustomEvent('trip:change')); },
+    /* Tanggal sewa (trip) disimpan per sesi browser (sessionStorage): setiap website dibuka kembali, tanggal kosong
+       dan customer memilih sendiri. Tidak pernah diisi otomatis. */
+    trip() { let t = null; try { t = JSON.parse(sessionStorage.getItem(KEY('trip')) || 'null'); } catch (e) { t = null; } if (!t || !t.start || t.end <= t.start || t.start < today()) return null; return t; },
+    setTrip(start, end) { try { if (!start || !end || end <= start) sessionStorage.removeItem(KEY('trip')); else sessionStorage.setItem(KEY('trip'), JSON.stringify({ start, end })); } catch (e) { /* abaikan */ } document.dispatchEvent(new CustomEvent('trip:change')); },
     normPhone: (p) => String(p || '').replace(/\D/g, '').replace(/^62/, '0'),
     /* Status blokir dicek dari email ATAU nomor HP, supaya tidak bisa diakali dengan ganti nama. */
     blockedContact(email, phone) {
@@ -1226,6 +1228,16 @@
       return emails.some((em) => phonesOf(em).some((x) => DB.normPhone(x) === ph));
     },
     /* Checkout tanpa daftar: cari akun berdasarkan email / nomor HP, buat otomatis bila belum ada. */
+    /* Cek data checkout tamu tanpa membuat akun: 'blocked' | 'staff' | 'exists' | 'new' */
+    accountStatus({ phone, email }) {
+      const users = read('users', USERS); const em = String(email || '').trim().toLowerCase(); const ph = DB.normPhone(phone || '');
+      if (DB.blockedContact(em, ph)) return { status: 'blocked' };
+      const byEmail = users.find((u) => u.email.toLowerCase() === em);
+      const byPhone = !byEmail && ph ? users.find((u) => DB.normPhone(u.phone) === ph) : null;
+      const ex = byEmail || byPhone;
+      if (ex) return isStaff(ex) ? { status: 'staff' } : { status: 'exists', user: ex, by: byEmail ? 'email' : 'phone' };
+      return { status: 'new' };
+    },
     quickAccount({ name, phone, email }) {
       const users = read('users', USERS); const em = email.trim().toLowerCase(); const ph = DB.normPhone(phone);
       if (DB.blockedContact(em, ph)) return { status: 'blocked' };
@@ -1760,6 +1772,8 @@
   /* Revisi mitra: batas bayar DP menjadi 1 jam (pengaturan lama 2 jam ikut diperbarui sekali) */
   (function migratePayWindow() { const st = read('settings', SETTINGS); if (!st.payWindowV2) { st.payWindowHours = 1; st.payWindowV2 = true; write('settings', st); } })();
   try { DB.expireUnpaid(); } catch (e) { /* abaikan */ }
+  /* Tanggal sewa lama yang tersimpan permanen di localStorage dihapus (sekarang per sesi) */
+  try { localStorage.removeItem(KEY('trip')); } catch (e) { /* abaikan */ }
   /* Revisi layanan: kategori pemasukan laundry, bongkar pasang & ongkir ditambahkan ke pengaturan yang sudah tersimpan */
   /* Data contoh laundry untuk penyimpanan lama (sebelum fitur laundry ada) */
   if (read('laundry', null) === null) write('laundry', seedLaundry());

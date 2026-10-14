@@ -314,7 +314,7 @@
     phone: '+62 896 3469 6969',
     whatsapp: '6289634696969',
     email: 'annapurnaadv@gmail.com',
-    instagram: '@annapurna_adv',
+    instagram: '@annapurnaadv',
     tiktok: '@annapurna_adv',
     address: 'Jl. Kampus No. 8-9, Kelurahan Grendeng, Kec. Purwokerto Utara, Kab. Banyumas',
     hours: 'Setiap hari, 09.00 – 22.00 WIB',
@@ -1771,6 +1771,8 @@
     if (Array.isArray(st.rentalTerms) && st.rentalTerms[0] === 'Pengambilan dan pengembalian barang dilakukan langsung di toko Annapurna Adventure, Jl. Kampus No. 8-9 Grendeng, Purwokerto Utara.') st.rentalTerms[0] = SETTINGS.rentalTerms[0];
     st.svcV1 = true; write('settings', st);
   })();
+  /* Instagram resmi: @annapurnaadv (perbarui pengaturan lama yang masih memakai akun lama) */
+  (function migrateInstagram() { const st = read('settings', null); if (st && (!st.instagram || st.instagram === '@annapurna_adv')) { st.instagram = '@annapurnaadv'; write('settings', st); } })();
   /* Revisi mitra (jasa tenda 3 pilihan, laundry tanpa antar jemput): nama kategori pemasukan & ketentuan sewa */
   (function migrateServiceV2() {
     const st = read('settings', null); if (!st || st.svcV2) return;

@@ -1,7 +1,7 @@
 (function () {
   if (window.Admin.blocked) return;
   const { DB, D, rupiah } = Ann;
-  const { $, esc, param, bindExport } = UI;
+  const { $, $$, esc, param, bindExport } = UI;
   Admin.init('laporan', 'Laporan');
   const T = D.today();
   $('#type').innerHTML = Reports.TYPES.filter(([, , ownerOnly]) => !ownerOnly || Admin.isOwner).map(([k, l, o]) => `<option value="${k}">${l}${o ? ' (Owner)' : ''}</option>`).join('');
@@ -9,6 +9,15 @@
   /* Nilai ?type= dicocokkan dengan daftar yang ada, tidak dipakai langsung sebagai selector */
   if ([...$('#type').options].some((o) => o.value === param('type'))) $('#type').value = param('type');
   let cur;
+  /* Kartu ringkasan ringkas; angka utama (laba / total pendapatan) diberi warna supaya langsung terlihat */
+  const KEY = /laba|total pendapatan|selisih/i;
+  const sumHtml = (L) => L.map(([l, v]) => `<div class="rep-card ${KEY.test(l) ? 'key' : ''}"><small>${l}</small><strong>${v}</strong></div>`).join('');
+  /* Pintasan periode */
+  const QUICK = [['Bulan ini', () => [T.slice(0, 8) + '01', T]], ['Bulan lalu', () => { const d = new Date(T.slice(0, 8) + '01T00:00:00'); d.setMonth(d.getMonth() - 1); const p = D.toISO(d).slice(0, 7); return Reports.monthRange(p); }],
+    ['7 hari terakhir', () => [D.rel(-6), T]], ['30 hari terakhir', () => [D.rel(-29), T]], ['Tahun ini', () => [T.slice(0, 4) + '-01-01', T]]];
+  const markQuick = () => $$('#quick button').forEach((b, i) => { const [a, z] = QUICK[i][1](); b.classList.toggle('on', $('#from').value === a && $('#to').value === z); });
+  $('#quick').innerHTML = QUICK.map(([l], i) => `<button type="button" class="chip" data-q="${i}">${l}</button>`).join('');
+  $('#quick').addEventListener('click', (e) => { const b = e.target.closest('[data-q]'); if (!b) return; const [a, z] = QUICK[+b.dataset.q][1](); $('#from').value = a; $('#to').value = z > T ? T : z; draw(); });
   function draw() {
     let f = $('#from').value || T, t = $('#to').value || T; if (f > t) { t = f; $('#to').value = f; }
     cur = Reports.build($('#type').value, f, t);
@@ -18,24 +27,25 @@
     $('#mainTbl').hidden = !!cur.sections;
     if (cur.sections) {
       $('#title').textContent = cur.title; $('#rhTitle').textContent = cur.title;
-      $('#range').textContent = `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)} · ${cur.note}`; $('#rhRange').textContent = `${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`;
-      $('#sum').innerHTML = cur.sum.map(([l, v]) => `<div class="sum-card"><small>${l}</small><strong>${v}</strong></div>`).join('');
+      $('#range').textContent = cur.note; $('#rangeShort').innerHTML = `<i class="fa-regular fa-calendar"></i> ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`; $('#rhRange').textContent = `${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`;
+      $('#sum').innerHTML = sumHtml(cur.sum);
       $('#secs').innerHTML = cur.sections.map((x, si) => { const mny = x.money || x.num; const fm = (v, i) => (mny.includes(i) && typeof v === 'number' ? rupiah(v) : esc(v));
         return `<section class="rep-sec" id="sec-${esc(x.key || si)}"><div class="rep-sec-h"><span class="n">${si + 1}</span><div><h4>${esc(x.title)}</h4><p>${esc(x.note || '')}</p></div></div>
           <div class="table-wrap" data-no-paginate><table class="table"><thead><tr>${x.cols.map((c, i) => `<th class="${x.num.includes(i) ? 'num' : ''}">${c}</th>`).join('')}</tr></thead>
           <tbody>${x.rows.length ? x.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${x.num.includes(i) ? 'num' : ''}">${fm(v, i)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${x.cols.length}" class="muted" style="text-align:center;padding:20px">Tidak ada data pada periode ini.</td></tr>`}</tbody>
           ${x.foot && x.rows.length ? `<tfoot><tr>${x.foot.map((v, i) => `<td class="${x.num.includes(i) ? 'num' : ''}">${fm(v, i)}</td>`).join('')}</tr></tfoot>` : ''}</table></div></section>`; }).join('');
-      return;
+      markQuick(); return;
     }
     $('#secs').innerHTML = '';
     const money = cur.money || cur.num;
     const fmt = (v, i) => (money.includes(i) && typeof v === 'number' ? rupiah(v) : esc(v));
     $('#title').textContent = cur.title; $('#rhTitle').textContent = cur.title;
-    $('#range').textContent = `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)} · ${cur.note}`; $('#rhRange').textContent = `${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`;
-    $('#sum').innerHTML = cur.sum.map(([l, v]) => `<div class="sum-card"><small>${l}</small><strong>${v}</strong></div>`).join('');
+    $('#range').textContent = cur.note; $('#rangeShort').innerHTML = `<i class="fa-regular fa-calendar"></i> ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`; $('#rhRange').textContent = `${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`;
+    $('#sum').innerHTML = sumHtml(cur.sum);
     $('#th').innerHTML = `<tr>${cur.cols.map((c, i) => `<th class="${cur.num.includes(i) ? 'num' : ''}">${c}</th>`).join('')}</tr>`;
     $('#rows').innerHTML = cur.rows.length ? cur.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${cur.num.includes(i) ? 'num' : ''}">${fmt(v, i)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cur.cols.length}" class="muted" style="text-align:center;padding:26px">Tidak ada data pada periode ini.</td></tr>`;
     $('#tf').innerHTML = cur.foot && cur.rows.length ? `<tr>${cur.foot.map((v, i) => `<td class="${cur.num.includes(i) ? 'num' : ''}">${fmt(v, i)}</td>`).join('')}</tr>` : '';
+    markQuick();
   }
   ['#type', '#from', '#to', '#order'].forEach((s) => $(s).addEventListener('change', draw));
   bindExport($('#exp'), () => Reports.toSpec(cur, `${$('#type').value}-${$('#from').value}_${$('#to').value}`, $('#range').textContent));

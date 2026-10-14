@@ -809,7 +809,7 @@
     const md = Svc.mode(b); const d = b.deliv || {}; const live = !['selesai', 'dibatalkan'].includes(b.status);
     /* Booking ambil di toko: tidak ada tombol layanan di sini (membingungkan). Layanan antar / jasa tenda dipilih customer saat checkout
        atau dicatat kasir; bila ada, bagian ini muncul lengkap dengan tombol Ubah layanan & Perbarui nota. */
-    if (md === 'ambil') return '';
+    if (md === 'ambil') return live && !['disewa'].includes(b.status) ? `<div class="svc-add"><div><b><i class="fa-solid fa-store"></i> Ambil di toko</b><small>Customer berubah pikiran ingin diantar atau dipasangkan tendanya?</small></div><button type="button" class="btn btn-light btn-sm" data-svcact="edit"><i class="fa-solid fa-plus"></i> Tambah layanan</button></div>` : '';
     const rm = Svc.returnMode(b); const paid = Svc.paid(b); const tent = Svc.isTent(b);
     return `<div class="mini-sec"><h4>${esc(Svc.label(b))}</h4><div class="svc-box">
       <div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>
@@ -832,8 +832,11 @@
     const d = Object.assign({ address: '', date: b.start, time: '08:00', backDate: b.end, backTime: '16:00', tents: Math.max(1, Svc.tentCount(b.items)), returnMode: '' }, b.deliv || {});
     const H = Svc.hours(); const opt = (v) => `<option value="">—</option>` + H.map((h) => `<option value="${h}" ${h === v ? 'selected' : ''}>${h.replace(':', '.')}</option>`).join('');
     const label = (k) => (Svc.isTent(k) ? `${Svc.spec(k).label} (${rupiah(Svc.fee(k))}/tenda)` : Svc.spec(k).label);
-    const m = modal({ title: `Layanan · ${NO(b)}`, body: `
-      <div class="field"><label>Pengambilan / layanan</label><select class="select" id="svMode">${Object.keys(Svc.SPEC).map((k) => `<option value="${k}" ${Svc.mode(b) === k ? 'selected' : ''}>${label(k)}</option>`).join('')}</select></div>
+    const adding = Svc.mode(b) === 'ambil'; const startMode = adding ? 'antar' : Svc.mode(b);
+    const tentOk = Svc.tentCount(b.items) > 0;
+    const m = modal({ title: `${adding ? 'Tambah layanan' : 'Ubah layanan'} · ${NO(b)}`, body: `
+      ${adding ? '<p class="muted" style="font-size:13px;margin:-4px 0 12px">Pilih layanan yang diminta customer. Setelah disimpan, isi ongkir lewat <b>Perbarui nota</b> supaya tagihannya masuk ke nota customer.</p>' : ''}
+      <div class="field"><label>Layanan</label><select class="select" id="svMode">${Object.keys(Svc.SPEC).filter((k) => !(adding && k === 'ambil') && (tentOk || !Svc.isTent(k) || Svc.mode(b) === k)).map((k) => `<option value="${k}" ${startMode === k ? 'selected' : ''}>${label(k)}</option>`).join('')}</select></div>
       <div id="svBody"></div>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="svOk"><i class="fa-solid fa-check"></i> Simpan</button>' });
     const draw = () => {
       const md = m.$('#svMode').value; const sp = Svc.spec(md);
@@ -1013,20 +1016,33 @@
     return `${head}\n\n${ldNotaText(o)}\n\nTerima kasih,\n${st.storeName}`;
   }
   function ldWa(o) { return UI.waLink(ldWaText(o), o.customer.phone); }
-  /* Setelah status laundry berubah (mulai dicuci / siap diambil): kabari customer via WhatsApp + cetak struk */
+  /* Laundry SIAP DIAMBIL: staff WAJIB mengabari customer via WhatsApp (pesan + nota). Tidak perlu cetak struk di tahap ini. */
   function ldNotify(o, done) {
-    const lbl = (STATUS.laundry[o.status] || {}).label || o.status; let sent = false;
-    const m = modal({ title: `${o.no}: ${lbl}`, body: `
-      <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div>Status laundry diperbarui menjadi <b>${lbl}</b>. ${o.status === 'siap' ? 'Kabari customer bahwa cucian sudah bisa diambil.' : 'Kabari customer tentang perkembangan laundry-nya.'}</div></div>
+    const m = modal({ title: `${o.no}: Siap diambil`, locked: true, body: `
+      <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div>Cucian sudah selesai. <b>Wajib kabari customer</b> bahwa laundry-nya siap diambil.</div></div>
       <p class="svc-msg-l">Pesan WhatsApp (beserta nota)</p><div class="svc-msg">${esc(ldWaText(o))}</div>`,
-      foot: `<button class="btn btn-light" id="lnLater">Nanti saja</button><button class="btn btn-light" id="lnPrint"><i class="fa-solid fa-print"></i> Cetak struk</button><a class="btn btn-wa" id="lnWa" href="${ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim ke customer</a>` });
-    m.$('#lnPrint').addEventListener('click', () => ldStruk(DB.laundryOrder(o.id)));
-    m.$('#lnWa').addEventListener('click', () => { sent = true; const x = DB.laundryOrder(o.id); x.history.push({ at: D.nowStamp(), text: `Customer dikabari via WhatsApp (${lbl}) oleh ${me.name}` }); DB.saveLaundry(x); setTimeout(() => { m.close(); done && done(); }, 400); });
-    m.$('#lnLater').addEventListener('click', () => { m.close(); done && done(); });
+      foot: `<a class="btn btn-wa" id="lnWa" href="${ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim ke customer</a>` });
+    m.$('#lnWa').addEventListener('click', () => { const x = DB.laundryOrder(o.id); x.history.push({ at: D.nowStamp(), text: `Customer dikabari via WhatsApp (siap diambil) oleh ${me.name}` }); x.notifiedReady = D.nowStamp(); DB.saveLaundry(x); setTimeout(() => { m.close(); toast('Customer sudah dikabari.'); done && done(); }, 400); });
   }
-  function ldPay(o, done) {
+  /* Laundry diambil customer:
+     - sudah lunas → langsung selesai, tanpa cetak struk
+     - belum lunas → terima pelunasan dulu, lalu WAJIB cetak struk pelunasan */
+  function ldPickup(o, done) {
+    if (Laundry.paid(o) >= Laundry.total(o)) { ldAdvance(o, 'selesai', done); return; }
+    ldPay(o, () => {
+      const x = DB.laundryOrder(o.id); if (Laundry.paid(x) < Laundry.total(x)) { toast('Masih ada sisa tagihan. Laundry belum bisa ditandai diambil.', 'err'); done && done(); return; }
+      ldAdvance(x, 'selesai'); let printed = false;
+      const m = modal({ title: `${x.no}: Lunas & diambil`, locked: true, body: `
+        <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div>Pelunasan ${rupiah(Laundry.paid(x))} tercatat dan laundry ditandai <b>diambil</b>.</div></div>
+        <p style="font-size:13.5px"><b>Wajib cetak struk pelunasan</b> dan berikan ke customer sebagai bukti pembayaran.</p>`,
+        foot: `<button class="btn btn-primary" id="lpPrint"><i class="fa-solid fa-print"></i> Cetak struk</button><button class="btn btn-light" id="lpDone" disabled>Selesai</button>` });
+      m.$('#lpPrint').addEventListener('click', () => { ldStruk(DB.laundryOrder(x.id)); printed = true; m.$('#lpDone').disabled = false; });
+      m.$('#lpDone').addEventListener('click', () => { if (!printed) return; m.close(); done && done(); });
+    }, true);
+  }
+  function ldPay(o, done, pickup) {
     const due = Math.max(0, Laundry.total(o) - Laundry.paid(o));
-    const m = modal({ title: `Terima pembayaran · ${o.no}`, body: `<div class="kv"><span>Sisa tagihan</span><strong>${rupiah(due)}</strong></div>
+    const m = modal({ title: `${pickup ? 'Pelunasan saat pengambilan' : 'Terima pembayaran'} · ${o.no}`, body: `<div class="kv"><span>Sisa tagihan</span><strong>${rupiah(due)}</strong></div>
       <div class="field" style="margin-top:10px"><label>Jumlah dibayar (Rp)</label><input class="input" type="number" id="lpAmt" value="${due}"></div>
       <div class="field"><label>Metode</label><select class="select" id="lpVia">${['Tunai', 'Transfer', 'QRIS'].map((x) => `<option>${x}</option>`).join('')}</select></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="lpOk"><i class="fa-solid fa-check"></i> Simpan</button>' });
@@ -1047,7 +1063,7 @@
     DB.saveLaundry(o);
     DB.audit({ type: 'laundry', action: `Status laundry ${o.no} (${o.customer.name}): ${(STATUS.laundry[from] || {}).label} → ${(STATUS.laundry[to] || {}).label}`, ref: o.id, changes: [{ field: 'Status', from: (STATUS.laundry[from] || {}).label, to: (STATUS.laundry[to] || {}).label }] });
     toast(`${o.no}: ${(STATUS.laundry[to] || {}).label}.`); refreshShell();
-    if (to === 'dicuci' || to === 'siap') ldNotify(DB.laundryOrder(o.id), done); else if (done) done();
+    if (to === 'siap') ldNotify(DB.laundryOrder(o.id), done); else if (done) done();
   }
   function laundryModal(id, done) {
     const o = DB.laundryOrder(id); if (!o) { toast('Data laundry tidak ditemukan.', 'err'); return; }
@@ -1083,8 +1099,7 @@
       if (act === 'pay') ldPay(DB.laundryOrder(id), again);
       if (act === 'next') {
         const cur = DB.laundryOrder(id);
-        if (nx[0] === 'selesai' && Laundry.paid(cur) < Laundry.total(cur) && !(await confirmBox({ title: 'Tagihan belum lunas', text: `Masih ada sisa ${rupiah(Laundry.total(cur) - Laundry.paid(cur))}. Tandai selesai tanpa mencatat pembayaran?`, ok: 'Tetap tandai selesai', cancel: 'Kembali' }))) { again(); return; }
-        ldAdvance(cur, nx[0], again);
+        if (nx[0] === 'selesai') ldPickup(cur, again); else ldAdvance(cur, nx[0], again);
       }
       if (act === 'cancel') { const r = await confirmBox({ title: `Batalkan ${o.no}?`, text: 'Laundry dibatalkan dan tidak dihitung lagi.', ok: 'Batalkan', danger: true, input: { label: 'Alasan', required: true, error: 'Tulis alasan.' } }); if (r) { const cur = DB.laundryOrder(id); cur.cancelReason = r; ldAdvance(cur, 'dibatalkan', done); } else again(); }
     });
@@ -1332,5 +1347,5 @@
     return { key: 'idle', label: 'Offline', tone: 'gray' };
   }
 
-  window.Admin = { ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, ledger, sisa, itemsText, custLink };
+  window.Admin = { ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, ledger, sisa, itemsText, custLink };
 })();

@@ -27,10 +27,19 @@
       ${tod.length && tom.length ? '<br>' : ''}${tom.length ? `<span>Besok: ${[cnt(tom, 'antar') && cnt(tom, 'antar') + ' antar', cnt(tom, 'jemput') && cnt(tom, 'jemput') + ' jemput'].filter(Boolean).join(' & ')} — siapkan barang &amp; kendaraan.</span>` : ''}
     </div></div>` : '';
     $('#schedCnt').textContent = ev.length ? `· ${ev.length} jadwal, ${D.fmtDate(f)} – ${D.fmtDate(to)}` : '';
-    $('#sched').innerHTML = ev.length ? ev.map((e) => { const x = new Date(e.date + 'T00:00:00'); const wa = UI.waLink(`Halo ${e.b.customer.name}, kami dari Annapurna Adventure ingin mengonfirmasi jadwal ${e.kind.toLowerCase()} untuk ${NO(e.b)} pada ${D.fmtDate(e.date, true)}${e.time ? ' pukul ' + Svc.fmtT(e.time) : ''} di ${(e.b.deliv || {}).address || '-'}. Terima kasih.`, e.b.customer.phone);
-      return `<div class="sched-it ${e.date === T ? 'today' : e.date === D.addDays(T, 1) ? 'tomorrow' : ''}"><div class="when">${e.date === T ? '<em>Hari ini</em>' : e.date === D.addDays(T, 1) ? '<em>Besok</em>' : ''}${D.HARI[x.getDay()]}, ${D.fmtDate(e.date)}<b>${e.time ? Svc.fmtT(e.time) : '—'}</b></div>
-      <div class="nm"><strong><i class="fa-solid ${e.ic}" style="color:var(--g600)"></i> ${e.kind}${Svc.isTent(e.b) ? ` (${esc(Svc.short(e.b).toLowerCase())}${e.b.deliv.tents ? ', ' + e.b.deliv.tents + ' tenda' : ''})` : ''} · ${NO(e.b)}</strong><small>${esc(e.b.customer.name)} · ${esc((e.b.deliv || {}).address || '-')}</small><small>${esc(Admin.itemsText(e.b))}</small></div>
-      <div class="acts"><a class="btn btn-wa btn-xs" href="${wa}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Konfirmasi</a><a class="btn btn-light btn-xs" href="booking?id=${e.b.id}">Buka</a></div></div>`; }).join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal antar atau jemput di rentang tanggal ini.</p>';
+    const DAYN = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    $('#sched').innerHTML = ev.length ? ev.map((e) => { const x = new Date(e.date + 'T00:00:00'); const d = e.b.deliv || {};
+      const wa = UI.waLink(`Halo ${e.b.customer.name}, kami dari Annapurna Adventure ingin mengonfirmasi jadwal ${e.kind.toLowerCase()} untuk ${NO(e.b)} pada ${D.fmtDate(e.date, true)}${e.time ? ' pukul ' + Svc.fmtT(e.time) : ''} di ${d.address || '-'}. Terima kasih.`, e.b.customer.phone);
+      const day = e.date === T ? '<span class="sx-day now">Hari ini</span>' : e.date === D.addDays(T, 1) ? '<span class="sx-day">Besok</span>' : '';
+      return `<div class="sched-it sx-${e.type} ${e.date === T ? 'today' : ''}">
+        <div class="sx-time"><b>${e.time ? Svc.fmtT(e.time) : '—'}</b><small>${DAYN[x.getDay()]}, ${D.fmtDate(e.date)}</small></div>
+        <div class="sx-body">
+          <div class="sx-tags">${day}<span class="sx-type"><i class="fa-solid ${e.ic}"></i> ${esc(e.kind)}</span>${Svc.isTent(e.b) ? `<span class="sx-svc">${esc(Svc.short(e.b))}${d.tents ? ' · ' + d.tents + ' tenda' : ''}</span>` : ''}</div>
+          <strong>${NO(e.b)} · ${esc(e.b.customer.name)}</strong>
+          <small><i class="fa-solid fa-location-dot"></i> ${esc(d.address || '-')}</small>
+          <small><i class="fa-solid fa-box"></i> ${esc(Admin.itemsText(e.b))}</small>
+        </div>
+        <div class="acts"><a class="btn btn-wa btn-xs" href="${wa}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Konfirmasi</a><a class="btn btn-light btn-xs" href="booking?id=${e.b.id}">Buka</a></div></div>`; }).join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal antar atau jemput di rentang tanggal ini.</p>';
   }
   function draw() {
     const f = $('#from').value || T;

@@ -52,7 +52,7 @@
     const d = e.target.closest('[data-detail]'); if (d) { Admin.laundryModal(d.dataset.detail, draw); return; }
     const n = e.target.closest('[data-next]'); if (!n) return;
     const o = DB.laundryOrder(n.dataset.next); const to = Laundry.FLOW[o.status][0];
-    if (to === 'selesai' && Laundry.paid(o) < Laundry.total(o)) { Admin.laundryModal(o.id, draw); toast('Tagihan belum lunas. Terima pembayaran dulu sebelum menandai selesai.', 'err'); return; }
+    if (to === 'selesai') { Admin.ldPickup(o, draw); return; }
     Admin.ldAdvance(o, to, draw);
   });
   bindExport($('#exp'), () => { const L = list();

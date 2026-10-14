@@ -57,8 +57,7 @@
     const p = e.target.closest('[data-ldpay]'); if (p) { Admin.ldPay(DB.laundryOrder(p.dataset.ldpay), refresh); return; }
     const d = e.target.closest('[data-lddet]'); if (d) { Admin.laundryModal(d.dataset.lddet, refresh); return; }
     const k = e.target.closest('[data-lddone]'); if (k) { const o = DB.laundryOrder(k.dataset.lddone);
-      if (Laundry.paid(o) < Laundry.total(o)) { toast('Terima pembayaran dulu sebelum menandai diambil.', 'err'); Admin.ldPay(o, refresh); return; }
-      Admin.ldAdvance(o, 'selesai', refresh); }
+      Admin.ldPickup(o, refresh); }
   });
   function drawDates() {
     if (isLd()) { drawLaundryQueue(); return; }

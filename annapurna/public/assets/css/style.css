@@ -3182,3 +3182,55 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .mini-grid .stat .d { font-size: 11.5px; }
 @media (max-width: 1100px) { .od-fin { grid-template-columns: 1fr; } .od-fin-side { grid-template-columns: 1fr 1fr; } .od-ops { grid-template-columns: 1fr; } .od-ops-col + .od-ops-col { border-left: 0; border-top: 1px solid var(--line); } }
 @media (max-width: 640px) { .od-fin-side { grid-template-columns: 1fr; } .mini-grid { grid-template-columns: 1fr; } .od-tools { width: 100%; } .od-period { flex: 1; } .od-period .input { width: 100%; } }
+
+/* ===== Halaman Laporan (tata letak baru) ===== */
+.rep-panel { padding: 22px; }
+.rep-bar { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(320px, 1.3fr) 170px auto; gap: 12px; align-items: end; }
+.rep-f { display: grid; gap: 6px; min-width: 0; }
+.rep-f > label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.rep-range { display: flex; align-items: center; gap: 6px; }
+.rep-range .input { min-width: 140px; flex: 1; }
+.rep-range span { color: var(--muted); }
+.rep-act { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.rep-act .exp { display: inline-flex; gap: 8px; }
+.rep-quick { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.rep-quick .chip { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: #fff; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.rep-quick .chip:hover { border-color: var(--g600); }
+.rep-quick .chip.on { background: var(--g800); border-color: var(--g800); color: #fff; }
+.rep-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rep-title h3 { font-size: 20px; font-weight: 800; }
+.rep-period { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--g50); color: var(--g800); font-size: 12.5px; font-weight: 700; }
+.rep-note { margin: 6px 0 16px; font-size: 12.5px; color: var(--muted); line-height: 1.55; max-width: 120ch; }
+.rep-sum { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.rep-card { padding: 12px 14px; border-radius: 12px; background: var(--cream); border: 1px solid var(--line); min-width: 0; }
+.rep-card small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.rep-card strong { font-size: 17px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rep-card.key { background: var(--g800); border-color: var(--g800); }
+.rep-card.key small { color: rgba(255, 255, 255, .75); } .rep-card.key strong { color: #fff; }
+@media (max-width: 1240px) { .rep-bar { grid-template-columns: 1fr 1fr; } .rep-act { grid-column: 1 / -1; justify-content: flex-start; } }
+@media (max-width: 640px) { .rep-bar { grid-template-columns: 1fr; } .rep-panel { padding: 16px; } }
+@media print { .rep-card.key { background: #fff; border-color: #000; } .rep-card.key small, .rep-card.key strong { color: #000; } }
+/* Kalender: kartu jadwal antar & jemput (tata letak baru) */
+.sched-list .sched-it { display: grid; grid-template-columns: 122px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 16px; border: 1px solid var(--line); border-left: 4px solid var(--g600); border-radius: 14px; background: #fff; }
+.sched-list .sched-it.sx-jemput { border-left-color: #d98a1c; }
+.sched-list .sched-it.today { background: #fffaf0; border-color: #f1dca0; border-left-color: var(--gold); }
+.sx-time { display: grid; justify-items: start; padding-right: 14px; border-right: 1px dashed var(--line-2); }
+.sx-time b { font-size: 22px; font-weight: 800; color: var(--g800); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sx-time small { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.sx-body { display: grid; gap: 3px; min-width: 0; }
+.sx-body strong { font-size: 14.5px; }
+.sx-body small { font-size: 12.5px; color: var(--muted); }
+.sx-body small i { width: 14px; color: var(--g600); margin-right: 2px; }
+.sx-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px; }
+.sx-tags span { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.sx-day { background: #dbe8f8; color: #23415f; text-transform: uppercase; letter-spacing: .04em; }
+.sx-day.now { background: var(--gold); color: var(--g950); }
+.sx-antar .sx-type { background: var(--g100); color: var(--g800); }
+.sx-jemput .sx-type { background: #fbe9d0; color: #8a5208; }
+.sx-svc { background: var(--cream); color: var(--ink-2); border: 1px solid var(--line); }
+.sched-list .sched-it .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 720px) { .sched-list .sched-it { grid-template-columns: 1fr; gap: 10px; } .sx-time { grid-auto-flow: column; gap: 10px; align-items: baseline; border-right: 0; padding: 0; } .sched-list .sched-it .acts { justify-content: flex-start; } }
+.svc-add { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 2px 0 14px; padding: 12px 14px; border: 1px dashed var(--line-2); border-radius: 12px; background: var(--cream); }
+.svc-add b { font-size: 13.5px; } .svc-add b i { color: var(--g600); margin-right: 4px; }
+.svc-add small { display: block; font-size: 12.5px; color: var(--muted); }
+.grid-2[hidden], .grid-3[hidden], .field[hidden] { display: none !important; }

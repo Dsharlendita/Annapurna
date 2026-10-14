@@ -6,7 +6,7 @@
 @section('content')
 <section class="page-hero">
   <div class="wrap">
-    <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Paket</span></div>
+    <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Paket Sewa</span></div>
     <h1>Paket sewa sekali ambil, langsung berangkat</h1>
     <p>Paket Tenda, Paket BBQ, dan Paket Tektok Annapurna. Tersedia tarif per malam, perkegiatan (3 hari), dan ekspedisi (5 hari) — lebih hemat dibanding sewa satuan.</p>
   </div>

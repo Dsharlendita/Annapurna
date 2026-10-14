@@ -349,6 +349,14 @@
     pasangFee: 15000,  /* pasang saja (diantar + dipasang; customer bongkar & kembalikan ke toko) */
     bongkarFee: 15000, /* bongkar saja (customer ambil di toko; tim bongkar + jemput di lokasi) */
     /* Daftar harga laundry outdoor equipment (price list resmi). Barang diantar & diambil customer di toko; dicatat staff di kasir. */
+    /* Estimasi lama pengerjaan laundry (hari) & ketentuan yang dicetak di struk laundry — diatur Owner */
+    laundryDays: 3,
+    laundryTerms: [
+      'Pengambilan barang wajib menunjukkan struk / nota ini.',
+      'Periksa kembali barang saat pengambilan. Komplain setelah barang dibawa pulang tidak dapat dilayani.',
+      'Kerusakan karena kondisi bahan (luntur, susut, lem lepas, bahan rapuh) di luar tanggung jawab kami.',
+      'Barang yang tidak diambil lebih dari 30 hari setelah estimasi selesai di luar tanggung jawab kami.',
+    ],
     laundry: [
       { id: 'tenda', name: 'Tenda', icon: 'fa-tent', items: [
         { id: 'ld-t2s', name: 'Tenda 2P Single Layer', price: 25000 },
@@ -1120,7 +1128,7 @@
       return `DRY/${String(seq + 1).padStart(3, '0')}/${mon}/${y}`;
     },
     laundryPrices: () => (read('settings', SETTINGS).laundry || SETTINGS.laundry),
-    laundryItem(id) { for (const c of DB.laundryPrices()) { const it = (c.items || []).find((x) => x.id === id); if (it) return Object.assign({ cat: c.name }, it); } return null; },
+    laundryItem(id) { for (const c of DB.laundryPrices()) { const it = (c.items || []).find((x) => x.id === id); if (it) return Object.assign({ cat: c.name, icon: c.icon }, it); } return null; },
     saveProduct(p) {
       const all = read('products', PRODUCTS); const i = all.findIndex((x) => x.id === p.id);
       const old = i >= 0 ? all[i] : null;
@@ -1870,6 +1878,11 @@
   const Laundry = {
     total: (o) => Math.max(0, (o.items || []).reduce((a, i) => a + i.price * i.qty, 0) + (+o.ongkir || 0) - (+o.discount || 0)),
     paid: (o) => (o.payments || []).reduce((a, p) => a + (+p.amount || 0), 0),
+    days: () => Math.max(1, +DB.settings().laundryDays || 3),
+    /* Estimasi selesai: diisi staff saat barang diterima (default = tanggal terima + laundryDays) */
+    est: (o) => o.estDone || addDays(day(o.createdAt), Laundry.days()),
+    qty: (o) => (o.items || []).reduce((a, i) => a + (+i.qty || 0), 0),
+    terms: () => DB.settings().laundryTerms || SETTINGS.laundryTerms,
     FLOW: { diterima: ['dicuci', 'fa-jug-detergent', 'Mulai dicuci'], dicuci: ['siap', 'fa-box', 'Tandai siap diambil'], siap: ['selesai', 'fa-circle-check', 'Sudah diambil customer'] },
   };
   window.Ann = { DEFAULT_SETTINGS: SETTINGS, DB, Rules, STATUS, AUDIT_TYPES, Svc, Laundry, D: { day, today, addDays, rel, diffDays, toISO, fmtDate, fmtDateTime, fmtRange, nowStamp, BULAN, BULAN_PANJANG, HARI }, rupiah };

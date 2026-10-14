@@ -1,6 +1,6 @@
 (function () {
   if (window.Admin.blocked) return;
-  const { DB, D, rupiah } = Ann;
+  const { DB, D, rupiah, Svc } = Ann;
   const { $, $$, esc, asset, param, toast, modal, confirmBox, validate, fileToDataURL } = UI;
   Admin.init('owner-konfigurasi', 'Konfigurasi Sistem');
 
@@ -11,6 +11,7 @@
     ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, lama sewa, jam batas pengembalian.'],
     ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
+    ['layanan', 'fa-jug-detergent', 'Laundry & Jasa Tenda', 'Harga laundry, estimasi selesai, ketentuan struk, tarif jasa tenda.'],
     ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis bila staff tidak aktif.'],
     ['batal', 'fa-rotate-left', 'Pembatalan & Refund', 'Batas H- dan persentase DP yang dikembalikan.'],
     ['denda', 'fa-gavel', 'Aturan Denda', 'Denda keterlambatan & kerusakan.'],
@@ -37,9 +38,60 @@
   function nav() {
     $('#cfgNav').innerHTML = SECTIONS.map(([k, ic, t, d]) => `<button class="${k === cur ? 'on' : ''}" data-s="${k}"><i class="fa-solid ${ic}"></i><span><b>${t}</b><small>${d}</small></span></button>`).join('');
   }
-  function go(k) { cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  function go(k) { const mn = $('#cfgMain'); mn.onclick = mn.oninput = mn.onchange = null; cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
   const R = {
+    /* ---------- Laundry & Jasa Tenda ---------- */
+    layanan() {
+      const st = S(); let cats = JSON.parse(JSON.stringify(DB.laundryPrices()));
+      /* Nilai yang sedang diketik (hari, ketentuan, tarif) disimpan dulu supaya tidak hilang saat daftar harga digambar ulang */
+      const tmp = { days: +st.laundryDays || 3, terms: (st.laundryTerms || []).slice(), fees: {} };
+      const grab = () => { if (!$('#ldDays')) return; tmp.days = $('#ldDays').value; tmp.terms = $$('#ldTerms textarea').map((t) => t.value); $$('[data-fee]').forEach((el) => { tmp.fees[el.dataset.fee] = el.value; }); };
+      const FK = { pasang: 'setupFee', pasang_saja: 'pasangFee', bongkar_saja: 'bongkarFee' };
+      const ICONS = [['fa-tent', 'Ikon tenda'], ['fa-bed', 'Ikon sleeping bag'], ['fa-shirt', 'Ikon pakaian'], ['fa-suitcase-rolling', 'Ikon tas'], ['fa-shoe-prints', 'Ikon sepatu'], ['fa-grip-lines', 'Ikon matras'], ['fa-hat-cowboy', 'Ikon topi'], ['fa-mitten', 'Ikon sarung tangan'], ['fa-jug-detergent', 'Ikon umum']];
+      const draw = () => {
+        grab();
+        $('#cfgMain').innerHTML = head('Laundry & Jasa Tenda', 'Harga di sini langsung tampil di halaman Laundry & beranda website, kasir, dan struk. Laundry tanpa antar jemput: customer antar & ambil sendiri di toko.')
+          + `<div class="cfg-block"><h3><i class="fa-solid fa-tags"></i> Daftar harga laundry</h3>
+            <div class="ld-cfg">${cats.map((c, ci) => `<div class="ld-cfg-cat">
+              <div class="ld-cfg-h"><select class="select" data-ci="${ci}" data-k="icon" aria-label="Ikon kategori">${ICONS.map(([ic, l]) => `<option value="${ic}" ${ic === c.icon ? 'selected' : ''}>${l}</option>`).join('')}</select>
+                <input class="input" data-ci="${ci}" data-k="name" value="${esc(c.name)}" placeholder="Nama kategori" aria-label="Nama kategori">
+                <button type="button" class="btn btn-light btn-xs" data-rmcat="${ci}" title="Hapus kategori"><i class="fa-solid fa-trash-can"></i></button></div>
+              ${c.items.map((it, ii) => `<div class="ld-cfg-row"><input class="input" data-ci="${ci}" data-ii="${ii}" data-k="name" value="${esc(it.name)}" placeholder="Nama barang" aria-label="Nama barang">
+                <div class="ld-cfg-pr"><span>Rp</span><input class="input" data-ci="${ci}" data-ii="${ii}" data-k="price" inputmode="numeric" value="${it.price ? Number(it.price).toLocaleString('id-ID') : ''}" placeholder="0" aria-label="Harga"></div>
+                <button type="button" class="icon-btn sm" data-rmit="${ci}|${ii}" aria-label="Hapus ${esc(it.name)}"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}
+              <button type="button" class="btn btn-ghost btn-xs" data-addit="${ci}"><i class="fa-solid fa-plus"></i> Tambah barang</button></div>`).join('')}</div>
+            <button type="button" class="btn btn-light btn-sm" id="addLdCat"><i class="fa-solid fa-folder-plus"></i> Tambah kategori laundry</button></div>
+          <div class="cfg-block"><h3><i class="fa-solid fa-receipt"></i> Struk laundry</h3>
+            <div class="field" style="max-width:260px"><label>Estimasi lama pengerjaan (hari)</label><input class="input" type="number" min="1" max="30" id="ldDays" value="${esc(String(tmp.days))}"><small class="muted">Tanggal estimasi selesai otomatis terisi di kasir, staff tetap bisa mengubahnya.</small></div>
+            <div class="field"><label>Ketentuan yang dicetak di struk</label>${listEditor('ldTerms', tmp.terms, 'Contoh: Pengambilan wajib menunjukkan struk.')}</div></div>
+          <div class="cfg-block"><h3><i class="fa-solid fa-tents"></i> Tarif jasa tenda <small class="muted" style="font-weight:500">per tenda, di luar ongkir</small></h3>
+            <div class="ld-cfg-fees">${Svc.TENT_MODES.map((k) => `<div class="field"><label>${Svc.spec(k).short}</label><div class="ld-cfg-pr"><span>Rp</span><input class="input" inputmode="numeric" data-fee="${FK[k]}" value="${esc(tmp.fees[FK[k]] != null ? tmp.fees[FK[k]] : Number(Svc.fee(k)).toLocaleString('id-ID'))}"></div><small class="muted">${Svc.spec(k).desc}</small></div>`).join('')}</div></div>
+          ${saveBar('saveLd')}`;
+      };
+      const num = (v) => +String(v || '').replace(/[^\d]/g, '') || 0;
+      draw();
+      const box = $('#cfgMain');
+      const onInput = (e) => { const t = e.target; if (t.dataset.ci == null) return; const c = cats[+t.dataset.ci];
+        if (t.dataset.ii != null) { const it = c.items[+t.dataset.ii]; if (t.dataset.k === 'price') { it.price = num(t.value); t.value = it.price ? it.price.toLocaleString('id-ID') : ''; } else it.name = t.value; }
+        else c[t.dataset.k] = t.value; };
+      box.oninput = onInput; box.onchange = onInput;
+      box.onclick = async (e) => {
+        const a = e.target.closest('[data-addit]'); if (a) { cats[+a.dataset.addit].items.push({ id: 'ld-' + Date.now().toString(36), name: '', price: 0 }); draw(); const L = $$(`[data-ci="${a.dataset.addit}"][data-k="name"][data-ii]`); L[L.length - 1].focus(); return; }
+        const r = e.target.closest('[data-rmit]'); if (r) { const [ci, ii] = r.dataset.rmit.split('|').map(Number); cats[ci].items.splice(ii, 1); draw(); return; }
+        const rc = e.target.closest('[data-rmcat]'); if (rc) { const c = cats[+rc.dataset.rmcat]; if (c.items.length && !(await confirmBox({ title: `Hapus kategori ${c.name}?`, text: `${c.items.length} harga di dalamnya ikut terhapus dari daftar.`, ok: 'Hapus', danger: true }))) return; cats.splice(+rc.dataset.rmcat, 1); draw(); return; }
+        if (e.target.closest('#addLdCat')) { cats.push({ id: 'ldc-' + Date.now().toString(36), name: '', icon: 'fa-jug-detergent', items: [{ id: 'ld-' + Date.now().toString(36), name: '', price: 0 }] }); draw(); return; }
+        if (e.target.closest('#saveLd')) {
+          if (!cats.length) { toast('Minimal ada satu kategori laundry.', 'err'); return; }
+          if (cats.some((c) => !c.name.trim() || !c.items.length || c.items.some((i) => !i.name.trim() || !i.price))) { toast('Lengkapi nama kategori, nama barang, dan harga (tidak boleh kosong).', 'err'); return; }
+          const next = Object.assign({}, S(), { laundry: cats.map((c) => Object.assign({}, c, { name: c.name.trim(), items: c.items.map((i) => Object.assign({}, i, { name: i.name.trim() })) })), laundryDays: Math.max(1, Math.min(30, +$('#ldDays').value || 3)), laundryTerms: readLines('ldTerms') });
+          $$('[data-fee]').forEach((el) => { next[el.dataset.fee] = num(el.value); });
+          const flat = (L) => (L || []).map((c) => `${c.name}: ` + c.items.map((i) => `${i.name} ${rupiah(i.price)}`).join(', ')).join(' | ');
+          cfgSave(next, 'Mengubah pengaturan laundry & jasa tenda', [['laundry', 'Harga laundry', flat], ['laundryDays', 'Estimasi pengerjaan (hari)'], ['laundryTerms', 'Ketentuan struk laundry', (v) => `${(v || []).length} poin`],
+            ['setupFee', 'Tarif bongkar pasang', rupiah], ['pasangFee', 'Tarif pasang saja', rupiah], ['bongkarFee', 'Tarif bongkar saja', rupiah]]);
+        }
+      };
+    },
     /* ---------- Kategori ---------- */
     kategori() {
       const cats = DB.categories(true); const P = productsRaw();

@@ -15,7 +15,7 @@
     { href: './', label: 'Beranda', key: 'home', icon: 'fa-house' },
     { href: 'katalog', label: 'Sewa Alat', key: 'katalog', icon: 'fa-campground' },
     { href: 'belanja', label: 'Beli Alat', key: 'belanja', icon: 'fa-bag-shopping' },
-    { href: 'paket', label: 'Paket', key: 'paket', icon: 'fa-box-open' },
+    { href: 'paket', label: 'Paket Sewa', key: 'paket', icon: 'fa-box-open' },
     { href: 'laundry', label: 'Laundry', key: 'laundry', icon: 'fa-jug-detergent' },
     { href: 'tentang', label: 'Tentang Kami', key: 'tentang', icon: 'fa-mountain-sun' },
     { href: 'kontak', label: 'Kontak', key: 'kontak', icon: 'fa-phone' },

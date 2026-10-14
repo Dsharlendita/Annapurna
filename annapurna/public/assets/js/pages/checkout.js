@@ -19,7 +19,8 @@
      Jadwal antar = tanggal mulai sewa, jadwal jemput = tanggal kembali; customer cukup memilih jam. */
   const latest = rent.map((r) => r.end).sort().slice(-1)[0];
   const tentsInCart = Svc.tentCount(rent.map((it) => { const r = Cart.resolve(it); return { kind: it.kind, refId: it.refId, qty: it.qty, components: r && r.components }; }));
-  const SV = { pick: 'ambil', tentMode: 'pasang', address: (user && user.address) || '', time: '08:00', backTime: '16:00', tents: Math.max(1, tentsInCart) };
+  /* Lokasi antar / camping sengaja dikosongkan: customer mengisi sendiri (alamat profil belum tentu lokasi camping) */
+  const SV = { pick: 'ambil', tentMode: 'pasang', address: '', time: '08:00', backTime: '16:00', tents: Math.max(1, tentsInCart) };
   /* Mode efektif yang disimpan ke booking: ambil | antar | pasang | pasang_saja | bongkar_saja */
   Object.defineProperty(SV, 'mode', { get: () => (SV.pick === 'tenda' ? SV.tentMode : SV.pick) });
   const HOURS = Svc.hours();

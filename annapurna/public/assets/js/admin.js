@@ -917,29 +917,66 @@
   /* ====================== Laundry (staff) ====================== */
   const LD_FLOW = Laundry.FLOW;
   const ldItems = (o) => o.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
+  /* Struk laundry gaya kasir laundry pada umumnya: tgl terima, estimasi selesai, rincian per item, status bayar,
+     ketentuan (diatur Owner), kolom tanggal ambil & paraf. Kertas thermal 58/80 mm. */
   function ldStruk(o, mm) {
     const st = DB.settings(); const RC = Object.assign({ paper: 58 }, st.receipt || {}); mm = mm || RC.paper;
-    const row = (a, b2, cls) => `<div class="r ${cls || ''}"><span>${a}</span><span>${b2}</span></div>`;
-    const total = Laundry.total(o), paid = Laundry.paid(o);
-    const w = window.open('', '_blank', 'width=420,height=640'); if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
+    const W = mm === 58 ? 32 : 42; /* lebar karakter monospace */
+    const pad2 = (a, b) => { a = String(a); b = String(b); const sp = Math.max(1, W - a.length - b.length); return a + ' '.repeat(sp) + b; };
+    const line = (c) => (c || '-').repeat(W);
+    const num = (n) => Math.round(+n || 0).toLocaleString('id-ID');
+    const dt = (iso) => { const d = new Date(iso); return `${D.fmtDate(iso)} ${String(d.getHours()).padStart(2, '0')}.${String(d.getMinutes()).padStart(2, '0')}`; };
+    const total = Laundry.total(o), paid = Laundry.paid(o), sub = (o.items || []).reduce((a, i) => a + i.price * i.qty, 0);
+    const lunas = paid >= total; const last = (o.payments || []).slice(-1)[0];
+    const k = o.kasir || {};
+    const T = [];
+    T.push(pad2('No. Nota', o.no));
+    T.push(pad2('Terima', dt(o.createdAt)));
+    T.push(pad2('Est. selesai', D.fmtDate(Laundry.est(o))));
+    if (o.status === 'selesai' && o.pickedAt) T.push(pad2('Diambil', dt(o.pickedAt)));
+    T.push(pad2('Kasir', o.by || me.name));
+    T.push(line());
+    T.push(pad2('Pelanggan', o.customer.name.slice(0, W - 11)));
+    T.push(pad2('No. HP', o.customer.phone));
+    T.push(line());
+    (o.items || []).forEach((i) => { T.push(i.name.slice(0, W)); T.push(pad2(`  ${i.qty} x ${num(i.price)}`, num(i.qty * i.price))); });
+    T.push(line());
+    T.push(pad2('Jumlah barang', `${Laundry.qty(o)} pcs`));
+    T.push(pad2('Subtotal', num(sub)));
+    if (o.ongkir) T.push(pad2('Ongkir', num(o.ongkir)));
+    if (o.discount) T.push(pad2('Diskon', '-' + num(o.discount)));
+    const P = []; /* baris pembayaran, dicetak setelah TOTAL */
+    if (paid) { P.push(pad2(`Dibayar${last ? ' (' + String(last.via || '').replace('Kasir · ', '') + ')' : ''}`, num(paid))); if (k.method === 'Tunai' && k.received && k.received > paid) { P.push(pad2('Tunai', num(k.received))); P.push(pad2('Kembali', num(k.change || 0))); } }
+    else P.push(pad2('Dibayar', '0'));
+    if (!lunas) P.push(pad2('SISA BAYAR', 'Rp ' + num(total - paid)));
+    const terms = Laundry.terms();
+    const w = window.open('', '_blank', 'width=420,height=700'); if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
     w.document.open(); w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk ${esc(o.no)}</title><style>
-      @page { size: ${mm}mm 200mm; margin: 0; } * { box-sizing: border-box; } html, body { margin: 0; padding: 0; background: #fff; }
-      body { width: ${mm}mm; padding: 3mm ${mm === 58 ? 2.5 : 4}mm 6mm; font: ${mm === 58 ? 10.5 : 12}px/1.35 'Courier New', monospace; color: #000; }
-      .c { text-align: center; } h1 { font-size: 1.25em; margin: 0; } .s { font-size: .9em; } hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
-      .r { display: flex; justify-content: space-between; gap: 6px; } .r span:last-child { text-align: right; white-space: nowrap; } .b { font-weight: 700; } .big { font-size: 1.15em; font-weight: 700; } .it { margin: 3px 0; }
+      @page { size: ${mm}mm 260mm; margin: 0; } * { box-sizing: border-box; } html, body { margin: 0; padding: 0; background: #fff; }
+      body { width: ${mm}mm; padding: 3mm ${mm === 58 ? 2 : 3.5}mm 6mm; font: ${mm === 58 ? 10 : 11.5}px/1.35 'Courier New', monospace; color: #000; }
+      pre { margin: 0; font: inherit; white-space: pre; } .c { text-align: center; } h1 { font-size: 1.3em; margin: 0; letter-spacing: .04em; }
+      .s { font-size: .92em; } .big { font-size: 1.25em; font-weight: 700; margin: 2px 0; } .stamp { display: inline-block; margin: 6px 0 2px; padding: 3px 10px; border: 2px solid #000; font-weight: 700; letter-spacing: .15em; }
+      .terms { font-size: .86em; margin: 4px 0 0; padding-left: 1.3em; } .terms li { margin: 1px 0; } .sign { display: flex; justify-content: space-between; margin-top: 14px; font-size: .9em; } .sign > div { width: 46%; text-align: center; } .sign .ln { border-top: 1px dotted #000; margin-top: 30px; padding-top: 2px; }
+      .tot { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: 1.2em; margin: 3px 0; }
     </style></head><body>
-      <div class="c"><h1>ANNAPURNA ADVENTURE</h1><div class="s">LAUNDRY OUTDOOR EQUIPMENT<br>${esc(st.address || '')}<br>WA ${esc(st.phone || '')}</div></div><hr>
-      ${row('No. nota', esc(o.no), 'b')}${row('Tanggal', D.fmtDateTime(o.createdAt))}${row('Petugas', esc(o.by || me.name))}${row('Customer', esc(o.customer.name))}${row('Status', esc((STATUS.laundry[o.status] || {}).label || o.status))}<hr>
-      ${o.items.map((i) => `<div class="it"><div>${esc(i.name)}</div>${row(`${i.qty} x ${rupiah(i.price)}`, rupiah(i.qty * i.price))}</div>`).join('')}
-      ${o.ongkir ? `<div class="it"><div>Ongkir</div>${row('', rupiah(o.ongkir))}</div>` : ''}${o.discount ? row('Diskon', '- ' + rupiah(o.discount)) : ''}<hr>
-      ${row('TOTAL', rupiah(total), 'big')}${row('Dibayar', rupiah(paid))}${total - paid > 0 ? row('Sisa bayar', rupiah(total - paid), 'b') : ''}<hr>
-      <div class="c s">Bawa struk ini saat mengambil barang.<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '')}</div>
-      <script>window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 120); };<\/script></body></html>`);
+      <div class="c"><h1>ANNAPURNA ADVENTURE</h1><div class="s"><b>LAUNDRY OUTDOOR EQUIPMENT</b><br>${esc(st.address || '')}<br>WA ${esc(st.phone || '')}</div></div>
+      <pre>${line('=')}</pre>
+      <pre>${T.map(esc).join('\n')}</pre>
+      <div class="tot"><span>TOTAL</span><span>Rp ${num(total)}</span></div>
+      <pre>${P.map(esc).join('\n')}</pre>
+      <div class="c"><span class="stamp">${lunas ? 'LUNAS' : paid ? 'BELUM LUNAS' : 'BAYAR SAAT AMBIL'}</span></div>
+      ${o.notes ? `<pre>${line()}</pre><div class="s">Catatan: ${esc(o.notes)}</div>` : ''}
+      <pre>${line()}</pre>
+      <div class="s"><b>KETENTUAN</b></div><ol class="terms">${terms.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
+      <div class="sign"><div><div class="ln">${o.pickedAt ? esc(D.fmtDate(o.pickedAt)) : 'Tgl ambil'}</div></div><div><div class="ln">Paraf pelanggan</div></div></div>
+      <pre>${line('=')}</pre>
+      <div class="c s">Simpan struk ini untuk pengambilan.<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '')}</div>
+      <script>window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 150); };<\/script></body></html>`);
     w.document.close();
   }
   function ldWa(o) {
     const total = Laundry.total(o), paid = Laundry.paid(o);
-    const t = `Halo ${o.customer.name}, ${o.status === 'siap' ? 'laundry kamu sudah selesai dan siap diambil di toko' : 'laundry kamu sudah kami terima'}.\nNo. nota: ${o.no}\n${o.items.map((i) => `• ${i.qty}× ${i.name}`).join('\n')}\nTotal: ${rupiah(total)}${paid >= total ? ' (lunas)' : paid ? ` · dibayar ${rupiah(paid)}, sisa ${rupiah(total - paid)}` : ' · dibayar saat diambil'}\nTerima kasih, ${DB.settings().storeName}`;
+    const t = `Halo ${o.customer.name}, ${o.status === 'siap' ? 'laundry kamu sudah selesai dan siap diambil di toko' : 'laundry kamu sudah kami terima'}.\nNo. nota: ${o.no}\nTanggal terima: ${D.fmtDate(o.createdAt, true)}\nEstimasi selesai: ${D.fmtDate(Laundry.est(o), true)}\n${o.items.map((i) => `• ${i.qty}× ${i.name}`).join('\n')}\nTotal: ${rupiah(total)}${paid >= total ? ' (lunas)' : paid ? ` · dibayar ${rupiah(paid)}, sisa ${rupiah(total - paid)}` : ' · dibayar saat diambil'}\nTerima kasih, ${DB.settings().storeName}`;
     return UI.waLink(t, o.customer.phone);
   }
   function ldPay(o, done) {
@@ -960,7 +997,7 @@
     });
   }
   function ldAdvance(o, to, done) {
-    const from = o.status; o.status = to; const at = D.nowStamp();
+    const from = o.status; o.status = to; const at = D.nowStamp(); if (to === 'selesai') o.pickedAt = at; if (to === 'siap') o.readyAt = at;
     o.history.push({ at, text: `${(STATUS.laundry[to] || {}).label || to} · ${me.name}` });
     DB.saveLaundry(o);
     DB.audit({ type: 'laundry', action: `Status laundry ${o.no} (${o.customer.name}): ${(STATUS.laundry[from] || {}).label} → ${(STATUS.laundry[to] || {}).label}`, ref: o.id, changes: [{ field: 'Status', from: (STATUS.laundry[from] || {}).label, to: (STATUS.laundry[to] || {}).label }] });
@@ -975,7 +1012,9 @@
       <div class="kv-grid">
         <div class="kv"><span>Customer</span><strong>${esc(o.customer.name)}</strong></div>
         <div class="kv"><span>Telepon</span><a href="${custLink(o.customer)}" target="_blank" rel="noopener noreferrer" style="color:var(--g700);font-weight:600"><i class="fa-brands fa-whatsapp"></i> ${esc(o.customer.phone)}</a></div>
-        <div class="kv"><span>Dicatat</span><span>${D.fmtDateTime(o.createdAt)} · ${esc(o.by || '-')}</span></div>
+        <div class="kv"><span>Diterima</span><span>${D.fmtDateTime(o.createdAt)} · ${esc(o.by || '-')}</span></div>
+        <div class="kv"><span>Estimasi selesai</span><span><b>${D.fmtDate(Laundry.est(o), true)}</b>${o.status !== 'selesai' && o.status !== 'dibatalkan' && Laundry.est(o) < D.today() ? ' <span class="pill red plain">lewat estimasi</span>' : ''}</span></div>
+        ${o.pickedAt ? `<div class="kv"><span>Diambil</span><span>${D.fmtDateTime(o.pickedAt)}</span></div>` : ''}
       </div>
       ${o.address ? `<p style="font-size:13.5px;margin-top:6px"><span class="muted">Alamat:</span> ${esc(o.address)}</p>` : ''}
       ${o.notes ? `<p style="font-size:13.5px"><span class="muted">Catatan:</span> ${esc(o.notes)}</p>` : ''}

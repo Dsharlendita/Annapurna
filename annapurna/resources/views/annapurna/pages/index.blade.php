@@ -27,9 +27,18 @@
         </div>
         <button class="btn btn-primary" type="submit">Cari</button>
       </form>
-      <div class="hero-ctas ha" style="--d:.8s">
-        <a class="btn btn-gold" href="{{ route('katalog') }}"><i class="fa-solid fa-campground"></i> Sewa Alat</a>
-        <a class="btn btn-onDark" href="{{ route('belanja') }}"><i class="fa-solid fa-bag-shopping"></i> Belanja Alat</a>
+      {{-- Sewa & Beli sama-sama ditonjolkan: dua pilihan setara --}}
+      <div class="hero-choice ha" style="--d:.8s">
+        <a class="hc hc-rent" href="{{ route('katalog') }}">
+          <span class="hc-ic"><i class="fa-solid fa-campground"></i></span>
+          <span class="hc-tx"><b>Sewa Alat</b><small>Tenda, carrier &amp; paket hemat</small><em class="hc-pr" id="hcRent">Harga bersahabat</em></span>
+          <i class="fa-solid fa-arrow-right hc-go" aria-hidden="true"></i>
+        </a>
+        <a class="hc hc-buy" href="{{ route('belanja') }}">
+          <span class="hc-ic"><i class="fa-solid fa-bag-shopping"></i></span>
+          <span class="hc-tx"><b>Beli Alat</b><small>Perlengkapan baru &amp; original</small><em class="hc-pr" id="hcBuy">Siap dimiliki</em></span>
+          <i class="fa-solid fa-arrow-right hc-go" aria-hidden="true"></i>
+        </a>
       </div>
       <ul class="hero-perks">
         <li class="ha" style="--d:.9s"><span class="ic"><i class="fa-solid fa-shield-halved"></i></span>Alat Sewa Bersih &amp; Terawat</li>
@@ -45,16 +54,6 @@
 
   <section class="mine-sec" id="mineSec" hidden>
     <div class="wrap" id="mineBox"></div>
-  </section>
-
-  {{-- Layanan tambahan: laundry & jasa tenda (isi & harga diambil dari pengaturan toko) --}}
-  <section class="section svc-sec" id="layanan" aria-labelledby="svcTitle">
-    <div class="wrap">
-      <div class="sec-head" data-reveal>
-        <div><div class="eyebrow">Layanan Kami</div><h2 class="sec-title" id="svcTitle">Selain sewa, kami bantu cuci dan pasang tenda</h2></div>
-      </div>
-      <div class="svc-grid" id="svcGrid"></div>
-    </div>
   </section>
 
   <section class="section" id="kategori" style="padding-bottom:40px">
@@ -137,6 +136,16 @@
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
         <li class="step"><a href="{{ route('pesanan') }}?tab=beli"><div class="blob"><span class="num">4</span><i class="fa-solid fa-store"></i></div><h4>Ambil di Toko</h4><p>Barang dikemas, kamu dapat notifikasi saat siap diambil.</p></a></li>
       </ol>
+    </div>
+  </section>
+
+  {{-- Layanan tambahan: laundry & jasa tenda (isi & harga diambil dari pengaturan toko) --}}
+  <section class="section svc-sec" id="layanan" aria-labelledby="svcTitle">
+    <div class="wrap">
+      <div class="sec-head" data-reveal>
+        <div><div class="eyebrow">Layanan Kami</div><h2 class="sec-title" id="svcTitle">Selain sewa, kami bantu cuci dan pasang tenda</h2></div>
+      </div>
+      <div class="svc-grid" id="svcGrid"></div>
     </div>
   </section>
 

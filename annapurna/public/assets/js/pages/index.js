@@ -4,6 +4,14 @@
   $('#mtnSolid').innerHTML = MTN.solid;
   $('#mtnSolid2').innerHTML = MTN.solid;
 
+  /* Pilihan Sewa / Beli di hero: harga mulai dari diambil dari katalog */
+  (function heroChoice() {
+    const P = DB.products(); const r = P.filter((p) => p.rent > 0).map((p) => p.rent), b = P.filter((p) => p.price > 0).map((p) => p.price);
+    if (r.length && $('#hcRent')) $('#hcRent').textContent = `Mulai ${rupiah(Math.min(...r))}/malam`;
+    if (b.length && $('#hcBuy')) $('#hcBuy').textContent = `Mulai ${rupiah(Math.min(...b))}`;
+    /* Mode cari ikut pilihan yang di-hover / fokus supaya pencarian langsung ke katalog yang tepat */
+    document.querySelectorAll('.hc').forEach((a) => a.addEventListener('mouseenter', () => { const v = a.classList.contains('hc-buy') ? 'beli' : 'sewa'; const r2 = document.querySelector(`#heroSearch input[name="hmode"][value="${v}"]`); if (r2) r2.checked = true; }));
+  })();
   $('#heroSearch').addEventListener('submit', (e) => {
     e.preventDefault();
     const q = $('#heroQ').value.trim();

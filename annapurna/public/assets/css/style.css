@@ -2739,10 +2739,26 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 /* =====================================================================
    Layanan tambahan: laundry & jasa bongkar pasang tenda (revisi Okt 2026)
    ===================================================================== */
-@media (max-width: 1280px) and (min-width: 1025px) { .nav-links a { padding: 10px 11px; } }
+/* Navbar: menu tidak boleh turun ke 2 baris; makin sempit layar, makin rapat & aksi dipadatkan */
+.nav-links a { white-space: nowrap; }
+@media (max-width: 1440px) and (min-width: 1025px) {
+  .nav-inner { gap: 16px; }
+  .nav-links { gap: 2px; }
+  .nav-links a { padding: 10px 11px; }
+  .nav-links a.active::after { left: 11px; right: 11px; }
+}
+@media (max-width: 1320px) and (min-width: 1025px) {
+  .brand img { height: 46px; }
+  .nav-links a { padding: 10px 9px; font-size: 13.5px; }
+  .nav-links a.active::after { left: 9px; right: 9px; }
+  .trip-chip span { display: none; }
+  .trip-chip { width: 38px; padding: 0; justify-content: center; }
+  .user-chip .nm { display: none; }
+  .user-chip { padding-right: 8px; }
+}
 
 /* ---------- Beranda: Layanan Kami ---------- */
-.svc-sec { padding-top: 56px; padding-bottom: 24px; }
+.svc-sec { padding-top: 12px; padding-bottom: 72px; }
 .svc-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
 .svc-card { position: relative; border-radius: var(--r-lg); padding: 28px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
 .svc-card h3 { font-size: clamp(20px, 2vw, 24px); font-weight: 800; }
@@ -2883,3 +2899,44 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .k-ldq { margin-top: 4px; }
 .k-ldq .list-row { padding: 8px 0; }
 .k-ldq-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+
+/* ===== Hero: pilihan Sewa & Beli setara ===== */
+.hero-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 600px; margin-top: 18px; }
+.hc { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .55); transition: transform .18s, box-shadow .18s, background .18s; }
+.hc:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -14px rgba(0, 0, 0, .6); }
+.hc:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.hc-ic { width: 44px; height: 44px; flex: none; border-radius: 13px; display: grid; place-items: center; font-size: 18px; }
+.hc-tx { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.hc-tx b { font-size: 16.5px; font-weight: 800; }
+.hc-tx small { font-size: 12.5px; font-weight: 500; opacity: .85; margin-top: 3px; }
+.hc-pr { font-style: normal; font-size: 12.5px; font-weight: 800; margin-top: 4px; white-space: nowrap; }
+.hc-rent .hc-pr { color: var(--g800); }
+.hc-buy .hc-pr { color: var(--g600); }
+.hc-go { font-size: 14px; transition: transform .18s; }
+.hc:hover .hc-go { transform: translateX(3px); }
+.hc-rent { background: var(--gold); color: var(--g950); }
+.hc-rent .hc-ic { background: rgba(16, 39, 24, .12); color: var(--g900); }
+.hc-rent:hover { background: var(--gold-2); }
+.hc-buy { background: #fff; color: var(--g900); }
+.hc-buy .hc-ic { background: var(--g100); color: var(--g700); }
+.hc-buy:hover { background: #f7f5ef; }
+@media (max-width: 560px) { .hero-choice { grid-template-columns: 1fr; gap: 10px; } .hc { padding: 12px 14px; } }
+
+/* ===== Konfigurasi Owner: Laundry & Jasa Tenda ===== */
+.cfg-main .cfg-block { background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
+.cfg-main .cfg-block h3 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.cfg-main .cfg-block h3 i { color: var(--g600); }
+.ld-cfg { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.ld-cfg-cat { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--cream); }
+.ld-cfg-h { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 8px; margin-bottom: 10px; }
+.ld-cfg-h .input { font-weight: 700; }
+.ld-cfg-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.ld-cfg-pr { position: relative; }
+.ld-cfg-pr span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--muted); pointer-events: none; }
+.ld-cfg-pr .input { padding-left: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+.ld-cfg-fees { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.ld-ro { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 26px; }
+.ld-ro h4 { margin: 10px 0 2px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.ld-ro h4 i { color: var(--g600); }
+.ld-ro .kv { padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+@media (max-width: 560px) { .ld-cfg { grid-template-columns: 1fr; } .ld-cfg-h { grid-template-columns: 1fr auto; } .ld-cfg-h select { grid-column: 1 / -1; } }

@@ -23,6 +23,8 @@
     /* Sewa: layanan tambahan (dibayar bersama transaksi, tidak masuk total sewa)
        svcMode: '' | 'antar' | 'pasang' (bongkar pasang) | 'pasang_saja' | 'bongkar_saja' */
     svcMode: '', svcTents: 1, svcOngkir: 0, svcAddr: '', svcTime: '08:00', svcBack: '16:00',
+    /* Laundry: estimasi selesai (default = hari ini + lama pengerjaan dari pengaturan Owner) */
+    ldEst: '',
   };
   if (UI.param('mode') === 'laundry') { S.mode = 'laundry'; S.payOpt = 'nanti'; setTimeout(() => $$('#kMode [data-k]').forEach((x) => x.classList.toggle('active', x.dataset.k === 'laundry')), 0); }
   const isLd = () => S.mode === 'laundry';
@@ -43,7 +45,7 @@
     const L = DB.laundry().filter((o) => ['diterima', 'dicuci', 'siap'].includes(o.status) && (!q || [o.no, o.customer.name, o.customer.phone].join(' ').toLowerCase().includes(q)))
       .sort((a, b) => ord[a.status] - ord[b.status] || String(b.createdAt).localeCompare(a.createdAt));
     const row = (o) => { const due = Math.max(0, Laundry.total(o) - Laundry.paid(o));
-      return `<div class="list-row"><div class="nm"><strong>${esc(o.no)} · ${esc(o.customer.name)}</strong><small>${esc(Admin.ldItems(o))}</small><small>${UI.pill('laundry', o.status)} ${due ? `<b style="color:var(--orange)">sisa ${rupiah(due)}</b>` : '<b style="color:var(--g700)">lunas</b>'}</small></div>
+      return `<div class="list-row"><div class="nm"><strong>${esc(o.no)} · ${esc(o.customer.name)}</strong><small>${esc(Admin.ldItems(o))}</small><small>${UI.pill('laundry', o.status)} <span class="muted">selesai ${D.fmtDate(Laundry.est(o))}</span> ${due ? `<b style="color:var(--orange)">sisa ${rupiah(due)}</b>` : '<b style="color:var(--g700)">lunas</b>'}</small></div>
         ${due ? `<button type="button" class="btn btn-gold btn-xs" data-ldpay="${o.id}"><i class="fa-solid fa-cash-register"></i> Bayar</button>` : ''}
         ${o.status === 'siap' ? `<button type="button" class="btn btn-primary btn-xs" data-lddone="${o.id}"><i class="fa-solid fa-circle-check"></i> Diambil</button>` : `<button type="button" class="btn btn-light btn-xs" data-lddet="${o.id}">Detail</button>`}</div>`; };
     $('#kDates').innerHTML = `<div class="k-ldq"><div class="k-ldq-h"><span><i class="fa-solid fa-jug-detergent"></i> Laundry berjalan (${L.length}) · ambil &amp; bayar</span><a class="link" href="${UI.url('admin/laundry')}" style="font-size:12.5px">Buka menu Laundry</a></div>
@@ -130,7 +132,7 @@
 
   /* ---------- Rincian transaksi (kanan) ---------- */
   function lines() {
-    if (isLd()) return S.items.map((it) => { const x = DB.laundryItem(it.refId) || { name: it.refId, price: 0, cat: '' }; return { it, x, name: x.name, img: '', icon: 'fa-jug-detergent', unit: x.price, total: x.price * it.qty, sub: `${it.qty} × ${rupiah(x.price)} · ${x.cat}` }; });
+    if (isLd()) return S.items.map((it) => { const x = DB.laundryItem(it.refId) || { name: it.refId, price: 0, cat: '' }; return { it, x, name: x.name, img: '', icon: x.icon || 'fa-jug-detergent', unit: x.price, total: x.price * it.qty, sub: `${it.qty} × ${rupiah(x.price)} · ${x.cat}` }; });
     if (S.mode === 'buy') return S.items.map((it) => { const p = DB.product(it.refId); return { it, name: DB.variantName(p, it.size), img: p.img, unit: p.price, total: p.price * it.qty, sub: `${it.qty} × ${rupiah(p.price)}` }; });
     return S.items.map((it) => { const r = Cart.resolve(cartItem(it)); const unit = Rules.lineUnit({ pricePerDay: r.unit, tiers: r.tiers }, days());
       return { it, r, name: r.name, img: r.img, unit, total: unit * it.qty, sub: `${it.qty} × ${rupiah(unit)} · ${Rules.tierLabel(r.tiers || { d1: r.unit }, days())}` }; });
@@ -149,7 +151,12 @@
   /* Bagian tambahan di rincian: layanan sewa (antar / jasa tenda & ongkir) */
   function svcSec(t) {
     const H = Svc.hours(); const opt = (v) => H.map((h) => `<option value="${h}" ${h === v ? 'selected' : ''}>${h.replace(':', '.')}</option>`).join('');
-    if (isLd() || S.mode !== 'rent' || !t.L.length) return ''; /* laundry: customer antar & ambil sendiri di toko */
+    if (isLd()) { const est = S.ldEst || D.addDays(T, Laundry.days());
+      return `<div class="kb-sec"><h4>Jadwal laundry</h4><div class="grid-2">
+        <div class="field"><label>Tanggal terima</label><input class="input" value="${D.fmtDate(T, true)}" disabled></div>
+        <div class="field"><label>Estimasi selesai</label><input class="input" type="date" id="kLdEst" min="${T}" value="${est}"></div></div>
+        <small class="muted" style="font-size:12px">Default ${Laundry.days()} hari (atur di Konfigurasi Sistem). Dicetak di struk. Customer antar &amp; ambil sendiri di toko.</small></div>`; }
+    if (S.mode !== 'rent' || !t.L.length) return '';
     const mx = tentMax(); if (!mx && Svc.isTent(S.svcMode)) S.svcMode = ''; if (S.svcTents > mx) S.svcTents = Math.max(1, mx);
     const sp = Svc.spec(S.svcMode || 'ambil'); const tent = Svc.isTent(S.svcMode || 'ambil');
     const modes = [['', 'Tanpa layanan'], ['antar', 'Antar'], ...(mx ? Svc.TENT_MODES.map((k) => [k, `${Svc.spec(k).short} · ${rupiah(Svc.fee(k))}`]) : [])];
@@ -209,7 +216,7 @@
     if (isLd()) {
       const at = D.nowStamp();
       const items = t.L.map((x) => ({ id: x.it.refId, name: x.x.name, cat: x.x.cat, price: x.x.price, qty: x.it.qty }));
-      const o = { id: DB.nextId('DRY', DB.laundry()), no: DB.nextLaundryNo(at), customer: { name: S.name, phone: S.phone, email: '' }, items, discount: t.disc || 0,
+      const o = { id: DB.nextId('DRY', DB.laundry()), no: DB.nextLaundryNo(at), customer: { name: S.name, phone: S.phone, email: '' }, items, discount: t.disc || 0, estDone: S.ldEst || D.addDays(T, Laundry.days()),
         notes: S.note, channel: 'kasir', by: me.name, kasir, createdAt: at, status: 'diterima', payments: t.payNow ? [{ at, amount: t.payNow, type: 'Lunas', via }] : [], paymentStatus: t.payNow ? 'paid' : 'unpaid',
         history: [{ at, text: `Barang diterima di toko dan dicatat di kasir oleh ${me.name}${t.payNow ? ` · dibayar ${rupiah(t.payNow)} (${S.method})` : ' · dibayar saat diambil'}` }] };
       DB.saveLaundry(o);
@@ -306,7 +313,7 @@
   function doneLaundry(o) {
     const total = Laundry.total(o), paid = Laundry.paid(o);
     const m = modal({ title: `Laundry tersimpan · ${o.no}`, body: `
-      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-circle-check"></i><div><b>Barang diterima di toko, status: Diterima.</b><br>Total ${rupiah(total)} · ${paid ? `dibayar ${rupiah(paid)}${o.kasir && o.kasir.method === 'Tunai' && o.kasir.change ? ` · kembalian ${rupiah(o.kasir.change)}` : ''}` : 'dibayar saat diambil'}</div></div>
+      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-circle-check"></i><div><b>Barang diterima di toko, estimasi selesai ${D.fmtDate(Laundry.est(o), true)}.</b><br>Total ${rupiah(total)} · ${paid ? `dibayar ${rupiah(paid)}${o.kasir && o.kasir.method === 'Tunai' && o.kasir.change ? ` · kembalian ${rupiah(o.kasir.change)}` : ''}` : 'dibayar saat diambil'}</div></div>
       <h4 style="margin:0 0 8px">Cetak / kirim nota</h4>
       <div class="k-print"><button type="button" class="btn btn-primary" data-pr="${RC.paper}"><i class="fa-solid fa-print"></i> Cetak struk (${RC.paper} mm)</button><button type="button" class="btn btn-light" data-pr="${ALT}"><i class="fa-solid fa-receipt"></i> Struk ${ALT} mm</button>
         <a class="btn btn-wa" href="${Admin.ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim ke WhatsApp</a>
@@ -317,7 +324,7 @@
     toast(`Laundry ${o.no} tersimpan.`);
   }
   /* Kosongkan transaksi: barang, customer, diskon, pembayaran. Jenis (sewa/jual) & tanggal tetap. */
-  function reset() { Object.assign(S, { items: [], name: '', phone: '', idType: 'KTP', note: '', disc: 0, received: 0, payOpt: isLd() ? 'nanti' : 'lunas', method: 'Tunai', q: '', svcMode: '', svcTents: 1, svcOngkir: 0, svcAddr: '' }); if ($('#kQ')) $('#kQ').value = ''; draw(); }
+  function reset() { Object.assign(S, { items: [], name: '', phone: '', idType: 'KTP', note: '', disc: 0, received: 0, payOpt: isLd() ? 'nanti' : 'lunas', method: 'Tunai', q: '', svcMode: '', svcTents: 1, svcOngkir: 0, svcAddr: '', ldEst: '' }); if ($('#kQ')) $('#kQ').value = ''; draw(); }
 
   /* ---------- Event ---------- */
   function draw() { drawCats(); drawDates(); drawGrid(); drawBill(); }
@@ -355,6 +362,7 @@
     if (e.target.id === 'kRecv') { S.received = num(e.target.value); drawBill(); }
     if (e.target.id === 'kId') S.idType = e.target.value;
     if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); drawBill(); }
+    if (e.target.id === 'kLdEst') S.ldEst = e.target.value >= T ? e.target.value : T;
     if (e.target.id === 'kSvcTime') S.svcTime = e.target.value; if (e.target.id === 'kSvcBack') S.svcBack = e.target.value;
   });
   draw();

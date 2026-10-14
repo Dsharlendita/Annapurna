@@ -47,6 +47,16 @@
     <div class="wrap" id="mineBox"></div>
   </section>
 
+  {{-- Layanan tambahan: laundry & jasa tenda (isi & harga diambil dari pengaturan toko) --}}
+  <section class="section svc-sec" id="layanan" aria-labelledby="svcTitle">
+    <div class="wrap">
+      <div class="sec-head" data-reveal>
+        <div><div class="eyebrow">Layanan Kami</div><h2 class="sec-title" id="svcTitle">Selain sewa, kami bantu cuci dan pasang tenda</h2></div>
+      </div>
+      <div class="svc-grid" id="svcGrid"></div>
+    </div>
+  </section>
+
   <section class="section" id="kategori" style="padding-bottom:40px">
     <div class="wrap">
       <div class="sec-head" data-reveal>

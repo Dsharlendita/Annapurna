@@ -3,7 +3,7 @@
   const { DB, Rules, D, rupiah } = Ann;
   const { $, esc, asset, modal, pill } = UI;
   Admin.init('kalender', 'Kalender Ketersediaan');
-  const DAYS = 14; const T = D.today();
+  const DAYS = 14; const T = D.today(); const { Svc } = Ann;
   $('#from').value = T;
   $('#fCat').innerHTML += DB.categories().map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   const rows = () => {
@@ -14,8 +14,25 @@
     });
     return out;
   };
+  /* Jadwal antar & jemput staff (layanan antar / jasa tenda) pada rentang kalender */
+  const tbl = $('#cal'); const host = tbl.closest('.table-wrap') || tbl.parentElement;
+  host.insertAdjacentHTML('beforebegin', '<div class="card" id="schedCard" style="margin-bottom:16px"><div class="card-title"><i class="fa-solid fa-truck-fast"></i> Jadwal antar &amp; jemput <small class="muted" id="schedCnt" style="font-weight:500;font-size:13px"></small></div><div class="sched-list" id="sched"></div></div>');
+  function drawSched(f) {
+    const to = D.addDays(f, DAYS - 1); const ev = [];
+    DB.bookings().filter((b) => Svc.has(b) && !['dibatalkan', 'selesai'].includes(b.status)).forEach((b) => {
+      const d = b.deliv || {};
+      const ad = d.date || b.start; if (Svc.delivers(b) && ad >= f && ad <= to && b.status !== 'disewa') ev.push({ date: ad, time: d.time, b, kind: Svc.outLabel(b), ic: 'fa-truck-fast' });
+      if (Svc.returnMode(b) === 'jemput') { const bd = d.backDate || b.end; if (bd >= f && bd <= to) ev.push({ date: bd, time: d.backTime, b, kind: Svc.backLabel(b), ic: 'fa-rotate-left' }); }
+    });
+    ev.sort((a, c) => (a.date + (a.time || '')).localeCompare(c.date + (c.time || '')));
+    $('#schedCnt').textContent = ev.length ? `· ${ev.length} jadwal, ${D.fmtDate(f)} – ${D.fmtDate(to)}` : '';
+    $('#sched').innerHTML = ev.length ? ev.map((e) => { const x = new Date(e.date + 'T00:00:00'); return `<div class="sched-it ${e.date === T ? 'today' : ''}"><div class="when">${D.HARI[x.getDay()]}, ${D.fmtDate(e.date)}<b>${e.time ? Svc.fmtT(e.time) : '—'}</b></div>
+      <div class="nm"><strong><i class="fa-solid ${e.ic}" style="color:var(--g600)"></i> ${e.kind}${Svc.isTent(e.b) ? ` (${esc(Svc.short(e.b).toLowerCase())}${e.b.deliv.tents ? ', ' + e.b.deliv.tents + ' tenda' : ''})` : ''} · ${NO(e.b)}</strong><small>${esc(e.b.customer.name)} · ${esc((e.b.deliv || {}).address || '-')}</small><small>${esc(Admin.itemsText(e.b))}</small></div>
+      <a class="btn btn-light btn-xs" href="booking?id=${e.b.id}">Buka</a></div>`; }).join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal antar atau jemput di rentang tanggal ini.</p>';
+  }
   function draw() {
-    const f = $('#from').value || T; const days = [...Array(DAYS)].map((_, i) => D.addDays(f, i));
+    const f = $('#from').value || T;
+    drawSched(f); const days = [...Array(DAYS)].map((_, i) => D.addDays(f, i));
     const R = rows();
     $('#cal').innerHTML = `<thead><tr><th class="cal-name">Barang</th>${days.map((d) => { const x = new Date(d + 'T00:00:00'); const we = x.getDay() === 0 || x.getDay() === 6; return `<th class="${d === T ? 'today' : ''} ${we ? 'we' : ''}"><small>${D.HARI[x.getDay()]}</small>${x.getDate()}</th>`; }).join('')}</tr></thead>
       <tbody>${R.length ? R.map((r) => `<tr class="${r.child ? 'child' : ''}"><td class="cal-name">${r.child ? `<span class="cal-size">${esc(r.label)}</span>` : `<div class="prod"><img loading="lazy" decoding="async" src="${asset(r.p.img)}" alt=""><div><strong>${esc(r.label)}</strong><small>${r.total} unit siap sewa</small></div></div>`}</td>

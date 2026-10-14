@@ -11,6 +11,31 @@
     location.href = (beli ? 'belanja' : 'katalog') + (q ? '?q=' + encodeURIComponent(q) : '');
   });
 
+  /* ---------- Layanan Kami: laundry (antar sendiri ke toko) & jasa tenda (bongkar pasang / pasang saja / bongkar saja) ---------- */
+  (function services() {
+    const box = $('#svcGrid'); if (!box) return;
+    const st = DB.settings(); const L = DB.laundryPrices(); const { Svc } = Ann;
+    const min = (c) => Math.min(...c.items.map((i) => i.price));
+    const waTent = UI.waLink('Halo admin Annapurna, saya mau tanya soal jasa tenda (bongkar pasang / pasang saja / bongkar saja).\nLokasi: \nTanggal: \nJumlah tenda: ');
+    box.innerHTML = `
+      <article class="svc-card svc-laundry" data-reveal>
+        <span class="svc-ic"><i class="fa-solid fa-jug-detergent"></i></span>
+        <h3>Laundry perlengkapan outdoor</h3>
+        <p>Tenda, sleeping bag, jaket, carrier, sepatu, sampai matras. Bawa langsung ke toko, kami cuci sampai bersih.</p>
+        <ul class="svc-prices">${L.map((c) => `<li><span><i class="fa-solid ${esc(c.icon || 'fa-circle')}"></i> ${esc(c.name)}</span><b>mulai ${rupiah(min(c))}</b></li>`).join('')}</ul>
+        <p class="svc-modes-note"><i class="fa-solid fa-store"></i> Antar &amp; ambil langsung di toko (tidak ada antar jemput) · ${esc(st.hours || '')}</p>
+        <div class="svc-acts" style="margin-top:0"><a class="btn btn-gold" href="${url('laundry')}"><i class="fa-solid fa-tags"></i> Lihat daftar harga</a></div>
+      </article>
+      <article class="svc-card svc-tent" data-reveal>
+        <span class="svc-ic"><i class="fa-solid fa-tents"></i></span>
+        <h3>Jasa tenda</h3>
+        <p>Tidak mau repot mendirikan tenda? Pilih jasanya saat checkout sewa tenda.</p>
+        <ul class="svc-modes">${Svc.TENT_MODES.map((k) => { const x = Svc.spec(k); return `<li><b>${x.short}</b><span class="pr">${rupiah(Svc.fee(k))}<span class="muted" style="font-weight:500;font-size:12px">/tenda</span></span><small>${x.desc}</small></li>`; }).join('')}</ul>
+        <p class="svc-modes-note">Harga di luar ongkir. Ongkir sesuai jarak, dikonfirmasi admin via WhatsApp setelah DP.</p>
+        <div class="svc-acts"><a class="btn btn-primary" href="${url('katalog?cat=tenda')}"><i class="fa-solid fa-tent"></i> Sewa tenda</a><a class="btn btn-light" href="${waTent}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> Tanya admin</a></div>
+      </article>`;
+  })();
+
   const prods = DB.products();
   $('#catGrid').innerHTML = DB.categories().map((c) => {
     const n = prods.filter((p) => p.cat === c.id).length;

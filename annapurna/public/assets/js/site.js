@@ -16,6 +16,7 @@
     { href: 'katalog', label: 'Sewa Alat', key: 'katalog', icon: 'fa-campground' },
     { href: 'belanja', label: 'Beli Alat', key: 'belanja', icon: 'fa-bag-shopping' },
     { href: 'paket', label: 'Paket', key: 'paket', icon: 'fa-box-open' },
+    { href: 'laundry', label: 'Laundry', key: 'laundry', icon: 'fa-jug-detergent' },
     { href: 'tentang', label: 'Tentang Kami', key: 'tentang', icon: 'fa-mountain-sun' },
     { href: 'kontak', label: 'Kontak', key: 'kontak', icon: 'fa-phone' },
   ];
@@ -138,7 +139,7 @@
         </div>
         <div>
           <h5>Menu</h5>
-          <ul>${LINKS.map((l) => `<li><a href="${url(l.href)}">${l.label}</a></li>`).join('')}<li><a href="${url('kontak#cek-pesanan')}">Cek Status Pesanan</a></li></ul>
+          <ul>${LINKS.map((l) => `<li><a href="${url(l.href)}">${l.label}</a></li>`).join('')}<li><a href="${url('./#layanan')}">Jasa Tenda</a></li><li><a href="${url('kontak#cek-pesanan')}">Cek Status Pesanan</a></li></ul>
         </div>
         <div>
           <h5>Kontak</h5>

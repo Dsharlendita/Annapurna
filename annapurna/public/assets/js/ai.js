@@ -8,6 +8,16 @@
   const P = (id) => DB.product(id);
   const store = () => DB.settings();
 
+  /* Jawaban layanan tambahan (harga diambil dari pengaturan toko) */
+  function svcAnswer(k) {
+    const st = store(); const { Svc } = Ann;
+    if (k === 'laundry') {
+      const L = DB.laundryPrices();
+      return `Kami menerima <b>laundry perlengkapan outdoor</b> milik sendiri:<ul>${L.map((c) => `<li>${esc(c.name)}: mulai <b>${rupiah(Math.min(...c.items.map((i) => i.price)))}</b></li>`).join('')}</ul>Barang dibawa langsung ke toko (<b>tidak ada layanan antar jemput laundry</b>). Alamat: ${esc(st.address)}. Lihat harga lengkapnya di <a href="${url('laundry')}">halaman Laundry</a>.`;
+    }
+    if (k === 'pasang') return `Ada 3 pilihan <b>jasa tenda</b> (harga per tenda, di luar ongkir):<ul>${Svc.TENT_MODES.map((m) => `<li><b>${Svc.spec(m).short} ${rupiah(Svc.fee(m))}</b>: ${Svc.spec(m).desc}</li>`).join('')}</ul>Pilih <b>Jasa tenda</b> saat checkout sewa, isi lokasi dan jamnya. Ongkir sesuai jarak dikonfirmasi admin via WhatsApp setelah DP, dibayar langsung ke admin (tidak masuk DP).`;
+    return `Bisa! Saat checkout sewa, pilih <b>Diantar ke lokasi</b> lalu isi alamat dan jam antar. Ongkir dihitung sesuai jarak dan dikonfirmasi admin via WhatsApp setelah DP (tidak masuk DP). Pengembaliannya bisa kamu antar sendiri ke toko atau dijemput, diatur bersama admin.<br>Mau sekalian dipasangkan tendanya? Pilih <b>Jasa tenda</b> (mulai ${rupiah(Math.min(...Svc.TENT_MODES.map((m) => Svc.fee(m))))}/tenda). Catatan: laundry tidak ada antar jemput.`;
+  }
   function knowledge() {
     const s = store();
     const banks = s.banks.map((b) => `${b.bank} ${b.number} a.n. ${b.holder}`).join(', ');
@@ -25,7 +35,11 @@
       { id: 'lokasi', keys: ['lokasi', 'alamat', 'dimana', 'di mana', 'maps', 'tempat', 'toko', 'arah'], title: 'Lokasi toko',
         a: `Alamat toko: <b>${esc(s.address)}</b>. Lihat peta di <a href="${url('kontak')}#lokasi">halaman Kontak</a>.` },
       { id: 'antar', keys: ['antar', 'diantar', 'kirim', 'dikirim', 'delivery', 'ongkir', 'cod', 'gojek', 'grab'], title: 'Pengantaran',
-        a: 'Maaf, belum ada layanan antar. Semua pengambilan dan pengembalian dilakukan langsung di toko supaya kondisi alat bisa dicek bersama.' },
+        a: svcAnswer('antar') },
+      { id: 'laundry', keys: ['laundry', 'londri', 'cuci tenda', 'cuci sepatu', 'cuci carrier', 'cuci jaket', 'cuci sleeping bag', 'harga cuci', 'jasa cuci'], title: 'Laundry',
+        a: svcAnswer('laundry') },
+      { id: 'pasang', keys: ['bongkar pasang', 'pasang tenda', 'pasangin', 'bongkar tenda', 'dirikan tenda', 'setup tenda', 'jasa pasang', 'jasa tenda', 'pasang saja', 'bongkar saja'], title: 'Jasa tenda',
+        a: svcAnswer('pasang') },
       { id: 'syarat', keys: ['syarat', 'ktp', 'ktm', 'sim', 'identitas', 'jaminan', 'ketentuan', 'aturan'], title: 'Syarat sewa',
         a: `<ul>${s.rentalTerms.slice(0, 5).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` },
       { id: 'hitung', keys: ['batas pengembalian', 'batas kembali', 'pengembalian', 'kembali jam', 'kapan kembali', 'hitung', 'durasi', 'lama sewa', 'per hari', 'per malam', 'permalam', 'kegiatan', 'ekspedisi', '24 jam', 'berapa hari', 'hitungan', 'paket hari'], title: 'Durasi sewa',
@@ -33,7 +47,7 @@
       { id: 'tektok', keys: ['tektok', 'paket tektok', 'tek tok'], title: 'Paket tektok',
         a: `${DB.packages().filter((p) => p.tektok).map((p) => `${esc(p.name)} ${rupiah(p.price)}`).join(' dan ')} (harga per malam).<ul>${(s.tektokTerms || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul><a href="${url('paket?type=tektok')}">Lihat paket tektok</a>` },
       { id: 'cuci', keys: ['cuci', 'kotor', 'bersih', 'mencuci', 'dicuci'], title: 'Barang kotor',
-        a: 'Sewa bersih, kembali kotor? Biar kami yang membersihkan. Kamu cukup memakainya dengan happy tanpa harus mencuci.' },
+        a: `Sewa bersih, kembali kotor? Biar kami yang membersihkan. Kamu cukup memakainya dengan happy tanpa harus mencuci.<br>Mau mencuci perlengkapan milikmu sendiri? Lihat <a href="${url('laundry')}">daftar harga laundry</a>.` },
       { id: 'beli', keys: ['beli', 'jual', 'membeli', 'dijual', 'belanja'], title: 'Membeli alat',
         a: `Bisa! Buka halaman <a href="${url('belanja')}">Beli Alat</a>, masukkan ke keranjang, lalu checkout. Barang diambil di toko.` },
       { id: 'ganti', keys: ['ganti barang', 'tukar', 'ubah pesanan', 'ganti alat', 'upgrade'], title: 'Ganti barang',
@@ -156,6 +170,10 @@
       const L = [...DB.bookings(), ...DB.sales()].filter((x) => x.customer.email === user.email && !['selesai', 'dibatalkan'].includes(x.status)).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt)).slice(0, 3);
       return { html: L.length ? `Pesanan aktif kamu:${L.map(orderCard).join('')}` : 'Kamu belum punya pesanan aktif. Mau aku bantu rencanakan trip?', chips: L.length ? [] : ['Rencanakan trip'] };
     }
+    /* Layanan tambahan: laundry, bongkar pasang tenda, antar/jemput */
+    if (has(q, ['laundry', 'londri', 'cuci tenda', 'cuci sepatu', 'cuci carrier', 'cuci jaket', 'cuci sleeping', 'jasa cuci', 'harga cuci', 'nyuci'])) return { html: svcAnswer('laundry'), chips: ['Lokasi toko', 'Jam buka'], actions: [{ label: 'Lihat harga laundry', href: url('laundry') }] };
+    if (has(q, ['bongkar pasang', 'pasang tenda', 'pasangin', 'bongkar tenda', 'dirikan tenda', 'setup tenda', 'jasa pasang', 'dipasangin', 'dipasangkan', 'jasa tenda', 'pasang saja', 'bongkar saja'])) return { html: svcAnswer('pasang'), wa: true, chips: ['Pengantaran'], actions: [{ label: 'Sewa tenda', href: url('katalog?cat=tenda') }] };
+    if (has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'jemput', 'delivery']) && !has(q, ['komplain', 'keluhan', 'kecewa', 'nego'])) return { html: svcAnswer('antar'), wa: true, chips: ['Jasa tenda', 'Lokasi toko'] };
     /* Urusan yang butuh keputusan admin → serahkan ke WhatsApp admin beserta pertanyaannya */
     if (has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'cod', 'jemput', 'nego', 'negosiasi', 'diskon khusus', 'harga khusus', 'komplain', 'keluhan', 'kecewa', 'ganti jadwal', 'ubah jadwal', 'bukti bayar', 'salah transfer'])) {
       return { html: 'Untuk hal ini sebaiknya langsung ke <b>admin</b> ya, supaya bisa dicek dan diputuskan langsung. Tekan tombol di bawah, pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true };
@@ -233,7 +251,7 @@
       actions: need.filter(([id]) => P(id)).slice(0, 3).map(([id, n]) => ({ label: `+ ${n}`, add: { id, start: t.start, end: t.end, qty: /sleeping|matras/i.test(n) && cap ? cap : 1 } })) };
   }
   function related(id) {
-    return ({ cara: ['Pembayaran & DP', 'Syarat sewa', 'Rencanakan trip'], dp: ['Pembatalan', 'Cara sewa'], batal: ['Pembayaran & DP', 'Denda'], denda: ['Hitungan hari', 'Syarat sewa'], jam: ['Lokasi toko'], lokasi: ['Jam buka', 'Pengantaran'], antar: ['Lokasi toko', 'Jam buka'], syarat: ['Denda', 'Cara sewa'] })[id] || ['Cara sewa', 'Rencanakan trip'];
+    return ({ cara: ['Pembayaran & DP', 'Syarat sewa', 'Rencanakan trip'], dp: ['Pembatalan', 'Cara sewa'], batal: ['Pembayaran & DP', 'Denda'], denda: ['Hitungan hari', 'Syarat sewa'], jam: ['Lokasi toko'], lokasi: ['Jam buka', 'Pengantaran'], antar: ['Jasa tenda', 'Lokasi toko'], laundry: ['Lokasi toko', 'Jam buka'], pasang: ['Pengantaran', 'Cara sewa'], syarat: ['Denda', 'Cara sewa'] })[id] || ['Cara sewa', 'Rencanakan trip'];
   }
 
   function alsoRented(pid, limit) {
@@ -424,7 +442,7 @@
     const ask = async (text) => {
       text = String(text || '').trim(); if (!text) return;
       if (text === 'Rencanakan trip') { tab('plan'); return; }
-      const map = { 'Cek pesanan': 'status pesanan saya', 'Rencanakan trip': 'rencanakan trip', 'Pembayaran & DP': 'pembayaran dp', 'Pembatalan': 'pembatalan', 'Syarat sewa': 'syarat sewa', 'Hitungan hari': 'hitungan hari', 'Lokasi toko': 'lokasi toko', 'Jam buka': 'jam buka', 'Pengantaran': 'diantar', 'Denda': 'denda', 'Cara sewa': 'cara sewa' };
+      const map = { 'Cek pesanan': 'status pesanan saya', 'Rencanakan trip': 'rencanakan trip', 'Pembayaran & DP': 'pembayaran dp', 'Pembatalan': 'pembatalan', 'Syarat sewa': 'syarat sewa', 'Hitungan hari': 'hitungan hari', 'Lokasi toko': 'lokasi toko', 'Jam buka': 'jam buka', 'Pengantaran': 'diantar', 'Jasa tenda': 'jasa tenda bongkar pasang', 'Laundry': 'laundry', 'Denda': 'denda', 'Cara sewa': 'cara sewa' };
       const history = log.slice(-8).map((m) => ({ peran: m.who === 'me' ? 'user' : 'model', teks: plainOf(m.html) }));
       log.push({ who: 'me', html: esc(text) }); bubble('me', esc(text)); setChips([]); input.value = ''; input.disabled = true;
       const typing = bubble('bot', '<span class="ai-dots"><i></i><i></i><i></i></span>');

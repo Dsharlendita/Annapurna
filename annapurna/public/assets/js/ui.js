@@ -778,7 +778,8 @@
 
   function orderTracker(x, opts) {
     opts = opts || {}; const st = DB.settings(); const rent = !!x.start;
-    const steps = rent ? ['Booking dibuat', 'DP diverifikasi', 'Siap diambil', 'Sedang disewa', 'Selesai'] : ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Dikemas', 'Siap diambil', 'Selesai'];
+    const SV = Ann.Svc; const dlv = rent && SV.delivers(x); const pick = rent && SV.has(x) && SV.returnMode(x) === 'jemput'; const dd = x.deliv || {};
+    const steps = rent ? ['Booking dibuat', 'DP diverifikasi', dlv ? 'Siap diantar' : 'Siap diambil', 'Sedang disewa', 'Selesai'] : ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Dikemas', 'Siap diambil', 'Selesai'];
     const idx = rent ? { menunggu_pembayaran: 0, menunggu_konfirmasi: 1, dikonfirmasi: 2, disewa: 3, selesai: 5 }[x.status] : (x.paymentStatus === 'verifying' && ['menunggu_pembayaran', 'diproses'].includes(x.status) ? 1 : { menunggu_pembayaran: 0, diproses: 2, dikemas: 2, siap_diambil: 3, selesai: 5 }[x.status]);
     const late = rent && x.status === 'disewa' && D.today() > x.end;
     const sisa = rent ? Math.max(0, x.total - Rules.paidTotal(x)) : 0;
@@ -788,8 +789,8 @@
     else if (rent) todo = {
       menunggu_pembayaran: `<i class="fa-solid fa-wallet"></i> <b>Yang perlu kamu lakukan:</b> bayar DP ${rupiah(x.dp)} dalam ${cdSpan(DB.payDeadline(x).toISOString(), 'pay')} lalu unggah bukti transfer.${link('pembayaran?ids=' + x.id, 'Bayar sekarang')}`,
       menunggu_konfirmasi: `<i class="fa-solid fa-hourglass-half"></i> Bukti pembayaranmu sedang dicek admin, maksimal 1×24 jam. Kamu akan dapat notifikasi.`,
-      dikonfirmasi: `<i class="fa-solid fa-store"></i> <b>Ambil barang ${D.fmtDate(x.start, true)}</b> di toko (${esc(st.hours)}). Bawa kartu identitas asli & tunjukkan nota.${sisa ? ` Sisa bayar ${rupiah(sisa)} dilunasi saat ambil.` : ''}${link('invoice?id=' + x.id, 'Lihat nota')}`,
-      disewa: late ? `<i class="fa-solid fa-triangle-exclamation"></i> <b>Terlambat ${billOf(x).late || D.diffDays(x.end, D.today())} malam · denda berjalan ${rupiah(billOf(x).fine)}.</b> Segera kembalikan ke toko agar denda tidak bertambah.${link('invoice?id=' + x.id, 'Lihat tagihan')}` : `<i class="fa-solid fa-person-hiking"></i> Selamat bertualang! <b>Kembalikan paling lambat ${D.fmtDate(x.end, true)}${st.lateAfterReturnTime ? `, pukul ${esc(String(st.returnTime).replace(':', '.'))} WIB` : ''}</b> · sisa waktu ${cdSpan(returnDeadline(x).toISOString(), 'return')}. Butuh lebih lama? Ajukan perpanjangan.`,
+      dikonfirmasi: dlv ? `<i class="fa-solid fa-truck-fast"></i> <b>Barang diantar ${D.fmtDate(dd.date || x.start, true)}${dd.time ? ' pukul ' + SV.fmtT(dd.time) : ''}</b> ke ${esc(dd.address || 'lokasimu')}. Siapkan kartu identitas asli.${sisa ? ` Sisa bayar ${rupiah(sisa)} dilunasi saat barang diterima.` : ''}${link('invoice?id=' + x.id, 'Lihat nota')}` : `<i class="fa-solid fa-store"></i> <b>Ambil barang ${D.fmtDate(x.start, true)}</b> di toko (${esc(st.hours)}). Bawa kartu identitas asli & tunjukkan nota.${sisa ? ` Sisa bayar ${rupiah(sisa)} dilunasi saat ambil.` : ''}${link('invoice?id=' + x.id, 'Lihat nota')}`,
+      disewa: pick && !late ? `<i class="fa-solid fa-person-hiking"></i> Selamat bertualang! <b>Staff menjemput barang ${D.fmtDate(dd.backDate || x.end, true)}${dd.backTime ? ' pukul ' + SV.fmtT(dd.backTime) : ''}</b>${SV.isTent(x) ? ' sekaligus membongkar tenda' : ''}. Pastikan barang sudah siap. Butuh lebih lama? Ajukan perpanjangan.` : late ? `<i class="fa-solid fa-triangle-exclamation"></i> <b>Terlambat ${billOf(x).late || D.diffDays(x.end, D.today())} malam · denda berjalan ${rupiah(billOf(x).fine)}.</b> ${pick ? 'Hubungi admin untuk mengatur jadwal jemput' : 'Segera kembalikan ke toko'} agar denda tidak bertambah.${link('invoice?id=' + x.id, 'Lihat tagihan')}` : `<i class="fa-solid fa-person-hiking"></i> Selamat bertualang! <b>Kembalikan paling lambat ${D.fmtDate(x.end, true)}${st.lateAfterReturnTime ? `, pukul ${esc(String(st.returnTime).replace(':', '.'))} WIB` : ''}</b> · sisa waktu ${cdSpan(returnDeadline(x).toISOString(), 'return')}. Butuh lebih lama? Ajukan perpanjangan.`,
       selesai: `<i class="fa-solid fa-circle-check"></i> Sewa selesai. Terima kasih! Bagikan pengalamanmu lewat ulasan.`,
     }[x.status] || '';
     else todo = {
@@ -1241,7 +1242,7 @@
   }
   function delivNote(ctx, opts = {}) {
     const t = `Halo admin, saya ingin konsultasi apakah barang ${ctx || 'sewaan saya'} bisa diantar. Alamat saya: `;
-    return `<div class="help-box"><div class="deliv-note"><i class="fa-solid fa-truck-fast"></i><div><b>Tidak sempat ke toko?</b> Tanyakan ke admin apakah barang bisa diantar ke tempatmu. <a href="${waLink(t)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya pengantaran</a></div></div>${opts.help === false ? '' : helpLine()}</div>`;
+    return `<div class="help-box"><div class="deliv-note"><i class="fa-solid fa-truck-fast"></i><div><b>Tidak sempat ke toko?</b> Saat checkout, pilih <b>Diantar ke lokasi</b> atau <b>Jasa tenda</b> (bongkar pasang, pasang saja, bongkar saja). Ongkirnya dikonfirmasi admin via WhatsApp setelah DP. <a href="${waLink(t)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya dulu ke admin</a></div></div>${opts.help === false ? '' : helpLine()}</div>`;
   }
   /* Permintaan antar (dipilih customer saat checkout). Kesepakatan diselesaikan langsung dengan admin lewat WhatsApp. */
   /* Pembayaran yang sudah dikirim customer tapi belum diverifikasi admin (ditampilkan abu-abu) */
@@ -1257,6 +1258,7 @@
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[href*="wa.me/"]'); if (!a) return;
     if (String(document.body.dataset.page || '').startsWith('admin')) return;
+    if (a.dataset.direct) return; /* pesan sudah lengkap (laundry, konfirmasi layanan): langsung buka WhatsApp */
     if (!DB.session() || (!activeOrders().length && !a.dataset.nota)) return;
     e.preventDefault();
     let text = ''; try { text = new URL(a.href).searchParams.get('text') || ''; } catch (err) { /* abaikan */ }

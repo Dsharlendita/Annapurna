@@ -14,6 +14,7 @@ Route::controller(PageController::class)->group(function () {
     Route::get('/belanja', 'belanja')->name('belanja');
     Route::get('/produk', 'produk')->name('produk');
     Route::get('/paket', 'paket')->name('paket');
+    Route::get('/laundry', 'laundry')->name('laundry');
     Route::get('/tentang', 'tentang')->name('tentang');
     Route::get('/kontak', 'kontak')->name('kontak');
 
@@ -70,6 +71,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,owner'])
     Route::get('/perawatan', 'perawatan')->name('perawatan');
     Route::get('/kalender', 'kalender')->name('kalender');
     Route::get('/kasir', 'kasir')->name('kasir');
+    Route::get('/laundry', 'laundry')->name('laundry');
 });
 
 // Panel Owner / Super Admin (Khusus Role: Owner)

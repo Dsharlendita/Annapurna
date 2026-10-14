@@ -28,7 +28,7 @@
   const LINE_LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
   const lini = (x) => `<span class="lini ${x.line}">${LINE_LBL[x.line] || ''}</span>`;
   /* Tebakan awal lini untuk transaksi manual (aturan sama dengan Admin.ledger); staff tetap bisa mengubahnya di form */
-  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'rent' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis/i.test(cat) ? 'rent' : 'umum');
+  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'rent' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
   const LINE_HINT = { rent: 'Untuk usaha sewa, mis. beli tenda baru untuk disewakan, servis alat sewa.', sale: 'Untuk usaha jual, mis. kulakan / restock barang jual.', umum: 'Dipakai bersama sewa & jual, mis. listrik, gaji, internet, promosi.' };
   function led(f, t) {
     const L = Admin.ledger(f, t); if (LINE === 'all') return L;
@@ -56,7 +56,7 @@
     const voidRows = (kind, span) => L.voided.filter((x) => x.kind === kind).map((x) => `<tr class="row-off"><td>${when(x)}</td>${span}<td><span class="pill gray">${esc(x.cat)}</span></td><td><s>${esc(x.desc)}</s><small>Dibatalkan oleh ${esc(x.voidBy || '-')}: ${esc(x.voidReason || '-')}</small></td><td class="num"><s>${rupiah(x.amount)}</s></td><td><span class="pill red plain">Dibatalkan</span></td></tr>`).join('');
     if (tab === 'in') {
       $('#th').innerHTML = '<tr><th>Tanggal</th><th>Referensi</th><th>Lini · Kategori</th><th>Keterangan</th><th class="num">Jumlah</th><th class="num">Aksi</th></tr>';
-      $('#rows').innerHTML = (L.income.length ? L.income.map((x) => `<tr><td>${when(x)}</td><td>${x.manual ? `<span class="muted">${x.ref}</span>` : `<a href="${x.ref.startsWith('RNT') ? 'booking' : 'penjualan'}?id=${x.ref}" style="font-weight:700;color:var(--g700)">${esc(Reports.refNo(x.ref))}</a>`}</td><td>${lini(x)}<span class="pill ${x.cat === 'Penjualan' ? 'blue' : x.cat === 'Denda' ? 'amber' : x.manual ? 'gray' : 'green'}">${x.cat}</span></td><td>${esc(x.desc)}${x.manual ? '' : '<small>Tercatat otomatis dari transaksi</small>'}</td><td class="num">${rupiah(x.amount)}</td><td>${x.manual ? acts(x) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Tidak ada pemasukan pada periode ini.</td></tr>') + voidRows('in', '<td></td>');
+      $('#rows').innerHTML = (L.income.length ? L.income.map((x) => `<tr><td>${when(x)}</td><td>${x.manual ? `<span class="muted">${x.ref}</span>` : `<a href="${x.ref.startsWith('RNT') ? 'booking' : x.ref.startsWith('DRY') ? 'laundry' : 'penjualan'}?id=${x.ref}" style="font-weight:700;color:var(--g700)">${esc(Reports.refNo(x.ref))}</a>`}</td><td>${lini(x)}<span class="pill ${x.cat === 'Penjualan' ? 'blue' : x.cat === 'Denda' ? 'amber' : x.manual ? 'gray' : 'green'}">${x.cat}</span></td><td>${esc(x.desc)}${x.manual ? '' : '<small>Tercatat otomatis dari transaksi</small>'}</td><td class="num">${rupiah(x.amount)}</td><td>${x.manual ? acts(x) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Tidak ada pemasukan pada periode ini.</td></tr>') + voidRows('in', '<td></td>');
       $('#tf').innerHTML = `<tr><td colspan="4">Total pemasukan</td><td class="num">${rupiah(L.totalIn)}</td><td></td></tr>`;
     } else {
       $('#th').innerHTML = '<tr><th>Tanggal</th><th>Lini · Kategori</th><th>Keterangan</th><th class="num">Jumlah</th><th class="num">Aksi</th></tr>';
@@ -90,12 +90,16 @@
     let lnTouched = !!e.line || (isNew && LINE !== 'all');
     const lnSel = m.$('#ef').elements.line, showHint = () => { m.$('#lnHint').textContent = LINE_HINT[lnSel.value]; };
     lnSel.addEventListener('change', () => { lnTouched = true; showHint(); });
-    m.$('#ef').elements.category.addEventListener('change', (ev) => { if (!lnTouched) { lnSel.value = guessLine(kind, ev.target.value); showHint(); } });
+    /* Laundry, jasa tenda & ongkir antar jemput selalu masuk lini Rental: pilihan lini dikunci */
+    const RENT_ONLY = /laundry|tenda|bongkar|pasang|ongkir/i;
+    const lockLine = (cat) => { const lock = kind === 'in' && RENT_ONLY.test(cat); if (lock) { lnSel.value = 'rent'; m.$('#lnHint').textContent = 'Laundry, jasa tenda & ongkir antar jemput selalu masuk lini Rental.'; } else showHint(); lnSel.disabled = lock; };
+    m.$('#ef').elements.category.addEventListener('change', (ev) => { if (!lnTouched || (kind === 'in' && RENT_ONLY.test(ev.target.value))) lnSel.value = guessLine(kind, ev.target.value); lockLine(ev.target.value); });
+    lockLine(m.$('#ef').elements.category.value);
     m.$('#eSave').addEventListener('click', () => {
       const F = m.$('#ef'), E = F.elements;
       if (!validate(F, { date: (v) => (!v ? 'Pilih tanggal.' : ''), desc: (v) => (v.length < 3 ? 'Isi keterangan.' : ''), amount: (v) => (!(+v > 0) ? 'Jumlah harus lebih dari 0.' : '') })) return;
       const all = kind === 'in' ? DB.incomes() : DB.expenses();
-      const obj = { id: e.id || DB.nextId(kind === 'in' ? 'INC' : 'EXP', all), date: E.date.value, category: E.category.value, desc: E.desc.value.trim(), amount: Math.round(+E.amount.value), line: E.line.value };
+      const obj = { id: e.id || DB.nextId(kind === 'in' ? 'INC' : 'EXP', all), date: E.date.value, category: E.category.value, desc: E.desc.value.trim(), amount: Math.round(+E.amount.value), line: kind === 'in' && /laundry|tenda|bongkar|pasang|ongkir/i.test(E.category.value) ? 'rent' : E.line.value };
       DB.saveFinance(kind, obj); m.close(); toast(`${label[0].toUpperCase() + label.slice(1)} disimpan.`);
       tab = kind; $$('#tabs .tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === kind)); draw();
     });

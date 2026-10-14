@@ -1,5 +1,5 @@
 (function () {
-  const { DB, D, rupiah } = Ann; const { $, esc, param, toast, fileToDataURL, pill } = UI;
+  const { DB, D, rupiah, Svc } = Ann; const { $, esc, param, toast, fileToDataURL, pill } = UI;
   const user = Site.requireLogin(); if (!user) return;
   const st = DB.settings();
   const ids = (param('ids') || '').split(',').filter(Boolean);
@@ -85,8 +85,31 @@
       }
       DB.notifyStaff('Bukti pembayaran masuk', `${o.customer.name} mengunggah bukti pembayaran untuk ${NO(o)}.`, o._t === 'rent' ? 'admin/booking?id=' + o.id : 'admin/penjualan?id=' + o.id);
     });
-    DB.notify(user.email, 'Bukti pembayaran terkirim', `Admin sedang memverifikasi pembayaran ${pending.map((o) => o.id).join(', ')}.`, 'pesanan');
+    DB.notify(user.email, 'Bukti pembayaran terkirim', `Admin sedang memverifikasi pembayaran ${pending.map((o) => NO(o)).join(', ')}.`, 'pesanan');
+    /* Ada permintaan antar / bongkar pasang: satu langkah lagi, konfirmasi ongkir ke admin via WhatsApp */
+    const svc = pending.filter((o) => o._t === 'rent').map((o) => DB.booking(o.id)).filter((b) => b && Svc.has(b));
+    if (svc.length) { nextStep(svc); return; }
     location.href = 'pesanan?paid=1';
   });
+
+  function nextStep(list) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    root.innerHTML = list.map((b) => { const txt = Svc.waText(b); return `<div class="card svc-next">
+      <div class="head"><span class="ic"><i class="fa-solid ${Svc.icon(b)}"></i></span><div>
+        <h2>Satu langkah lagi: konfirmasi ke admin</h2>
+        <p>Bukti DP ${esc(NO(b))} sudah terkirim. Kamu memilih <b>${esc(Svc.label(b).toLowerCase())}</b>. Kirim pesan ini supaya admin bisa menghitung ${Svc.ongkirText(b)} dan mengunci jadwalnya.</p>
+      </div></div>
+      <p class="svc-msg-l">Pesan yang akan dikirim</p>
+      <div class="svc-msg">${esc(txt)}</div>
+      <div class="acts">
+        <a class="btn btn-wa btn-lg" href="${UI.waLink(txt)}" target="_blank" rel="noopener" data-direct="1" data-svc="${b.id}"><i class="fa-brands fa-whatsapp"></i> Konfirmasi ke admin</a>
+        <a class="btn btn-light" href="pesanan?paid=1">Nanti saja</a>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin-top:12px"><i class="fa-solid fa-circle-info"></i> Tombol yang sama juga ada di Pesanan Saya. Biaya jasa &amp; ongkir dibayar langsung ke admin, tidak masuk DP.</p>
+    </div>`; }).join('');
+    root.addEventListener('click', (e) => { const a = e.target.closest('[data-svc]'); if (!a) return;
+      const b = DB.booking(a.dataset.svc); if (b && !(b.deliv || {}).waAt) { b.deliv = Object.assign({}, b.deliv, { waAt: D.nowStamp() }); b.history.push({ at: D.nowStamp(), text: 'Customer mengirim konfirmasi layanan ke admin via WhatsApp' }); DB.saveBooking(b); }
+      setTimeout(() => { location.href = 'pesanan?paid=1'; }, 1200); });
+  }
 })();
 

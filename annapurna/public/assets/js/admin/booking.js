@@ -23,7 +23,7 @@
       return `<tr>
         <td><strong>${NO(b)}</strong><small>${D.fmtDate(b.createdAt)}</small></td>
         <td>${esc(b.customer.name)}<small>${esc(b.customer.phone)}</small></td>
-        <td style="min-width:190px;max-width:260px">${esc(Admin.itemsText(b))}${(b.changes || []).some((c) => c.status === 'menunggu') ? '<small style="color:#9a6508"><i class="fa-solid fa-arrows-rotate"></i> Ada permintaan ganti</small>' : ''}${b.group ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · ' + mates.map((x) => x.id).join(', ') : ''}</small>` : ''}</td>
+        <td style="min-width:190px;max-width:260px">${esc(Admin.itemsText(b))}${Admin.svcLine(b)}${(b.changes || []).some((c) => c.status === 'menunggu') ? '<small style="color:#9a6508"><i class="fa-solid fa-arrows-rotate"></i> Ada permintaan ganti</small>' : ''}${b.group ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · ' + mates.map((x) => x.id).join(', ') : ''}</small>` : ''}</td>
         <td>${D.fmtRange(b.start, b.end)}<small>${b.days} malam${late ? ' · <span style="color:var(--red);font-weight:700">terlambat</span>' : ''}</small></td>
         <td class="num">${rupiah(b.total)}</td><td class="num">${rupiah(b.dp)}</td><td class="num">${b.status === 'dibatalkan' ? '-' : rupiah(Admin.sisa(b))}</td>
         <td>${pill('rental', b.status)}<small style="margin-top:4px">${pill('payment', b.paymentStatus)}</small></td>

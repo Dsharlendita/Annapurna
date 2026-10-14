@@ -1,5 +1,5 @@
 (function () {
-  const { DB, Rules, D, rupiah } = Ann; const { $, $$, esc, asset, param, toast, modal, confirmBox, pill, Cart, stars, reviewModal } = UI;
+  const { DB, Rules, D, rupiah, Svc } = Ann; const { $, $$, esc, asset, param, toast, modal, confirmBox, pill, Cart, stars, reviewModal } = UI;
   const user = Site.requireLogin(); if (!user) return;
   const st = DB.settings();
   let tab = param('tab') || 'sewa';
@@ -40,9 +40,10 @@
         <div>
           <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px;margin-bottom:8px">
             <span><i class="fa-regular fa-calendar" style="color:var(--g600)"></i> ${D.fmtRange(b.start, b.end)} · ${b.days} malam</span>
-            <span><i class="fa-solid fa-store" style="color:var(--g600)"></i> Ambil di toko</span>
+            <span><i class="fa-solid ${Svc.icon(b)}" style="color:var(--g600)"></i> ${esc(Svc.label(b))}</span>
           </div>
           ${lines(b.items)}
+          ${svcBox(b)}
           ${pendingChange ? `<div class="notice" style="margin-top:10px"><i class="fa-solid fa-arrows-rotate"></i><div>Permintaan ganti <strong>${esc(pendingChange.fromName)}</strong> → <strong>${esc(pendingChange.toName)}</strong> sedang ditinjau admin.</div></div>` : ''}
           ${late ? `<div class="notice red" style="margin-top:10px"><i class="fa-solid fa-clock"></i><div>Sudah lewat tanggal kembali ${D.diffDays(b.end, D.today())} hari. Segera kembalikan untuk menghindari denda bertambah.</div></div>` : ''}
           ${b.status === 'dibatalkan' && b.cancel ? `<div class="notice ${b.cancel.refundable ? 'green' : 'red'}" style="margin-top:10px"><i class="fa-solid fa-circle-info"></i><div>${b.cancel.refundable ? (b.cancel.refundStatus === 'selesai' ? `DP ${rupiah(b.dp)} sudah dikembalikan.` : b.cancel.refundStatus === 'menunggu' ? `Pengembalian DP ${rupiah(b.dp)} sedang diproses admin.` : 'Booking dibatalkan sebelum pembayaran.') : 'Dibatalkan kurang dari H-2, DP tidak dikembalikan.'}</div></div>` : ''}
@@ -51,6 +52,22 @@
       </div>
       <div class="of">${acts.join('')}</div>
     </article>`;
+  }
+  /* Layanan antar / bongkar pasang: jadwal + tombol konfirmasi ongkir ke admin */
+  function svcBox(b) {
+    if (!Svc.has(b)) return '';
+    const d = b.deliv || {}; const live = !['selesai', 'dibatalkan'].includes(b.status);
+    const rm = Svc.returnMode(b); const tent = Svc.isTent(b);
+    return `<div class="svc-box">
+      <div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>
+      ${Svc.delivers(b) ? `<div class="r"><i class="fa-solid fa-truck-fast"></i><span>${Svc.outLabel(b) === 'Antar' ? 'Diantar' : 'Antar &amp; pasang'} ${D.fmtDate(d.date || b.start, true)} pukul ${esc(Svc.fmtT(d.time) || '-')}</span></div>`
+        : `<div class="r"><i class="fa-solid fa-store"></i><span>Ambil barang di toko ${D.fmtDate(b.start, true)}</span></div>`}
+      ${rm === 'jemput' ? `<div class="r"><i class="fa-solid fa-rotate-left"></i><span>${tent ? 'Bongkar &amp; jemput' : 'Dijemput staff'} ${D.fmtDate(d.backDate || b.end, true)}${d.backTime ? ' pukul ' + esc(Svc.fmtT(d.backTime)) : ''}${Svc.mode(b) === 'bongkar_saja' ? ' (tenda ditinggal di lokasi)' : ''}</span></div>` : rm === 'toko' ? `<div class="r"><i class="fa-solid fa-store"></i><span>${tent ? 'Tenda dibongkar sendiri, kembalikan' : 'Pengembalian diantar sendiri'} ke toko</span></div>` : '<div class="r"><i class="fa-solid fa-rotate-left"></i><span>Pengembalian: atur bersama admin</span></div>'}
+      ${(() => { const bl = Svc.bill(b); return `${tent ? `<div class="r"><i class="fa-solid ${Svc.icon(b)}"></i><span>Jasa ${esc(Svc.short(b).toLowerCase())} ${d.tents || 1} tenda · <b>${rupiah(bl.jasa)}</b></span></div>` : ''}
+      <div class="r"><i class="fa-solid fa-route"></i><span>${Svc.ongkirText(b).replace(/^o/, 'O')}: ${bl.ongkirSet ? `<b>${rupiah(bl.ongkir)}</b>` : '<em>menunggu konfirmasi admin</em>'}</span></div>
+      ${bl.ongkirSet ? `<div class="r"><i class="fa-solid ${bl.due ? 'fa-coins' : 'fa-circle-check'}"></i><span>Total layanan ${rupiah(bl.total)} · ${bl.due ? `sisa <b>${rupiah(bl.due)}</b> dibayar ke admin` : 'lunas'}</span></div>` : ''}`; })()}
+      ${live && b.status !== 'menunggu_pembayaran' ? `<div class="acts"><a class="btn btn-wa btn-sm" href="${UI.waLink(Svc.waText(b))}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> ${Svc.bill(b).ongkirSet ? 'Chat admin' : d.waAt ? 'Kirim ulang konfirmasi' : 'Konfirmasi ongkir ke admin'}</a></div>` : ''}
+    </div>`;
   }
   function saleCard(s) {
     const acts = [...(!['selesai', 'dibatalkan'].includes(s.status) ? [`<button class="btn btn-ghost btn-sm wa-admin" data-act="waadmin" data-id="${s.id}" title="Tanya admin soal pesanan ini (mis. minta diantar)"><i class="fa-brands fa-whatsapp"></i> Chat admin</button>`] : []), `<button class="btn btn-ghost btn-sm" data-act="sdetail" data-id="${s.id}">Detail</button>`];
@@ -91,7 +108,8 @@
           <h4 style="margin-bottom:8px">Barang</h4>${lines(b.items)}
           <div class="kv"><span>Tanggal sewa</span><span>${D.fmtRange(b.start, b.end)}</span></div>
           <div class="kv"><span>Lama sewa</span><span>${b.days} malam · ${esc(Rules.tierLabel(b.items[0] ? (b.items[0].tiers || { d1: b.items[0].pricePerDay }) : {}, b.days))}</span></div>
-          <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
+          <div class="kv"><span>Pengambilan</span><span>${esc(Svc.label(b))}</span></div>
+          ${Svc.has(b) ? `<div class="kv"><span>Jadwal</span><span style="text-align:right">${esc(Svc.brief(b))}</span></div>` : ''}
           <div class="kv"><span>Metode bayar</span><span>${esc(b.method)}</span></div>
           <div class="kv"><span>Subtotal sewa</span><span>${rupiah(b.subtotal)}</span></div>
           ${b.fine ? `<div class="kv"><span>Denda</span><span style="color:var(--red)">${rupiah(b.fine)}</span></div>` : ''}

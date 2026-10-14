@@ -1,5 +1,5 @@
 (function () {
-  const { DB, Rules, D, rupiah } = Ann; const { $, $$, esc, asset, Cart, toast, validate, isPhone, isEmail } = UI;
+  const { DB, Rules, D, rupiah, Svc } = Ann; const { $, $$, esc, asset, Cart, toast, validate, isPhone, isEmail } = UI;
   let user = DB.session();
   const cart = Cart.all();
   const root = $('#root');
@@ -13,6 +13,19 @@
   const depOf = (it) => { if (it.kind === 'package') { const pk = DB.pkg(it.refId); return pk ? pk.items.reduce((a, x) => a + ((DB.product(x.productId) || {}).deposit || 0) * x.qty, 0) * it.qty : 0; } return ((DB.product(it.refId) || {}).deposit || 0) * it.qty; };
   const depositTotal = rent.reduce((a, it) => a + depOf(it), 0);
 
+  /* ---------- Pengambilan barang: ambil di toko / diantar / jasa tenda ----------
+     Jasa tenda (ketentuan mitra): bongkar pasang · pasang saja · bongkar saja — tarif per tenda, di luar ongkir.
+     Biaya jasa & ongkir TIDAK masuk DP: disepakati lewat WhatsApp setelah DP, lalu dicatat staff.
+     Jadwal antar = tanggal mulai sewa, jadwal jemput = tanggal kembali; customer cukup memilih jam. */
+  const latest = rent.map((r) => r.end).sort().slice(-1)[0];
+  const tentsInCart = Svc.tentCount(rent.map((it) => { const r = Cart.resolve(it); return { kind: it.kind, refId: it.refId, qty: it.qty, components: r && r.components }; }));
+  const SV = { pick: 'ambil', tentMode: 'pasang', address: (user && user.address) || '', time: '08:00', backTime: '16:00', tents: Math.max(1, tentsInCart) };
+  /* Mode efektif yang disimpan ke booking: ambil | antar | pasang | pasang_saja | bongkar_saja */
+  Object.defineProperty(SV, 'mode', { get: () => (SV.pick === 'tenda' ? SV.tentMode : SV.pick) });
+  const HOURS = Svc.hours();
+  const svcFee = () => (Svc.isTent(SV.mode) ? SV.tents * Svc.fee(SV.mode) : 0);
+  const minFee = Math.min(...Svc.TENT_MODES.map((m) => Svc.fee(m)));
+
   const blocked = !!user && DB.blockedContact(user.email, user.phone);
   let promo = null;
   const promoCalc = () => (promo ? DB.checkPromo(promo, { rent: rentTotal, buy: buyTotal, starts: rent.map((r) => r.start) }) : null);
@@ -21,6 +34,7 @@
     const dpNow = Math.round((rentTotal - dr) * st.dpPercent / 100);
     $('#coSum').innerHTML = `${rent.length ? `<div class="kv"><span>Total sewa</span><span>${rupiah(rentTotal)}</span></div>${dr ? `<div class="kv"><span>Diskon sewa (${esc(pr.promo.code)})</span><span style="color:var(--g700)">− ${rupiah(dr)}</span></div>` : ''}<div class="kv hl"><span>DP ${st.dpPercent}%</span><span>${rupiah(dpNow)}</span></div>` : ''}
       ${buy.length ? `<div class="kv"><span>Total belanja</span><span>${rupiah(buyTotal)}</span></div>${db ? `<div class="kv"><span>Diskon belanja (${esc(pr.promo.code)})</span><span style="color:var(--g700)">− ${rupiah(db)}</span></div>` : ''}` : ''}
+      ${SV.mode !== 'ambil' ? `<div class="kv svc-kv"><span>${Svc.isTent(SV.mode) ? `${Svc.spec(SV.mode).short} ${SV.tents} tenda + ${Svc.spec(SV.mode).ongkir}` : 'Ongkir antar'}</span><span>${Svc.isTent(SV.mode) ? rupiah(svcFee()) + ' + ongkir' : 'sesuai jarak'}<small>dibayar ke admin, tidak masuk DP</small></span></div>` : ''}
       ${depositTotal ? `<div class="kv dep-kv"><span>Jaminan <small>dibayar saat ambil, dikembalikan saat kembali</small></span><span>${rupiah(depositTotal)}</span></div>` : ''}
       <div class="kv total"><span>Dibayar sekarang</span><span id="payNow">${rupiah(dpNow + buyTotal - db)}</span></div>`;
     const sb = document.getElementById('coStickyAmt'); if (sb) sb.textContent = rupiah(dpNow + buyTotal - db);
@@ -40,13 +54,17 @@
 
       <div class="card">
         <div class="card-title"><i class="fa-solid fa-store"></i> Pengambilan barang</div>
-        <div class="pickup-box">
-          <span class="rc-ic"><i class="fa-solid fa-store"></i></span>
-          <div><strong>Ambil &amp; kembalikan di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></div>
-          <a class="btn btn-light btn-xs" href="kontak#lokasi" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-location-dot"></i> Lihat peta</a>
+        ${rent.length ? `<div class="dl-opts" role="radiogroup" aria-label="Cara pengambilan barang">
+          <label class="radio-card"><input type="radio" name="dpick" value="ambil" checked><span class="rc-ic"><i class="fa-solid fa-store"></i></span><span><strong>Ambil di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></span></label>
+          <label class="radio-card"><input type="radio" name="dpick" value="antar"><span class="rc-ic"><i class="fa-solid fa-truck-fast"></i></span><span><strong>Diantar ke lokasi</strong><small>Staff mengantar barang ke alamatmu. Pengembalian diatur bersama admin.</small></span><span class="dl-price">+ ongkir</span></label>
+          ${tentsInCart ? `<label class="radio-card"><input type="radio" name="dpick" value="tenda"><span class="rc-ic"><i class="fa-solid fa-tents"></i></span><span><strong>Jasa tenda</strong><small>Bongkar pasang, pasang saja, atau bongkar saja oleh tim kami.</small></span><span class="dl-price">mulai ${rupiah(minFee)}/tenda + ongkir</span></label>` : ''}
         </div>
-        <p class="deliv-hint"><i class="fa-solid fa-truck-fast"></i> <span>Ingin barang diantar? <a href="${UI.waLink('Halo admin Annapurna, saya ingin menanyakan apakah barang sewaan saya bisa diantar. Alamat saya: ')}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Hubungi admin via WhatsApp</a> untuk menanyakan ketersediaan dan ongkirnya.</span></p>
-        <p class="muted" style="font-size:13px;margin-top:8px"><i class="fa-solid fa-circle-info"></i> Tunjukkan nota digital${rent.length ? ' dan kartu identitas asli' : ''} saat mengambil barang.</p>
+        <div id="dlFields"></div>` : `<div class="pickup-box">
+          <span class="rc-ic"><i class="fa-solid fa-store"></i></span>
+          <div><strong>Ambil di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></div>
+          <a class="btn btn-light btn-xs" href="kontak#lokasi" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-location-dot"></i> Lihat peta</a>
+        </div>`}
+        <p class="muted" style="font-size:13px;margin-top:12px"><i class="fa-solid fa-circle-info"></i> Tunjukkan nota digital${rent.length ? ' dan kartu identitas asli' : ''} saat ${rent.length ? 'menerima' : 'mengambil'} barang.</p>
         <div class="field" style="margin-top:14px"><label for="notes">Catatan untuk admin <span class="muted">(opsional)</span></label><input class="input" id="notes" name="notes" placeholder="Contoh: ambil sore sekitar jam 4"></div>
       </div>
 
@@ -79,6 +97,36 @@
 
   const form = $('#coForm');
   drawSum();
+
+  function drawDeliv() {
+    const box = $('#dlFields'); if (!box) return;
+    if (SV.mode === 'ambil') { box.innerHTML = ''; return; }
+    const opt = (v) => HOURS.map((h) => `<option value="${h}" ${h === v ? 'selected' : ''}>${h.replace(':', '.')}</option>`).join('');
+    const m = SV.mode, sp = Svc.spec(m), tent = Svc.isTent(m);
+    const back = sp.pickup === true; const out = !!sp.deliver;
+    box.innerHTML = `<div class="dl-fields">
+      ${tent ? `<div class="dl-tentopts" role="radiogroup" aria-label="Jenis jasa tenda">${Svc.TENT_MODES.map((k) => { const x = Svc.spec(k); return `<label class="radio-card sm"><input type="radio" name="dtent" value="${k}" ${k === m ? 'checked' : ''}><span><strong>${x.short} <em>${rupiah(Svc.fee(k))}/tenda</em></strong><small>${x.desc}</small></span></label>`; }).join('')}</div>` : ''}
+      <div class="field"><label for="dlAddr">${tent ? 'Lokasi camping' : 'Alamat / lokasi antar'}</label><textarea class="textarea" id="dlAddr" name="dlAddr" rows="2" placeholder="${tent ? 'Contoh: Bumi Perkemahan Baturraden, Banyumas' : 'Contoh: Jl. Raya Baturraden No. 12, Banyumas'}">${esc(SV.address)}</textarea></div>
+      ${tent ? `<div class="dl-tents"><span>Jumlah tenda <small class="muted">(${tentsInCart} tenda di keranjang)</small></span><div class="qty sm"><button type="button" data-tq="-1" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input value="${SV.tents}" readonly aria-label="Jumlah tenda"><button type="button" data-tq="1" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div><b>${rupiah(svcFee())}</b></div>` : ''}
+      <div class="dl-sched">
+        ${out ? `<span class="lbl">${tent ? 'Antar &amp; pasang' : 'Diantar'}</span><span class="row"><span class="date">${D.fmtDate(earliest, true)}</span> pukul <select class="select" id="dlTime" aria-label="Jam antar">${opt(SV.time)}</select></span>`
+          : `<span class="lbl">Ambil di toko</span><span class="row"><span class="date">${D.fmtDate(earliest, true)}</span> <span class="muted">sesuai jam buka toko</span></span>`}
+        ${back ? `<span class="lbl">Bongkar &amp; jemput</span><span class="row"><span class="date">${D.fmtDate(latest, true)}</span> pukul <select class="select" id="dlBack" aria-label="Jam jemput">${opt(SV.backTime)}</select></span>`
+          : tent ? `<span class="lbl">Pengembalian</span><span class="row">Kamu bongkar sendiri &amp; kembalikan ke toko paling lambat <span class="date">${D.fmtDate(latest, true)} pukul ${Svc.fmtT(st.returnTime || '22:00')}</span></span>` : ''}
+      </div>
+      <p class="dl-info"><i class="fa-brands fa-whatsapp"></i><span>${tent ? `Biaya jasa ${rupiah(svcFee())} + ${sp.ongkir} sesuai jarak` : 'Ongkir sesuai jarak'} dikonfirmasi admin via WhatsApp setelah DP, <b>tidak masuk DP</b>, dan dibayar langsung ke admin.${!tent ? ' Pengembalian bisa diantar sendiri ke toko atau dijemput, atur bersama admin.' : ''}${back ? ` Jemput paling lambat pukul ${Svc.fmtT(st.returnTime || '22:00')} supaya tidak dihitung terlambat.` : ''}</span></p>
+    </div>`;
+  }
+  if (rent.length) {
+    form.addEventListener('change', (e) => {
+      if (e.target.name === 'dpick') { SV.pick = e.target.value; drawDeliv(); drawSum(); }
+      if (e.target.name === 'dtent') { SV.tentMode = e.target.value; drawDeliv(); drawSum(); }
+      if (e.target.id === 'dlTime') SV.time = e.target.value;
+      if (e.target.id === 'dlBack') SV.backTime = e.target.value;
+    });
+    form.addEventListener('input', (e) => { if (e.target.id === 'dlAddr') SV.address = e.target.value; });
+    form.addEventListener('click', (e) => { const b = e.target.closest('[data-tq]'); if (!b) return; SV.tents = Math.max(1, Math.min(Math.max(tentsInCart, 1), SV.tents + +b.dataset.tq)); drawDeliv(); drawSum(); });
+  }
   const applyPromo = () => { const v = $('#promoIn').value.trim(); if (!v) { promo = null; $('#promoMsg').innerHTML = ''; drawSum(); return; }
     const r = DB.checkPromo(v, { rent: rentTotal, buy: buyTotal, starts: rent.map((x) => x.start) });
     promo = r.ok ? r.promo.code : null;
@@ -96,6 +144,7 @@
       phone: (v) => (!isPhone(v) ? 'Nomor WhatsApp tidak valid. Contoh: 081234567890.' : ''),
       email: (v) => (!isEmail(v) ? 'Format email belum benar.' : ''),
       agree: (v, el) => (!el.checked ? 'Centang persetujuan untuk melanjutkan.' : ''),
+      dlAddr: (v) => (SV.mode !== 'ambil' && v.length < 8 ? 'Isi alamat / lokasi lengkap supaya admin bisa menghitung ongkir.' : ''),
     });
     if (!ok) return;
     if (blocked) { toast('Akun ini tidak bisa membuat pesanan. Hubungi admin.', 'err'); return; }
@@ -147,6 +196,9 @@
 
     const customer = { name: form.elements.name.value.trim(), phone: form.phone.value.trim(), email: user.email };
     const common = { customer, userEmail: user.email, method: form.elements.method.value, delivery: 'ambil', notes: form.notes.value.trim(), idType: form.idType.value, createdAt: D.nowStamp() };
+    /* Layanan antar / bongkar pasang menempel ke booking sewa. Bila checkout memecah beberapa booking (durasi berbeda),
+       layanan dipasang ke booking yang tanggal ambilnya paling awal (dan jumlah tendanya mengikuti isi booking itu). */
+    let svcPlaced = false;
     const ids = [];
     const groups = {};
     rent.forEach((it) => { const k = it.start + '|' + it.end; (groups[k] = groups[k] || []).push(it); });
@@ -161,9 +213,16 @@
       const dep = items.reduce((a, it) => a + depOf(it), 0);
       const b = Object.assign({}, common, { id: DB.nextId('RNT', DB.bookings()), items: lines, start, end, days, deposit: dep, subtotal, total: subtotal, dp: Math.round(subtotal * st.dpPercent / 100), fine: 0, discount: disc,
         status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], refunds: [], changes: [], history: [{ at: D.nowStamp(), text: 'Booking dibuat' }] }, grp ? { group: grp } : {});
+      if (SV.mode !== 'ambil' && !svcPlaced && start === earliest) {
+        svcPlaced = true;
+        const sp = Svc.spec(SV.mode), tent = Svc.isTent(SV.mode);
+        b.delivery = SV.mode;
+        b.deliv = Object.assign({ address: SV.address.trim(), date: start, time: sp.deliver ? SV.time : '' }, sp.pickup ? { backDate: latest, backTime: SV.backTime } : {}, tent ? { tents: SV.tents } : {}, { returnMode: sp.pickup === true ? 'jemput' : sp.pickup === false ? 'toko' : '' });
+        b.history.push({ at: D.nowStamp(), text: `Minta ${tent ? `${sp.label.toLowerCase()} (${SV.tents} tenda)` : 'diantar ke lokasi'} · ${Svc.brief(b)}` });
+      }
       Rules.recalc(b); if (!b.discount) delete b.discount;
       DB.saveBooking(b); ids.push(b.id);
-      DB.notifyStaff('Booking baru masuk', `${customer.name} membuat booking ${NO(b)} untuk ${D.fmtRange(start, end)}.`, 'admin/booking?id=' + b.id);
+      DB.notifyStaff('Booking baru masuk', `${customer.name} membuat booking ${NO(b)} untuk ${D.fmtRange(start, end)}.${Svc.has(b) ? ` Minta ${Svc.label(b).toLowerCase()}.` : ''}`, 'admin/booking?id=' + b.id);
     });
     if (buy.length) {
       const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price }, it.size ? { size: it.size } : {}); });

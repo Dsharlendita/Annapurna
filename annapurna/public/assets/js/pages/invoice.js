@@ -31,6 +31,20 @@
     ? x.items.map((it) => `<tr><td><div class="prod"><img src="${asset(it.img)}" alt=""><div><strong>${esc(it.name)}</strong>${it.kind === 'package' ? '<small>Paket</small>' : ''}<small class="inv-m">${it.qty} × ${rupiah(Rules.lineUnit(it, x.days))} · ${esc(Rules.tierLabel(it.tiers || { d1: it.pricePerDay }, x.days))}</small></div></div></td><td class="num">${it.qty}</td><td class="num">${rupiah(Rules.lineUnit(it, x.days))}</td><td class="num">${esc(Rules.tierLabel(it.tiers || { d1: it.pricePerDay }, x.days))}</td><td class="num">${rupiah(Rules.lineUnit(it, x.days) * it.qty)}</td></tr>`).join('')
     : x.items.map((it) => `<tr><td><div class="prod"><img src="${asset(it.img)}" alt=""><div><strong>${esc(it.name)}</strong><small class="inv-m">${it.qty} × ${rupiah(it.price)}</small></div></div></td><td class="num">${it.qty}</td><td class="num">${rupiah(it.price)}</td><td class="num">${rupiah(it.price * it.qty)}</td></tr>`).join('');
 
+  /* Tagihan layanan antar / jasa tenda: terpisah dari total sewa, ongkir diisi admin setelah kesepakatan WhatsApp */
+  function svcBill() {
+    const S = Ann.Svc; if (!isRent || !S.has(x)) return '';
+    const bl = S.bill(x); const tent = S.isTent(x); const d = x.deliv || {};
+    return `<div class="inv-foot inv-svc"><div class="box">
+      <h5>Biaya layanan · ${esc(S.label(x))}</h5>
+      ${tent ? `<div class="kv"><span>Jasa ${esc(S.short(x).toLowerCase())} (${d.tents || 1} tenda)</span><span>${rupiah(bl.jasa)}</span></div>` : ''}
+      <div class="kv"><span>${S.ongkirText(x).replace(/^o/, 'O')}</span><span>${bl.ongkirSet ? rupiah(bl.ongkir) : '<em class="muted">menunggu konfirmasi admin</em>'}</span></div>
+      <div class="kv total"><span>Total layanan</span><span>${rupiah(bl.total)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
+      <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>
+      ${bl.ongkirSet ? `<div class="kv"><span>Sisa layanan</span><strong>${bl.due ? rupiah(bl.due) : 'Lunas'}</strong></div>` : ''}
+      <p class="muted" style="font-size:11.5px;margin-top:6px">Dibayar terpisah dari sewa, langsung ke admin.${d.notaAt ? ` Diperbarui ${D.fmtDateTime(d.notaAt)}.` : ''}</p>
+    </div></div>`;
+  }
   $('#inv').innerHTML = `<div class="invoice">
     <div class="inv-head">
       <div><img src="assets/img/logo.png" alt="Annapurna Adventure"><p class="muted" style="font-size:13px;margin-top:8px;max-width:34ch">${esc(st.address)}<br>${esc(st.phone)} · ${esc(st.email)}</p></div>
@@ -46,7 +60,7 @@
       <div><h5>Ditagihkan kepada</h5><strong>${esc(x.customer.name)}</strong><br>${esc(x.customer.phone)}<br>${esc(x.customer.email)}</div>
       <div><h5>${isRent ? 'Detail sewa' : 'Detail pesanan'}</h5>
         ${isRent ? `<div>Periode: <strong>${D.fmtRange(x.start, x.end)}</strong> (${x.days} malam · kembali maks. pukul ${String(Ann.DB.settings().returnTime || '22:00').replace(':', '.')} WIB)</div><div>Ambil: ${D.fmtDate(x.start, true)} · Kembali: ${D.fmtDate(x.end, true)}</div>` : ''}
-        <div>Pengambilan: Ambil di toko</div>
+        <div>Pengambilan: ${isRent ? esc(Ann.Svc.label(x)) : 'Ambil di toko'}</div>${isRent && Ann.Svc.has(x) ? `<div>Layanan: ${esc(Ann.Svc.brief(x))}</div>` : ''}
         <div>Pembayaran: ${esc(x.method || '-')}</div>
         <div style="margin-top:6px">${isRent ? pill('rental', x.status) : pill('sale', x.status)} ${pill('payment', x.paymentStatus)}</div>
       </div>
@@ -69,8 +83,9 @@
       ${refunded ? `<div class="kv"><span>Dikembalikan</span><span>− ${rupiah(refunded)}</span></div>` : ''}
       ${x.status !== 'dibatalkan' ? `<div class="kv"><span>${isRent && ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'].includes(x.status) ? 'Sisa dibayar saat ambil' : 'Sisa pembayaran'}</span><strong>${rupiah(sisa)}</strong></div>` : ''}${BL.late ? `<div class="kv"><span>Denda keterlambatan (${BL.late} malam)</span><span style="color:#b42318;font-weight:700">${rupiah(BL.fine)}</span></div><div class="kv total" style="color:#b42318"><span>Total dibayar saat kembali</span><span>${rupiah(sisa + BL.fine)}</span></div>` : ''}${isRent && CI.all.some((c) => c.status === 'menunggu') ? '<p class="muted" style="font-size:12px;margin-top:6px">Ada permintaan ganti barang yang masih menunggu persetujuan admin, belum dihitung di total.</p>' : ''}
     </div></div>
-    ${(x.payments || []).length ? `<h5 style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
-      ${x.payments.map((p) => `<div class="kv" style="border-bottom:1px dashed var(--line)"><span>${D.fmtDateTime(p.at)} · ${esc(p.type)}</span><span>${rupiah(p.amount)}</span></div>`).join('')}` : ''}
+    ${svcBill()}
+    ${(x.payments || []).length || (x.svc || []).length ? `<h5 style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
+      ${[...(x.payments || []).map((p) => ({ at: p.at, t: p.type, a: p.amount })), ...(x.svc || []).map((p) => ({ at: p.at, t: p.kind === 'pasang' ? 'Jasa tenda' : 'Ongkir', a: p.amount }))].sort((a, b) => String(a.at).localeCompare(String(b.at))).map((p) => `<div class="kv" style="border-bottom:1px dashed var(--line)"><span>${D.fmtDateTime(p.at)} · ${esc(p.t)}</span><span>${rupiah(p.a)}</span></div>`).join('')}` : ''}
     ${isRent ? `<div class="notice green" style="margin-top:22px"><i class="fa-solid fa-circle-info"></i><div><strong>Ketentuan singkat</strong><ul>${st.rentalTerms.slice(0, 3).map((t) => `<li>${esc(t)}</li>`).join('')}<li>${esc(st.cancelPolicy[0])}</li></ul></div></div>` : ''}
     <p class="muted" style="text-align:center;font-size:12.5px;margin-top:22px">Terima kasih telah mempercayai Annapurna Adventure. Tunjukkan nota ini${isRent ? ' dan kartu identitas asli' : ''} saat mengambil barang di toko.</p>
   </div>`;

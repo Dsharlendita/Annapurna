@@ -8,8 +8,8 @@
   const typeLabel = (k) => (AUDIT_TYPES[k] || { label: k }).label;
   const roleLabel = (r) => DB.ROLE_LABEL[r] || r;
   /* Kode internal pesanan (RNT-…/ORD-…) ditampilkan sebagai nomor nota (RNT/001/X/2026, ODR/001/X/2026) */
-  const refNo = (r) => { if (!r) return '-'; const x = DB.booking(r) || DB.sale(r); return x ? NO(x) : r; };
-  const refText = (t) => String(t || '').replace(/\b(RNT|ORD)-\d+\b/g, (m) => refNo(m));
+  const refNo = (r) => { if (!r) return '-'; if (/^DRY/.test(r)) { const l = DB.laundryOrder(r); return l ? l.no : r; } const x = DB.booking(r) || DB.sale(r); return x ? NO(x) : r; };
+  const refText = (t) => String(t || '').replace(/\b(RNT|ORD|DRY)-\d+\b/g, (m) => refNo(m));
   const durasi = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} mnt` : `${Math.floor(m / 60)} jam ${m % 60} mnt`; };
 
   const R = {
@@ -17,7 +17,10 @@
       const L = DB.bookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
       const ok = L.filter((b) => b.status !== 'dibatalkan');
       return { title: 'Laporan Rental', note: 'Berdasarkan tanggal mulai sewa.',
-        sum: [['Jumlah booking', L.length], ['Dibatalkan', L.length - ok.length], ['Nilai sewa (tidak termasuk batal)', rupiah(ok.reduce((s, b) => s + b.total, 0))]],
+        sum: [['Jumlah booking', L.length], ['Dibatalkan', L.length - ok.length], ['Nilai sewa (tidak termasuk batal)', rupiah(ok.reduce((s, b) => s + b.total, 0))],
+          /* Layanan lini Rental: jasa tenda, ongkir antar jemput, laundry (berdasarkan tanggal dibayar) */
+          ['Jasa tenda & ongkir (dibayar)', rupiah(DB.bookings().reduce((a, b) => a + (b.svc || []).filter((x) => inR(x.at, f, t)).reduce((y, x) => y + x.amount, 0), 0))],
+          ['Laundry (dibayar)', rupiah(DB.laundry().reduce((a, o) => a + (o.payments || []).filter((x) => inR(x.at, f, t)).reduce((y, x) => y + x.amount, 0), 0))]],
         cols: ['No.', 'Customer', 'Barang', 'Periode', 'Hari', 'Total', 'Dibayar', 'Status'], num: [4, 5, 6], money: [5, 6],
         rows: L.map((b) => [NO(b), b.customer.name, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.days, b.total, Rules.paidTotal(b), STATUS.rental[b.status].label]),
         foot: ['Total', '', '', '', ok.reduce((s, b) => s + b.days, 0), ok.reduce((s, b) => s + b.total, 0), L.reduce((s, b) => s + Rules.paidTotal(b), 0), ''] };

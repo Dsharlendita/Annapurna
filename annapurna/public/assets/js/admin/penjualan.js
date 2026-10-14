@@ -9,11 +9,11 @@
   const txt = (s) => s.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
   function list() {
     const q = $('#q').value.trim().toLowerCase(), f = $('#from').value, t = $('#to').value;
-    return DB.sales().filter((s) => match(s, tab) && (!q || [s.id, NO(s), s.customer.name, txt(s)].join(' ').toLowerCase().includes(q))
+    return DB.staffSales().filter((s) => match(s, tab) && (!q || [s.id, NO(s), s.customer.name, txt(s)].join(' ').toLowerCase().includes(q))
       && (!f || D.day(s.createdAt) >= f) && (!t || D.day(s.createdAt) <= t)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   function draw() {
-    const S = DB.sales(); const T = D.today();
+    const S = DB.staffSales(); const T = D.today();
     const month = T.slice(0, 7);
     const paidMonth = S.filter((s) => s.paymentStatus === 'paid' && s.createdAt.slice(0, 7) === month && s.status !== 'dibatalkan');
     const st = (ic, tone, l, v) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong></div></div>`;

@@ -7,7 +7,7 @@
   const st = DB.settings();
   $('#policy').innerHTML = `<i class="fa-solid fa-scale-balanced"></i><div><strong>Kebijakan pembatalan aktif</strong><ul>${st.cancelPolicy.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
   function draw() {
-    const B = DB.bookings();
+    const B = DB.staffBookings();
     const changes = []; B.forEach((b) => (b.changes || []).forEach((c) => changes.push({ b, c })));
     changes.sort((x, y) => (x.c.status === 'menunggu' ? -1 : 1) - (y.c.status === 'menunggu' ? -1 : 1) || y.c.at.localeCompare(x.c.at));
     const cancels = B.filter((b) => b.status === 'dibatalkan').sort((x, y) => (x.paymentStatus === 'refund_pending' ? -1 : 1) - (y.paymentStatus === 'refund_pending' ? -1 : 1) || String((y.cancel || {}).at).localeCompare((x.cancel || {}).at));

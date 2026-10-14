@@ -16,7 +16,7 @@
   function drawBiz() {
     const period = $('#period').value || T.slice(0, 7);
     let [f, t] = Reports.monthRange(period); if (t > T) t = T;
-    const B = DB.bookings(), S = DB.sales(), L = Admin.ledger(f, t);
+    const B = DB.staffBookings(), S = DB.staffSales(), L = Admin.ledger(f, t);
     const rentals = B.filter((b) => inR(b.start, f, t));
     const cancelled = B.filter((b) => b.cancel && inR(b.cancel.at, f, t));
     const sales = S.filter((s) => inR(s.createdAt, f, t) && s.status !== 'dibatalkan');

@@ -44,7 +44,7 @@
     penjualan(f, t) {
       const A = R.penjualan_produk(f, t), B = R.penjualan_trx(f, t), C = R.restock(f, t);
       const X = salesByProduct(f, t); const rsTot = C.foot ? C.foot[4] : 0;
-      const ok = DB.sales().filter((s) => inR(s.createdAt, f, t) && s.status !== 'dibatalkan');
+      const ok = DB.staffSales().filter((s) => inR(s.createdAt, f, t) && s.status !== 'dibatalkan');
       return { title: 'Laporan Penjualan', note: 'Laba = total jual − total modal (harga beli × jumlah terjual). Belanja/restock stok adalah uang keluar dan tidak mengurangi laba.',
         sum: [['Pesanan', `${ok.length} pesanan`], ['Unit terjual', X.total.qty + ' unit'], ['Total jual', rupiah(X.total.revenue)], ['Total modal', rupiah(X.total.cost)], ['Laba penjualan', rupiah(X.total.profit)], ['Margin', X.total.margin + '%'], ['Belanja stok (restock)', rupiah(rsTot || 0)]],
         sections: [
@@ -74,7 +74,7 @@
     },
     rental(f, t) {
       /* Lini Rental = sewa + laundry + jasa tenda + ongkir (ketentuan mitra: satu lini, tanpa pengeluaran) */
-      const L = DB.bookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
+      const L = DB.staffBookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
       const ok = L.filter((b) => b.status !== 'dibatalkan');
       const LD = DB.laundry().filter((o) => inR(o.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const ldOk = LD.filter((o) => o.status !== 'dibatalkan');
@@ -91,7 +91,7 @@
     },
     penjualan_trx(f, t) {
       /* Per barang terjual: harga jual, harga modal (harga beli saat transaksi), laba & margin */
-      const L = DB.sales().filter((s) => inR(s.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      const L = DB.staffSales().filter((s) => inR(s.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const ok = L.filter((s) => s.status !== 'dibatalkan');
       const costOf = (i) => { if (i.cost != null && i.cost !== '') return +i.cost; const p = DB.product(i.productId); return p && p.cost != null && p.cost !== '' ? +p.cost : null; };
       const lines = ok.flatMap((s) => s.items.map((i) => ({ s, i, c: costOf(i), paid: s.paymentStatus === 'paid' })));
@@ -203,7 +203,7 @@
 
   function monthSummary(period) {
     const [f, t] = monthRange(period);
-    const B = DB.bookings(), S = DB.sales(), L = Admin.ledger(f, t);
+    const B = DB.staffBookings(), S = DB.staffSales(), L = Admin.ledger(f, t);
     const acts = DB.audits().filter((a) => a.type !== 'akses' && a.role !== 'system' && inR(a.at, f, t));
     const per = {}; acts.forEach((a) => { per[a.userName] = (per[a.userName] || 0) + 1; });
     return {

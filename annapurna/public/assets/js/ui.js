@@ -826,7 +826,7 @@
     const sisa = rent ? Math.max(0, x.total - Rules.paidTotal(x)) : 0;
     const link = (h, t) => (opts.links === false ? '' : ` <a class="link" href="${url(h)}">${t}</a>`);
     let todo = '';
-    if (x.status === 'dibatalkan') todo = `<i class="fa-solid fa-ban"></i> Pesanan dibatalkan.${x.cancel && x.cancel.refundable ? ' DP dikembalikan ke rekeningmu.' : ''}`;
+    if (x.status === 'dibatalkan') todo = x.cancel && x.cancel.auto ? `<i class="fa-solid fa-clock"></i> <b>Pesanan dibatalkan</b> karena melewati batas waktu pembayaran. Silakan buat pesanan baru.` : `<i class="fa-solid fa-ban"></i> Pesanan dibatalkan.${x.cancel && x.cancel.refundable ? ' DP dikembalikan ke rekeningmu.' : ''}`;
     else if (rent) todo = {
       menunggu_pembayaran: `<i class="fa-solid fa-wallet"></i> <b>Yang perlu kamu lakukan:</b> bayar DP ${rupiah(x.dp)} dalam ${cdSpan(DB.payDeadline(x).toISOString(), 'pay')} lalu unggah bukti transfer.${link('pembayaran?ids=' + x.id, 'Bayar sekarang')}`,
       menunggu_konfirmasi: `<i class="fa-solid fa-hourglass-half"></i> Bukti pembayaranmu sedang dicek admin, maksimal 1×24 jam. Kamu akan dapat notifikasi.`,

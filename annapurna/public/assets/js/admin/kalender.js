@@ -41,7 +41,7 @@
   }
   $('#cal').addEventListener('click', (e) => {
     const c = e.target.closest('.cal-c'); if (!c) return; const p = DB.product(c.dataset.p); const d = c.dataset.d; const size = c.dataset.s || null;
-    const L = DB.bookings().filter((b) => ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'].includes(b.status) && ((b.start <= d && d <= b.end) || (b.status === 'disewa' && b.end < T && d >= T)))
+    const L = DB.staffBookings().filter((b) => ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'].includes(b.status) && ((b.start <= d && d <= b.end) || (b.status === 'disewa' && b.end < T && d >= T)))
       .map((b) => ({ b, n: b.items.reduce((t, it) => t + it.components.filter((x) => x.productId === p.id && (!size || x.size === size)).reduce((u, x) => u + x.qty * it.qty, 0), 0) })).filter((x) => x.n);
     modal({ title: `${esc(DB.variantName(p, size))} · ${D.fmtDate(d, true)}`, body: `<div class="kv"><span>Tersedia</span><strong>${Rules.availableOn(p.id, d, null, size)} unit</strong></div>
       <div class="mini-sec"><h4>Dipakai booking</h4>${L.length ? L.map(({ b, n }) => `<div class="list-row"><div class="nm"><strong>${NO(b)} · ${esc(b.customer.name)}</strong><small>${n} unit · ${D.fmtRange(b.start, b.end)}${b.status === 'disewa' && b.end < T ? ' · <b style="color:var(--red)">terlambat</b>' : ''}</small></div>${pill('rental', b.status)}<a class="btn btn-light btn-xs" href="booking?id=${b.id}">Buka</a></div>`).join('') : '<p class="muted">Tidak ada booking di tanggal ini.</p>'}</div>` });

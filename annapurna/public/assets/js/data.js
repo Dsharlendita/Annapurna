@@ -1122,6 +1122,16 @@
     },
     saveBooking(b) { ensureNos(); const all = read('bookings', []); const i = all.findIndex((x) => x.id === b.id); if (i >= 0) all[i] = b; else all.unshift(b); write('bookings', all); },
     sales: () => (ensureNos(), read('sales', [])),
+    /* Pesanan website yang BELUM dibayar sama sekali (belum upload bukti DP / pembayaran) tidak ditampilkan ke admin:
+       masih menunggu pembayaran, atau sudah batal karena lewat batas bayar / dibatalkan customer sebelum membayar.
+       Customer tetap melihatnya di Pesanan Saya. Stoknya tetap ditahan selama batas waktu bayar (aturan stok tidak berubah). */
+    hiddenFromStaff(x) {
+      if (!x || x.channel === 'offline') return false;
+      const unpaid = x.paymentStatus === 'unpaid' && !(x.payments || []).length && !x.proof && !(x.proofs || []).length;
+      return unpaid && (x.status === 'menunggu_pembayaran' || x.status === 'dibatalkan');
+    },
+    staffBookings: () => DB.bookings().filter((b) => !DB.hiddenFromStaff(b)),
+    staffSales: () => DB.sales().filter((s) => !DB.hiddenFromStaff(s)),
     sale: (id) => (ensureNos(), read('sales', []).find((s) => s.id === id || s.no === id)),
     saveSale(s) { ensureNos(); const all = read('sales', []); const i = all.findIndex((x) => x.id === s.id); if (i >= 0) all[i] = s; else all.unshift(s); write('sales', all); },
     /* ---------- Laundry (diinput staff di kasir; customer website hanya menghubungi admin via WhatsApp) ---------- */
@@ -1686,7 +1696,7 @@
     ensureNos(); const B = read('bookings', []); B.forEach((b) => { if (!exp(b)) return; b.status = 'dibatalkan'; b.cancel = { at: nowStamp(), reason: `Melewati batas waktu pembayaran (${hrs} jam)`, auto: true, refundable: false };
       (b.history = b.history || []).push({ at: nowStamp(), text: `Dibatalkan otomatis: DP tidak dibayar dalam ${hrs} jam` }); DB.notify(b.customer.email, 'Booking dibatalkan otomatis', `${window.NO(b)} dibatalkan karena DP tidak dibayar dalam ${hrs} jam. Silakan buat booking baru bila masih ingin menyewa.`, 'pesanan'); changed++; });
     if (changed) write('bookings', B);
-    const S = read('sales', []); let sc = 0; S.forEach((o) => { if (!exp(o)) return; o.status = 'dibatalkan'; (o.history = o.history || []).push({ at: nowStamp(), text: `Dibatalkan otomatis: belum dibayar dalam ${hrs} jam` }); DB.notify(o.customer.email, 'Pesanan dibatalkan otomatis', `${window.NO(o)} dibatalkan karena belum dibayar dalam ${hrs} jam.`, 'pesanan'); sc++; });
+    const S = read('sales', []); let sc = 0; S.forEach((o) => { if (!exp(o)) return; o.status = 'dibatalkan'; o.cancel = { at: nowStamp(), reason: `Melewati batas waktu pembayaran (${hrs} jam)`, auto: true }; (o.history = o.history || []).push({ at: nowStamp(), text: `Dibatalkan otomatis: belum dibayar dalam ${hrs} jam` }); DB.notify(o.customer.email, 'Pesanan dibatalkan otomatis', `${window.NO(o)} dibatalkan karena belum dibayar dalam ${hrs} jam.`, 'pesanan'); sc++; });
     if (sc) write('sales', S);
     return changed + sc;
   };

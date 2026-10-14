@@ -5,7 +5,7 @@
   Admin.init('dashboard', 'Dashboard');
   const T = D.today();
   function draw() {
-    const B = DB.bookings(), S = DB.sales();
+    const B = DB.staffBookings(), S = DB.staffSales();
     const h = new Date().getHours();
     $('#greet').textContent = `${h < 11 ? 'Selamat pagi' : h < 15 ? 'Selamat siang' : h < 18 ? 'Selamat sore' : 'Selamat malam'}, ${Admin.me.name}. Berikut ringkasan operasional hari ini.${Admin.isOwner ? ' Ringkasan keuangan & bisnis ada di tab Ringkasan bisnis.' : ''}`;
     const L = Admin.ledger(T, T);
@@ -99,7 +99,7 @@
 
   /* ---------- Tab Penjualan (dipisah dari operasional sewa) ---------- */
   function drawJual() {
-    const S = DB.sales(), L = Admin.ledger(T, T);
+    const S = DB.staffSales(), L = Admin.ledger(T, T);
     const mStart = T.slice(0, 7) + '-01';
     const stat = (ic, tone, label, val, d, href) => `<a class="stat" href="${href}"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${label}</small><strong>${val}</strong>${d ? `<span class="d">${d}</span>` : ''}</div></a>`;
     const verif = S.filter((s) => s.paymentStatus === 'verifying'), proses = S.filter((s) => ['diproses', 'dikemas'].includes(s.status) && s.paymentStatus === 'paid'), ready = S.filter((s) => s.status === 'siap_diambil');
@@ -120,7 +120,7 @@
     $('#saleTop').innerHTML = top.length ? top.map(([id, n]) => `<li><div class="bl"><span>${esc((DB.product(id) || { name: id }).name)}</span><strong>${n} unit</strong></div><div class="bar"><i style="width:${(n / max) * 100}%"></i></div></li>`).join('') : '<li class="muted">Belum ada penjualan bulan ini.</li>';
     $('#cntJual').textContent = (verif.length + proses.length + ready.length) || '';
   }
-  const B0 = DB.bookings(); $('#cntSewa').textContent = (B0.filter((b) => b.paymentStatus === 'dp_verifying').length + B0.filter((b) => b.status === 'disewa' && b.end <= T).length) || '';
+  const B0 = DB.staffBookings(); $('#cntSewa').textContent = (B0.filter((b) => b.paymentStatus === 'dp_verifying').length + B0.filter((b) => b.status === 'disewa' && b.end <= T).length) || '';
   drawJual();
   const showView = (v) => { $('#dashSewa').hidden = v !== 'sewa'; $('#dashJual').hidden = v !== 'jual'; $$('#dashView [data-v]').forEach((x) => x.classList.toggle('active', x.dataset.v === v)); history.replaceState(null, '', v === 'jual' ? '?tab=jual' : location.pathname); if (v === 'sewa') window.dispatchEvent(new Event('resize')); };
   $('#dashView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) showView(b.dataset.v); });

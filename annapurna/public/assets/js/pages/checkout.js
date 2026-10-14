@@ -242,7 +242,7 @@
       }
       Rules.recalc(b); if (!b.discount) delete b.discount;
       DB.saveBooking(b); ids.push(b.id);
-      DB.notifyStaff('Booking baru masuk', `${customer.name} membuat booking ${NO(b)} untuk ${D.fmtRange(start, end)}.${Svc.has(b) ? ` Minta ${Svc.label(b).toLowerCase()}.` : ''}`, 'admin/booking?id=' + b.id);
+      /* Admin baru diberi tahu saat customer mengunggah bukti DP (lihat pembayaran.js), bukan saat booking dibuat */
     });
     if (buy.length) {
       const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
@@ -250,7 +250,7 @@
       const dAmt = usePr ? usePr.buy : 0;
       const o = Object.assign({}, common, { id: DB.nextId('ORD', DB.sales()), items, subtotal, total: subtotal - dAmt, ...(dAmt ? { discount: { code: usePr.promo.code, amount: dAmt } } : {}), delivery: 'ambil', status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], history: [{ at: D.nowStamp(), text: 'Pesanan dibuat' }] });
       DB.saveSale(o); ids.push(o.id);
-      DB.notifyStaff('Pesanan pembelian baru', `${customer.name} membuat pesanan ${NO(o)}.`, 'admin/penjualan?id=' + o.id);
+      /* Admin baru diberi tahu saat bukti pembayaran diunggah */
     }
     if (usePr) DB.usePromo(usePr.promo.code);
     Cart.clear();

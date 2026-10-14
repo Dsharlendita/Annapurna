@@ -3,17 +3,18 @@
   const { DB, Rules, STATUS, D, rupiah } = Ann;
   const { $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, downloadCSV, bindExport, validate, fileToDataURL } = UI;
   Admin.init('booking', 'Booking Rental');
-  const TABS = [['semua', 'Semua'], ['menunggu_pembayaran', 'Menunggu Bayar'], ['menunggu_konfirmasi', 'Menunggu Konfirmasi'], ['dikonfirmasi', 'Dikonfirmasi'], ['disewa', 'Sedang Disewa'], ['selesai', 'Selesai'], ['dibatalkan', 'Dibatalkan']];
+  /* Pesanan yang belum dibayar tidak tampil di admin (lihat DB.hiddenFromStaff), jadi tab "Menunggu Bayar" tidak diperlukan */
+  const TABS = [['semua', 'Semua'], ['menunggu_konfirmasi', 'Menunggu Konfirmasi'], ['dikonfirmasi', 'Dikonfirmasi'], ['disewa', 'Sedang Disewa'], ['selesai', 'Selesai'], ['dibatalkan', 'Dibatalkan']];
   let tab = param('tab') || 'semua';
   function list() {
     const q = $('#q').value.trim().toLowerCase(), f = $('#from').value, t = $('#to').value;
-    return DB.bookings().filter((b) => (tab === 'semua' || b.status === tab)
+    return DB.staffBookings().filter((b) => (tab === 'semua' || b.status === tab)
       && (!q || [b.id, NO(b), b.customer.name, b.customer.phone, Admin.itemsText(b)].join(' ').toLowerCase().includes(q))
       && (!f || b.start >= f) && (!t || b.start <= t))
       .sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
   }
   function draw() {
-    const all = DB.bookings();
+    const all = DB.staffBookings();
     $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${k === tab ? 'active' : ''}" data-tab="${k}">${l} <span class="cnt">${k === 'semua' ? all.length : all.filter((b) => b.status === k).length}</span></button>`).join('');
     const L = list();
     $('#rows').innerHTML = L.length ? L.map((b) => {

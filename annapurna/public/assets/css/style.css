@@ -2866,17 +2866,17 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 
 /* ===== Hero: pintasan minimalis Sewa · Beli · Laundry ===== */
 .hero-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.hl { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 999px; font-size: 14px; font-weight: 700; transition: background .18s, transform .18s, border-color .18s; }
-.hl i { font-size: 13px; opacity: .9; }
-.hl:hover { transform: translateY(-1px); }
-.hl:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.hl-rent { background: var(--gold); color: var(--g950); }
-.hl-rent:hover { background: var(--gold-2); }
-.hl-buy { background: #fff; color: var(--g900); }
-.hl-buy:hover { background: #f1efe9; }
-.hl-ld { color: #fff; border: 1.5px solid rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .08); backdrop-filter: blur(4px); }
-.hl-ld:hover { background: rgba(255, 255, 255, .18); border-color: #fff; }
-@media (max-width: 480px) { .hero-links { gap: 8px; } .hl { flex: 1 1 auto; justify-content: center; padding: 0 14px; font-size: 13.5px; } }
+.hlk { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 999px; font-size: 14px; font-weight: 700; transition: background .18s, transform .18s, border-color .18s; }
+.hlk i { font-size: 13px; opacity: .9; }
+.hlk:hover { transform: translateY(-1px); }
+.hlk:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.hlk-rent { background: var(--gold); color: var(--g950); }
+.hlk-rent:hover { background: var(--gold-2); }
+.hlk-buy { background: #fff; color: var(--g900); }
+.hlk-buy:hover { background: #f1efe9; }
+.hlk-ld { color: #fff; border: 1.5px solid rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .08); backdrop-filter: blur(4px); }
+.hlk-ld:hover { background: rgba(255, 255, 255, .18); border-color: #fff; }
+@media (max-width: 480px) { .hero-links { gap: 8px; } .hlk { flex: 1 1 auto; justify-content: center; padding: 0 14px; font-size: 13.5px; } }
 
 /* ===== Konfigurasi Owner: Laundry & Jasa Tenda ===== */
 .cfg-main .cfg-block { background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
@@ -3060,3 +3060,25 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 }
 .ld-layout > * { min-width: 0; }
 @media (max-width: 960px) { .ld-layout { grid-template-columns: minmax(0, 1fr); } }
+/* Form barang: markup & margin dari harga beli */
+.mk-info { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12.5px; color: var(--muted); font-style: italic; }
+.mk-info b { color: var(--g700); font-style: normal; }
+.mk-info .bad, .mk-info .bad b { color: var(--red); }
+/* Navbar: tombol hapus tanggal sewa */
+.trip-wrap { position: relative; display: inline-flex; }
+.trip-wrap .trip-chip.set { padding-right: 34px; }
+.trip-x { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--g100); color: var(--g800); display: grid; place-items: center; font-size: 11px; cursor: pointer; }
+.trip-x:hover { background: var(--g700); color: #fff; }
+@media (max-width: 1320px) {
+  .trip-wrap .trip-chip.set { padding-right: 0; }
+  .trip-x { right: -6px; top: -4px; transform: none; width: 18px; height: 18px; font-size: 9px; background: var(--g700); color: #fff; border: 2px solid var(--cream); }
+}
+/* Nota: ringkasan total akhir (sewa + layanan) */
+.inv-grand .box { width: min(420px, 100%); padding: 14px 16px; border-radius: 14px; background: var(--g50); border: 1.5px solid var(--g200); }
+.inv-grand h5 { margin: 0 0 6px; font-size: 12px; color: var(--g700); letter-spacing: .08em; text-transform: uppercase; }
+.inv-grand .grand-due { margin-top: 6px; padding-top: 10px; border-top: 1.5px solid var(--g200); font-weight: 800; font-size: 16px; }
+.inv-grand .grand-due span:last-child { color: var(--g800); }
+.inv-grand .kv span:last-child { white-space: nowrap; text-align: right; }
+.inv-grand .grand-due span:first-child, .inv-grand .kv.total span:first-child { color: var(--ink); }
+@media (min-width: 1181px) { .sum-grid.cols-4 { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 1180px) and (min-width: 721px) { .sum-grid.cols-4 { grid-template-columns: 1fr 1fr; } }

@@ -41,19 +41,23 @@
      Urutan sewa dan pembelian terpisah, dimulai lagi dari 001 setiap bulan, mengikuti waktu transaksi dibuat.
      Kode internal (RNT-1028 / ORD-2007) tetap dipakai untuk link, QR & data; nomor nota yang ditampilkan ke customer & staff. */
   const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-  const NOTA_PREFIX = { bookings: 'RNT', sales: 'ODR' };
-  const NOTA_OK = /^(RNT|ODR|DRY)\/(\d{3,5})\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\/(\d{4})$/;
+  /* Format nomor nota (ketentuan mitra): sewa RNTL/001/X/2026 · penjualan ODR/001/X/2026 · laundry DRY/001/X/2026 */
+  const NOTA_PREFIX = { bookings: 'RNTL', sales: 'ODR' };
+  const NOTA_OK = /^(RNTL|RNT|ODR|DRY)\/(\d{3,5})\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\/(\d{4})$/;
   /* Ubah ketikan bebas ("rnt/28/x/2026", "ODR / 5 / X / 2026") menjadi bentuk baku "RNT/028/X/2026"; null bila bukan nomor nota */
   window.NOPARSE = (txt) => {
-    const m = String(txt || '').toUpperCase().replace(/\s+/g, '').match(/(RNT|ODR|DRY)\/(\d{1,5})\/([IVX]{1,4})\/(\d{4})/);
+    const m = String(txt || '').toUpperCase().replace(/\s+/g, '').match(/(RNTL|RNT|ODR|DRY)\/(\d{1,5})\/([IVX]{1,4})\/(\d{4})/);
     if (!m || !ROMAN.includes(m[3])) return null;
-    return `${m[1]}/${String(+m[2]).padStart(3, '0')}/${m[3]}/${m[4]}`;
+    return `${m[1] === 'RNT' ? 'RNTL' : m[1]}/${String(+m[2]).padStart(3, '0')}/${m[3]}/${m[4]}`;
   };
   let numbering = false;
   function ensureNos() {
     if (numbering) return; numbering = true;
     try {
       const B = read('bookings', []), S = read('sales', []);
+      /* Nota sewa lama RNT/… → RNTL/… (nomor urut tetap sama) */
+      let renamed = false; B.forEach((x) => { if (/^RNT\//.test(String(x.no || ''))) { x.no = 'RNTL/' + String(x.no).slice(4); renamed = true; } });
+      if (renamed) write('bookings', B);
       const lists = [['bookings', B], ['sales', S]];
       const okFor = (x, key) => { const m = String(x.no || '').match(NOTA_OK); return !!m && m[1] === NOTA_PREFIX[key]; };
       /* Data dengan format lain (028/X/2026, RNT/028/X/2026) → seluruh nomor disusun ulang supaya urutannya tetap rapi */
@@ -280,6 +284,8 @@
     /* Gas kaleng versi sewa (stok terpisah dari gas yang dijual). Tarif 3 & 5 hari mengikuti kombinasi tarif per malam. */
     R('gas-sewa', 'Gas Kaleng (Sewa)', 'cooking', 'wa/gas.jpg', [10000, 0, 0], 10, { sku: 'GAS-SWA', desc: 'Gas kaleng untuk kompor portable / kompor koper grill, disewakan per malam. Termasuk dalam Paket BBQ 2 & 3.', specs: ['Untuk kompor portable', 'Per malam'] }),
   ];
+  /* Data contoh: harga beli (modal) barang jual ±62% dari harga jual. Data asli diisi Owner/staff di form barang. */
+  PRODUCTS.forEach((p) => { if (p.price && p.cost == null) p.cost = Math.round((p.price * 0.62) / 500) * 500; });
 
   /* Paket sesuai price list. price = per malam, price3 = perkegiatan (3 hari), price5 = ekspedisi (5 hari).
      Paket Tektok hanya punya harga 1 malam; untuk kegiatan / ekspedisi dihitung dari harga satuan isinya (price3/price5 kosong). */
@@ -603,7 +609,7 @@
     const subtotal = o.items.reduce((s, i) => s + i.price * i.qty, 0);
     return Object.assign({ payments: [], history: [], notes: '' }, o, { subtotal, total: subtotal, delivery: 'ambil' });
   }
-  const si = (id, qty) => { const p = PRODUCTS.find((x) => x.id === id); return { productId: id, name: p.name, img: p.img, qty, price: p.price }; };
+  const si = (id, qty) => { const p = PRODUCTS.find((x) => x.id === id); return { productId: id, name: p.name, img: p.img, qty, price: p.price, cost: p.cost != null ? p.cost : null }; };
   function seedLaundry() {
     const it = (id, qty) => { for (const c of SETTINGS.laundry) { const x = c.items.find((y) => y.id === id); if (x) return { id, name: x.name, cat: c.name, price: x.price, qty }; } return null; };
     const d0 = new Date(); const mon = ROMAN[d0.getMonth()], y = d0.getFullYear();
@@ -1437,6 +1443,13 @@
 
   const ACTIVE = ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'];
   const Rules = {
+    /* Modal (harga beli) sebuah pesanan jual. Memakai harga beli yang dicatat saat transaksi (it.cost);
+       pesanan lama tanpa catatan memakai harga beli barang saat ini. missing = ada barang tanpa harga beli. */
+    saleCost(s) {
+      let cost = 0, missing = false;
+      (s.items || []).forEach((it) => { let c = it.cost; if (c == null || c === '') { const p = DB.product(it.productId); c = p && p.cost != null && p.cost !== '' ? +p.cost : null; } if (c == null) missing = true; cost += (+c || 0) * (+it.qty || 0); });
+      return { cost, missing };
+    },
     rentalDays: (start, end) => Math.max(1, diffDays(start, end)),
     /* ---------- Tarif sewa: per malam / perkegiatan (3 hari) / ekspedisi (5 hari) ---------- */
     TIERS: TIER_BLOCKS.slice().reverse().map(([days, key, name]) => ({ days, key, name })),
@@ -1785,6 +1798,8 @@
     if (Array.isArray(st.rentalTerms) && st.rentalTerms[0] === 'Pengambilan dan pengembalian barang dilakukan langsung di toko Annapurna Adventure, Jl. Kampus No. 8-9 Grendeng, Purwokerto Utara.') st.rentalTerms[0] = SETTINGS.rentalTerms[0];
     st.svcV1 = true; write('settings', st);
   })();
+  /* Harga beli: barang contoh bawaan yang belum punya harga beli diisi dari data contoh; barang buatan Owner tetap kosong */
+  (function migrateCost() { const L = read('products', null); if (!L) return; let ch = false; L.forEach((p) => { if (p.cost === undefined) { const d = PRODUCTS.find((x) => x.id === p.id); if (d && d.cost != null && p.price) { p.cost = d.cost; ch = true; } } }); if (ch) write('products', L); })();
   /* Instagram resmi: @annapurnaadv (perbarui pengaturan lama yang masih memakai akun lama) */
   (function migrateInstagram() { const st = read('settings', null); if (st && (!st.instagram || st.instagram === '@annapurna_adv')) { st.instagram = '@annapurnaadv'; write('settings', st); } })();
   /* Revisi mitra (jasa tenda 3 pilihan, laundry tanpa antar jemput): nama kategori pemasukan & ketentuan sewa */

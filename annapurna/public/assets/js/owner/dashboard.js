@@ -32,18 +32,21 @@
     const fin = (ic, tone, label, val, extra, href) => `<a class="fin-card ${tone}" href="${href}"><div class="fin-h"><span class="ic"><i class="fa-solid ${ic}"></i></span><small>${label}</small></div><strong>${val}</strong>${extra}</a>`;
     /* Tampilan: Gabungan | Rental | Penjualan (data keuangan dipisah per lini bisnis) */
     const V = VIEW;
-    const LIN = V === 'all' ? { in: L.totalIn, out: L.totalOut } : L.by[V];
-    const LPV = V === 'all' ? { in: LP.totalIn, out: LP.totalOut } : LP.by[V];
-    const netV = LIN.in - LIN.out;
+    const LIN = V === 'all' ? { in: L.totalIn, out: L.totalOut, profit: L.profit } : L.by[V];
+    const LPV = V === 'all' ? { in: LP.totalIn, out: LP.totalOut, profit: LP.profit } : LP.by[V];
+    /* Laba memakai logika bisnis: Rental = pemasukan; Penjualan = jual − modal barang terjual; Gabungan = laba bersih toko */
+    const netV = LIN.profit;
     const nm = { all: '', rent: ' rental', sale: ' penjualan' }[V];
     $('#bizNote').innerHTML = V === 'all'
-      ? `Total semua lini bisnis. Rental <b>${rupiah(L.by.rent.in)}</b> · Penjualan <b>${rupiah(L.by.sale.in)}</b> · Lainnya <b>${rupiah(L.by.umum.in)}</b> (pemasukan). Pengeluaran umum (operasional, promosi) hanya dihitung di Gabungan.`
-      : V === 'rent' ? 'Hanya transaksi sewa: pembayaran DP/pelunasan, denda, refund DP, serta biaya perawatan & perbaikan alat sewa.'
-      : 'Hanya transaksi jual: pembayaran pesanan beli dan pembelian/restock barang jual.';
+      ? `Laba bersih toko = laba Rental <b>${rupiah(L.by.rent.profit)}</b> + laba Penjualan <b>${rupiah(L.by.sale.profit)}</b> + Umum <b>${L.by.umum.profit < 0 ? '− ' : ''}${rupiah(Math.abs(L.by.umum.profit))}</b>. Pemasukan &amp; pengeluaran di bawah adalah uang masuk/keluar sebenarnya (termasuk belanja stok).`
+      : V === 'rent' ? 'Rental = sewa, denda, laundry, jasa tenda &amp; ongkir (refund DP mengurangi pemasukan). Lini Rental tidak punya pengeluaran: biaya operasional (perawatan alat, deterjen, listrik, dll.) dicatat di lini Umum.'
+      : `Laba penjualan = pemasukan − modal barang terjual (harga beli × jumlah). Belanja/restock stok tercatat sebagai uang keluar, tidak mengurangi laba.${L.by.sale.missingCost ? ` <b style="color:var(--red)">${L.by.sale.missingCost} transaksi memuat barang tanpa harga beli</b> (modal dihitung Rp0).` : ''}`;
     $('#fin').innerHTML = [
       fin('fa-arrow-trend-up', 'in', `Pemasukan${nm} · ${lbl}`, rupiah(LIN.in), cmp(LIN.in, LPV.in, true), A('keuangan' + (V !== 'all' ? '?lini=' + V : ''))),
-      fin('fa-arrow-trend-down', 'out', `Pengeluaran${nm} · ${lbl}`, rupiah(LIN.out), cmp(LIN.out, LPV.out, false), A('keuangan?tab=out' + (V !== 'all' ? '&lini=' + V : ''))),
-      fin('fa-scale-balanced', netV >= 0 ? 'net' : 'out', `Laba${nm} · ${lbl}`, `${netV < 0 ? '− ' : ''}${rupiah(Math.abs(netV))}`, `<span class="fin-cmp ${netV >= 0 ? 'good' : 'bad'}">${netV >= 0 ? 'Surplus' : 'Defisit'} · margin ${LIN.in ? Math.round((netV / LIN.in) * 100) : 0}%</span>`, A('laporan?type=keuangan')),
+      V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), `<span class="fin-cmp">Belanja stok (kas) ${rupiah(LIN.out)}</span>`, A('laporan?type=penjualan'))
+        : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(0), '<span class="fin-cmp">Biaya operasional dicatat di lini Umum</span>', A('keuangan?tab=out&lini=umum'))
+        : fin('fa-arrow-trend-down', 'out', `Pengeluaran · ${lbl}`, rupiah(LIN.out), cmp(LIN.out, LPV.out, false), A('keuangan?tab=out')),
+      fin('fa-scale-balanced', netV >= 0 ? 'net' : 'out', `${V === 'all' ? 'Laba bersih toko' : 'Laba' + nm} · ${lbl}`, `${netV < 0 ? '− ' : ''}${rupiah(Math.abs(netV))}`, `<span class="fin-cmp ${netV >= 0 ? 'good' : 'bad'}">${netV >= 0 ? 'Surplus' : 'Defisit'} · margin ${LIN.in ? Math.round((netV / LIN.in) * 100) : 0}%</span>`, A('laporan?type=keuangan')),
     ].join('');
     const salesPaid = sales.filter((s) => s.paymentStatus === 'paid');
     const units = salesPaid.reduce((a, s) => a + s.items.reduce((x, i) => x + i.qty, 0), 0);
@@ -73,6 +76,7 @@
     $('#stkLbl').textContent = V === 'sale' ? 'Stok barang jual' : V === 'rent' ? 'Stok barang sewa' : 'Stok barang';
     $('#stk').innerHTML = (V === 'sale' ? [
       stat('fa-boxes-stacked', 'blue', 'Stok barang jual', SP.reduce((a, p) => a + (+p.stock || 0), 0) + ' unit', `${SP.length} jenis barang`, A('barang?tab=jual')),
+      stat('fa-warehouse', 'gold', 'Nilai stok (harga beli)', rupiah(SP.reduce((a, p) => a + (+p.stock || 0) * (+p.cost || 0), 0)), `${SP.filter((p) => p.cost == null || p.cost === '').length ? SP.filter((p) => p.cost == null || p.cost === '').length + ' barang belum ada harga beli' : 'uang belanja stok yang tersimpan di gudang'}`, A('barang?jenis=jual')),
       stat('fa-triangle-exclamation', 'red', 'Stok menipis', lowStock.length + ' barang', lowStock.slice(0, 2).map((p) => p.name).join(', ') || 'Aman', A('barang?tab=jual')),
       stat('fa-receipt', 'gold', 'Terjual bulan ini', units + ' unit', lbl, A('penjualan')),
     ] : [
@@ -89,7 +93,7 @@
   function drawChart() {
     const months = []; const d = new Date(T + 'T00:00:00'); d.setDate(1);
     for (let i = 5; i >= 0; i--) { const x = new Date(d); x.setMonth(x.getMonth() - i); months.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); }
-    const L = months.map((m) => { const [f, t] = Reports.monthRange(m); const x = Admin.ledger(f, t); return VIEW === 'all' ? x : { totalIn: x.by[VIEW].in, totalOut: x.by[VIEW].out }; });
+    const L = months.map((m) => { const [f, t] = Reports.monthRange(m); const x = Admin.ledger(f, t); return VIEW === 'all' ? x : { totalIn: x.by[VIEW].in, totalOut: VIEW === 'sale' ? x.by.sale.cogs : x.by[VIEW].out, profit: x.by[VIEW].profit }; });
     $('#chartTitle').textContent = `Pemasukan & pengeluaran${{ all: '', rent: ' rental', sale: ' penjualan' }[VIEW]} 6 bulan`;
     if (!window.Chart) { $('#chart').parentElement.innerHTML = '<p class="muted">Grafik tidak dapat dimuat.</p>'; return; }
     if (ch) ch.destroy();
@@ -97,7 +101,7 @@
       datasets: [
         { type: 'bar', label: 'Pemasukan', data: L.map((x) => x.totalIn), backgroundColor: '#1f4d2f', borderRadius: 6 },
         { type: 'bar', label: 'Pengeluaran', data: L.map((x) => x.totalOut), backgroundColor: '#d9644f', borderRadius: 6 },
-        { type: 'line', label: 'Laba', data: L.map((x) => x.totalIn - x.totalOut), borderColor: '#f2c14e', backgroundColor: '#f2c14e', tension: .35, pointRadius: 3 },
+        { type: 'line', label: 'Laba', data: L.map((x) => x.profit), borderColor: '#f2c14e', backgroundColor: '#f2c14e', tension: .35, pointRadius: 3 },
       ] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${rupiah(c.raw)}` } } },
         scales: { x: { grid: { display: false } }, y: { ticks: { callback: (v) => Math.abs(v) >= 1e6 ? (v / 1e6).toLocaleString('id-ID') + ' jt' : Math.abs(v) >= 1e3 ? v / 1e3 + ' rb' : v }, grid: { color: '#eeece4' } } } } });

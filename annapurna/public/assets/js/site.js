@@ -32,7 +32,7 @@
         <a class="brand" href="${url('./')}" aria-label="Annapurna Adventure — Beranda"><img src="${asset('assets/img/logo.png')}" alt="Annapurna Adventure"></a>
         <nav class="nav-links" aria-label="Menu utama">${LINKS.map((l) => `<a href="${url(l.href)}" class="${page === l.key ? 'active' : ''}">${l.label}</a>`).join('')}</nav>
         <div class="nav-actions">
-          <button class="trip-chip ${DB.trip() ? 'set' : ''}" id="tripChip" title="Tanggal sewa"><i class="fa-regular fa-calendar"></i><span>${DB.trip() ? D.fmtRange(DB.trip().start, DB.trip().end) : 'Pilih tanggal'}</span></button>
+          <span class="trip-wrap"><button class="trip-chip ${DB.trip() ? 'set' : ''}" id="tripChip" title="Tanggal sewa"><i class="fa-regular fa-calendar"></i><span>${DB.trip() ? D.fmtRange(DB.trip().start, DB.trip().end) : 'Pilih tanggal'}</span></button>${DB.trip() ? '<button type="button" class="trip-x" id="tripClear" aria-label="Hapus tanggal sewa" title="Hapus tanggal"><i class="fa-solid fa-xmark"></i></button>' : ''}</span>
           <button class="icon-btn" id="openSearch" aria-label="Cari produk"><i class="fa-solid fa-magnifying-glass"></i></button>
           <a class="icon-btn" href="${url('keranjang')}" aria-label="Keranjang"><i class="fa-solid fa-cart-shopping"></i><span class="dot" id="cartDot">0</span></a>
           ${s ? `
@@ -101,6 +101,9 @@
     if ($('#nxBox')) UI.notifMenu($('#nxBox'), s.email, renderHeader);
     $('#allNotif') && $('#allNotif').addEventListener('click', (e) => { e.preventDefault(); UI.notifCenter(s.email, () => {}); });
     $('#tripChip') && $('#tripChip').addEventListener('click', () => UI.tripModal(() => location.reload()));
+    $('#tripClear') && $('#tripClear').addEventListener('click', (e) => { e.stopPropagation(); DB.setTrip(null); UI.toast('Tanggal sewa dihapus.'); setTimeout(() => location.reload(), 500); });
+    /* Setelah pesanan dibuat, tanggal sewa direset: beri tahu sekali supaya customer tidak bingung */
+    try { if (sessionStorage.getItem('annapurna:tripReset')) { sessionStorage.removeItem('annapurna:tripReset'); setTimeout(() => UI.toast('Pesanan dibuat. Tanggal sewa direset untuk pesanan berikutnya.'), 600); } } catch (e) { /* abaikan */ }
     bottomNav(s); remindCustomer(s);
     setTimeout(() => pwCard(s), 0);
 

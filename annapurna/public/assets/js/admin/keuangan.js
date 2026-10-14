@@ -28,26 +28,28 @@
   const LINE_LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
   const lini = (x) => `<span class="lini ${x.line}">${LINE_LBL[x.line] || ''}</span>`;
   /* Tebakan awal lini untuk transaksi manual (aturan sama dengan Admin.ledger); staff tetap bisa mengubahnya di form */
-  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'rent' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
-  const LINE_HINT = { rent: 'Untuk usaha sewa, mis. beli tenda baru untuk disewakan, servis alat sewa.', sale: 'Untuk usaha jual, mis. kulakan / restock barang jual.', umum: 'Dipakai bersama sewa & jual, mis. listrik, gaji, internet, promosi.' };
+  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'umum' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
+  const LINE_HINT = { rent: 'Untuk usaha sewa, mis. beli tenda baru untuk disewakan, servis alat sewa.', sale: 'Untuk usaha jual, mis. kulakan / restock barang jual.', umum: 'Biaya operasional toko, termasuk perawatan alat sewa, deterjen laundry, bensin antar, listrik, gaji, internet, promosi.' };
   function led(f, t) {
     const L = Admin.ledger(f, t); if (LINE === 'all') return L;
     const income = L.income.filter((x) => x.line === LINE), expense = L.expense.filter((x) => x.line === LINE);
     const tot = (a) => a.reduce((s, x) => s + x.amount, 0);
     const ti = L.fromArchive ? L.by[LINE].in : tot(income), to = L.fromArchive ? L.by[LINE].out : tot(expense);
-    return Object.assign({}, L, { income, expense, voided: L.voided.filter((x) => !x.line || x.line === LINE), totalIn: ti, totalOut: to });
+    return Object.assign({}, L, { income, expense, voided: L.voided.filter((x) => !x.line || x.line === LINE), totalIn: ti, totalOut: to, profit: L.by[LINE].profit, cogs: L.by[LINE].cogs || 0 });
   }
   function draw() {
     const f = $('#from').value, t = $('#to').value;
     const L = led(f, t);
-    const q = (a, b) => { const x = led(a, b); return x.totalIn - x.totalOut; };
+    const q = (a, b) => led(a, b).profit;
     const qi = (a, b) => led(a, b).totalIn;
     const st = (ic, tone, l, v) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong></div></div>`;
     if ($('#quick')) $('#quick').innerHTML = st('fa-sun', 'gold', 'Pemasukan hari ini', rupiah(qi(T, T))) + st('fa-calendar-week', 'blue', 'Pemasukan minggu ini', rupiah(qi(D.rel(-6), T))) + st('fa-calendar', '', 'Pemasukan bulan ini', rupiah(qi(T.slice(0, 8) + '01', T))) + st('fa-scale-balanced', '', LINE === 'all' ? 'Laba bersih bulan ini' : `Laba kotor ${LINE_LBL[LINE]} bulan ini`, rupiah(q(T.slice(0, 8) + '01', T)));
-    const net = L.totalIn - L.totalOut;
+    const net = OWN ? L.profit : L.totalIn - L.totalOut;
+    $('#sum').classList.toggle('cols-4', !!(OWN && LINE === 'sale'));
     $('#sum').innerHTML = `<div class="sum-card pos"><small>${OWN ? `Total pemasukan (${D.fmtDate(f)} – ${D.fmtDate(t)})` : `Uang masuk · ${D.fmtDate(f, true)}`}</small><strong>${rupiah(L.totalIn)}</strong></div>
-      <div class="sum-card neg"><small>${OWN ? 'Total pengeluaran' : 'Uang keluar'}</small><strong>${rupiah(L.totalOut)}</strong></div>
-      <div class="sum-card ${net >= 0 ? 'pos' : 'neg'}"><small>${OWN ? (LINE === 'all' ? 'Selisih (laba / rugi)' : `Laba kotor lini ${LINE_LBL[LINE]}`) : 'Saldo kas (masuk − keluar)'}</small><strong>${net < 0 ? '− ' : ''}${rupiah(Math.abs(net))}</strong></div>${(() => { const held = DB.bookings().filter((b) => b.depositIn && !b.depositOut); const tot = held.reduce((x, b) => x + b.depositIn.amount, 0); return tot ? `<div class="sum-card"><small>Jaminan dipegang toko (bukan pemasukan)</small><strong>${rupiah(tot)}</strong><small>${held.length} booking · dikembalikan saat barang kembali</small></div>` : ''; })()}`;
+      <div class="sum-card neg"><small>${OWN ? (LINE === 'rent' ? 'Total pengeluaran rental' : LINE === 'sale' ? 'Belanja stok (uang keluar)' : 'Total pengeluaran') : 'Uang keluar'}</small><strong>${rupiah(L.totalOut)}</strong>${OWN && LINE === 'rent' ? '<small>Biaya operasional dicatat di lini Umum</small>' : ''}</div>
+      ${OWN && LINE === 'sale' ? `<div class="sum-card neg"><small>Modal barang terjual (harga beli)</small><strong>${rupiah(L.cogs)}</strong>${L.by.sale.missingCost ? `<small style="color:var(--red)">${L.by.sale.missingCost} transaksi tanpa harga beli</small>` : ''}</div>` : ''}
+      <div class="sum-card ${net >= 0 ? 'pos' : 'neg'}"><small>${OWN ? (LINE === 'all' ? 'Laba bersih toko' : LINE === 'sale' ? 'Laba penjualan (jual − modal)' : LINE === 'rent' ? 'Laba rental' : 'Selisih lini Umum') : 'Saldo kas (masuk − keluar)'}</small><strong>${net < 0 ? '− ' : ''}${rupiah(Math.abs(net))}</strong>${OWN && LINE === 'all' && L.totalIn - L.totalOut !== net ? `<small>Arus kas (masuk − keluar): ${L.totalIn - L.totalOut < 0 ? '− ' : ''}${rupiah(Math.abs(L.totalIn - L.totalOut))}</small>` : ''}</div>${(() => { const held = DB.bookings().filter((b) => b.depositIn && !b.depositOut); const tot = held.reduce((x, b) => x + b.depositIn.amount, 0); return tot ? `<div class="sum-card"><small>Jaminan dipegang toko (bukan pemasukan)</small><strong>${rupiah(tot)}</strong><small>${held.length} booking · dikembalikan saat barang kembali</small></div>` : ''; })()}`;
     if ($('#compIn')) $('#compIn').innerHTML = bars(sumCat(L.income), 'var(--g600)');
     if ($('#compOut')) $('#compOut').innerHTML = bars(sumCat(L.expense), '#d9644f');
     $('#cIn').textContent = L.income.length; $('#cOut').textContent = L.expense.length;
@@ -78,11 +80,12 @@
   function finForm(kind, e) {
     const isNew = !e; const cats = [...CATS[kind]]; if (e && e.category && !cats.includes(e.category)) cats.unshift(e.category); e = e || { date: T, category: cats[0], desc: '', amount: '' };
     const label = kind === 'in' ? 'pemasukan lainnya' : 'pengeluaran';
-    const ln = e.line || (isNew && LINE !== 'all' ? LINE : guessLine(kind, e.category));
+    let ln = e.line || (isNew && LINE !== 'all' ? LINE : guessLine(kind, e.category));
+    if (kind === 'out' && ln === 'rent') ln = 'umum'; /* lini Rental tidak punya pengeluaran (ketentuan mitra) */
     const m = modal({ title: `${isNew ? 'Catat' : 'Edit'} ${label}`, body: `<form id="ef" novalidate>
       <div class="grid-2"><div class="field"><label>Tanggal</label><input class="input" type="date" name="date" value="${e.date}" max="${T}"></div>
       <div class="field"><label>Kategori</label><select class="select" name="category">${cats.map((c) => `<option ${c === e.category ? 'selected' : ''}>${c}</option>`).join('')}</select></div></div>
-      <div class="field"><label>Untuk lini usaha</label><select class="select" name="line">${['rent', 'sale', 'umum'].map((k) => `<option value="${k}" ${k === ln ? 'selected' : ''}>${LINE_LBL[k]}</option>`).join('')}</select><small class="muted lini-hint" id="lnHint">${LINE_HINT[ln]}</small></div>
+      <div class="field"><label>Untuk lini usaha</label><select class="select" name="line">${(kind === 'out' ? ['sale', 'umum'] : ['rent', 'sale', 'umum']).map((k) => `<option value="${k}" ${k === ln ? 'selected' : ''}>${LINE_LBL[k]}</option>`).join('')}</select><small class="muted lini-hint" id="lnHint">${LINE_HINT[ln]}</small></div>
       <div class="field"><label>Keterangan</label><input class="input" name="desc" value="${esc(e.desc)}" placeholder="${kind === 'in' ? 'Contoh: Jasa cuci tenda milik customer' : 'Contoh: Servis kompor portable'}"></div>
       <div class="field"><label>Jumlah (Rp)</label><input class="input" type="number" min="0" step="500" name="amount" value="${e.amount}"></div>
       ${isNew ? '' : '<div class="notice"><i class="fa-solid fa-clock-rotate-left"></i><div>Perubahan tercatat di histori sistem beserta nilai sebelum dan sesudahnya.</div></div>'}</form>`,
@@ -124,7 +127,7 @@
     const rows = [...L.income.map((x) => [x.date, x.date.length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date), 'Pemasukan', LINE_LBL[x.line] || '', x.cat, x.ref, x.desc, x.amount, '']), ...L.expense.map((x) => [x.date, x.date.length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date), 'Pengeluaran', LINE_LBL[x.line] || '', x.cat, x.ref, x.desc, '', x.amount])]
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map((r) => r.slice(1));
     return { filename: `rekap-keuangan${LINE === 'all' ? '' : '-' + LINE}-${f}_${t}`, title: LINE === 'all' ? 'Rekap Keuangan (Gabungan)' : `Rekap Keuangan · Lini ${LINE_LBL[LINE]}`, subtitle: `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)}`, orientation: 'portrait',
-      summary: [['Total pemasukan', L.totalIn], ['Total pengeluaran', L.totalOut], [LINE === 'all' ? 'Laba / rugi' : 'Laba kotor lini (sebelum biaya umum)', L.totalIn - L.totalOut]],
+      summary: [['Total pemasukan', L.totalIn], ['Total pengeluaran (uang keluar)', L.totalOut], ...(LINE === 'sale' || LINE === 'all' ? [['Modal barang terjual', LINE === 'all' ? L.by.sale.cogs : L.cogs]] : []), [LINE === 'all' ? 'Laba bersih toko' : LINE === 'sale' ? 'Laba penjualan (jual − modal)' : LINE === 'rent' ? 'Laba rental' : 'Selisih lini Umum', L.profit]],
       columns: [{ header: 'Tanggal' }, { header: 'Jenis' }, { header: 'Lini' }, { header: 'Kategori' }, { header: 'Ref' }, { header: 'Keterangan', width: 34 }, { header: 'Masuk', type: 'money' }, { header: 'Keluar', type: 'money' }],
       rows, foot: ['Total', '', '', '', '', `Selisih: ${rupiah(L.totalIn - L.totalOut)}`, L.totalIn, L.totalOut] }; });
   setRange(OWN ? 'month' : 'today');

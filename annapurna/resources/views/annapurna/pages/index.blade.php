@@ -29,9 +29,9 @@
       </form>
       {{-- Pintasan utama: Sewa & Beli setara, Laundry sebagai layanan tambahan --}}
       <nav class="hero-links ha" style="--d:.8s" aria-label="Pintasan">
-        <a class="hl hl-rent" href="{{ route('katalog') }}"><i class="fa-solid fa-campground"></i> Sewa Alat</a>
-        <a class="hl hl-buy" href="{{ route('belanja') }}"><i class="fa-solid fa-bag-shopping"></i> Beli Alat</a>
-        <a class="hl hl-ld" href="{{ route('laundry') }}"><i class="fa-solid fa-jug-detergent"></i> Laundry</a>
+        <a class="hlk hlk-rent" href="{{ route('katalog') }}"><i class="fa-solid fa-campground"></i> Sewa Alat</a>
+        <a class="hlk hlk-buy" href="{{ route('belanja') }}"><i class="fa-solid fa-bag-shopping"></i> Beli Alat</a>
+        <a class="hlk hlk-ld" href="{{ route('laundry') }}"><i class="fa-solid fa-jug-detergent"></i> Laundry</a>
       </nav>
       <ul class="hero-perks">
         <li class="ha" style="--d:.9s"><span class="ic"><i class="fa-solid fa-shield-halved"></i></span>Alat Sewa Bersih &amp; Terawat</li>

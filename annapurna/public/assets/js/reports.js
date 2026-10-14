@@ -14,26 +14,40 @@
 
   const R = {
     rental(f, t) {
+      /* Lini Rental = sewa + laundry + jasa tenda + ongkir (ketentuan mitra: satu lini, tanpa pengeluaran) */
       const L = DB.bookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
       const ok = L.filter((b) => b.status !== 'dibatalkan');
-      return { title: 'Laporan Rental', note: 'Berdasarkan tanggal mulai sewa.',
-        sum: [['Jumlah booking', L.length], ['Dibatalkan', L.length - ok.length], ['Nilai sewa (tidak termasuk batal)', rupiah(ok.reduce((s, b) => s + b.total, 0))],
-          /* Layanan lini Rental: jasa tenda, ongkir antar jemput, laundry (berdasarkan tanggal dibayar) */
-          ['Jasa tenda & ongkir (dibayar)', rupiah(DB.bookings().reduce((a, b) => a + (b.svc || []).filter((x) => inR(x.at, f, t)).reduce((y, x) => y + x.amount, 0), 0))],
-          ['Laundry (dibayar)', rupiah(DB.laundry().reduce((a, o) => a + (o.payments || []).filter((x) => inR(x.at, f, t)).reduce((y, x) => y + x.amount, 0), 0))]],
-        cols: ['No.', 'Customer', 'Barang', 'Periode', 'Hari', 'Total', 'Dibayar', 'Status'], num: [4, 5, 6], money: [5, 6],
-        rows: L.map((b) => [NO(b), b.customer.name, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.days, b.total, Rules.paidTotal(b), STATUS.rental[b.status].label]),
-        foot: ['Total', '', '', '', ok.reduce((s, b) => s + b.days, 0), ok.reduce((s, b) => s + b.total, 0), L.reduce((s, b) => s + Rules.paidTotal(b), 0), ''] };
+      const LD = DB.laundry().filter((o) => inR(o.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      const ldOk = LD.filter((o) => o.status !== 'dibatalkan');
+      const LG = Admin.ledger(f, t); const cat = (re) => LG.income.filter((x) => x.line === 'rent' && re.test(x.cat)).reduce((a, x) => a + x.amount, 0);
+      const svcPaid = (b) => (b.svc || []).reduce((a, x) => a + x.amount, 0);
+      return { title: 'Laporan Rental', note: 'Lini Rental mencakup sewa alat, laundry, jasa tenda & ongkir. Booking berdasarkan tanggal mulai sewa, laundry berdasarkan tanggal terima. Pendapatan berdasarkan uang yang diterima.',
+        sum: [['Booking sewa', `${ok.length} (${L.length - ok.length} batal)`], ['Laundry', `${ldOk.length} nota`],
+          ['Pendapatan sewa & denda', rupiah(cat(/^Rental$|^Denda$/))], ['Laundry (dibayar)', rupiah(cat(/laundry/i))], ['Jasa tenda & ongkir', rupiah(cat(/tenda|bongkar|ongkir/i))],
+          ...(cat(/refund/i) ? [['Refund DP (mengurangi)', '− ' + rupiah(Math.abs(cat(/refund/i)))]] : []), ['Total pendapatan Rental', rupiah(LG.by.rent.in)]],
+        cols: ['No.', 'Jenis', 'Customer', 'Barang / layanan', 'Periode', 'Total', 'Dibayar', 'Status'], num: [5, 6], money: [5, 6],
+        rows: [...L.map((b) => [NO(b), Ann.Svc && Ann.Svc.has(b) ? 'Sewa + ' + Ann.Svc.short(b).toLowerCase() : 'Sewa', b.customer.name, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.total + svcPaid(b), Rules.paidTotal(b) + svcPaid(b), STATUS.rental[b.status].label]),
+          ...LD.map((o) => [o.no, 'Laundry', o.customer.name, Admin.ldItems(o), `${D.fmtDate(o.createdAt)} – ${D.fmtDate(Ann.Laundry.est(o))}`, Ann.Laundry.total(o), Ann.Laundry.paid(o), (STATUS.laundry[o.status] || {}).label || o.status])],
+        foot: ['Total', '', '', '', '', ok.reduce((s, b) => s + b.total + svcPaid(b), 0) + ldOk.reduce((a, o) => a + Ann.Laundry.total(o), 0), L.reduce((s, b) => s + Rules.paidTotal(b) + svcPaid(b), 0) + LD.reduce((a, o) => a + Ann.Laundry.paid(o), 0), ''] };
     },
     penjualan(f, t) {
+      /* Per barang terjual: harga jual, harga modal (harga beli saat transaksi), laba & margin */
       const L = DB.sales().filter((s) => inR(s.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const ok = L.filter((s) => s.status !== 'dibatalkan');
-      const qty = ok.reduce((s, x) => s + x.items.reduce((a, i) => a + i.qty, 0), 0);
-      return { title: 'Laporan Penjualan', note: 'Berdasarkan tanggal pesanan.',
-        sum: [['Jumlah pesanan', L.length], ['Barang terjual', qty + ' unit'], ['Omzet', rupiah(ok.filter((s) => s.paymentStatus === 'paid').reduce((a, s) => a + s.total, 0))]],
-        cols: ['No.', 'Tanggal', 'Customer', 'Barang', 'Qty', 'Total', 'Status'], num: [4, 5], money: [5],
-        rows: L.map((s) => [NO(s), D.fmtDate(s.createdAt), s.customer.name, s.items.map((i) => `${i.qty}× ${i.name}`).join(', '), s.items.reduce((a, i) => a + i.qty, 0), s.total, STATUS.sale[s.status].label]),
-        foot: ['Total', '', '', '', qty, ok.reduce((a, s) => a + s.total, 0), ''] };
+      const costOf = (i) => { if (i.cost != null && i.cost !== '') return +i.cost; const p = DB.product(i.productId); return p && p.cost != null && p.cost !== '' ? +p.cost : null; };
+      const lines = ok.flatMap((s) => s.items.map((i) => ({ s, i, c: costOf(i), paid: s.paymentStatus === 'paid' })));
+      /* Omzet, modal & laba hanya dari pesanan yang sudah dibayar (sama dengan Keuangan & Dashboard) */
+      const PL = lines.filter((x) => x.paid);
+      const qty = PL.reduce((a, x) => a + x.i.qty, 0);
+      const omzet = ok.filter((s) => s.paymentStatus === 'paid').reduce((a, s) => a + s.total, 0);
+      const modal = PL.reduce((a, x) => a + (x.c || 0) * x.i.qty, 0);
+      const laba = omzet - modal; const miss = PL.filter((x) => x.c == null).length; const unpaid = ok.filter((s) => s.paymentStatus !== 'paid').length;
+      const pct = (n, d) => (d ? Math.round((n / d) * 100) + '%' : '-');
+      return { title: 'Laporan Penjualan', note: `Berdasarkan tanggal pesanan (tidak termasuk pesanan batal). Laba = harga jual − harga beli (modal) barang terjual; belanja/restock stok tidak mengurangi laba. Angka ringkasan hanya dari pesanan yang sudah dibayar${unpaid ? ` (${unpaid} pesanan belum dibayar ditampilkan tetapi belum dihitung)` : ''}.${miss ? ` ${miss} barang belum punya harga beli (modal dihitung Rp0).` : ''}`,
+        sum: [['Pesanan', `${ok.length} (${L.length - ok.length} batal)`], ['Barang terjual', qty + ' unit'], ['Omzet', rupiah(omzet)], ['Total modal', rupiah(modal)], ['Laba penjualan', rupiah(laba)], ['Margin', pct(laba, omzet)]],
+        cols: ['No.', 'Tanggal', 'Customer', 'Barang', 'Qty', 'Harga jual', 'Harga modal', 'Total jual', 'Total modal', 'Laba', 'Margin', 'Status'], num: [4, 5, 6, 7, 8, 9], money: [5, 6, 7, 8, 9],
+        rows: lines.map(({ s, i, c, paid }) => { const tj = i.qty * i.price, tm = (c || 0) * i.qty; return [NO(s), D.fmtDate(s.createdAt), s.customer.name, i.name, i.qty, i.price, c == null ? 'belum diisi' : c, tj, tm, tj - tm, pct(tj - tm, tj), STATUS.sale[s.status].label + (paid ? '' : ' · belum dibayar')]; }),
+        foot: (() => { const tj = PL.reduce((a, x) => a + x.i.qty * x.i.price, 0); return ['Total (sudah dibayar)', '', '', '', qty, '', '', tj, modal, tj - modal, pct(tj - modal, tj), '']; })() };
     },
     stok(f, t) {
       const P = DB.products(true); const cats = DB.categories(true);
@@ -66,8 +80,8 @@
       const when = (x) => (String(x.date).length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date));
       const rows = [...L.income.map((x) => [x.date, when(x), 'Pemasukan', x.cat, x.ref, x.desc, x.amount, '']), ...L.expense.map((x) => [x.date, when(x), 'Pengeluaran', x.cat, x.ref, x.desc, '', x.amount])]
         .sort((a, b) => String(b[0]).localeCompare(String(a[0]))).map((r) => r.slice(1));
-      return { title: 'Laporan Keuangan', note: 'Rekap pemasukan dan pengeluaran. Transaksi yang dibatalkan tidak dihitung.',
-        sum: [['Pemasukan', rupiah(L.totalIn)], ['Pengeluaran', rupiah(L.totalOut)], ['Selisih', rupiah(L.totalIn - L.totalOut)]],
+      return { title: 'Laporan Keuangan', note: 'Rekap uang masuk & keluar. Laba: Rental = pendapatan rental (laundry & jasa tenda termasuk); Penjualan = jual − modal barang terjual; Umum = pemasukan lain − biaya operasional. Transaksi batal tidak dihitung.',
+        sum: [['Pemasukan (uang masuk)', rupiah(L.totalIn)], ['Pengeluaran (uang keluar)', rupiah(L.totalOut)], ['Laba Rental', rupiah(L.by.rent.profit)], ['Laba penjualan (jual − modal)', rupiah(L.by.sale.profit)], ['Selisih lini Umum', rupiah(L.by.umum.profit)], ['Laba bersih toko', rupiah(L.profit)]],
         cols: ['Tanggal', 'Jenis', 'Kategori', 'Ref', 'Keterangan', 'Masuk', 'Keluar'], num: [5, 6],
         rows, foot: ['Total', '', '', '', '', L.totalIn, L.totalOut] };
     },
@@ -133,7 +147,7 @@
     return {
       rental: B.filter((b) => inR(b.start, f, t) && b.status !== 'dibatalkan').length,
       penjualan: S.filter((s) => inR(s.createdAt, f, t) && s.status !== 'dibatalkan').length,
-      pemasukan: L.totalIn, pengeluaran: L.totalOut, byLine: L.by,
+      pemasukan: L.totalIn, pengeluaran: L.totalOut, laba: L.profit, byLine: L.by,
       keluar: B.filter((b) => b.out && inR(b.out.at, f, t)).length,
       kembali: B.filter((b) => b.ret && inR(b.ret.at, f, t)).length,
       batal: B.filter((b) => b.cancel && inR(b.cancel.at, f, t)).length + S.filter((s) => s.status === 'dibatalkan' && inR(s.createdAt, f, t)).length,

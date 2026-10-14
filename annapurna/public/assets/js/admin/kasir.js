@@ -227,7 +227,7 @@
       return;
     }
     if (S.mode === 'buy') {
-      const items = S.items.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price }, it.size ? { size: it.size } : {}); });
+      const items = S.items.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
       const o = { id: DB.nextId('ORD', DB.sales()), customer, userEmail: '', method: S.method, delivery: 'ambil', notes: S.note, channel: 'offline', kasir, createdAt: D.nowStamp(), items, subtotal: t.sub, total: t.total,
         ...(t.disc ? { discount: { code: 'KASIR', amount: t.disc } } : {}), status: 'selesai', paymentStatus: 'paid', payments: [{ at: D.nowStamp(), amount: t.total, type: 'Pembayaran', via }],
         history: [{ at: D.nowStamp(), text: `Penjualan offline di kasir oleh ${me.name} (${S.method})` }] };

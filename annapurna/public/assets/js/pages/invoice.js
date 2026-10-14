@@ -43,6 +43,21 @@
       <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>
       ${bl.ongkirSet ? `<div class="kv"><span>Sisa layanan</span><strong>${bl.due ? rupiah(bl.due) : 'Lunas'}</strong></div>` : ''}
       <p class="muted" style="font-size:11.5px;margin-top:6px">Dibayar terpisah dari sewa, langsung ke admin.${d.notaAt ? ` Diperbarui ${D.fmtDateTime(d.notaAt)}.` : ''}</p>
+    </div></div>
+    ${grandTotal(bl)}`;
+  }
+  /* Total akhir yang harus dibayar customer = sewa + layanan (antar / jasa tenda / ongkir) */
+  function grandTotal(bl) {
+    const paidRent = Rules.paidTotal(x); const fine = +x.fine || 0;
+    const rentTot = x.total; const all = rentTot + bl.total; const paid = paidRent + bl.paid; const due = Math.max(0, all - paid);
+    return `<div class="inv-foot inv-grand"><div class="box">
+      <h5>Ringkasan pembayaran</h5>
+      <div class="kv"><span>Total sewa${fine ? ' (termasuk denda)' : ''}</span><span>${rupiah(rentTot)}</span></div>
+      <div class="kv"><span>Total layanan</span><span>${rupiah(bl.total)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
+      <div class="kv total"><span>TOTAL KESELURUHAN</span><span>${rupiah(all)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
+      <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(paid)}</span></div>
+      <div class="kv grand-due"><span>SISA YANG HARUS DIBAYAR</span><span>${due ? rupiah(due) : 'LUNAS'}${bl.ongkirSet || !due ? '' : ' + ongkir'}</span></div>
+      ${!bl.ongkirSet ? '<p class="muted" style="font-size:11.5px;margin-top:6px">Ongkir ditambahkan setelah dikonfirmasi admin via WhatsApp.</p>' : ''}
     </div></div>`;
   }
   $('#inv').innerHTML = `<div class="invoice">

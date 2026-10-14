@@ -157,7 +157,7 @@
   }
 
   /* ---------- Scan QR nota ---------- */
-  /* Kenali kode dari QR / ketikan: nomor nota (RNT/028/X/2026, ODR/005/X/2026, rnt/28/x/2026), kode internal (RNT-1028 / ORD-2007), atau link nota (…invoice?id=RNT-1028) */
+  /* Kenali kode dari QR / ketikan: nomor nota (RNTL/028/X/2026, ODR/005/X/2026, rnt/28/x/2026), kode internal (RNT-1028 / ORD-2007), atau link nota (…invoice?id=RNT-1028) */
   function findRef(txt) {
     const raw = String(txt || '').trim(); const up = raw.toUpperCase();
     const no = NOPARSE(up);
@@ -172,7 +172,7 @@
   }
   function openRef(txt) {
     const r = findRef(txt);
-    if (!r) { toast('Kode tidak dikenali. Ketik nomor nota (contoh: RNT/028/X/2026 atau ODR/005/X/2026) atau scan QR di nota customer.', 'err'); return false; }
+    if (!r) { toast('Kode tidak dikenali. Ketik nomor nota (contoh: RNTL/028/X/2026 atau ODR/005/X/2026) atau scan QR di nota customer.', 'err'); return false; }
     if (r.miss) { toast(`Pesanan ${r.miss} tidak ditemukan.`, 'err'); return false; }
     DB.audit({ type: 'akses', action: `Membuka ${NO(r.x)} lewat scan QR / nomor nota`, ref: r.x.id });
     location.href = A(r.kind === 'rent' ? 'booking?id=' + r.x.id : 'penjualan?id=' + r.x.id); return true;
@@ -180,7 +180,7 @@
   async function scanQR() {
     let stream = null, raf = 0, stop = false;
     const m = UI.modal({ title: 'Scan QR nota customer', body: `<div class="scan-box"><video id="qrV" playsinline muted></video><div class="scan-frame"></div><p id="qrMsg" class="muted">Menyalakan kamera…</p></div>
-      <div class="field" style="margin-top:14px"><label>Atau ketik nomor booking / pesanan</label><div style="display:flex;gap:8px"><input class="input" id="qrCode" placeholder="Contoh: RNT/028/X/2026" autocomplete="off"><button class="btn btn-primary" id="qrGo">Buka</button></div></div>`,
+      <div class="field" style="margin-top:14px"><label>Atau ketik nomor booking / pesanan</label><div style="display:flex;gap:8px"><input class="input" id="qrCode" placeholder="Contoh: RNTL/028/X/2026" autocomplete="off"><button class="btn btn-primary" id="qrGo">Buka</button></div></div>`,
       foot: '<button class="btn btn-light" data-close>Tutup</button>' });
     const end = () => { stop = true; cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); };
     new MutationObserver((mu, ob) => { if (!document.body.contains(m.el)) { end(); ob.disconnect(); } }).observe(document.body, { childList: true });
@@ -1209,12 +1209,17 @@
     const income = [], expense = [];
     DB.bookings().forEach((b) => {
       (b.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: b.id, cat: p.type === 'Denda' ? 'Denda' : 'Rental', desc: `${p.type}${p.via ? ' · ' + p.via : ''} · ${b.customer.name}`, amount: p.amount, offline: b.channel === 'offline' }); });
-      (b.refunds || []).forEach((r) => { if (inRange(r.at)) expense.push({ date: r.at, ref: b.id, cat: 'Refund DP', desc: `Refund DP · ${b.customer.name}`, amount: r.amount, auto: true }); });
+      /* Refund DP = uang customer yang dikembalikan → MENGURANGI pemasukan Rental (bukan pengeluaran) */
+      (b.refunds || []).forEach((r) => { if (inRange(r.at)) income.push({ date: r.at, ref: b.id, cat: 'Refund DP', desc: `Refund DP (pengurang pemasukan) · ${b.customer.name}`, amount: -Math.abs(r.amount), ln: 'rent', auto: true, refund: true }); });
       /* Jasa bongkar pasang & ongkir antar/jemput: dicatat staff, masuk lini Rental */
       (b.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: b.id, cat: x.kind === 'pasang' ? 'Jasa Tenda (Bongkar/Pasang)' : 'Ongkir Antar Jemput', desc: `${x.kind === 'pasang' ? 'Jasa tenda' + (x.note ? ' (' + x.note + ')' : '') : 'Ongkir antar/jemput'}${x.via ? ' · ' + x.via : ''} · ${b.customer.name}`, amount: x.amount, ln: 'rent', offline: true }); });
     });
     /* Laundry: dibayar di kasir, masuk lini Rental */
     DB.laundry().forEach((o) => (o.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: o.id, cat: 'Jasa Laundry', desc: `Laundry ${o.no}${p.via ? ' · ' + p.via : ''} · ${o.customer.name}`, amount: p.amount, ln: 'rent', offline: true }); }));
+    /* Modal barang terjual (HPP): harga beli × jumlah, diakui sebanding dengan pembayaran penjualan yang masuk */
+    const cogs = []; let missingCost = 0;
+    DB.sales().forEach((s) => { if (s.status === 'dibatalkan') return; const tot = +s.total || 0; if (!tot) return;
+      const c = Rules.saleCost(s); (s.payments || []).forEach((p) => { if (!inRange(p.at)) return; const part = Math.min(1, (+p.amount || 0) / tot); cogs.push({ date: p.at, ref: s.id, amount: Math.round(c.cost * part) }); if (c.missing) missingCost += 1; }); });
     DB.sales().forEach((s) => (s.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: s.id, cat: 'Penjualan', desc: `Penjualan${p.via ? ' · ' + p.via : ''} · ${s.customer.name}`, amount: p.amount, offline: s.channel === 'offline' }); }));
     const voided = [];
     DB.expenses().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'out', ln: e.line, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : expense).push(row); });
@@ -1227,7 +1232,7 @@
        rent = sewa (pembayaran booking, denda, refund DP, perawatan & perbaikan alat)
        sale = jual (pembayaran pesanan beli, pembelian/restock barang)
        umum = pemasukan/pengeluaran manual lainnya (operasional, promosi, dll.) */
-    const lineOf = (x, kind) => {
+    const lineOf0 = (x, kind) => {
       /* Laundry, jasa tenda (bongkar/pasang) & ongkir antar jemput SELALU masuk lini Rental (ketentuan mitra) */
       if (/^DRY/.test(String(x.ref)) || (kind === 'in' && /laundry|tenda|bongkar|pasang|ongkir/i.test(x.cat))) return 'rent';
       if (['rent', 'sale', 'umum'].includes(x.ln)) return x.ln; /* lini dipilih manual di form */
@@ -1239,18 +1244,28 @@
       if (kind === 'in' && /cuci|servis|laundry|bongkar|ongkir/i.test(x.cat)) return 'rent';
       return 'umum';
     };
+    /* Ketentuan mitra: lini Rental TIDAK punya pengeluaran. Biaya alat sewa, laundry (deterjen, listrik), dll. masuk lini Umum. */
+    const lineOf = (x, kind) => { const l = lineOf0(x, kind); return kind === 'out' && l === 'rent' ? 'umum' : l; };
     const by = { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: 0, out: 0 } };
     income.forEach((x) => { x.line = lineOf(x, 'in'); by[x.line].in += x.amount; });
     expense.forEach((x) => { x.line = lineOf(x, 'out'); by[x.line].out += x.amount; });
+    /* Laba per lini:
+       Rental    = pemasukan Rental (sewa, denda, laundry, jasa tenda, ongkir; refund DP sudah mengurangi)
+       Penjualan = pemasukan penjualan − modal barang terjual (belanja/restock stok = arus kas, bukan pengurang laba)
+       Umum      = pemasukan lain − pengeluaran operasional
+       Laba bersih toko = jumlah ketiganya. totalIn/totalOut tetap arus kas (uang masuk/keluar sebenarnya). */
+    const withProfit = (B0) => { B0.sale.cogs = sum(cogs); B0.sale.missingCost = missingCost; B0.rent.profit = B0.rent.in; B0.sale.profit = B0.sale.in - B0.sale.cogs; B0.umum.profit = B0.umum.in - B0.umum.out; return B0.rent.profit + B0.sale.profit + B0.umum.profit; };
     voided.forEach((x) => { x.line = lineOf(x, x.kind); });
     /* Bulan yang data mentahnya sudah dibersihkan: angka diambil dari ringkasan arsip */
     const per = from && to && from.endsWith('-01') ? from.slice(0, 7) : null;
     const arc = per && DB.archive ? DB.archive(per) : null;
     if (arc && arc.purged && arc.summary && String(to).slice(0, 7) === per) {
       const sm = arc.summary; const bl = sm.byLine || { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: sm.pemasukan || 0, out: sm.pengeluaran || 0 } };
-      return { income, expense, voided, totalIn: Math.max(sum(income), sm.pemasukan || 0), totalOut: Math.max(sum(expense), sm.pengeluaran || 0), by: { rent: { in: Math.max(by.rent.in, bl.rent.in), out: Math.max(by.rent.out, bl.rent.out) }, sale: { in: Math.max(by.sale.in, bl.sale.in), out: Math.max(by.sale.out, bl.sale.out) }, umum: { in: Math.max(by.umum.in, bl.umum.in), out: Math.max(by.umum.out, bl.umum.out) } }, fromArchive: true };
+      const BA = { rent: { in: Math.max(by.rent.in, bl.rent.in), out: Math.max(by.rent.out, bl.rent.out) }, sale: { in: Math.max(by.sale.in, bl.sale.in), out: Math.max(by.sale.out, bl.sale.out) }, umum: { in: Math.max(by.umum.in, bl.umum.in), out: Math.max(by.umum.out, bl.umum.out) } }; BA.rent.out = 0; const pA = withProfit(BA); if (bl.sale && bl.sale.cogs) { BA.sale.cogs = Math.max(BA.sale.cogs, bl.sale.cogs); BA.sale.profit = BA.sale.in - BA.sale.cogs; }
+      return { income, expense, voided, cogs, totalIn: Math.max(sum(income), sm.pemasukan || 0), totalOut: Math.max(sum(expense), sm.pengeluaran || 0), by: BA, profit: BA.rent.profit + BA.sale.profit + BA.umum.profit, fromArchive: true };
     }
-    return { income, expense, voided, totalIn: sum(income), totalOut: sum(expense), by };
+    const profit = withProfit(by);
+    return { income, expense, voided, cogs, totalIn: sum(income), totalOut: sum(expense), by, profit };
   }
 
   function relTime(iso) {

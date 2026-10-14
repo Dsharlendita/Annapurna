@@ -44,7 +44,7 @@
     $('#add').innerHTML = `<i class="fa-solid fa-plus"></i> Tambah barang ${KIND === 'rent' ? 'sewa' : 'jual'}`;
     $('#th').innerHTML = KIND === 'rent'
       ? '<tr><th>Barang</th><th>Kategori</th><th class="num">Tarif sewa</th><th>Unit / stok</th><th>Kondisi</th><th class="num">Aksi</th></tr>'
-      : '<tr><th>Barang</th><th>Kategori</th><th class="num">Harga jual</th><th title="Stok saat ini & batas restock (stok minimum)">Stok &amp; batas restock</th><th class="num">Terjual</th><th class="num">Aksi</th></tr>';
+      : '<tr><th>Barang</th><th>Kategori</th><th class="num">Harga beli · jual</th><th title="Stok saat ini & batas restock (stok minimum)">Stok &amp; batas restock</th><th class="num">Terjual</th><th class="num">Aksi</th></tr>';
     const L = list();
     const prodCell = (p) => `<td><div class="prod"><img loading="lazy" decoding="async" src="${asset(p.img)}" alt=""><div><strong>${esc(p.name)}</strong><small>${esc(p.sku || p.id)}${p.brand ? ` · ${esc(p.brand)}` : ''}${p.badge ? ` · ${esc(p.badge)}` : ''}${p.featured ? ' · <i class="fa-solid fa-star" style="color:var(--gold)"></i> Unggulan' : ''}</small></div></div></td>`;
     const varChips = (p) => (DB.hasVariant(p) ? `<div class="var-chips">${p.variant.options.map((o) => `<span title="${esc(o.name)}">${esc(o.name.replace(/\s*\(.*\)/, ''))} <b>${o.stock}</b></span>`).join('')}</div>` : '');
@@ -70,7 +70,7 @@
       }
       const low = DB.lowStock().some((x) => x.id === p.id);
       return `<tr class="${off ? 'row-off' : ''}">${prodCell(p)}<td>${esc(catName(p.cat))}</td>
-        <td class="num">${rupiah(p.price)}</td>
+        <td class="num">${rupiah(p.price)}<small>${p.cost != null && p.cost !== '' ? `modal ${rupiah(p.cost)} · margin ${p.price ? Math.round(((p.price - p.cost) / p.price) * 100) : 0}%` : '<b style="color:var(--red)">harga beli belum diisi</b>'}</small></td>
         <td>${varChips(p)}<span class="stock-chip">Stok <b style="color:${low ? 'var(--red)' : 'var(--g700)'}">${p.stock}</b></span><span class="stock-chip ${low ? 'restock' : ''}" title="Batas restock: diingatkan untuk restock bila stok ≤ ${p.minStock ?? 0}">Batas restock <b>${p.minStock ?? 0}</b></span>${low ? '<small class="need-restock"><i class="fa-solid fa-triangle-exclamation"></i> Perlu restock</small>' : ''}${off ? '<small><span class="pill gray plain">Tidak Aktif</span></small>' : ''}</td>
         <td class="num">${soldQty(p.id)} unit</td>
         ${actions(p, off)}</tr>`;
@@ -125,7 +125,8 @@
           <div class="field"><label>Ekspedisi · 5 hari (Rp)</label><input class="input" type="number" min="0" step="1000" name="rent5" value="${p.rent5 || 0}"><span class="hint">0 = dihitung dari tarif lain</span></div>
         </div>
         <div class="grid-4">
-          <div class="field" data-k="buy"><label>Harga jual (Rp) <span class="req">*</span></label><input class="input" type="number" min="0" step="1000" name="price" value="${p.price}"></div>
+          <div class="field" data-k="buy"><label>Harga beli / modal (Rp) <span class="req">*</span></label><input class="input" type="number" min="0" step="500" name="cost" value="${p.cost != null ? p.cost : ''}" placeholder="Harga dari supplier"></div>
+          <div class="field" data-k="buy"><label>Harga jual (Rp) <span class="req">*</span></label><input class="input" type="number" min="0" step="1000" name="price" value="${p.price}"><div class="mk-info" id="mkInfo"></div></div>
           <div class="field" data-k="rent"><label>Minimal sewa (malam)</label><input class="input" type="number" min="1" max="30" name="minDays" value="${p.minDays || 1}"></div>
           <div class="field" data-k="rent"><label>Jaminan / deposit (Rp) <span class="opt">(opsional)</span></label><input class="input" type="number" min="0" step="5000" name="deposit" value="${p.deposit || 0}"><span class="hint">Opsional</span></div>
         </div>
@@ -158,6 +159,12 @@
       </form>`,
       foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="pSave"><i class="fa-solid fa-floppy-disk"></i> Simpan</button>` });
     const F = m.$('#pf'), E = F.elements;
+    /* Markup = (jual − beli) ÷ beli · Margin keuntungan = (jual − beli) ÷ jual — dihitung langsung saat diketik */
+    const mk = () => { const box = m.$('#mkInfo'); if (!box) return; const b = +String(E.cost.value).replace(/[^\d]/g, '') || 0, j = +String(E.price.value).replace(/[^\d]/g, '') || 0;
+      if (!b || !j) { box.innerHTML = '<span class="muted">Isi harga beli &amp; jual untuk melihat markup dan margin.</span>'; return; }
+      const up = Math.round(((j - b) / b) * 100), mg = Math.round(((j - b) / j) * 100), neg = j < b;
+      box.innerHTML = `<span class="${neg ? 'bad' : ''}">Markup penjualan <b>${up}%</b></span><span class="${neg ? 'bad' : ''}">Margin keuntungan <b>${mg}%</b></span><span>Laba per unit <b>${neg ? '− ' : ''}${rupiah(Math.abs(j - b))}</b></span>`; };
+    ['cost', 'price'].forEach((k) => E[k] && E[k].addEventListener('input', mk)); mk();
     { const secs = m.$$('.pf-sec'); secs.forEach((x, i) => { x.id = 'pfs' + i; });
       m.$('.modal-body').insertAdjacentHTML('afterbegin', `<nav class="pf-nav">${secs.map((x, i) => `<button type="button" data-go="pfs${i}">${x.querySelector('h4').innerHTML}</button>`).join('')}</nav>`);
       m.$('.pf-nav').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) m.$('#' + b.dataset.go).scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
@@ -213,7 +220,7 @@
     });
     m.$('#pSave').addEventListener('click', () => {
       if (!validate(F, { pname: (v) => (v.length < 3 ? 'Nama minimal 3 karakter.' : ''), stock: (v) => (v === '' || +v < 0 ? 'Stok tidak valid.' : ''),
-        rent: () => (fk === 'rent' && +E.rent.value <= 0 ? 'Isi harga sewa per malam.' : ''), price: () => (fk === 'buy' && +E.price.value <= 0 ? 'Isi harga jual.' : ''), minDays: (v) => (fk === 'rent' && !(+v >= 1) ? 'Minimal 1 malam.' : '') })) return;
+        rent: () => (fk === 'rent' && +E.rent.value <= 0 ? 'Isi harga sewa per malam.' : ''), price: () => (fk === 'buy' && +E.price.value <= 0 ? 'Isi harga jual.' : ''), cost: (v) => (fk === 'buy' && String(v).replace(/[^\d]/g, '') === '' ? 'Isi harga beli (modal) supaya laba penjualan bisa dihitung.' : ''), minDays: (v) => (fk === 'rent' && !(+v >= 1) ? 'Minimal 1 malam.' : '') })) return;
       let variant = null;
       if (isVar()) {
         const vals = valuesOf().filter((v) => checked.has(v));
@@ -236,7 +243,7 @@
       const all = prods();
       const t = (k) => (E[k].value || '').trim();
       const obj = Object.assign({}, p, { id: p.id || 'p' + (Math.max(0, ...all.map((x) => parseInt(x.id.slice(1), 10) || 0)) + 1), name: t('pname'), cat: E.cat.value, cond: E.cond.value,
-        rent: fk === 'rent' ? Math.max(0, +E.rent.value || 0) : 0, rent3: fk === 'rent' ? Math.max(0, +E.rent3.value || 0) : 0, rent5: fk === 'rent' ? Math.max(0, +E.rent5.value || 0) : 0, price: fk === 'buy' ? Math.max(0, +E.price.value || 0) : 0, stock: Math.max(0, parseInt(E.stock.value, 10) || 0), badge: t('badge'),
+        rent: fk === 'rent' ? Math.max(0, +E.rent.value || 0) : 0, rent3: fk === 'rent' ? Math.max(0, +E.rent3.value || 0) : 0, rent5: fk === 'rent' ? Math.max(0, +E.rent5.value || 0) : 0, price: fk === 'buy' ? Math.max(0, +E.price.value || 0) : 0, cost: fk === 'buy' ? Math.max(0, +String(E.cost.value).replace(/[^\d]/g, '') || 0) : (p.cost != null ? p.cost : null), stock: Math.max(0, parseInt(E.stock.value, 10) || 0), badge: t('badge'),
         brand: t('brand'), sku: t('sku'), color: t('color'), material: t('material'), weight: t('weight'), dimension: t('dimension'), includes: t('includes'),
         minDays: Math.max(1, parseInt(E.minDays.value, 10) || 1), deposit: Math.max(0, +E.deposit.value || 0), variant, attrs,
         minStock: Math.max(0, parseInt(E.minStock.value, 10) || 0), serviceEvery: parseInt(E.serviceEvery.value, 10) || null,
@@ -425,9 +432,9 @@
   bindExport($('#exp'), () => { const L = list();
     const vtxt = (p) => (DB.hasVariant(p) ? p.variant.options.map((o) => `${o.name.replace(/\s*\(.*\)/, '')}: ${o.stock}`).join(', ') : '-');
     if (KIND === 'buy') return { filename: `barang-jual-${T}`, title: 'Data Barang Jual & Stok', subtitle: `Posisi stok per ${D.fmtDate(T, true)}`,
-      summary: [['Jenis barang', String(L.length)], ['Total stok', String(L.reduce((a, p) => a + p.stock, 0))], ['Total terjual', String(L.reduce((a, p) => a + soldQty(p.id), 0)) + ' unit']],
-      columns: [{ header: 'ID' }, { header: 'Nama Barang', width: 30 }, { header: 'Kategori' }, { header: 'Harga Jual', type: 'money' }, { header: 'Stok', type: 'number' }, { header: 'Stok Minimum', type: 'number' }, { header: 'Terjual', type: 'number' }, { header: 'Ukuran' }, { header: 'Status' }],
-      rows: L.map((p) => [p.id, p.name, catName(p.cat), p.price, p.stock, p.minStock ?? 0, soldQty(p.id), vtxt(p), p.active === false ? 'Tidak aktif' : 'Aktif']),
+      summary: [['Jenis barang', String(L.length)], ['Total stok', String(L.reduce((a, p) => a + p.stock, 0))], ['Nilai stok (harga beli)', L.reduce((a, p) => a + (+p.stock || 0) * (+p.cost || 0), 0)], ['Total terjual', String(L.reduce((a, p) => a + soldQty(p.id), 0)) + ' unit']],
+      columns: [{ header: 'ID' }, { header: 'Nama Barang', width: 30 }, { header: 'Kategori' }, { header: 'Harga Beli', type: 'money' }, { header: 'Harga Jual', type: 'money' }, { header: 'Stok', type: 'number' }, { header: 'Stok Minimum', type: 'number' }, { header: 'Terjual', type: 'number' }, { header: 'Ukuran' }, { header: 'Status' }],
+      rows: L.map((p) => [p.id, p.name, catName(p.cat), p.cost ?? '', p.price, p.stock, p.minStock ?? 0, soldQty(p.id), vtxt(p), p.active === false ? 'Tidak aktif' : 'Aktif']),
       foot: ['Total', '', '', '', L.reduce((a, p) => a + p.stock, 0), '', L.reduce((a, p) => a + soldQty(p.id), 0), '', ''] };
     return { filename: `barang-sewa-${T}`, title: 'Data Barang Sewa & Unit', subtitle: `Posisi stok per ${D.fmtDate(T, true)}`,
       summary: [['Jenis barang', String(L.length)], ['Total unit', String(L.reduce((a, p) => a + p.stock, 0))], ['Sedang disewa', String(L.reduce((a, p) => a + Rules.rentedNow(p.id), 0)) + ' unit']],

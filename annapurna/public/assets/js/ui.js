@@ -1374,6 +1374,8 @@
   async function serverLogout(to) {
     const token = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
     try { await fetch(url('keluar'), { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' }); } catch (e) { /* tanpa server: cukup hapus sesi lokal */ }
+    /* Logout: tanggal sewa & keranjang ikut dikosongkan (perangkat bisa dipakai orang lain) */
+    try { Cart.clear(); DB.setTrip(null); } catch (e) { /* abaikan */ }
     DB.logout();
     location.href = to || url('masuk');
   }

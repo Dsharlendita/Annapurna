@@ -245,7 +245,7 @@
       DB.notifyStaff('Booking baru masuk', `${customer.name} membuat booking ${NO(b)} untuk ${D.fmtRange(start, end)}.${Svc.has(b) ? ` Minta ${Svc.label(b).toLowerCase()}.` : ''}`, 'admin/booking?id=' + b.id);
     });
     if (buy.length) {
-      const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price }, it.size ? { size: it.size } : {}); });
+      const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const dAmt = usePr ? usePr.buy : 0;
       const o = Object.assign({}, common, { id: DB.nextId('ORD', DB.sales()), items, subtotal, total: subtotal - dAmt, ...(dAmt ? { discount: { code: usePr.promo.code, amount: dAmt } } : {}), delivery: 'ambil', status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], history: [{ at: D.nowStamp(), text: 'Pesanan dibuat' }] });
@@ -254,6 +254,8 @@
     }
     if (usePr) DB.usePromo(usePr.promo.code);
     Cart.clear();
+    /* Pesanan sudah tercatat dengan tanggalnya sendiri: tanggal sewa di navbar dikosongkan untuk pesanan berikutnya */
+    if (rent.length) { DB.setTrip(null); try { sessionStorage.setItem('annapurna:tripReset', '1'); } catch (e) { /* abaikan */ } }
     location.href = 'pembayaran?ids=' + ids.join(',');
   }
 })();

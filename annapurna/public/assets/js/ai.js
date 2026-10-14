@@ -153,7 +153,7 @@
   function answer(text) {
     const q = norm(text);
     const user = DB.session();
-    /* Nomor pesanan: nomor nota (RNT/028/X/2026, ODR/005/X/2026, rnt/28/x/2026) — yang tertulis di nota customer.
+    /* Nomor pesanan: nomor nota (RNTL/028/X/2026, ODR/005/X/2026, rnt/28/x/2026) — yang tertulis di nota customer.
        Kode internal lama (RNT-1003 / ORD-2001) tetap dikenali, tetapi jawaban selalu memakai nomor nota. */
     const UP = String(text).toUpperCase();
     const nota = NOPARSE(UP);
@@ -161,12 +161,12 @@
     if (nota || code) {
       const key = nota || `${code[1]}-${code[2]}`;
       const x = DB.booking(key) || DB.sale(key);
-      if (!x) return { html: `Aku tidak menemukan pesanan <b>${esc(nota ? key : 'dengan nomor itu')}</b>. Coba cek lagi nomor nota di nota digital kamu (contoh: RNT/028/X/2026 untuk sewa atau ODR/005/X/2026 untuk pembelian), ya.` };
+      if (!x) return { html: `Aku tidak menemukan pesanan <b>${esc(nota ? key : 'dengan nomor itu')}</b>. Coba cek lagi nomor nota di nota digital kamu (contoh: RNTL/028/X/2026 untuk sewa atau ODR/005/X/2026 untuk pembelian), ya.` };
       if (!user || (user.role !== 'admin' && user.role !== 'owner' && x.customer.email !== user.email)) return { html: `Pesanan <b>${esc(NO(x))}</b> ditemukan. Demi keamanan, detailnya hanya bisa dilihat pemiliknya. Silakan <a href="${url('masuk?next=pesanan')}">masuk</a> dulu.` };
       return { html: `Ini status pesanan kamu:${orderCard(x)}` };
     }
     if (has(q, ['pesanan saya', 'pesananku', 'status pesanan', 'cek pesanan', 'booking saya', 'status booking', 'orderan', 'status sewa'])) {
-      if (!user) return { html: `Masuk dulu supaya aku bisa melihat pesananmu, atau ketik nomor nota pesananmu (contoh: RNT/028/X/2026).`, chips: ['Cara sewa'], actions: [{ label: 'Masuk', href: url('masuk?next=pesanan') }] };
+      if (!user) return { html: `Masuk dulu supaya aku bisa melihat pesananmu, atau ketik nomor nota pesananmu (contoh: RNTL/028/X/2026).`, chips: ['Cara sewa'], actions: [{ label: 'Masuk', href: url('masuk?next=pesanan') }] };
       const L = [...DB.bookings(), ...DB.sales()].filter((x) => x.customer.email === user.email && !['selesai', 'dibatalkan'].includes(x.status)).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt)).slice(0, 3);
       return { html: L.length ? `Pesanan aktif kamu:${L.map(orderCard).join('')}` : 'Kamu belum punya pesanan aktif. Mau aku bantu rencanakan trip?', chips: L.length ? [] : ['Rencanakan trip'] };
     }
@@ -404,7 +404,7 @@
         <div class="ai-pane" data-pane="chat" hidden>
           <div class="ai-body" id="aiBody"></div>
           <div class="ai-chips" id="aiChips"></div>
-          <form class="ai-form" id="aiForm"><input id="aiInput" placeholder="Tulis pertanyaan… (contoh: status RNT/028/X/2026)" autocomplete="off" aria-label="Pesan"><button aria-label="Kirim"><i class="fa-solid fa-paper-plane"></i></button></form>
+          <form class="ai-form" id="aiForm"><input id="aiInput" placeholder="Tulis pertanyaan… (contoh: status RNTL/028/X/2026)" autocomplete="off" aria-label="Pesan"><button aria-label="Kirim"><i class="fa-solid fa-paper-plane"></i></button></form>
         </div>
         <a class="ai-admin" id="aiWaLink" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>Butuh jawaban pasti? <b>Chat admin via WhatsApp</b></span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       </section>`;
@@ -434,7 +434,7 @@
           <li><b>Cek keranjang:</b> apakah perlengkapanmu sudah lengkap</li>
           <li><b>Info paket:</b> isi paket, perbandingan paket, tukar/upgrade item tektok</li>
           <li><b>Aturan sewa:</b> DP, pembatalan, batas pengembalian 22.00, denda, syarat identitas</li>
-          <li><b>Status pesanan:</b> ketik nomor notanya, misal <b>RNT/028/X/2026</b> (sewa) atau <b>ODR/005/X/2026</b> (pembelian)</li></ul>
+          <li><b>Status pesanan:</b> ketik nomor notanya, misal <b>RNTL/028/X/2026</b> (sewa) atau <b>ODR/005/X/2026</b> (pembelian)</li></ul>
           Butuh informasi pasti atau keputusan admin, misalnya soal pengantaran, harga khusus, keluhan, atau ubah jadwal? Hubungi admin lewat tombol <b>Chat admin via WhatsApp</b> di bawah.`);
         setChips(contextChips());
       } else { log.forEach((m) => bubble(m.who, m.html, m.extra)); setChips(contextChips()); }

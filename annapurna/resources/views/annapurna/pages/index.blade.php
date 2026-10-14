@@ -27,19 +27,12 @@
         </div>
         <button class="btn btn-primary" type="submit">Cari</button>
       </form>
-      {{-- Sewa & Beli sama-sama ditonjolkan: dua pilihan setara --}}
-      <div class="hero-choice ha" style="--d:.8s">
-        <a class="hc hc-rent" href="{{ route('katalog') }}">
-          <span class="hc-ic"><i class="fa-solid fa-campground"></i></span>
-          <span class="hc-tx"><b>Sewa Alat</b><small>Tenda, carrier &amp; paket hemat</small><em class="hc-pr" id="hcRent">Harga bersahabat</em></span>
-          <i class="fa-solid fa-arrow-right hc-go" aria-hidden="true"></i>
-        </a>
-        <a class="hc hc-buy" href="{{ route('belanja') }}">
-          <span class="hc-ic"><i class="fa-solid fa-bag-shopping"></i></span>
-          <span class="hc-tx"><b>Beli Alat</b><small>Perlengkapan baru &amp; original</small><em class="hc-pr" id="hcBuy">Siap dimiliki</em></span>
-          <i class="fa-solid fa-arrow-right hc-go" aria-hidden="true"></i>
-        </a>
-      </div>
+      {{-- Pintasan utama: Sewa & Beli setara, Laundry sebagai layanan tambahan --}}
+      <nav class="hero-links ha" style="--d:.8s" aria-label="Pintasan">
+        <a class="hl hl-rent" href="{{ route('katalog') }}"><i class="fa-solid fa-campground"></i> Sewa Alat</a>
+        <a class="hl hl-buy" href="{{ route('belanja') }}"><i class="fa-solid fa-bag-shopping"></i> Beli Alat</a>
+        <a class="hl hl-ld" href="{{ route('laundry') }}"><i class="fa-solid fa-jug-detergent"></i> Laundry</a>
+      </nav>
       <ul class="hero-perks">
         <li class="ha" style="--d:.9s"><span class="ic"><i class="fa-solid fa-shield-halved"></i></span>Alat Sewa Bersih &amp; Terawat</li>
         <li class="ha" style="--d:1s"><span class="ic"><i class="fa-solid fa-tags"></i></span>Produk Jual Baru &amp; Original</li>
@@ -142,8 +135,9 @@
   {{-- Layanan tambahan: laundry & jasa tenda (isi & harga diambil dari pengaturan toko) --}}
   <section class="section svc-sec" id="layanan" aria-labelledby="svcTitle">
     <div class="wrap">
-      <div class="sec-head" data-reveal>
-        <div><div class="eyebrow">Layanan Kami</div><h2 class="sec-title" id="svcTitle">Selain sewa, kami bantu cuci dan pasang tenda</h2></div>
+      <div class="svc-head" data-reveal>
+        <div><div class="eyebrow">Layanan Kami</div><h2 class="sec-title" id="svcTitle">Lebih dari sekadar sewa</h2></div>
+        <p>Perlengkapan kotor sehabis mendaki kami cucikan, dan tenda bisa kami pasangkan langsung di lokasi camping.</p>
       </div>
       <div class="svc-grid" id="svcGrid"></div>
     </div>

@@ -2757,34 +2757,6 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
   .user-chip { padding-right: 8px; }
 }
 
-/* ---------- Beranda: Layanan Kami ---------- */
-.svc-sec { padding-top: 12px; padding-bottom: 72px; }
-.svc-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
-.svc-card { position: relative; border-radius: var(--r-lg); padding: 28px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
-.svc-card h3 { font-size: clamp(20px, 2vw, 24px); font-weight: 800; }
-.svc-card > p { font-size: 14.5px; max-width: 46ch; }
-.svc-ic { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; }
-.svc-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
-.svc-laundry { background: var(--g900); color: #fff; }
-.svc-laundry .svc-ic { background: rgba(242, 193, 78, .16); color: var(--gold); }
-.svc-laundry > p { color: rgba(255, 255, 255, .82); }
-.svc-prices { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
-.svc-prices li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px dashed rgba(255, 255, 255, .16); font-size: 13.5px; }
-.svc-prices li span { color: rgba(255, 255, 255, .86); }
-.svc-prices li i { width: 18px; color: #b9d3a6; }
-.svc-prices li b { color: var(--gold); font-weight: 700; white-space: nowrap; }
-.svc-tent { background: #fff; border: 1px solid var(--line); }
-.svc-tent .svc-ic { background: var(--g100); color: var(--g700); }
-.svc-tent > p { color: var(--ink-2); }
-.svc-fee { display: flex; align-items: center; gap: 12px; }
-.svc-fee b { font-size: 30px; font-weight: 800; color: var(--g800); letter-spacing: -.02em; }
-.svc-fee span { font-size: 12.5px; line-height: 1.35; color: var(--muted); }
-.svc-steps { counter-reset: st; display: grid; gap: 8px; }
-.svc-steps li { counter-increment: st; display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; color: var(--ink-2); }
-.svc-steps li::before { content: counter(st); flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--gold); color: var(--g950); font-size: 12px; font-weight: 800; display: grid; place-items: center; transform: translateY(2px); }
-@media (max-width: 900px) { .svc-grid { grid-template-columns: 1fr; } }
-@media (max-width: 480px) { .svc-card { padding: 22px 18px; } .svc-prices { grid-template-columns: 1fr; } .svc-acts .btn { flex: 1 1 100%; } }
-
 /* ---------- Halaman Laundry ---------- */
 .ld-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
 .ld-cat + .ld-cat { margin-top: 18px; }
@@ -2882,14 +2854,6 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .dl-tentopts .radio-card.sm strong em { font-style: normal; font-weight: 700; color: var(--g700); white-space: nowrap; }
 .dl-tentopts .radio-card.sm > span { flex: 1; min-width: 0; }
 .svc-tag.pasang_saja, .svc-tag.bongkar_saja { background: #fbf0d4; color: #7a5410; }
-/* Beranda: 3 jenis jasa tenda */
-.svc-modes { display: grid; gap: 8px; }
-.svc-modes li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 12px; border-radius: 12px; background: var(--g50); border: 1px solid var(--g200); }
-.svc-modes b { font-size: 14px; color: var(--ink); }
-.svc-modes .pr { font-weight: 800; color: var(--g800); white-space: nowrap; }
-.svc-modes small { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
-.svc-card .svc-modes-note { font-size: 12.5px; color: var(--muted); }
-.svc-laundry .svc-modes-note { color: rgba(255, 255, 255, .7); margin-top: auto; }
 /* Ringkasan tagihan layanan (nota) */
 .svc-bill { margin-top: 6px; padding: 8px 12px; border-radius: 10px; background: #fff; border: 1px dashed var(--g200); }
 .svc-bill .kv { padding: 4px 0; font-size: 13px; }
@@ -2900,27 +2864,19 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .k-ldq .list-row { padding: 8px 0; }
 .k-ldq-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 
-/* ===== Hero: pilihan Sewa & Beli setara ===== */
-.hero-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 600px; margin-top: 18px; }
-.hc { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .55); transition: transform .18s, box-shadow .18s, background .18s; }
-.hc:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -14px rgba(0, 0, 0, .6); }
-.hc:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-.hc-ic { width: 44px; height: 44px; flex: none; border-radius: 13px; display: grid; place-items: center; font-size: 18px; }
-.hc-tx { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
-.hc-tx b { font-size: 16.5px; font-weight: 800; }
-.hc-tx small { font-size: 12.5px; font-weight: 500; opacity: .85; margin-top: 3px; }
-.hc-pr { font-style: normal; font-size: 12.5px; font-weight: 800; margin-top: 4px; white-space: nowrap; }
-.hc-rent .hc-pr { color: var(--g800); }
-.hc-buy .hc-pr { color: var(--g600); }
-.hc-go { font-size: 14px; transition: transform .18s; }
-.hc:hover .hc-go { transform: translateX(3px); }
-.hc-rent { background: var(--gold); color: var(--g950); }
-.hc-rent .hc-ic { background: rgba(16, 39, 24, .12); color: var(--g900); }
-.hc-rent:hover { background: var(--gold-2); }
-.hc-buy { background: #fff; color: var(--g900); }
-.hc-buy .hc-ic { background: var(--g100); color: var(--g700); }
-.hc-buy:hover { background: #f7f5ef; }
-@media (max-width: 560px) { .hero-choice { grid-template-columns: 1fr; gap: 10px; } .hc { padding: 12px 14px; } }
+/* ===== Hero: pintasan minimalis Sewa · Beli · Laundry ===== */
+.hero-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.hl { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 999px; font-size: 14px; font-weight: 700; transition: background .18s, transform .18s, border-color .18s; }
+.hl i { font-size: 13px; opacity: .9; }
+.hl:hover { transform: translateY(-1px); }
+.hl:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.hl-rent { background: var(--gold); color: var(--g950); }
+.hl-rent:hover { background: var(--gold-2); }
+.hl-buy { background: #fff; color: var(--g900); }
+.hl-buy:hover { background: #f1efe9; }
+.hl-ld { color: #fff; border: 1.5px solid rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .08); backdrop-filter: blur(4px); }
+.hl-ld:hover { background: rgba(255, 255, 255, .18); border-color: #fff; }
+@media (max-width: 480px) { .hero-links { gap: 8px; } .hl { flex: 1 1 auto; justify-content: center; padding: 0 14px; font-size: 13.5px; } }
 
 /* ===== Konfigurasi Owner: Laundry & Jasa Tenda ===== */
 .cfg-main .cfg-block { background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
@@ -2940,3 +2896,53 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .ld-ro h4 i { color: var(--g600); }
 .ld-ro .kv { padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
 @media (max-width: 560px) { .ld-cfg { grid-template-columns: 1fr; } .ld-cfg-h { grid-template-columns: 1fr auto; } .ld-cfg-h select { grid-column: 1 / -1; } }
+
+/* ===== Beranda: Layanan Kami (laundry & jasa tenda), di bawah Cara Sewa ===== */
+.svc-sec { padding-top: 8px; padding-bottom: 80px; }
+.svc-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+.svc-head p { max-width: 420px; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+.svc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: stretch; }
+.svc-card { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; transition: box-shadow .25s, transform .25s; }
+.svc-card:hover { transform: translateY(-3px); box-shadow: 0 22px 44px -28px rgba(16, 39, 24, .45); }
+.svc-visual { position: relative; display: flex; align-items: center; min-height: 184px; padding: 24px 26px; background: #edeae3; overflow: hidden; }
+.svc-visual img { position: absolute; right: -6px; bottom: -8px; height: 92%; width: auto; max-width: 52%; object-fit: contain; mix-blend-mode: multiply; -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); transition: transform .4s; }
+.svc-card:hover .svc-visual img { transform: scale(1.04) rotate(-1deg); }
+.v-tx { position: relative; z-index: 1; max-width: 60%; }
+.v-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #fff; color: var(--g700); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.svc-visual h3 { font-size: clamp(19px, 1.8vw, 23px); font-weight: 800; line-height: 1.2; margin: 12px 0 6px; color: var(--g950); }
+.svc-visual p { font-size: 13.5px; color: var(--ink-2); }
+.svc-visual p b { color: var(--g800); font-size: 15px; }
+.svc-body { padding: 8px 26px 4px; flex: 1; }
+.svc-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
+.svc-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.svc-list li span { display: inline-flex; align-items: baseline; gap: 10px; color: var(--ink-2); min-width: 0; }
+.svc-list li span i { width: 16px; color: var(--g600); font-size: 13px; }
+.svc-list li > b { color: var(--g800); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.svc-list.rows { grid-template-columns: 1fr; }
+.svc-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 18px; }
+.svc-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--g50); border: 1px solid var(--g100); color: var(--g800); font-size: 12.5px; font-weight: 600; }
+.svc-chips i { color: var(--g600); font-size: 12px; }
+.svc-list.rows li span { display: grid; gap: 2px; }
+.svc-list.rows li span b { color: var(--ink); font-size: 14.5px; }
+.svc-list.rows li span small { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.svc-list.rows li:last-child, .svc-list:not(.rows) li:nth-last-child(-n+2) { border-bottom: 0; }
+.svc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px 26px 20px; border-top: 1px solid var(--line); }
+.svc-note { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 7px; }
+.svc-note i { color: var(--g600); }
+.svc-acts { display: inline-flex; align-items: center; gap: 18px; }
+.svc-link { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; color: var(--g700); }
+.svc-link i { font-size: 12px; transition: transform .18s; }
+.svc-link:hover i { transform: translateX(3px); }
+.svc-link:hover { color: var(--g900); }
+.svc-link.muted-link { color: var(--muted); font-weight: 600; }
+@media (max-width: 1024px) { .svc-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .svc-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .svc-visual { min-height: 140px; padding: 20px; }
+  .svc-visual img { max-width: 46%; height: 80%; }
+  .v-tx { max-width: 64%; }
+  .svc-body { padding: 4px 20px; }
+  .svc-list { grid-template-columns: 1fr; }
+  .svc-list:not(.rows) li:nth-last-child(2) { border-bottom: 1px solid var(--line); }
+  .svc-foot { padding: 14px 20px 18px; }
+}

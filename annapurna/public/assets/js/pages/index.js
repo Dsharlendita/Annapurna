@@ -4,14 +4,6 @@
   $('#mtnSolid').innerHTML = MTN.solid;
   $('#mtnSolid2').innerHTML = MTN.solid;
 
-  /* Pilihan Sewa / Beli di hero: harga mulai dari diambil dari katalog */
-  (function heroChoice() {
-    const P = DB.products(); const r = P.filter((p) => p.rent > 0).map((p) => p.rent), b = P.filter((p) => p.price > 0).map((p) => p.price);
-    if (r.length && $('#hcRent')) $('#hcRent').textContent = `Mulai ${rupiah(Math.min(...r))}/malam`;
-    if (b.length && $('#hcBuy')) $('#hcBuy').textContent = `Mulai ${rupiah(Math.min(...b))}`;
-    /* Mode cari ikut pilihan yang di-hover / fokus supaya pencarian langsung ke katalog yang tepat */
-    document.querySelectorAll('.hc').forEach((a) => a.addEventListener('mouseenter', () => { const v = a.classList.contains('hc-buy') ? 'beli' : 'sewa'; const r2 = document.querySelector(`#heroSearch input[name="hmode"][value="${v}"]`); if (r2) r2.checked = true; }));
-  })();
   $('#heroSearch').addEventListener('submit', (e) => {
     e.preventDefault();
     const q = $('#heroQ').value.trim();
@@ -19,29 +11,32 @@
     location.href = (beli ? 'belanja' : 'katalog') + (q ? '?q=' + encodeURIComponent(q) : '');
   });
 
-  /* ---------- Layanan Kami: laundry (antar sendiri ke toko) & jasa tenda (bongkar pasang / pasang saja / bongkar saja) ---------- */
+  /* ---------- Layanan Kami: laundry (antar & ambil di toko) & jasa tenda — tampil di bawah Cara Sewa ---------- */
   (function services() {
     const box = $('#svcGrid'); if (!box) return;
     const st = DB.settings(); const L = DB.laundryPrices(); const { Svc } = Ann;
     const min = (c) => Math.min(...c.items.map((i) => i.price));
+    const fees = Svc.TENT_MODES.map((k) => Svc.fee(k));
     const waTent = UI.waLink('Halo admin Annapurna, saya mau tanya soal jasa tenda (bongkar pasang / pasang saja / bongkar saja).\nLokasi: \nTanggal: \nJumlah tenda: ');
-    box.innerHTML = `
-      <article class="svc-card svc-laundry" data-reveal>
-        <span class="svc-ic"><i class="fa-solid fa-jug-detergent"></i></span>
-        <h3>Laundry perlengkapan outdoor</h3>
-        <p>Tenda, sleeping bag, jaket, carrier, sepatu, sampai matras. Bawa langsung ke toko, kami cuci sampai bersih.</p>
-        <ul class="svc-prices">${L.map((c) => `<li><span><i class="fa-solid ${esc(c.icon || 'fa-circle')}"></i> ${esc(c.name)}</span><b>mulai ${rupiah(min(c))}</b></li>`).join('')}</ul>
-        <p class="svc-modes-note"><i class="fa-solid fa-store"></i> Antar &amp; ambil langsung di toko (tidak ada antar jemput) · ${esc(st.hours || '')}</p>
-        <div class="svc-acts" style="margin-top:0"><a class="btn btn-gold" href="${url('laundry')}"><i class="fa-solid fa-tags"></i> Lihat daftar harga</a></div>
-      </article>
-      <article class="svc-card svc-tent" data-reveal>
-        <span class="svc-ic"><i class="fa-solid fa-tents"></i></span>
-        <h3>Jasa tenda</h3>
-        <p>Tidak mau repot mendirikan tenda? Pilih jasanya saat checkout sewa tenda.</p>
-        <ul class="svc-modes">${Svc.TENT_MODES.map((k) => { const x = Svc.spec(k); return `<li><b>${x.short}</b><span class="pr">${rupiah(Svc.fee(k))}<span class="muted" style="font-weight:500;font-size:12px">/tenda</span></span><small>${x.desc}</small></li>`; }).join('')}</ul>
-        <p class="svc-modes-note">Harga di luar ongkir. Ongkir sesuai jarak, dikonfirmasi admin via WhatsApp setelah DP.</p>
-        <div class="svc-acts"><a class="btn btn-primary" href="${url('katalog?cat=tenda')}"><i class="fa-solid fa-tent"></i> Sewa tenda</a><a class="btn btn-light" href="${waTent}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> Tanya admin</a></div>
+    const card = (o) => `<article class="svc-card" data-reveal>
+        <div class="svc-visual"><div class="v-tx"><span class="v-tag"><i class="fa-solid ${o.icon}"></i> ${o.tag}</span><h3>${o.title}</h3><p>${o.sub}</p></div><img src="${asset(o.img)}" alt="" loading="lazy" decoding="async"></div>
+        <div class="svc-body">${o.body}</div>
+        <div class="svc-foot"><span class="svc-note"><i class="${o.noteIc}"></i> ${o.note}</span><span class="svc-acts">${o.acts}</span></div>
       </article>`;
+    box.innerHTML = card({
+      tag: 'Laundry', icon: 'fa-jug-detergent', img: 'assets/img/categories/sleeping-bag.jpg',
+      title: 'Laundry perlengkapan outdoor', sub: `Mulai <b>${rupiah(Math.min(...L.map(min)))}</b> per barang`,
+      body: `<ul class="svc-list">${L.map((c) => `<li><span><i class="fa-solid ${esc(c.icon || 'fa-circle')}" aria-hidden="true"></i>${esc(c.name)}</span><b>${rupiah(min(c))}</b></li>`).join('')}</ul>
+        <ul class="svc-chips"><li><i class="fa-regular fa-clock"></i> Selesai ±${Ann.Laundry.days()} hari</li><li><i class="fa-solid fa-receipt"></i> Struk &amp; nota resmi</li><li><i class="fa-solid fa-wallet"></i> Bayar di toko</li></ul>`,
+      noteIc: 'fa-solid fa-store', note: `Antar &amp; ambil di toko · ${esc(st.hours || '')}`,
+      acts: `<a class="svc-link" href="${url('laundry')}">Daftar harga <i class="fa-solid fa-arrow-right"></i></a>`,
+    }) + card({
+      tag: 'Jasa Tenda', icon: 'fa-tents', img: 'assets/img/categories/tenda.jpg',
+      title: 'Bongkar &amp; pasang tenda', sub: `Mulai <b>${rupiah(Math.min(...fees))}</b> per tenda`,
+      body: `<ul class="svc-list rows">${Svc.TENT_MODES.map((k) => { const x = Svc.spec(k); return `<li><span><b>${x.short}</b><small>${x.desc}</small></span><b>${rupiah(Svc.fee(k))}</b></li>`; }).join('')}</ul>`,
+      noteIc: 'fa-brands fa-whatsapp', note: 'Di luar ongkir · dikonfirmasi admin setelah DP',
+      acts: `<a class="svc-link muted-link" href="${waTent}" target="_blank" rel="noopener" data-direct="1">Tanya admin</a><a class="svc-link" href="${url('katalog?cat=tenda')}">Sewa tenda <i class="fa-solid fa-arrow-right"></i></a>`,
+    });
   })();
 
   const prods = DB.products();

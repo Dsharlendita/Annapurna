@@ -5,6 +5,9 @@ use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
 use App\Http\Controllers\Annapurna\OwnerController;
 use App\Http\Controllers\Annapurna\PageController;
+use App\Http\Controllers\Annapurna\StaffController;
+use App\Models\EmailLog;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Halaman Publik
@@ -55,7 +58,7 @@ Route::prefix('api')->name('api.')->group(function () {
 });
 
 // Panel Admin (Role: Admin & Owner)
-Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,owner'])->controller(AdminController::class)->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,owner', 'password.changed'])->controller(AdminController::class)->group(function () {
     Route::redirect('/', '/admin/dashboard');
     Route::get('/dashboard', 'dashboard')->name('dashboard');
     Route::get('/booking', 'booking')->name('booking');
@@ -75,7 +78,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,owner'])
 });
 
 // Panel Owner / Super Admin (Khusus Role: Owner)
-Route::prefix('owner')->name('owner.')->middleware(['auth', 'role:owner'])->controller(OwnerController::class)->group(function () {
+Route::prefix('owner')->name('owner.')->middleware(['auth', 'role:owner', 'password.changed'])->controller(OwnerController::class)->group(function () {
     Route::redirect('/', '/owner/dashboard');
     Route::get('/dashboard', 'dashboard')->name('dashboard');
     Route::get('/histori', 'histori')->name('histori');
@@ -84,6 +87,28 @@ Route::prefix('owner')->name('owner.')->middleware(['auth', 'role:owner'])->cont
     Route::get('/konfigurasi', 'konfigurasi')->name('konfigurasi');
     Route::get('/pelanggan', 'pelanggan')->name('pelanggan');
     Route::get('/promo', 'promo')->name('promo');
+});
+
+// Endpoint Ganti Sandi (Bisa diakses user login yang wajib ganti sandi)
+Route::middleware('auth')->group(function () {
+    Route::post('/api/akun/ganti-sandi', [StaffController::class, 'changePassword'])->name('api.akun.ganti-sandi');
+    Route::post('/akun/kata-sandi', [StaffController::class, 'changePassword'])->name('akun.kata-sandi');
+});
+
+// API Manajemen Staff & Outbox Email (Khusus Role: Owner)
+Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'])->group(function () {
+    Route::prefix('staff')->name('staff.')->controller(StaffController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::patch('/{id}', 'update')->name('update');
+        Route::post('/{id}/toggle', 'toggle')->name('toggle');
+        Route::post('/{id}/reset-password', 'resetPassword')->name('reset-password');
+    });
+
+    Route::get('/email-logs', function (Request $request) {
+        $logs = EmailLog::latest('id')->paginate(10);
+        return response()->json($logs);
+    })->name('email-logs');
 });
 
 Route::redirect('/login', '/masuk')->name('login');

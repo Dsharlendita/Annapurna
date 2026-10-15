@@ -150,6 +150,7 @@ class AuthController extends Controller
             'password' => $validated['password'], // otomatis di-hash oleh casts 'password' => 'hashed' di User model
             'role' => 'customer',
             'status' => 'aktif',
+            'auto_created' => $request->boolean('auto_created', false),
             'address' => $validated['address'] ?? null,
             'last_login_at' => now(),
         ]);
@@ -174,6 +175,7 @@ class AuthController extends Controller
                     'status' => $user->status,
                     'phone' => $user->phone ?? '',
                     'address' => $user->address ?? '',
+                    'mustChangePw' => (bool)$user->must_change_password,
                 ],
                 'redirect' => $redirectUrl,
             ]);

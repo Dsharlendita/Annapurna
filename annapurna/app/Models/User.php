@@ -19,6 +19,7 @@ class User extends Authenticatable
         'role',
         'status',
         'must_change_password',
+        'auto_created',
         'created_by',
         'last_login_at',
         'last_logout_at',
@@ -36,6 +37,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'auto_created' => 'boolean',
             'last_login_at' => 'datetime',
             'last_logout_at' => 'datetime',
         ];

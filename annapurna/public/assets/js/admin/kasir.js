@@ -309,22 +309,44 @@
     m.$('#kNew').addEventListener('click', () => { m.close(); reset(); $('#kQ').focus(); });
     toast(`Transaksi ${NO(x)} tersimpan.`);
   }
-  /* Setelah laundry disimpan: staff WAJIB mencetak struk dan mengabari customer sebelum lanjut ke transaksi berikutnya */
+  /* Setelah laundry disimpan: staff WAJIB mencetak struk DAN mengabari customer.
+     Jendela terkunci (tidak tertutup bila klik di luar / Esc) dan tombol lanjut aktif setelah dua langkah selesai.
+     Bila ada kendala nyata (printer rusak, customer tanpa WhatsApp), staff wajib menulis alasan: dicatat di riwayat laundry
+     & Histori Sistem, dan laundry tetap muncul di Dashboard (Perlu tindakan) sampai langkahnya dikerjakan. */
   function doneLaundry(o) {
     const total = Laundry.total(o), paid = Laundry.paid(o); const step = { print: false, wa: false };
     const m = modal({ title: `Laundry tersimpan · ${o.no}`, locked: true, body: `
       <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-circle-check"></i><div><b>Barang diterima di toko, estimasi selesai ${D.fmtDate(Laundry.est(o), true)}.</b><br>Total ${rupiah(total)} · ${paid ? `dibayar ${rupiah(paid)}${o.kasir && o.kasir.method === 'Tunai' && o.kasir.change ? ` · kembalian ${rupiah(o.kasir.change)}` : ''}` : 'dibayar saat diambil'}</div></div>
       <h4 style="margin:0 0 10px">Wajib dilakukan sebelum lanjut</h4>
       <ol class="ld-steps-req">
-        <li id="stPrint"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>Cetak struk (${RC.paper} mm)</b><small>Berikan struk ke customer sebagai bukti pengambilan.</small></div><button type="button" class="btn btn-primary btn-sm" data-pr="${RC.paper}"><i class="fa-solid fa-print"></i> Cetak</button></li>
-        <li id="stWa"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>Kabari customer via WhatsApp</b><small>Pesan &amp; nota sudah disiapkan otomatis.</small></div><a class="btn btn-wa btn-sm" id="ldWaBtn" href="${Admin.ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim</a></li>
+        <li id="stPrint"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>1. Cetak struk (${RC.paper} mm)</b><small>Berikan struk ke customer sebagai bukti pengambilan.</small></div><button type="button" class="btn btn-primary btn-sm" data-pr="${RC.paper}"><i class="fa-solid fa-print"></i> Cetak</button></li>
+        <li id="stWa"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>2. Kabari customer via WhatsApp</b><small>Pesan &amp; nota sudah disiapkan otomatis.</small></div><a class="btn btn-wa btn-sm" id="ldWaBtn" href="${Admin.ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim</a></li>
       </ol>
-      <details class="ld-msg-prev"><summary>Lihat isi pesan</summary><div class="svc-msg">${esc(Admin.ldWaText(o))}</div></details>`,
-      foot: `<a class="btn btn-light" href="${UI.url('admin/laundry?id=' + o.id)}"><i class="fa-solid fa-jug-detergent"></i> Buka di menu Laundry</a><button class="btn btn-primary" id="kNew" disabled><i class="fa-solid fa-plus"></i> Transaksi baru</button>` });
-    const sync = () => { m.$('#stPrint').classList.toggle('done', step.print); m.$('#stWa').classList.toggle('done', step.wa); m.$('#kNew').disabled = !(step.print && step.wa); m.$('#kNew').title = step.print && step.wa ? '' : 'Cetak struk dan kabari customer dulu'; };
-    m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-pr]'); if (b) { Admin.ldStruk(DB.laundryOrder(o.id), +b.dataset.pr); step.print = true; sync(); } });
-    m.$('#ldWaBtn').addEventListener('click', () => { step.wa = true; const x = DB.laundryOrder(o.id); x.history.push({ at: D.nowStamp(), text: `Customer dikabari via WhatsApp (laundry diterima) oleh ${me.name}` }); DB.saveLaundry(x); sync(); });
-    m.$('#kNew').addEventListener('click', () => { if (!(step.print && step.wa)) return; m.close(); $('#kQ').focus(); });
+      <p class="ld-lock-note" id="ldLockNote"><i class="fa-solid fa-lock"></i> Jendela ini baru bisa ditutup setelah kedua langkah di atas selesai.</p>
+      <details class="ld-msg-prev"><summary>Lihat isi pesan</summary><div class="svc-msg">${esc(Admin.ldWaText(o))}</div></details>
+      <details class="ld-skip" id="ldSkip"><summary>Ada kendala (printer rusak / customer tidak punya WhatsApp)?</summary>
+        <div class="field" style="margin-top:8px"><label>Alasan <span class="req">*</span></label><select class="select" id="ldSkipWhy"><option value="">Pilih alasan…</option><option>Printer struk bermasalah</option><option>Customer tidak punya WhatsApp</option><option>Nomor WhatsApp tidak aktif</option><option>Lainnya</option></select></div>
+        <div class="field"><label>Keterangan <span class="req">*</span></label><input class="input" id="ldSkipNote" placeholder="Contoh: kertas struk habis, struk ditulis tangan"></div>
+        <button type="button" class="btn btn-light btn-sm" id="ldSkipOk">Catat kendala &amp; lanjutkan</button>
+        <small class="muted" style="display:block;margin-top:6px">Kendala dicatat di riwayat laundry dan Histori Sistem. Laundry ini tetap muncul di Dashboard sampai struk dicetak dan customer dikabari.</small></details>`,
+      foot: `<button type="button" class="btn btn-light" id="kOpenLd" disabled><i class="fa-solid fa-jug-detergent"></i> Buka di menu Laundry</button><button class="btn btn-primary" id="kNew" disabled><i class="fa-solid fa-plus"></i> Transaksi baru</button>` });
+    const ok = () => step.print && step.wa;
+    const sync = () => { m.$('#stPrint').classList.toggle('done', step.print); m.$('#stWa').classList.toggle('done', step.wa);
+      ['#kNew', '#kOpenLd'].forEach((id) => { m.$(id).disabled = !ok(); m.$(id).title = ok() ? '' : 'Cetak struk dan kabari customer dulu'; });
+      m.$('#ldLockNote').hidden = ok(); m.$('#ldSkip').hidden = ok(); };
+    m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-pr]'); if (b) { Admin.ldStruk(DB.laundryOrder(o.id), +b.dataset.pr); step.print = true; sync(); } });  /* ldStruk mencatat receiptPrintedAt */
+    m.$('#ldWaBtn').addEventListener('click', () => { step.wa = true; const x = DB.laundryOrder(o.id); x.notifiedReceivedAt = D.nowStamp(); x.history.push({ at: D.nowStamp(), text: `Customer dikabari via WhatsApp (laundry diterima) oleh ${me.name}` }); DB.saveLaundry(x); sync(); });
+    const finish = (toLaundry) => { m.close(); if (toLaundry) location.href = UI.url('admin/laundry?id=' + o.id); else $('#kQ').focus(); };
+    m.$('#kNew').addEventListener('click', () => { if (ok()) finish(false); });
+    m.$('#kOpenLd').addEventListener('click', () => { if (ok()) finish(true); });
+    m.$('#ldSkipOk').addEventListener('click', () => {
+      const why = m.$('#ldSkipWhy').value, note = m.$('#ldSkipNote').value.trim();
+      if (!why || note.length < 5) { toast('Pilih alasan dan tulis keterangan kendala (minimal 5 huruf).', 'err'); return; }
+      const miss = [!step.print && 'struk belum dicetak', !step.wa && 'customer belum dikabari'].filter(Boolean).join(' & ');
+      const x = DB.laundryOrder(o.id); x.history.push({ at: D.nowStamp(), text: `Kendala: ${why} — ${note} (${miss}) · dicatat ${me.name}` }); x.skipNote = { why, note, by: me.name, at: D.nowStamp() }; DB.saveLaundry(x);
+      DB.audit({ type: 'laundry', action: `Melewati langkah wajib laundry ${o.no}: ${miss}`, ref: o.id, changes: [{ field: 'Alasan', from: '', to: `${why} — ${note}` }] });
+      toast(`Kendala dicatat. ${o.no} tetap muncul di Dashboard sampai ${miss.replace('belum ', '')}.`, 'err'); finish(false);
+    });
     sync(); toast(`Laundry ${o.no} tersimpan.`);
   }
   /* Kosongkan transaksi: barang, customer, diskon, pembayaran. Jenis (sewa/jual) & tanggal tetap. */

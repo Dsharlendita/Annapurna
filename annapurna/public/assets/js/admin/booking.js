@@ -21,6 +21,27 @@
         <td><div class="acts"><button class="btn btn-wa btn-xs" data-remind="${b.id}"><i class="fa-brands fa-whatsapp"></i> Tagih denda</button><button class="btn btn-light btn-xs" data-detail="${b.id}">Detail</button></div></td></tr>`; }).join('')}
       </tbody></table></div></div>`;
   }
+  /* Ringkasan layanan antar / jasa tenda untuk satu baris: jenis, jadwal, dan status ongkir & pembayaran layanan */
+  const sd = (iso) => D.fmtDate(iso).replace(/ \d{4}$/, '');
+  function svcCell(b) {
+    if (!Ann.Svc.has(b)) return '';
+    const S = Ann.Svc, d = b.deliv || {}, bl = S.bill(b);
+    const out = S.delivers(b) ? `${S.outLabel(b) === 'Antar' ? 'Antar' : 'Pasang'} ${sd(d.date || b.start)}${d.time ? ' ' + S.fmtT(d.time) : ''}` : '';
+    const back = S.returnMode(b) === 'jemput' ? `${S.isTent(b) ? 'Bongkar' : 'Jemput'} ${sd(d.backDate || b.end)}${d.backTime ? ' ' + S.fmtT(d.backTime) : ''}` : '';
+    const st = b.status === 'dibatalkan' ? '' : !bl.ongkirSet ? '<span class="sv-b warn"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati</span>'
+      : bl.due > 0 ? `<span class="sv-b bad"><i class="fa-solid fa-circle-exclamation"></i> Belum dibayar ${rupiah(bl.due)}</span>`
+      : '<span class="sv-b ok"><i class="fa-solid fa-circle-check"></i> Layanan lunas</span>';
+    return `<div class="sv-cell"><div class="sv-top"><span class="sv-k"><i class="fa-solid ${S.icon(b)}"></i> ${esc(S.short(b))}${S.isTent(b) && d.tents ? ' · ' + d.tents + ' tenda' : ''}</span>${bl.ongkirSet ? `<span class="sv-o">ongkir ${rupiah(bl.ongkir)}</span>` : ''}</div>
+      ${out || back ? `<small class="sv-when">${[out, back].filter(Boolean).join(' → ')}</small>` : ''}${st}</div>`;
+  }
+  /* Kolom pembayaran: sewa (total, DP, sisa) + layanan bila ada */
+  function payCell(b) {
+    if (b.status === 'dibatalkan') return `<div class="kv"><span>Total</span><b>${rupiah(b.total)}</b></div><small>Dibatalkan</small>`;
+    const S = Ann.Svc; const sisa = Admin.sisa(b);
+    let h = `<div class="kv"><span>Total sewa</span><b>${rupiah(b.total)}</b></div><div class="kv"><span>DP</span><span>${rupiah(b.dp)}</span></div><div class="kv ${sisa ? 'due' : ''}"><span>Sisa sewa</span><span>${sisa ? rupiah(sisa) : 'Lunas'}</span></div>`;
+    if (S.has(b)) { const bl = S.bill(b); h += `<div class="kv lay"><span>Layanan</span><span>${rupiah(bl.total)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>`; }
+    return h;
+  }
   function list() {
     const q = $('#q').value.trim().toLowerCase(), f = $('#from').value, t = $('#to').value;
     return DB.staffBookings().filter((b) => !isLate(b) && (tab === 'semua' || b.status === tab)
@@ -38,14 +59,13 @@
       const late = b.status === 'disewa' && b.end < D.today(); const due = b.status === 'disewa' && b.end <= D.today();
       const mates = Admin.groupMates(b);
       return `<tr>
-        <td><strong>${NO(b)}</strong><small>${D.fmtDate(b.createdAt)}</small></td>
-        <td>${esc(b.customer.name)}<small>${esc(b.customer.phone)}</small></td>
-        <td style="min-width:190px;max-width:260px">${esc(Admin.itemsText(b))}${Admin.svcLine(b)}${(b.changes || []).some((c) => c.status === 'menunggu') ? '<small style="color:#9a6508"><i class="fa-solid fa-arrows-rotate"></i> Ada permintaan ganti</small>' : ''}${b.group ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · ' + mates.map((x) => x.id).join(', ') : ''}</small>` : ''}</td>
+        <td class="bk-who"><strong>${NO(b)}</strong><span>${esc(b.customer.name)}</span><small>${esc(b.customer.phone)}<br>dibuat ${D.fmtDate(b.createdAt)}</small></td>
+        <td style="min-width:220px;max-width:280px"><span class="bk-items">${esc(Admin.itemsText(b))}</span>${svcCell(b)}${(b.changes || []).some((c) => c.status === 'menunggu') ? '<small style="color:#9a6508"><i class="fa-solid fa-arrows-rotate"></i> Ada permintaan ganti</small>' : ''}${b.group ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · ' + mates.map((x) => x.id).join(', ') : ''}</small>` : ''}</td>
         <td>${D.fmtRange(b.start, b.end)}<small>${b.days} malam${late ? ' · <span style="color:var(--red);font-weight:700">terlambat</span>' : ''}</small></td>
-        <td class="num">${rupiah(b.total)}</td><td class="num">${rupiah(b.dp)}</td><td class="num">${b.status === 'dibatalkan' ? '-' : rupiah(Admin.sisa(b))}</td>
-        <td>${pill('rental', b.status)}<small style="margin-top:4px">${pill('payment', b.paymentStatus)}</small></td>
+        <td class="bk-pay">${payCell(b)}</td>
+        <td class="bk-st">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</td>
         <td><div class="acts">${due ? `<button class="btn btn-wa btn-xs" data-remind="${b.id}" title="${late ? 'Kirim nota + denda ke customer' : 'Ingatkan pengembalian hari ini'}"><i class="fa-brands fa-whatsapp"></i> ${late ? 'Tagih denda' : 'Ingatkan'}</button>` : ''}${acts.map(([k, ic, l, c]) => `<button class="btn ${c} btn-xs" data-act="${k}" data-id="${b.id}" title="${l}"><i class="fa-solid ${ic}"></i> ${l}</button>`).join('')}<button class="btn btn-light btn-xs" data-act="detail" data-id="${b.id}">Detail</button></div></td></tr>`;
-    }).join('') : `<tr><td colspan="9"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-regular fa-calendar"></i></div><h3>Tidak ada booking</h3><p>Coba ubah filter atau kata kunci pencarian.</p></div></td></tr>`;
+    }).join('') : `<tr><td colspan="6"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-regular fa-calendar"></i></div><h3>Tidak ada booking</h3><p>Coba ubah filter atau kata kunci pencarian.</p></div></td></tr>`;
     $('#count').textContent = `Menampilkan ${L.length} booking${DB.staffBookings().some(isLate) ? ' (booking terlambat ada di tabel atas)' : ''}.`;
   }
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; draw(); } });

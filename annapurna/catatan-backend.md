@@ -193,7 +193,7 @@ Sumber: 12 poster price list & syarat ketentuan Annapurna Adventure (WhatsApp).
 
 | No | Fitur | Status FE | Yang harus dikerjakan backend | Prioritas |
 |---|---|---|---|---|
-| 1 | Manajemen staff, reset kata sandi & email | Simulasi di browser | API staff + kirim email sungguhan + wajib ganti sandi di server | **P1 (kritis)** |
+| 1 | Manajemen staff, reset kata sandi & email | **Backend sudah dibuat (15 Okt)**; frontend belum tersambung | Sambungkan menu Manajemen Staff & pop-up wajib ganti sandi ke API (lihat B.1 Status) | **P1 (kritis)** |
 | 2 | Checkout tamu langsung ke pembayaran | Memakai `POST /daftar` | Pastikan register mengembalikan JSON & login session; rate limit | P1 |
 | 3 | Penomoran nota `RNTL/` `DRY/` `ODR/` | Di browser | Nomor urut per bulan yang aman dari tabrakan | P1 |
 | 4 | Pesanan belum dibayar tidak tampil di admin | Filter di browser | Query scope + scheduler batal otomatis | P1 |
@@ -260,6 +260,10 @@ MAIL_FROM_NAME="Annapurna Adventure"
 QUEUE_CONNECTION=database
 ```
 App Password dibuat di Akun Google → Keamanan → Verifikasi 2 langkah (aktifkan) → Sandi aplikasi. Jalankan worker: `php artisan queue:work`.
+
+### Status (15 Oktober 2026)
+Sudah di-push ke repo: `StaffController`, middleware `EnsurePasswordChanged`, Mailable `StaffPasswordReset` + view email, model & migration `email_logs`, kolom `users.auto_created`, route baru di `routes/web.php`.
+Belum: **frontend masih memakai fungsi lokal** (`DB.addStaff`, `DB.resetStaffPassword`, dst. di `data.js`/`owner/staff.js`) dan halaman Kotak keluar masih membaca `outbox` lokal. Langkah berikutnya: ganti pemanggilan itu dengan `Api.post/patch` ke route StaffController, lalu uji kriteria di bawah.
 
 ### Kriteria selesai (wajib lolos)
 - [ ] Reset sandi Dita → login dengan sandi lama **gagal**, dengan sandi sementara **berhasil** lalu dipaksa ganti sandi.
@@ -500,6 +504,16 @@ Hanya **Owner** yang boleh mengubah; setiap perubahan dicatat di `activity_logs`
 - Pertanyaan yang tidak cocok dengan aturan mana pun (ELSE) dicatat. Tabel baru `chat_misses (id, question_norm UNIQUE, question_text, count, first_at, last_at, dismissed_at)` + endpoint `POST /api/chat/miss` (publik, rate limit 30/menit per IP, maks. 200 karakter) dan `GET /api/owner/chat/misses`, `POST /api/owner/chat/misses/{id}/abaikan`.
 - Urutan pemeriksaan: nomor nota → aturan prioritas tinggi → aturan khusus berbasis data → aturan prioritas normal (skor kata kunci, frasa ≥ 2 kata bernilai 2) → ELSE (ke admin + dicatat).
 - Perubahan aturan dicatat di `activity_logs` (tipe `konfigurasi`).
+
+## B.11b Pembaruan Frontend 15 Oktober 2026 (v18) yang Berdampak ke Backend
+
+| Perubahan FE | Yang perlu diperhatikan backend |
+|---|---|
+| **Logout otomatis staff bawaan nonaktif** (`settings.idleLogoutMin = 0`; Owner bisa memilih 15/30/60/120/240 menit di Konfigurasi → Sesi Staff) | Jangan memaksa sesi staff berakhir karena tidak aktif. Atur `SESSION_LIFETIME` cukup panjang (mis. 10080 menit = 7 hari) dan `SESSION_EXPIRE_ON_CLOSE=false`. Bila Owner mengisi nilai > 0, server boleh menolak request staff yang `last_activity`-nya lebih lama dari nilai itu (opsional). Logout otomatis tetap dicatat di Histori Login. |
+| **Dashboard admin "Pusat tindakan"** (Mendesak / Hari ini / Perlu dicek) dihitung di browser dari booking, laundry, jadwal antar-jemput, permintaan, servis unit, dan ulasan | Saat data pindah ke server, sediakan `GET /api/admin/dashboard/tugas` yang mengembalikan daftar `{tier, jenis, ref, judul, keterangan, tag, aksi[]}` dengan aturan tingkat yang sama (terlambat & DP menunggu ≥ 1 jam & laundry lewat estimasi & ulasan ≤ 2 bintang = mendesak; ambil/antar/jemput/kembali hari ini & laundry siap belum dikabari = hari ini; permintaan, servis, ulasan, jadwal besok = perlu dicek). Pakai scope `visibleToStaff` (B.4). |
+| Laundry "siap diambil" yang belum dikabari muncul di Pusat tindakan | Pakai kolom `laundry_orders.notified_ready_at` (B.6); `NULL` = belum dikabari. |
+| Ikon kategori laundry Matras diganti `fa-rug` | Bila `settings.laundry` disimpan di server, migrasikan ikon `fa-grip-lines` → `fa-rug`. |
+| Ringkasan "Total yang harus dibayar" di Pesanan Saya = total sewa + total layanan | Endpoint detail pesanan customer sebaiknya mengembalikan `total_sewa`, `total_layanan`, `ongkir_ditetapkan`, `dibayar_sewa`, `dibayar_layanan`, `sisa` (rumus sama dengan nota, B.5). |
 
 ## B.12 Data yang Masih di `localStorage` (harus dipindah ke database)
 

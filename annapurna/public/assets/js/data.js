@@ -364,7 +364,7 @@
     /* Batas waktu membayar DP setelah booking dibuat (jam). Lewat batas → booking dibatalkan otomatis agar stok kembali tersedia. */
     payWindowHours: 1,
     /* Logout otomatis staff bila tidak ada aktivitas (menit, 0 = mati) */
-    idleLogoutMin: 60,
+    idleLogoutMin: 0, /* logout otomatis staff: bawaan nonaktif (permintaan mitra), bisa dinyalakan Owner */
     /* Pembersihan data setelah rekap bulanan tersimpan di Google Drive (data bulan yang sudah diarsipkan) */
     cleanup: { mode: 'approve' },
     /* Tata cara di beranda (bisa diubah owner di Konfigurasi → Tampilan Beranda) */
@@ -423,7 +423,7 @@
         { id: 'ld-sth', name: 'Sepatu Trekking / Hiking', price: 20000 },
         { id: 'ld-str', name: 'Sepatu Trail Run / Running', price: 20000 },
       ] },
-      { id: 'matras', name: 'Matras', icon: 'fa-grip-lines', items: [
+      { id: 'matras', name: 'Matras', icon: 'fa-rug', items: [
         { id: 'ld-ms', name: 'Matras Spon', price: 5000 },
         { id: 'ld-mf', name: 'Matras Foil', price: 5000 },
       ] },
@@ -1930,6 +1930,10 @@
     });
     write('restocks', L);
   })();
+  /* Logout otomatis 60 menit dinonaktifkan sekali untuk data lama (sekarang bawaan nonaktif) */
+  (function migrateIdle() { const st = read('settings', null); if (!st || st.idleOffV1) return; st.idleLogoutMin = 0; st.idleOffV1 = true; write('settings', st); })();
+  /* Ikon matras lama (garis "=") diganti ikon alas tidur */
+  (function migrateMatIcon() { const st = read('settings', null); if (!st || !Array.isArray(st.laundry)) return; let ch = false; st.laundry.forEach((c) => { if (c.icon === 'fa-grip-lines') { c.icon = 'fa-rug'; ch = true; } }); if (ch) write('settings', st); })();
   /* Instagram resmi: @annapurnaadv (perbarui pengaturan lama yang masih memakai akun lama) */
   (function migrateInstagram() { const st = read('settings', null); if (st && (!st.instagram || st.instagram === '@annapurna_adv')) { st.instagram = '@annapurnaadv'; write('settings', st); } })();
   /* Revisi mitra (jasa tenda 3 pilihan, laundry tanpa antar jemput): nama kategori pemasukan & ketentuan sewa */

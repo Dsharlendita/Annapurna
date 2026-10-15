@@ -43,30 +43,45 @@
             <span><i class="fa-solid ${Svc.icon(b)}" style="color:var(--g600)"></i> ${esc(Svc.label(b))}</span>
           </div>
           ${lines(b.items)}
-          ${svcBox(b)}
           ${pendingChange ? `<div class="notice" style="margin-top:10px"><i class="fa-solid fa-arrows-rotate"></i><div>Permintaan ganti <strong>${esc(pendingChange.fromName)}</strong> → <strong>${esc(pendingChange.toName)}</strong> sedang ditinjau admin.</div></div>` : ''}
           ${late ? `<div class="notice red" style="margin-top:10px"><i class="fa-solid fa-clock"></i><div>Sudah lewat tanggal kembali ${D.diffDays(b.end, D.today())} hari. Segera kembalikan untuk menghindari denda bertambah.</div></div>` : ''}
           ${b.status === 'dibatalkan' && b.cancel && !b.cancel.auto ? `<div class="notice ${b.cancel.refundable ? 'green' : 'red'}" style="margin-top:10px"><i class="fa-solid fa-circle-info"></i><div>${b.cancel.refundable ? (b.cancel.refundStatus === 'selesai' ? `DP ${rupiah(b.dp)} sudah dikembalikan.` : b.cancel.refundStatus === 'menunggu' ? `Pengembalian DP ${rupiah(b.dp)} sedang diproses admin.` : 'Booking dibatalkan sebelum pembayaran.') : 'Dibatalkan kurang dari H-2, DP tidak dikembalikan.'}</div></div>` : ''}
         </div>
-        <div class="sum"><small>Total sewa</small><strong>${rupiah(b.total)}</strong><small>Sudah dibayar ${rupiah(paid)}</small>${UI.pendingPay(b) ? `<small class="pay-wait-s"><i class="fa-regular fa-clock"></i> ${rupiah(UI.pendingPay(b))} menunggu verifikasi</small>` : ''}${b.status !== 'dibatalkan' && b.total - paid > 0 ? `<small style="color:var(--orange);font-weight:700">Sisa ${rupiah(b.total - paid)}</small>` : ''}</div>
+        ${sumBox(b, paid)}
       </div>
+      ${svcBox(b)}
       <div class="of">${acts.join('')}</div>
     </article>`;
   }
   /* Layanan antar / bongkar pasang: jadwal + tombol konfirmasi ongkir ke admin */
+  /* Ringkasan biaya kartu pesanan. Bila ada layanan antar / jasa tenda: total yang harus dibayar = sewa + layanan (sama seperti nota) */
+  function sumBox(b, paid) {
+    const pend = UI.pendingPay(b) ? `<small class="pay-wait-s"><i class="fa-regular fa-clock"></i> ${rupiah(UI.pendingPay(b))} menunggu verifikasi</small>` : '';
+    if (!Svc.has(b)) return `<div class="sum"><small>Total sewa</small><strong>${rupiah(b.total)}</strong><small>Sudah dibayar ${rupiah(paid)}</small>${pend}${b.status !== 'dibatalkan' && b.total - paid > 0 ? `<small style="color:var(--orange);font-weight:700">Sisa ${rupiah(b.total - paid)}</small>` : ''}</div>`;
+    const bl = Svc.bill(b); const all = b.total + bl.total; const pd = paid + bl.paid; const plus = bl.ongkirSet ? '' : ' + ongkir';
+    return `<div class="sum sum-svc"><div class="kv"><span>Sewa</span><span>${rupiah(b.total)}</span></div><div class="kv"><span>Layanan</span><span>${rupiah(bl.total)}${plus}</span></div>
+      <small>Total yang harus dibayar</small><strong>${rupiah(all)}${bl.ongkirSet ? '' : '<em> + ongkir</em>'}</strong><small>Sudah dibayar ${rupiah(pd)}</small>${pend}
+      ${b.status !== 'dibatalkan' && all - pd > 0 ? `<small style="color:var(--orange);font-weight:700">Sisa ${rupiah(all - pd)}${plus}</small>` : ''}</div>`;
+  }
+  /* Kotak layanan antar / jasa tenda: kiri = jadwal & lokasi, kanan = rincian biaya layanan */
   function svcBox(b) {
     if (!Svc.has(b)) return '';
     const d = b.deliv || {}; const live = !['selesai', 'dibatalkan'].includes(b.status);
-    const rm = Svc.returnMode(b); const tent = Svc.isTent(b);
-    return `<div class="svc-box">
-      <div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>
-      ${Svc.delivers(b) ? `<div class="r"><i class="fa-solid fa-truck-fast"></i><span>${Svc.outLabel(b) === 'Antar' ? 'Diantar' : 'Antar &amp; pasang'} ${D.fmtDate(d.date || b.start, true)} pukul ${esc(Svc.fmtT(d.time) || '-')}</span></div>`
-        : `<div class="r"><i class="fa-solid fa-store"></i><span>Ambil barang di toko ${D.fmtDate(b.start, true)}</span></div>`}
-      ${rm === 'jemput' ? `<div class="r"><i class="fa-solid fa-rotate-left"></i><span>${tent ? 'Bongkar &amp; jemput' : 'Dijemput staff'} ${D.fmtDate(d.backDate || b.end, true)}${d.backTime ? ' pukul ' + esc(Svc.fmtT(d.backTime)) : ''}${Svc.mode(b) === 'bongkar_saja' ? ' (tenda ditinggal di lokasi)' : ''}</span></div>` : rm === 'toko' ? `<div class="r"><i class="fa-solid fa-store"></i><span>${tent ? 'Tenda dibongkar sendiri, kembalikan' : 'Pengembalian diantar sendiri'} ke toko</span></div>` : '<div class="r"><i class="fa-solid fa-rotate-left"></i><span>Pengembalian: atur bersama admin</span></div>'}
-      ${(() => { const bl = Svc.bill(b); return `${tent ? `<div class="r"><i class="fa-solid ${Svc.icon(b)}"></i><span>Jasa ${esc(Svc.short(b).toLowerCase())} ${d.tents || 1} tenda · <b>${rupiah(bl.jasa)}</b></span></div>` : ''}
-      <div class="r"><i class="fa-solid fa-route"></i><span>${Svc.ongkirText(b).replace(/^o/, 'O')}: ${bl.ongkirSet ? `<b>${rupiah(bl.ongkir)}</b>` : '<em>menunggu konfirmasi admin</em>'}</span></div>
-      ${bl.ongkirSet ? `<div class="r"><i class="fa-solid ${bl.due ? 'fa-coins' : 'fa-circle-check'}"></i><span>Total layanan ${rupiah(bl.total)} · ${bl.due ? `sisa <b>${rupiah(bl.due)}</b> dibayar ke admin` : 'lunas'}</span></div>` : ''}`; })()}
-      ${live && b.status !== 'menunggu_pembayaran' ? `<div class="acts"><a class="btn btn-wa btn-sm" href="${UI.waLink(Svc.waText(b))}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> ${Svc.bill(b).ongkirSet ? 'Chat admin' : d.waAt ? 'Kirim ulang konfirmasi' : 'Konfirmasi ongkir ke admin'}</a></div>` : ''}
+    const rm = Svc.returnMode(b); const tent = Svc.isTent(b); const bl = Svc.bill(b);
+    const row = (ic, t) => `<div class="r"><i class="fa-solid ${ic}"></i><span>${t}</span></div>`;
+    const sched = [
+      row('fa-location-dot', esc(d.address || '-')),
+      Svc.delivers(b) ? row('fa-truck-fast', `${Svc.outLabel(b) === 'Antar' ? 'Diantar' : 'Antar &amp; pasang'} <b>${D.fmtDate(d.date || b.start, true)}</b> pukul ${esc(Svc.fmtT(d.time) || '-')}`) : row('fa-store', `Ambil barang di toko <b>${D.fmtDate(b.start, true)}</b>`),
+      rm === 'jemput' ? row('fa-rotate-left', `${tent ? 'Bongkar &amp; jemput' : 'Dijemput staff'} <b>${D.fmtDate(d.backDate || b.end, true)}</b>${d.backTime ? ' pukul ' + esc(Svc.fmtT(d.backTime)) : ''}`) : row('fa-store', `Kembalikan ke toko <b>${D.fmtDate(b.end, true)}</b>`),
+    ].join('');
+    const cost = `${tent ? `<div class="kv"><span>Jasa ${esc(Svc.short(b).toLowerCase())} (${d.tents || 1} tenda)</span><span>${rupiah(bl.jasa)}</span></div>` : ''}
+      <div class="kv"><span>${esc(Svc.ongkirText(b).replace(/^o/, 'O'))}</span><span>${bl.ongkirSet ? rupiah(bl.ongkir) : '<em>menunggu admin</em>'}</span></div>
+      <div class="kv tot"><span>Total layanan</span><span>${rupiah(bl.total)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
+      ${bl.paid ? `<div class="kv"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>` : ''}
+      <div class="kv due"><span>${bl.ongkirSet && !bl.due ? 'Layanan lunas' : 'Sisa layanan (bayar ke admin)'}</span><span>${bl.ongkirSet && !bl.due ? '<i class="fa-solid fa-circle-check"></i>' : rupiah(bl.due) + (bl.ongkirSet ? '' : ' + ongkir')}</span></div>`;
+    return `<div class="svc-box2">
+      <div class="sb-h"><i class="fa-solid ${Svc.icon(b)}"></i> <b>${esc(Svc.label(b))}</b>${live && b.status !== 'menunggu_pembayaran' ? `<a class="btn btn-wa btn-xs" href="${UI.waLink(Svc.waText(b))}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> ${bl.ongkirSet ? 'Chat admin' : 'Konfirmasi ongkir'}</a>` : ''}</div>
+      <div class="sb-grid"><div class="sb-sched">${sched}</div><div class="sb-cost">${cost}</div></div>
     </div>`;
   }
   function saleCard(s) {

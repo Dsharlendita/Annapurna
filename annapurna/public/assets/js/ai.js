@@ -509,6 +509,12 @@
     $('#aiForm').addEventListener('submit', (e) => { e.preventDefault(); ask(input.value); });
     chips.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) ask(b.textContent); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#aiPanel').hidden) close(); });
+    /* Klik di luar jendela Asisten Trip menutup jendela (kecuali klik tombol pembukanya, modal, atau toast) */
+    document.addEventListener('pointerdown', (e) => {
+      const pn = $('#aiPanel'); if (!pn || pn.hidden || !pn.classList.contains('open')) return;
+      if (e.target.closest('#aiPanel, #aiFab, .modal, .toast, .toasts, [data-ai-open]')) return;
+      close();
+    });
     /* Tombol "Tanya Asisten Trip" di halaman mana pun: <button data-ai-open data-ai-q="pertanyaan (opsional)"> */
     document.addEventListener('click', (e) => { const b = e.target.closest('[data-ai-open]'); if (!b) return; e.preventDefault(); open('chat'); if (b.dataset.aiQ) setTimeout(() => ask(b.dataset.aiQ), 250); });
     if (COMPACT_PAGES.includes(pageKind())) wrap.classList.add('ai-compact');
@@ -516,7 +522,7 @@
   }
 
   function planResultHtml(r) {
-    const role = { tent: 'fa-campground', sleep: 'fa-bed', mat: 'fa-grip-lines', bag: 'fa-person-hiking', cook: 'fa-fire-burner', light: 'fa-lightbulb', chair: 'fa-chair' };
+    const role = { tent: 'fa-campground', sleep: 'fa-bed', mat: 'fa-rug', bag: 'fa-person-hiking', cook: 'fa-fire-burner', light: 'fa-lightbulb', chair: 'fa-chair' };
     const allOk = r.lines.every((l) => l.ok);
     const pk = r.pkg;
     return `<div class="tp-sum">

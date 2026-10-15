@@ -377,7 +377,7 @@
      Aktivitas (klik, ketik, gulir) disimpan sebagai "terakhir aktif". Bila lewat batas (default 60 menit, diatur owner),
      sesi diakhiri & tercatat "Logout otomatis" dengan jam = aktivitas terakhir — jadi histori login selalu punya jam keluar. */
   function idleWatch() {
-    const min = +(DB.settings().idleLogoutMin ?? 60); if (!min) return;
+    const min = +(DB.settings().idleLogoutMin ?? 0); if (!min) return;
     const K = 'ann_lastActive_' + me.id;
     const expired = () => { const last = +localStorage.getItem(K) || 0; return last && Date.now() - last > min * 60e3 ? last : 0; };
     const kick = (last) => { DB.logout({ auto: true, idleMin: min, at: new Date(last).toISOString() }); localStorage.removeItem(K); location.href = UI.url('masuk?idle=1'); };

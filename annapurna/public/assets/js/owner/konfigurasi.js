@@ -13,7 +13,7 @@
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
     ['asisten', 'fa-comments', 'Asisten Trip (Tanya jawab)', 'Aturan JIKA–MAKA chatbot, kata kunci & jawaban, pertanyaan belum terjawab.'],
     ['layanan', 'fa-jug-detergent', 'Laundry & Jasa Tenda', 'Harga laundry, estimasi selesai, ketentuan struk, tarif jasa tenda.'],
-    ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis bila staff tidak aktif.'],
+    ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis (default nonaktif).'],
     ['batal', 'fa-rotate-left', 'Pembatalan & Refund', 'Batas H- dan persentase DP yang dikembalikan.'],
     ['denda', 'fa-gavel', 'Aturan Denda', 'Denda keterlambatan & kerusakan.'],
     ['stok', 'fa-soap', 'Perawatan & Stok', 'Wajib cuci, perawatan berkala, stok minimum.'],
@@ -131,7 +131,7 @@
       const tmp = { days: +st.laundryDays || 3, terms: (st.laundryTerms || []).slice(), fees: {} };
       const grab = () => { if (!$('#ldDays')) return; tmp.days = $('#ldDays').value; tmp.terms = $$('#ldTerms textarea').map((t) => t.value); $$('[data-fee]').forEach((el) => { tmp.fees[el.dataset.fee] = el.value; }); };
       const FK = { pasang: 'setupFee', pasang_saja: 'pasangFee', bongkar_saja: 'bongkarFee' };
-      const ICONS = [['fa-tent', 'Ikon tenda'], ['fa-bed', 'Ikon sleeping bag'], ['fa-shirt', 'Ikon pakaian'], ['fa-suitcase-rolling', 'Ikon tas'], ['fa-shoe-prints', 'Ikon sepatu'], ['fa-grip-lines', 'Ikon matras'], ['fa-hat-cowboy', 'Ikon topi'], ['fa-mitten', 'Ikon sarung tangan'], ['fa-jug-detergent', 'Ikon umum']];
+      const ICONS = [['fa-tent', 'Ikon tenda'], ['fa-bed', 'Ikon sleeping bag'], ['fa-shirt', 'Ikon pakaian'], ['fa-suitcase-rolling', 'Ikon tas'], ['fa-shoe-prints', 'Ikon sepatu'], ['fa-rug', 'Ikon matras'], ['fa-hat-cowboy', 'Ikon topi'], ['fa-mitten', 'Ikon sarung tangan'], ['fa-jug-detergent', 'Ikon umum']];
       const draw = () => {
         grab();
         $('#cfgMain').innerHTML = head('Laundry & Jasa Tenda', 'Harga di sini langsung tampil di halaman Laundry & beranda website, kasir, dan struk. Laundry tanpa antar jemput: customer antar & ambil sendiri di toko.')
@@ -145,9 +145,9 @@
                 <button type="button" class="icon-btn sm" data-rmit="${ci}|${ii}" aria-label="Hapus ${esc(it.name)}"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}
               <button type="button" class="btn btn-ghost btn-xs" data-addit="${ci}"><i class="fa-solid fa-plus"></i> Tambah barang</button></div>`).join('')}</div>
             <button type="button" class="btn btn-light btn-sm" id="addLdCat"><i class="fa-solid fa-folder-plus"></i> Tambah kategori laundry</button></div>
-          <div class="cfg-block"><h3><i class="fa-solid fa-receipt"></i> Struk laundry</h3>
+          <div class="cfg-block"><h3 id="ldTermsH"><i class="fa-solid fa-receipt"></i> Struk &amp; ketentuan laundry</h3>
             <div class="field" style="max-width:260px"><label>Estimasi lama pengerjaan (hari)</label><input class="input" type="number" min="1" max="30" id="ldDays" value="${esc(String(tmp.days))}"><small class="muted">Tanggal estimasi selesai otomatis terisi di kasir, staff tetap bisa mengubahnya.</small></div>
-            <div class="field"><label>Ketentuan yang dicetak di struk</label>${listEditor('ldTerms', tmp.terms, 'Contoh: Pengambilan wajib menunjukkan struk.')}</div></div>
+            <div class="field"><label>Ketentuan laundry <span class="opt">(tampil di halaman Laundry website &amp; dicetak di struk)</span></label>${listEditor('ldTerms', tmp.terms, 'Contoh: Pengambilan wajib menunjukkan struk.')}</div></div>
           <div class="cfg-block"><h3><i class="fa-solid fa-tents"></i> Tarif jasa tenda <small class="muted" style="font-weight:500">per tenda, di luar ongkir</small></h3>
             <div class="ld-cfg-fees">${Svc.TENT_MODES.map((k) => `<div class="field"><label>${Svc.spec(k).short}</label><div class="ld-cfg-pr"><span>Rp</span><input class="input" inputmode="numeric" data-fee="${FK[k]}" value="${esc(tmp.fees[FK[k]] != null ? tmp.fees[FK[k]] : Number(Svc.fee(k)).toLocaleString('id-ID'))}"></div><small class="muted">${Svc.spec(k).desc}</small></div>`).join('')}</div></div>
           ${saveBar('saveLd')}`;
@@ -229,9 +229,9 @@
     },
     /* ---------- Sesi staff: logout otomatis ---------- */
     sesi() {
-      const cur = +(S().idleLogoutMin ?? 60);
-      $('#cfgMain').innerHTML = head('Sesi Staff', 'Mengatur kapan sesi staff berakhir otomatis bila tidak ada aktivitas.') + `<div class="panel"><form id="ssf" novalidate>
-        <div class="field" style="max-width:360px"><label>Logout otomatis setelah tidak aktif</label><select class="select" name="idle">${[[15, '15 menit'], [30, '30 menit'], [60, '60 menit (disarankan)'], [120, '2 jam'], [240, '4 jam'], [0, 'Tidak pernah']].map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      const cur = +(S().idleLogoutMin ?? 0);
+      $('#cfgMain').innerHTML = head('Sesi Staff', 'Secara bawaan staff tidak dikeluarkan otomatis. Nyalakan hanya bila komputer kasir sering dipakai bergantian atau ditinggal dalam keadaan login.') + `<div class="panel"><form id="ssf" novalidate>
+        <div class="field" style="max-width:360px"><label>Logout otomatis setelah tidak aktif</label><select class="select" name="idle">${[[0, 'Nonaktif — staff tidak pernah dikeluarkan otomatis (bawaan)'], [15, '15 menit'], [30, '30 menit'], [60, '60 menit'], [120, '2 jam'], [240, '4 jam']].map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <p class="muted" style="font-size:13px;margin:0"><i class="fa-solid fa-circle-info"></i> "Tidak aktif" = tidak ada klik, ketik, atau gulir di panel. Staff yang lupa menekan <b>Keluar</b> (misalnya langsung menutup browser) akan tercatat <b>Logout otomatis</b> dengan jam aktivitas terakhirnya, sehingga durasi kerja di Histori Login selalu terisi dan akun tidak terbuka terlalu lama di komputer toko.</p>
       </form></div>${saveBar('saveSs')}`;
       $('#saveSs').addEventListener('click', () => { const v = +$('#ssf').elements.idle.value; cfgSave(Object.assign({}, S(), { idleLogoutMin: v }), 'Mengubah logout otomatis staff', [['idleLogoutMin', 'Logout otomatis', (x) => (+x ? `${x} menit` : 'Tidak pernah')]]); });

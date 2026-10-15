@@ -211,7 +211,10 @@
       const u = urgent[0];
       const nav = document.getElementById('nav');
       nav && nav.insertAdjacentHTML('afterend', `<div class="rem-bar ${u.bad ? 'bad' : ''}" id="remBar"><div class="wrap"><i class="fa-solid ${u.ic}"></i><span>${u.t}${urgent.length > 1 ? ` <small>(+${urgent.length - 1} pengingat lain)</small>` : ''}</span><a class="btn btn-sm ${u.bad ? 'btn-light' : 'btn-primary'}" href="${/^https?:/.test(u.a[0]) ? u.a[0] : url(u.a[0])}" ${/^https?:/.test(u.a[0]) ? 'target="_blank" rel="noopener noreferrer"' : ''}>${u.a[1]}</a><button class="icon-btn" id="remX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button></div></div>`);
-      document.getElementById('remX').addEventListener('click', () => { document.getElementById('remBar').remove(); try { sessionStorage.setItem(hideKey, '1'); } catch (e) { /* abaikan */ } });
+      const hideBar = () => { const el = document.getElementById('remBar'); if (el) el.remove(); try { sessionStorage.setItem(hideKey, '1'); } catch (e) { /* abaikan */ } };
+      document.getElementById('remX').addEventListener('click', hideBar);
+      /* Tombol aksi (mis. "Lihat nota") = pengingat sudah dibaca → langsung disembunyikan, tidak perlu menekan × */
+      document.querySelectorAll('#remBar a').forEach((a) => a.addEventListener('click', hideBar));
     }
   }
 

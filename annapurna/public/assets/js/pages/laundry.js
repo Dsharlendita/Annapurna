@@ -86,6 +86,6 @@
   sync();
 
   /* ---------- Ketentuan (diatur Owner, sama dengan yang dicetak di struk) ---------- */
-  $('#lpTerms').innerHTML = `<div class="lp-terms-h"><span class="ic"><i class="fa-solid fa-clipboard-check"></i></span><div><h2 id="lpTermsT">Sebelum kamu datang</h2><p>Ketentuan laundry yang juga tercetak di struk.</p></div></div>
+  $('#lpTerms').innerHTML = `<div class="lp-terms-h"><span class="ic"><i class="fa-solid fa-clipboard-check"></i></span><div><h2 id="lpTermsT">Sebelum kamu datang</h2><p>Ketentuan laundry yang juga tercetak di struk.</p>${(DB.session() || {}).role === 'owner' ? `<a class="btn btn-light btn-xs" style="margin-top:8px" href="${url('owner/konfigurasi?s=layanan#ldTermsH')}"><i class="fa-solid fa-pen"></i> Ubah ketentuan (Owner)</a>` : ''}</div></div>
     <ol>${Laundry.terms().map((t) => `<li>${esc(t)}</li>`).join('')}</ol>`;
 })();

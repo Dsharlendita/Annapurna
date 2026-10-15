@@ -5,6 +5,8 @@
 
 @section('content')
   <p class="page-sub">Konfirmasi booking masuk, verifikasi DP, catat barang keluar, dan pantau status setiap rental.</p>
+  {{-- Booking terlambat: tabel terpisah di paling atas supaya tagihan denda tidak tenggelam --}}
+  <div id="lateBox"></div>
   <div class="tabs" id="tabs"></div>
   <div class="filters">
     <div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input class="input" id="q" placeholder="Cari no. booking, customer, barang…"></div>

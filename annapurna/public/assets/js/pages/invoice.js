@@ -87,7 +87,8 @@
     ${isRent ? UI.changesHtml(x) : ''}
     ${BL.late ? `<div class="late-sec"><h5><i class="fa-solid fa-triangle-exclamation"></i> Tagihan denda keterlambatan · ${BL.late} malam</h5><p>Batas pengembalian ${D.fmtDate(x.end, true)} pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB sudah lewat. Denda bertambah setiap malam sampai barang dikembalikan.</p>
       <div class="table-wrap" data-no-paginate><table class="table inv-items"><thead><tr><th>Barang</th><th class="num">Qty</th><th class="num">Tarif/malam</th><th class="num">Malam</th><th class="num">Denda</th></tr></thead><tbody>${BL.fines.map((f) => `<tr><td>${esc(f.name)}<small class="inv-m">${f.qty} × ${rupiah(f.per)} × ${BL.late} malam</small></td><td class="num">${f.qty}</td><td class="num">${rupiah(f.per)}</td><td class="num">${BL.late}</td><td class="num"><b>${rupiah(f.total)}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
-    <div class="inv-foot"><div class="box">
+    <div class="inv-feet ${isRent && Ann.Svc.has(x) ? 'has-svc' : ''}">
+    <div class="inv-foot inv-main"><div class="box">
       ${isRent && CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
       <div class="kv"><span>Subtotal${isRent && CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(x.subtotal)}</span></div>
       ${x.discount ? `<div class="kv"><span>Promo ${esc(x.discount.code)}</span><span style="color:var(--g700)">− ${rupiah(x.discount.amount)}</span></div>` : ''}
@@ -99,7 +100,8 @@
       ${x.status !== 'dibatalkan' ? `<div class="kv"><span>${isRent && ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'].includes(x.status) ? 'Sisa dibayar saat ambil' : 'Sisa pembayaran'}</span><strong>${rupiah(sisa)}</strong></div>` : ''}${BL.late ? `<div class="kv"><span>Denda keterlambatan (${BL.late} malam)</span><span style="color:#b42318;font-weight:700">${rupiah(BL.fine)}</span></div><div class="kv total" style="color:#b42318"><span>Total dibayar saat kembali</span><span>${rupiah(sisa + BL.fine)}</span></div>` : ''}${isRent && CI.all.some((c) => c.status === 'menunggu') ? '<p class="muted" style="font-size:12px;margin-top:6px">Ada permintaan ganti barang yang masih menunggu persetujuan admin, belum dihitung di total.</p>' : ''}
     </div></div>
     ${svcBill()}
-    ${(x.payments || []).length || (x.svc || []).length ? `<h5 style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
+    </div>
+    ${(x.payments || []).length || (x.svc || []).length ? `<h5 class="inv-hist-h" style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
       ${[...(x.payments || []).map((p) => ({ at: p.at, t: p.type, a: p.amount })), ...(x.svc || []).map((p) => ({ at: p.at, t: p.kind === 'pasang' ? 'Jasa tenda' : 'Ongkir', a: p.amount }))].sort((a, b) => String(a.at).localeCompare(String(b.at))).map((p) => `<div class="kv" style="border-bottom:1px dashed var(--line)"><span>${D.fmtDateTime(p.at)} · ${esc(p.t)}</span><span>${rupiah(p.a)}</span></div>`).join('')}` : ''}
     ${isRent ? `<div class="notice green" style="margin-top:22px"><i class="fa-solid fa-circle-info"></i><div><strong>Ketentuan singkat</strong><ul>${st.rentalTerms.slice(0, 3).map((t) => `<li>${esc(t)}</li>`).join('')}<li>${esc(st.cancelPolicy[0])}</li></ul></div></div>` : ''}
     <p class="muted" style="text-align:center;font-size:12.5px;margin-top:22px">Terima kasih telah mempercayai Annapurna Adventure. Tunjukkan nota ini${isRent ? ' dan kartu identitas asli' : ''} saat mengambil barang di toko.</p>

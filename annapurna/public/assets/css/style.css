@@ -3234,3 +3234,89 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .svc-add b { font-size: 13.5px; } .svc-add b i { color: var(--g600); margin-right: 4px; }
 .svc-add small { display: block; font-size: 12.5px; color: var(--muted); }
 .grid-2[hidden], .grid-3[hidden], .field[hidden] { display: none !important; }
+/* Google Drive & Email: pembersihan data & kotak keluar */
+.cleanup .cl-h { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 18px 0 10px; }
+.cl-cards { display: grid; gap: 10px; }
+.cl-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fff; display: grid; gap: 10px; }
+.cl-card.wait { border-color: #c9dcf5; background: #f3f8ff; }
+.cl-card-h { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.cl-card-h .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--g50); color: var(--g700); }
+.cl-card.wait .cl-card-h .ic { background: #dbe8f8; color: #2f6db0; }
+.cl-card-h b { display: block; font-size: 15px; } .cl-card-h small { color: var(--muted); font-size: 12.5px; }
+.cl-total { text-align: right; font-size: 22px; font-weight: 800; color: var(--g800); line-height: 1; }
+.cl-total small { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 3px; }
+.cl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-chip { padding: 3px 10px; border-radius: 999px; background: var(--cream); border: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.cl-chip.none { color: var(--muted); font-weight: 500; }
+.cl-card-a { display: flex; justify-content: flex-end; }
+.cl-ok { padding: 12px 14px; border-radius: 12px; background: var(--g50); border: 1px solid var(--g200); font-size: 13.5px; color: var(--g800); }
+.cl-ok.muted { background: var(--cream); border-color: var(--line); color: var(--muted); }
+.cl-ok i { margin-right: 6px; }
+.cl-hist, .cl-info { margin-top: 12px; }
+.cl-hist summary, .cl-info summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--g700); padding: 6px 0; }
+.cl-info summary i { margin-right: 4px; }
+.cl-info .cl-grid { margin-top: 10px; }
+.ob-pager { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }
+.ob-pager .pg { display: flex; gap: 6px; flex-wrap: wrap; }
+.ob-pager .pg .btn { min-width: 32px; justify-content: center; }
+@media (max-width: 640px) { .cl-card-h { grid-template-columns: auto 1fr; } .cl-total { grid-column: 2; text-align: left; } }
+/* Nota: kotak total, biaya layanan & ringkasan (layar: bertumpuk di kanan) */
+.inv-feet { display: flex; flex-direction: column; }
+/* Nota dicetak: dipadatkan supaya muat 1 halaman A4 */
+@media print {
+  @page { size: A4 portrait; margin: 8mm 10mm; }
+  html, body { background: #fff !important; }
+  .invoice { font-size: 10.5px !important; line-height: 1.38 !important; padding: 0 !important; box-shadow: none !important; border: 0 !important; max-width: none !important; }
+  .invoice h1, .invoice h2 { font-size: 17px !important; margin: 0 !important; }
+  .invoice .inv-head { padding-bottom: 8px !important; margin-bottom: 8px !important; gap: 12px !important; }
+  .invoice .inv-head img { max-height: 34px !important; }
+  .invoice .inv-qr img, .invoice .inv-qr canvas, .invoice .inv-qr svg { width: 72px !important; height: 72px !important; }
+  .invoice .inv-qr small { font-size: 8px !important; }
+  .invoice .inv-head .stamp { margin-top: 6px !important; font-size: 10px !important; padding: 3px 10px !important; }
+  .invoice .inv-meta { gap: 14px !important; margin-bottom: 8px !important; }
+  .invoice .inv-meta > div { font-size: 10.5px !important; line-height: 1.45 !important; }
+  .invoice h5 { margin: 0 0 3px !important; font-size: 9px !important; }
+  .invoice .pill { font-size: 9px !important; padding: 1px 7px !important; }
+  .invoice .table th, .invoice .table td { padding: 4px 7px !important; font-size: 10px !important; }
+  .invoice .table .prod img { width: 26px !important; height: 26px !important; }
+  .invoice .kv { padding: 2px 0 !important; font-size: 10.5px !important; }
+  .invoice .kv.total { font-size: 12px !important; margin-top: 3px !important; padding-top: 5px !important; }
+  .invoice .inv-foot { margin-top: 8px !important; }
+  .inv-feet.has-svc { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: start; margin-top: 8px; }
+  .inv-feet.has-svc .inv-foot { margin: 0 !important; display: block !important; }
+  .inv-feet.has-svc .inv-foot .box { width: 100% !important; padding: 8px 10px !important; border: 1px solid #ddd !important; border-radius: 8px !important; }
+  .inv-feet .inv-grand .box { background: #f2f7f1 !important; }
+  .inv-grand .grand-due { font-size: 12px !important; padding-top: 5px !important; margin-top: 3px !important; }
+  .invoice .inv-hist-h { margin: 8px 0 3px !important; font-size: 9px !important; }
+  .invoice .inv-hist-h ~ .kv { display: inline-flex !important; width: 48%; margin-right: 2%; border-bottom: 1px dashed #ddd !important; font-size: 9.5px !important; }
+  .invoice .notice { margin-top: 8px !important; padding: 6px 10px !important; font-size: 9.5px !important; }
+  .invoice .notice ul { margin: 2px 0 0 !important; padding-left: 14px !important; }
+  .invoice .notice li { margin: 0 !important; }
+  .invoice { break-inside: auto; }
+}
+/* Booking Rental: tabel terlambat (tagih denda) di paling atas */
+.late-box { margin-bottom: 18px; border: 1.5px solid #f2c2bb; border-radius: var(--r-lg); background: #fff7f5; padding: 16px; }
+.late-h { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.late-h .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #fbdcd6; color: var(--red); font-size: 17px; }
+.late-h h3 { font-size: 16px; font-weight: 800; color: #8d2a1d; }
+.late-h small { font-size: 12.5px; color: #8d4a3f; }
+.late-box .table-wrap { background: #fff; }
+/* ===== Halaman Keuangan (tata letak baru) ===== */
+.keu-bar { display: grid; gap: 10px; margin-bottom: 16px; padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); }
+.keu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.keu-row + .keu-row { padding-top: 10px; border-top: 1px solid var(--line); }
+.keu-period { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.keu-dates { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
+.keu-dates .input { width: 150px; height: 36px; }
+.keu-dates span { color: var(--muted); }
+.keu-act { display: flex; gap: 8px; flex-wrap: wrap; }
+.keu-bar .lini-note { margin: 0; font-size: 12.5px; flex: 1; min-width: 240px; text-align: right; }
+.keu-tbl { padding: 0; overflow: hidden; margin-top: 18px; }
+.keu-tbl-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px 0; border-bottom: 1px solid var(--line); }
+.keu-tbl-h .tabs { margin: 0; border: 0; }
+.keu-tbl-tools { display: flex; gap: 8px; align-items: center; padding-bottom: 10px; flex-wrap: wrap; }
+.keu-tbl-tools .input-icon { width: 280px; max-width: 100%; }
+.keu-tbl .table-wrap { border: 0; border-radius: 0; margin: 0; }
+.keu-tbl tfoot td { font-weight: 800; background: var(--g50); }
+@media (max-width: 760px) { .keu-bar .lini-note { text-align: left; } .keu-dates { margin-left: 0; } .keu-tbl-tools .input-icon { width: 100%; } }
+.stat-grid[hidden] { display: none !important; }

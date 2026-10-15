@@ -50,10 +50,18 @@
     const done = A.filter((a) => a.purged);
     const lbl = { bookings: 'pesanan sewa', sales: 'pembelian', logs: 'log', notifications: 'notifikasi', emails: 'email', finance: 'catatan kas', photos: 'berisi foto' };
     const txt = (c) => Object.entries(c).filter(([k, v]) => v && k !== 'photos').map(([k, v]) => `${v} ${lbl[k]}`).join(' · ') || 'tidak ada data lama';
-    $('#clPrev').innerHTML = `${pend.length && mode === 'approve' ? `<div class="cl-wait"><i class="fa-solid fa-hourglass-half"></i><div><b>Menunggu persetujuanmu</b><small>${pend.map((x) => Reports.monthName(x.a.period)).join(', ')} · ${pend.reduce((a, x) => a + x.p.total, 0)} data${req.snoozeUntil > T ? ` · diingatkan lagi ${D.fmtDate(req.snoozeUntil, true)}` : ''}${req.skipUntil > T ? ` · dilewati sampai ${D.fmtDate(req.skipUntil, true)}` : ''}</small></div><button class="btn btn-primary btn-sm" type="button" id="clReview2">Tinjau &amp; putuskan</button></div>` : ''}${todo.length ? `<h4 class="cfg-sub">Siap dibersihkan</h4>${todo.map((a) => { const p = DB.cleanupArchived(a.period, true);
-      return `<div class="cl-row"><span><i class="fa-solid fa-folder"></i> <b>${esc(Reports.monthName(a.period))}</b> · rekap tersimpan ${D.fmtDateTime(a.createdAt)}</span><small>${p.ok ? txt(p.counts) : esc(p.reason)}</small><button class="btn btn-light btn-xs" data-clean="${a.period}" ${p.ok && p.total ? '' : 'disabled'}><i class="fa-solid fa-broom"></i> Bersihkan sekarang</button></div>`; }).join('')}` : ''}
-      ${done.length ? `<h4 class="cfg-sub">Riwayat pembersihan</h4>${done.map((a) => `<div class="cl-row done"><span><i class="fa-solid fa-circle-check"></i> <b>${esc(Reports.monthName(a.period))}</b> · ${D.fmtDateTime(a.purged.at)} oleh ${esc(a.purged.by)}</span><small>${txt(a.purged.counts)} dihapus. Laporan tetap bisa diunduh dari arsip.</small></div>`).join('')}` : ''}
-      ${!A.length ? '<p class="muted" style="font-size:13px">Belum ada rekap bulanan. Pembersihan berjalan setelah rekap pertama tersimpan.</p>' : ''}`;
+    const chips = (c) => { const L2 = Object.entries(c).filter(([k, v]) => v && k !== 'photos'); return L2.length ? L2.map(([k, v]) => `<span class="cl-chip">${v} ${lbl[k]}</span>`).join('') : '<span class="cl-chip none">tidak ada data lama</span>'; };
+    $('#clModePill').innerHTML = `<span class="pill ${mode === 'off' ? 'gray' : 'green'}">${MODE_LBL[mode]}</span>`;
+    const card = (a, wait) => { const pv = DB.cleanupArchived(a.period, true);
+      return `<div class="cl-card ${wait ? 'wait' : ''}"><div class="cl-card-h"><span class="ic"><i class="fa-solid ${wait ? 'fa-hourglass-half' : 'fa-folder-open'}"></i></span>
+        <div><b>${esc(Reports.monthName(a.period))}</b><small>${wait ? 'Menunggu persetujuanmu' : 'Siap dibersihkan'} · rekap tersimpan ${D.fmtDateTime(a.createdAt)}</small></div>
+        <span class="cl-total">${pv.ok ? pv.total : 0}<small>data lama</small></span></div>
+        <div class="cl-chips">${pv.ok ? chips(pv.counts) : `<span class="cl-chip none">${esc(pv.reason)}</span>`}</div>
+        ${wait && (req.snoozeUntil > T || req.skipUntil > T) ? `<p class="muted" style="font-size:12px;margin-top:6px">${req.snoozeUntil > T ? `Diingatkan lagi ${D.fmtDate(req.snoozeUntil, true)}` : `Dilewati sampai ${D.fmtDate(req.skipUntil, true)}`}</p>` : ''}
+        <div class="cl-card-a">${wait ? '<button class="btn btn-primary btn-sm" type="button" id="clReview2"><i class="fa-solid fa-list-check"></i> Tinjau &amp; putuskan</button>' : `<button class="btn btn-primary btn-sm" data-clean="${a.period}" ${pv.ok && pv.total ? '' : 'disabled'}><i class="fa-solid fa-broom"></i> Bersihkan sekarang</button>`}</div></div>`; };
+    const waitSet = new Set(mode === 'approve' ? pend.map((x) => x.a.period) : []);
+    $('#clPrev').innerHTML = `${todo.length ? `<div class="cl-cards">${todo.map((a) => card(a, waitSet.has(a.period))).join('')}</div>` : (A.length ? '<div class="cl-ok"><i class="fa-solid fa-circle-check"></i> Semua rekap sudah dibersihkan. Tidak ada data lama yang perlu dihapus.</div>' : '<div class="cl-ok muted"><i class="fa-solid fa-circle-info"></i> Belum ada rekap bulanan. Pembersihan berjalan setelah rekap pertama tersimpan.</div>')}
+      ${done.length ? `<details class="cl-hist"><summary>Riwayat pembersihan (${done.length})</summary>${done.map((a) => `<div class="cl-row done"><span><i class="fa-solid fa-circle-check"></i> <b>${esc(Reports.monthName(a.period))}</b> · ${D.fmtDateTime(a.purged.at)} oleh ${esc(a.purged.by)}</span><small>${txt(a.purged.counts)} dihapus.</small></div>`).join('')}</details>` : ''}`;
   }
   const MODE_LBL = { approve: 'Minta persetujuan owner', auto: 'Otomatis', off: 'Nonaktif' };
   document.querySelector('.cl-modes').addEventListener('change', (e) => { if (e.target.name !== 'clMode') return; const st = DB.settings(); const from = DB.cleanupMode();
@@ -87,14 +95,23 @@
         </details>`; }).join('')}</div>`;
     if (open) { const el = $('#f-' + open); if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }
   }
+  /* Kotak keluar: 10 email per halaman (terbaru di atas) */
+  let obPage = 1; const OB_PER = 10;
   function drawOutbox() {
-    const L = DB.outbox();
+    const L = DB.outbox().slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const pages = Math.max(1, Math.ceil(L.length / OB_PER)); obPage = Math.min(obPage, pages);
+    const V = L.slice((obPage - 1) * OB_PER, obPage * OB_PER);
     $('#obCount').textContent = `${L.length} email`;
     const kind = { staff_invite: ['blue', 'Akun staff'], password_reset: ['amber', 'Reset sandi'], monthly_report: ['green', 'Rekap bulanan'] };
-    $('#outbox').innerHTML = L.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Waktu</th><th>Jenis</th><th>Kepada</th><th>Subjek</th><th>Status</th><th class="num"></th></tr></thead><tbody>
-      ${L.map((m) => { const k = kind[m.kind] || ['gray', m.kind]; return `<tr><td class="nw">${D.fmtDateTime(m.at)}</td><td><span class="pill ${k[0]}">${k[1]}</span></td><td>${esc(m.to)}</td><td style="min-width:220px">${esc(m.subject)}</td><td><span class="pill green plain"><i class="fa-solid fa-check"></i> Terkirim</span></td><td class="num"><button class="btn btn-light btn-xs" data-mail="${m.id}">Lihat</button></td></tr>`; }).join('')}</tbody></table></div>`
+    $('#outbox').innerHTML = L.length ? `<div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>Waktu</th><th>Jenis</th><th>Kepada</th><th>Subjek</th><th>Status</th><th class="num"></th></tr></thead><tbody>
+      ${V.map((m) => { const k = kind[m.kind] || ['gray', m.kind]; return `<tr><td class="nw">${D.fmtDateTime(m.at)}</td><td><span class="pill ${k[0]}">${k[1]}</span></td><td>${esc(m.to)}</td><td style="min-width:220px">${esc(m.subject)}</td><td><span class="pill green plain"><i class="fa-solid fa-check"></i> Terkirim</span></td><td class="num"><button class="btn btn-light btn-xs" data-mail="${m.id}">Lihat</button></td></tr>`; }).join('')}</tbody></table></div>
+      ${pages > 1 ? `<div class="ob-pager"><span>Menampilkan <b>${(obPage - 1) * OB_PER + 1}–${Math.min(obPage * OB_PER, L.length)}</b> dari <b>${L.length}</b></span><div class="pg">
+        <button class="btn btn-light btn-xs" data-obp="${obPage - 1}" ${obPage === 1 ? 'disabled' : ''} aria-label="Sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
+        ${Array.from({ length: pages }, (_, i) => i + 1).map((n) => `<button class="btn btn-xs ${n === obPage ? 'btn-primary' : 'btn-light'}" data-obp="${n}">${n}</button>`).join('')}
+        <button class="btn btn-light btn-xs" data-obp="${obPage + 1}" ${obPage === pages ? 'disabled' : ''} aria-label="Berikutnya"><i class="fa-solid fa-chevron-right"></i></button></div></div>` : ''}`
       : '<p class="muted">Belum ada email terkirim.</p>';
   }
+  $('#outbox').addEventListener('click', (e) => { const b = e.target.closest('[data-obp]'); if (!b || b.disabled) return; obPage = +b.dataset.obp; drawOutbox(); });
 
   $('#genPeriod').max = T.slice(0, 7); $('#genPeriod').value = Reports.prevPeriod();
   $('#gen').addEventListener('click', async () => {

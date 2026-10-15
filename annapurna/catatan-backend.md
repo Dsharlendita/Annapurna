@@ -490,6 +490,17 @@ Hanya **Owner** yang boleh mengubah; setiap perubahan dicatat di `activity_logs`
 
 ---
 
+## B.11a Asisten Trip — Aturan Tanya Jawab yang Diatur Owner (P3)
+
+**FE acuan:** `DB.chatRules()`, `DB.chatMatch()`, `DB.chatRender()`, `DB.logChatMiss()` di `data.js`; `fromRule()` & `answer()` di `ai.js`; menu **Konfigurasi Sistem → Asisten Trip (Tanya jawab)** di `owner/konfigurasi.js`.
+
+- Tanya jawab = **chatbot berbasis aturan JIKA–MAKA** (tidak memakai layanan AI luar). Rencanakan trip = **sistem rekomendasi berbasis pengetahuan** (tetap di kode).
+- Aturan disimpan di `settings.chatRules` (array `{id, title, keys[], answer, action, priority: normal|tinggi, active, builtin}`) dan `settings.chatSpecial` (aktif/nonaktif aturan khusus berbasis data). Cukup disimpan lewat `PATCH /api/owner/settings` (B.10).
+- Jawaban Owner berupa **teks**, bukan HTML. Server/FE wajib meng-escape lalu hanya mengizinkan `**tebal**`, daftar `- `, dan isian `{jam_buka}`, `{alamat}`, `{whatsapp}`, `{dp_persen}`, `{batas_kembali}`, `{denda}`, `{batas_bayar}`, `{nama_toko}`, `{instagram}`, `{link_*}`.
+- Pertanyaan yang tidak cocok dengan aturan mana pun (ELSE) dicatat. Tabel baru `chat_misses (id, question_norm UNIQUE, question_text, count, first_at, last_at, dismissed_at)` + endpoint `POST /api/chat/miss` (publik, rate limit 30/menit per IP, maks. 200 karakter) dan `GET /api/owner/chat/misses`, `POST /api/owner/chat/misses/{id}/abaikan`.
+- Urutan pemeriksaan: nomor nota → aturan prioritas tinggi → aturan khusus berbasis data → aturan prioritas normal (skor kata kunci, frasa ≥ 2 kata bernilai 2) → ELSE (ke admin + dicatat).
+- Perubahan aturan dicatat di `activity_logs` (tipe `konfigurasi`).
+
 ## B.12 Data yang Masih di `localStorage` (harus dipindah ke database)
 
 | Key `annapurna:*` | Tabel tujuan |
@@ -508,6 +519,7 @@ Hanya **Owner** yang boleh mengubah; setiap perubahan dicatat di `activity_logs`
 | `audit` | `activity_logs` (hash chain) |
 | `outbox` | `email_logs` |
 | `archives`, `cleanupReq` | `monthly_archives` |
+| `chatMiss` | `chat_misses` |
 | `customerMeta`, `customerArchive` | `customer_notes`, ringkasan pelanggan |
 | `loginCode` | `login_codes` |
 | `cart` | tetap di browser |

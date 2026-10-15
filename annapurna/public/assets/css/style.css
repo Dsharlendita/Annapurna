@@ -3320,3 +3320,28 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .keu-tbl tfoot td { font-weight: 800; background: var(--g50); }
 @media (max-width: 760px) { .keu-bar .lini-note { text-align: left; } .keu-dates { margin-left: 0; } .keu-tbl-tools .input-icon { width: 100%; } }
 .stat-grid[hidden] { display: none !important; }
+/* Konfigurasi: Asisten Trip (aturan chatbot JIKA–MAKA) */
+.cb-list { display: grid; gap: 8px; margin-bottom: 12px; }
+.cb-rule { border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.cb-rule.off { opacity: .65; }
+.cb-rule[open] { border-color: var(--g200); box-shadow: 0 8px 22px -18px rgba(16, 39, 24, .5); }
+.cb-rule summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; cursor: pointer; list-style: none; }
+.cb-rule summary::-webkit-details-marker { display: none; }
+.cb-rule summary::before { content: '\f054'; font: var(--fa-font-solid); font-size: 11px; color: var(--muted); margin-right: 2px; transition: transform .15s; }
+.cb-rule[open] summary::before { transform: rotate(90deg); }
+.cb-t { flex: 1; min-width: 0; display: grid; } .cb-t b { font-size: 14px; } .cb-t small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cb-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.cb-body { padding: 4px 14px 14px; border-top: 1px dashed var(--line); }
+.cb-row { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.cb-row .field { min-width: 220px; }
+.cb-sw { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; padding: 8px 0; }
+.cb-acts { margin-left: auto; display: flex; gap: 6px; }
+.cb-ph { margin-top: 12px; padding: 10px 12px; background: var(--cream); border-radius: 10px; font-size: 12.5px; line-height: 2; }
+.cb-ph .chip { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-2); background: #fff; cursor: pointer; font-family: Consolas, monospace; }
+.cb-ph .chip:hover { border-color: var(--g600); }
+.cb-sp { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 18px; }
+.cb-test { display: flex; gap: 8px; margin-bottom: 10px; } .cb-test .input { flex: 1; }
+.cb-res { padding: 12px 14px; border-radius: 12px; margin-bottom: 8px; font-size: 13.5px; }
+.cb-res.ok { background: var(--g50); border: 1px solid var(--g200); } .cb-res.no { background: #fff4f2; border: 1px solid #f2c2bb; }
+.cb-res small { display: block; color: var(--muted); font-size: 11.5px; }
+.cb-ans-prev { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--g200); }

@@ -61,7 +61,9 @@
     const products = DB.products();
     let best = null, score = 0;
     products.forEach((p) => {
-      const words = norm(p.name).split(' ');
+      /* Kata umum (sewa, beli, paket, …) diabaikan supaya "bisa sewa untuk sekolah?" tidak dianggap menanyakan produk "… (Sewa)" */
+      const words = norm(p.name).split(' ').filter((w) => !['sewa', 'jual', 'beli', 'paket', 'set', 'dan', 'untuk', 'isi'].includes(w));
+      if (!words.length) return;
       const hit = words.filter((w) => (w.length > 2 || /^\d/.test(w)) && ` ${q} `.includes(` ${w} `)).length;
       const sc = hit + hit / words.length + (q.includes(norm(p.name)) ? 2 : 0);
       if (hit && sc > score) { best = p; score = sc; }
@@ -150,38 +152,48 @@
     return { people, nights, type, days, start, end, lines: priced, custom, pkg, place: plan.place, own: [...own] };
   }
 
+  /* Jawaban dari aturan tanya jawab (topik bawaan atau buatan Owner di Konfigurasi Sistem → Asisten Trip) */
+  const ACT_LINK = { katalog: ['Lihat Sewa Alat', 'katalog'], paket: ['Lihat Paket Sewa', 'paket'], belanja: ['Lihat Beli Alat', 'belanja'], laundry: ['Lihat Laundry', 'laundry'], pesanan: ['Pesanan Saya', 'pesanan'], kontak: ['Halaman Kontak', 'kontak'] };
+  function fromRule(r) {
+    const base = r.builtin && !String(r.answer || '').trim() ? (knowledge().find((k) => k.id === r.id) || {}).a : DB.chatRender(r.answer);
+    const al = ACT_LINK[r.action];
+    return { html: base || 'Maaf, jawabannya belum diisi.', wa: r.action === 'wa', chips: r.builtin ? related(r.id) : [], actions: al ? [{ label: al[0], href: url(al[1]) }] : undefined, rule: r.id };
+  }
   function answer(text) {
     const q = norm(text);
     const user = DB.session();
+    const SP = DB.chatSpecial();
     /* Nomor pesanan: nomor nota (RNTL/028/X/2026, ODR/005/X/2026, rnt/28/x/2026) — yang tertulis di nota customer.
        Kode internal lama (RNT-1003 / ORD-2001) tetap dikenali, tetapi jawaban selalu memakai nomor nota. */
     const UP = String(text).toUpperCase();
     const nota = NOPARSE(UP);
     const code = UP.match(/\b(RNT|ORD)-?\s?(\d{3,5})\b/);
-    if (nota || code) {
+    if (SP.nota && (nota || code)) {
       const key = nota || `${code[1]}-${code[2]}`;
       const x = DB.booking(key) || DB.sale(key);
       if (!x) return { html: `Aku tidak menemukan pesanan <b>${esc(nota ? key : 'dengan nomor itu')}</b>. Coba cek lagi nomor nota di nota digital kamu (contoh: RNTL/028/X/2026 untuk sewa atau ODR/005/X/2026 untuk pembelian), ya.` };
       if (!user || (user.role !== 'admin' && user.role !== 'owner' && x.customer.email !== user.email)) return { html: `Pesanan <b>${esc(NO(x))}</b> ditemukan. Demi keamanan, detailnya hanya bisa dilihat pemiliknya. Silakan <a href="${url('masuk?next=pesanan')}">masuk</a> dulu.` };
       return { html: `Ini status pesanan kamu:${orderCard(x)}` };
     }
-    if (has(q, ['pesanan saya', 'pesananku', 'status pesanan', 'cek pesanan', 'booking saya', 'status booking', 'orderan', 'status sewa'])) {
+    /* Aturan Owner berprioritas tinggi diperiksa sebelum aturan khusus lainnya */
+    const hi = DB.chatMatch(text, 'tinggi'); if (hi) return fromRule(hi.rule);
+    if (SP.pesanan && has(q, ['pesanan saya', 'pesananku', 'status pesanan', 'cek pesanan', 'booking saya', 'status booking', 'orderan', 'status sewa'])) {
       if (!user) return { html: `Masuk dulu supaya aku bisa melihat pesananmu, atau ketik nomor nota pesananmu (contoh: RNTL/028/X/2026).`, chips: ['Cara sewa'], actions: [{ label: 'Masuk', href: url('masuk?next=pesanan') }] };
       const L = [...DB.bookings(), ...DB.sales()].filter((x) => x.customer.email === user.email && !['selesai', 'dibatalkan'].includes(x.status)).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt)).slice(0, 3);
       return { html: L.length ? `Pesanan aktif kamu:${L.map(orderCard).join('')}` : 'Kamu belum punya pesanan aktif. Mau aku bantu rencanakan trip?', chips: L.length ? [] : ['Rencanakan trip'] };
     }
     /* Layanan tambahan: laundry, bongkar pasang tenda, antar/jemput */
-    if (has(q, ['laundry', 'londri', 'cuci tenda', 'cuci sepatu', 'cuci carrier', 'cuci jaket', 'cuci sleeping', 'jasa cuci', 'harga cuci', 'nyuci'])) return { html: svcAnswer('laundry'), chips: ['Lokasi toko', 'Jam buka'], actions: [{ label: 'Lihat harga laundry', href: url('laundry') }] };
-    if (has(q, ['bongkar pasang', 'pasang tenda', 'pasangin', 'bongkar tenda', 'dirikan tenda', 'setup tenda', 'jasa pasang', 'dipasangin', 'dipasangkan', 'jasa tenda', 'pasang saja', 'bongkar saja'])) return { html: svcAnswer('pasang'), wa: true, chips: ['Pengantaran'], actions: [{ label: 'Sewa tenda', href: url('katalog?cat=tenda') }] };
-    if (has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'jemput', 'delivery']) && !has(q, ['komplain', 'keluhan', 'kecewa', 'nego'])) return { html: svcAnswer('antar'), wa: true, chips: ['Jasa tenda', 'Lokasi toko'] };
+    if (SP.layanan && has(q, ['laundry', 'londri', 'cuci tenda', 'cuci sepatu', 'cuci carrier', 'cuci jaket', 'cuci sleeping', 'jasa cuci', 'harga cuci', 'nyuci'])) return { html: svcAnswer('laundry'), chips: ['Lokasi toko', 'Jam buka'], actions: [{ label: 'Lihat harga laundry', href: url('laundry') }] };
+    if (SP.layanan && has(q, ['bongkar pasang', 'pasang tenda', 'pasangin', 'bongkar tenda', 'dirikan tenda', 'setup tenda', 'jasa pasang', 'dipasangin', 'dipasangkan', 'jasa tenda', 'pasang saja', 'bongkar saja'])) return { html: svcAnswer('pasang'), wa: true, chips: ['Pengantaran'], actions: [{ label: 'Sewa tenda', href: url('katalog?cat=tenda') }] };
+    if (SP.layanan && has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'jemput', 'delivery']) && !has(q, ['komplain', 'keluhan', 'kecewa', 'nego'])) return { html: svcAnswer('antar'), wa: true, chips: ['Jasa tenda', 'Lokasi toko'] };
     /* Urusan yang butuh keputusan admin → serahkan ke WhatsApp admin beserta pertanyaannya */
-    if (has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'cod', 'jemput', 'nego', 'negosiasi', 'diskon khusus', 'harga khusus', 'komplain', 'keluhan', 'kecewa', 'ganti jadwal', 'ubah jadwal', 'bukti bayar', 'salah transfer'])) {
+    if (SP.admin && has(q, ['antar', 'diantar', 'antarkan', 'kirim', 'dikirim', 'ongkir', 'cod', 'jemput', 'nego', 'negosiasi', 'diskon khusus', 'harga khusus', 'komplain', 'keluhan', 'kecewa', 'ganti jadwal', 'ubah jadwal', 'bukti bayar', 'salah transfer'])) {
       return { html: 'Untuk hal ini sebaiknya langsung ke <b>admin</b> ya, supaya bisa dicek dan diputuskan langsung. Tekan tombol di bawah, pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true };
     }
     /* Cek kelengkapan isi keranjang sewa */
-    if (has(q, ['keranjang', 'keranjangku', 'sudah lengkap', 'kurang apa', 'cek kelengkapan', 'lengkap belum'])) return cartCheck();
+    if (SP.keranjang && has(q, ['keranjang', 'keranjangku', 'sudah lengkap', 'kurang apa', 'cek kelengkapan', 'lengkap belum'])) return cartCheck();
     /* Ukuran barang yang tersedia */
-    const prodSz = matchProduct(q);
+    const prodSz = SP.produk ? matchProduct(q) : null;
     if (prodSz && has(q, ['ukuran', 'size', 'nomor', 'no sepatu'])) {
       if (!DB.hasVariant(prodSz)) return { html: `<b>${esc(prodSz.name)}</b> tidak punya pilihan ukuran (satu ukuran untuk semua).` };
       const t = DB.trip() || { start: D.rel(1), end: D.rel(2) };
@@ -194,7 +206,7 @@
       return { html: L.length ? `Customer yang menyewa <b>${esc(prodSz.name)}</b> biasanya juga menyewa:<ul>${L.map((x) => `<li>${esc(x.p.name)} · ${rupiah(x.p.rent)}/malam</li>`).join('')}</ul>` : 'Belum ada data barang yang biasa disewa bersama.', actions: L.slice(0, 2).map((x) => ({ label: `Lihat ${x.p.name}`, href: url('produk?id=' + x.p.id) })) };
     }
     /* Bandingkan paket, mis. "beda paket 4P dan 5P" */
-    if (has(q, ['beda', 'bedanya', 'banding', 'bandingkan', 'vs'])) {
+    if (SP.produk && has(q, ['beda', 'bedanya', 'banding', 'bandingkan', 'vs'])) {
       const pks = DB.packages().filter((k) => { const id = k.id.replace('pk-', ''); return q.includes(norm(k.name)) || q.split(' ').includes(id) || (id.length <= 3 && q.includes(id)); });
       if (pks.length >= 2) return { html: `Perbandingan paket:<table class="ai-tbl"><tr><th></th>${pks.map((k) => `<th>${esc(k.name)}</th>`).join('')}</tr><tr><td>Untuk</td>${pks.map((k) => `<td>${esc(k.people)}</td>`).join('')}</tr><tr><td>1 malam</td>${pks.map((k) => `<td>${rupiah(Rules.unitPrice(k, 1))}</td>`).join('')}</tr><tr><td>3 hari</td>${pks.map((k) => `<td>${rupiah(Rules.unitPrice(k, 3))}</td>`).join('')}</tr><tr><td>Isi</td>${pks.map((k) => `<td>${k.items.map((i) => `${i.qty}× ${esc((P(i.productId) || {}).name || '')}`).join('<br>')}</td>`).join('')}</tr></table>`, actions: [{ label: 'Lihat semua paket', href: url('paket') }] };
     }
@@ -206,7 +218,7 @@
       return { html: `Tarif sewa <b>${esc(prodSz.name)}</b>:<ul>${rows}</ul>${n ? `Untuk <b>${n} malam</b>: <b>${rupiah(Rules.tierPlan(t, n).total)}</b> (${esc(Rules.tierLabel(t, n))}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prodSz.id) }] };
     }
     const tripish = /\d+\s*(orang|org|malam|mlm|hari)/.test(q) || has(q, ['berdua', 'bertiga', 'berempat', 'rombongan', 'keluarga', 'naik gunung', 'mendaki', 'camping', 'kemah', 'tektok', 'slamet', 'prau', 'baturraden', 'rekomendasi', 'rencana', 'trip', 'butuh apa', 'sewa apa', 'perlu apa']);
-    if (tripish && !has(q, ['batal', 'denda', 'dp', 'jam', 'alamat'])) {
+    if (SP.trip && tripish && !has(q, ['batal', 'denda', 'dp', 'jam', 'alamat'])) {
       const plan = parsePlan(text);
       if (has(q, ['rencanakan trip', 'rencana trip']) && !plan.people && !plan.type) return { html: 'Siap! Ceritakan rencanamu: mau ke mana, berapa orang, dan berapa malam. Contoh: <i>"camping di Baturraden berempat 1 malam"</i>.', planner: true };
       const s = nextWeekend(); const e = D.addDays(s, Math.max(1, plan.nights == null ? 1 : plan.nights));
@@ -214,16 +226,17 @@
       const top = r.pkg && r.pkg.avail ? `Paket yang paling pas: <b>${esc(r.pkg.pk.name)}</b> (${rupiah(r.pkg.total)} untuk ${r.days} malam).` : '';
       return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} malam sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }] };
     }
-    const prod = matchProduct(q);
+    const prod = SP.produk ? matchProduct(q) : null;
     if (prod && has(q, ['harga', 'berapa', 'tarif', 'biaya', 'ada', 'tersedia', 'stok', 'sisa', 'kosong', 'ready'])) {
       const t = D.rel(1), a = Rules.availableOn(prod.id, t);
       return { html: `<b>${esc(prod.name)}</b>${prod.rent ? ` disewakan ${esc(UI.tierText(Rules.productTiers(prod)))}` : ''}${prod.price ? `${prod.rent ? ',' : ''} dijual ${rupiah(prod.price)}` : ''}. ${prod.rent ? `Tersedia <b>${a} unit</b> untuk besok (${D.fmtDate(t, true)}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prod.id) }] };
     }
-    let best = null, bestScore = 0;
-    knowledge().forEach((k) => { const sc = k.keys.reduce((s, w) => s + (has(q, [w]) ? (w.includes(' ') ? 2 : 1) : 0), 0); if (sc > bestScore) { best = k; bestScore = sc; } });
-    if (best) return { html: best.a, wa: best.wa, chips: related(best.id) };
+    /* Topik bawaan & aturan Owner (prioritas normal): skor kata kunci tertinggi */
+    const hit = DB.chatMatch(text, 'normal'); if (hit) return fromRule(hit.rule);
     if (has(q, ['halo', 'hai', 'hi', 'pagi', 'siang', 'sore', 'malam', 'assalamualaikum', 'permisi', 'min'])) return { html: 'Halo! Ada yang bisa aku bantu? Kamu bisa tanya soal cara sewa, DP, pembatalan, denda, atau minta rekomendasi alat untuk trip.', chips: ['Cara sewa', 'Rencanakan trip', 'Cek pesanan'] };
     if (has(q, ['terima kasih', 'makasih', 'thanks', 'thx', 'mantap', 'oke', 'ok', 'siap'])) return { html: 'Sama-sama! Semoga petualanganmu seru.' };
+    /* ELSE: belum ada aturan yang cocok → dicatat agar Owner bisa menjadikannya aturan baru */
+    try { DB.logChatMiss(text); } catch (e) { /* abaikan */ }
     return { html: 'Maaf, aku belum yakin jawabannya. Pertanyaan ini sebaiknya langsung ke admin supaya tidak salah informasi. Pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true, chips: ['Cara sewa', 'Pembayaran & DP', 'Pembatalan'] };
   }
   /* Cek kelengkapan keranjang untuk camping / mendaki */

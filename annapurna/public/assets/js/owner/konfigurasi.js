@@ -11,6 +11,7 @@
     ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, lama sewa, jam batas pengembalian.'],
     ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
+    ['asisten', 'fa-comments', 'Asisten Trip (Tanya jawab)', 'Aturan JIKA–MAKA chatbot, kata kunci & jawaban, pertanyaan belum terjawab.'],
     ['layanan', 'fa-jug-detergent', 'Laundry & Jasa Tenda', 'Harga laundry, estimasi selesai, ketentuan struk, tarif jasa tenda.'],
     ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis bila staff tidak aktif.'],
     ['batal', 'fa-rotate-left', 'Pembatalan & Refund', 'Batas H- dan persentase DP yang dikembalikan.'],
@@ -41,6 +42,88 @@
   function go(k) { const mn = $('#cfgMain'); mn.onclick = mn.oninput = mn.onchange = null; cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
   const R = {
+    /* ---------- Asisten Trip: aturan chatbot JIKA (kata kunci) – MAKA (jawaban) ---------- */
+    asisten() {
+      let rules = DB.chatRules(); let sp = DB.chatSpecial(); let open = '';
+      const PRI = [['normal', 'Normal'], ['tinggi', 'Tinggi (diperiksa lebih dulu)']];
+      const keysOf = (r) => (r.keys || []).map((k) => DB.chatNorm(k)).filter(Boolean);
+      const conflicts = (r) => { const mine = new Set(keysOf(r)); return rules.filter((o) => o !== r && o.active !== false && r.active !== false).flatMap((o) => keysOf(o).filter((k) => mine.has(k)).map((k) => `"${k}" juga dipakai di ${o.title || 'aturan tanpa judul'}`)); };
+      const grab = () => { $$('[data-ri]').forEach((el) => { const r = rules[+el.dataset.ri]; const k = el.dataset.k;
+        if (k === 'keys') r.keys = el.value.split(',').map((x) => x.trim()).filter(Boolean); else if (k === 'active') r.active = el.checked; else r[k] = el.value; });
+        $$('[data-sp]').forEach((el) => { sp[el.dataset.sp] = el.checked; }); };
+      const card = (r, i) => { const cf = conflicts(r);
+        return `<details class="cb-rule ${r.active === false ? 'off' : ''}" data-card="${i}" ${open === String(i) ? 'open' : ''}>
+          <summary><span class="cb-t"><b>${esc(r.title || 'Aturan baru')}</b><small>${esc((r.keys || []).slice(0, 6).join(', ') || 'belum ada kata kunci')}${(r.keys || []).length > 6 ? ', …' : ''}</small></span>
+            <span class="cb-tags">${r.builtin ? '<span class="pill gray plain">Bawaan</span>' : '<span class="pill blue plain">Buatan Owner</span>'}${r.priority === 'tinggi' ? '<span class="pill gold plain">Prioritas tinggi</span>' : ''}${r.active === false ? '<span class="pill red plain">Nonaktif</span>' : ''}${cf.length ? '<span class="pill red plain"><i class="fa-solid fa-triangle-exclamation"></i> Bentrok</span>' : ''}</span></summary>
+          <div class="cb-body">
+            <div class="grid-2"><div class="field"><label>Judul topik</label><input class="input" data-ri="${i}" data-k="title" value="${esc(r.title || '')}" placeholder="Contoh: Sewa untuk rombongan sekolah"></div>
+              <div class="field"><label>Prioritas</label><select class="select" data-ri="${i}" data-k="priority">${PRI.map(([v, l]) => `<option value="${v}" ${(r.priority || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+            <div class="field"><label><b>JIKA</b> pertanyaan mengandung salah satu kata kunci (pisahkan dengan koma)</label><textarea class="input" rows="2" data-ri="${i}" data-k="keys" placeholder="sekolah, pramuka, study tour">${esc((r.keys || []).join(', '))}</textarea>
+              ${cf.length ? `<small style="color:var(--red)">${cf.slice(0, 3).map(esc).join(' · ')}</small>` : ''}</div>
+            <div class="field"><label><b>MAKA</b> tampilkan jawaban</label><textarea class="input cb-ans" rows="4" data-ri="${i}" data-k="answer" placeholder="${r.builtin ? 'Kosongkan untuk memakai jawaban otomatis bawaan (selalu mengikuti pengaturan toko).' : 'Tulis jawaban. **tebal**, baris diawali - menjadi daftar, dan isian seperti {jam_buka} terisi otomatis.'}">${esc(r.answer || '')}</textarea>
+              ${r.builtin && !String(r.answer || '').trim() ? '<small class="muted">Memakai jawaban otomatis bawaan.</small>' : ''}</div>
+            <div class="cb-row"><div class="field" style="margin:0"><label>Tombol di bawah jawaban</label><select class="select" data-ri="${i}" data-k="action">${DB.CHAT_ACTIONS.map(([v, l]) => `<option value="${v}" ${(r.action || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+              <label class="cb-sw"><input type="checkbox" data-ri="${i}" data-k="active" ${r.active === false ? '' : 'checked'}> Aktif</label>
+              <span class="cb-acts">${r.builtin ? (String(r.answer || '').trim() ? `<button type="button" class="btn btn-light btn-xs" data-reset="${i}">Pakai jawaban bawaan</button>` : '') : `<button type="button" class="btn btn-light btn-xs" data-del="${i}"><i class="fa-solid fa-trash-can"></i> Hapus</button>`}</span></div>
+          </div></details>`; };
+      const draw = () => {
+        const miss = DB.chatMisses();
+        $('#cfgMain').innerHTML = head('Asisten Trip – Tanya jawab', 'Chatbot memakai aturan <b>JIKA</b> pertanyaan mengandung kata kunci <b>MAKA</b> tampilkan jawaban. Tambah atau ubah aturan di sini; perubahan langsung dipakai Asisten Trip di website. Fitur Rencanakan trip (sistem rekomendasi) tidak diatur di sini.')
+          + `<div class="cfg-block"><h3><i class="fa-solid fa-flask"></i> Coba tanya</h3>
+              <div class="cb-test"><input class="input" id="cbQ" placeholder="Contoh: bisa sewa untuk acara sekolah?"><button type="button" class="btn btn-primary btn-sm" id="cbTry">Coba</button></div><div id="cbOut"></div>
+              <small class="muted">Uji memakai aturan di layar (termasuk yang belum disimpan). Aturan khusus berbasis data (nomor nota, produk, trip) diuji langsung di website.</small></div>
+            <div class="cfg-block"><h3><i class="fa-solid fa-list-check"></i> Aturan JIKA–MAKA <small class="muted" style="font-weight:500">${rules.filter((r) => r.active !== false).length} aktif dari ${rules.length}</small></h3>
+              <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Urutan pemeriksaan: nomor nota → aturan <b>prioritas tinggi</b> → aturan khusus berbasis data → aturan <b>prioritas normal</b> (skor kata kunci tertinggi) → bila tidak ada yang cocok, diarahkan ke admin dan dicatat di "Pertanyaan belum terjawab".</p>
+              <div class="cb-list">${rules.map(card).join('')}</div>
+              <button type="button" class="btn btn-light btn-sm" id="cbAdd"><i class="fa-solid fa-plus"></i> Tambah aturan</button>
+              <div class="cb-ph"><b>Isian otomatis untuk jawaban</b> (klik untuk menyisipkan): ${DB.CHAT_PH.map(([k, l]) => `<button type="button" class="chip" data-ph="${k}" title="${esc(l)}">${k}</button>`).join(' ')}</div></div>
+            <div class="cfg-block"><h3><i class="fa-solid fa-database"></i> Aturan khusus berbasis data</h3>
+              <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Jawabannya dihitung dari data stok, harga, dan pesanan sehingga tidak bisa diubah teksnya, tetapi bisa dinonaktifkan.</p>
+              <div class="cb-sp">${DB.CHAT_SPECIAL.map(([k, l]) => `<label class="cb-sw"><input type="checkbox" data-sp="${k}" ${sp[k] !== false ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
+            <div class="cfg-block"><h3><i class="fa-solid fa-circle-question"></i> Pertanyaan belum terjawab <small class="muted" style="font-weight:500">${miss.length}</small></h3>
+              ${miss.length ? `<div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>Pertanyaan customer</th><th class="num">Ditanyakan</th><th>Terakhir</th><th class="num">Aksi</th></tr></thead><tbody>
+                ${miss.slice(0, 30).map((m) => `<tr><td>${esc(m.text)}</td><td class="num">${m.count}×</td><td>${D.fmtDateTime(m.last)}</td><td><div class="acts"><button type="button" class="btn btn-primary btn-xs" data-mk="${esc(m.key)}">Jadikan aturan</button><button type="button" class="btn btn-light btn-xs" data-ign="${esc(m.key)}">Abaikan</button></div></td></tr>`).join('')}
+                </tbody></table></div>` : '<p class="muted" style="font-size:13px">Belum ada. Pertanyaan customer yang tidak cocok dengan aturan mana pun akan muncul di sini.</p>'}</div>
+            ${saveBar('saveCb')}`;
+      };
+      draw();
+      const box = $('#cfgMain');
+      let lastTa = null;
+      box.onfocusin = (e) => { if (e.target.matches('.cb-ans')) lastTa = e.target; };
+      if (box._cbT) box.removeEventListener('toggle', box._cbT, true);
+      box._cbT = (e) => { const d = e.target.closest && e.target.closest('[data-card]'); if (d && d.open) open = d.dataset.card; };
+      box.addEventListener('toggle', box._cbT, true);
+      box.onclick = async (e) => {
+        const t = e.target;
+        if (t.closest('#cbAdd')) { grab(); rules.push({ id: 'cr-' + Date.now().toString(36), title: '', keys: [], answer: '', action: '', priority: 'normal', active: true, builtin: false }); open = String(rules.length - 1); draw(); const c = box.querySelector(`[data-card="${open}"]`); if (c) { c.scrollIntoView({ block: 'center' }); c.querySelector('input').focus(); } return; }
+        const del = t.closest('[data-del]'); if (del) { grab(); const r = rules[+del.dataset.del]; if (!(await confirmBox({ title: `Hapus aturan ${r.title || ''}?`, text: 'Aturan dihapus setelah kamu menekan Simpan perubahan.', ok: 'Hapus', danger: true }))) return; rules.splice(+del.dataset.del, 1); open = ''; draw(); return; }
+        const rs = t.closest('[data-reset]'); if (rs) { grab(); rules[+rs.dataset.reset].answer = ''; draw(); return; }
+        const ph = t.closest('[data-ph]'); if (ph) { const ta = lastTa && document.body.contains(lastTa) ? lastTa : box.querySelector('details[open] .cb-ans'); if (!ta) { toast('Klik dulu kolom jawaban yang ingin diisi.', 'err'); return; } const p0 = ta.selectionStart || ta.value.length; ta.value = ta.value.slice(0, p0) + ph.dataset.ph + ta.value.slice(p0); ta.focus(); return; }
+        const mk = t.closest('[data-mk]'); if (mk) { grab(); const m = DB.chatMisses().find((x) => x.key === mk.dataset.mk); rules.push({ id: 'cr-' + Date.now().toString(36), title: m ? m.text.slice(0, 40) : 'Aturan baru', keys: m ? [m.key] : [], answer: '', action: '', priority: 'normal', active: true, builtin: false, fromMiss: mk.dataset.mk }); open = String(rules.length - 1); draw(); toast('Aturan baru dibuat dari pertanyaan. Rapikan kata kunci, tulis jawaban, lalu simpan.'); const c = box.querySelector(`[data-card="${open}"]`); if (c) c.scrollIntoView({ block: 'center' }); return; }
+        const ig = t.closest('[data-ign]'); if (ig) { DB.dismissChatMiss(ig.dataset.ign); grab(); draw(); return; }
+        if (t.closest('#cbTry')) {
+          grab(); const q = $('#cbQ').value.trim(); if (!q) return;
+          const saved = DB.settings().chatRules; const tmp = Object.assign({}, DB.settings(), { chatRules: rules });
+          /* uji tanpa menyimpan: pakai aturan di layar sementara */
+          const orig = DB.settings; DB.settings = () => tmp;
+          let hit; try { hit = DB.chatMatch(q, 'tinggi') || DB.chatMatch(q, 'normal'); } finally { DB.settings = orig; }
+          $('#cbOut').innerHTML = hit ? `<div class="cb-res ok"><div><small>Aturan terpakai</small><b>${esc(hit.rule.title || 'Aturan tanpa judul')}</b> · skor ${hit.score}${hit.rule.priority === 'tinggi' ? ' · prioritas tinggi' : ''}</div>
+              <div class="cb-ans-prev">${hit.rule.builtin && !String(hit.rule.answer || '').trim() ? '<i class="muted">Jawaban otomatis bawaan (mengikuti pengaturan toko).</i>' : DB.chatRender(hit.rule.answer)}</div></div>`
+            : '<div class="cb-res no"><b>Tidak ada aturan yang cocok.</b> Di website, pertanyaan ini akan diarahkan ke admin dan masuk daftar "Pertanyaan belum terjawab".</div>';
+          void saved; return;
+        }
+        if (t.closest('#saveCb')) {
+          grab();
+          const bad = rules.find((r) => r.active !== false && (!String(r.title || '').trim() || !(r.keys || []).length || (!r.builtin && !String(r.answer || '').trim())));
+          if (bad) { toast(`Lengkapi aturan "${bad.title || 'tanpa judul'}": judul, kata kunci, dan jawaban wajib diisi.`, 'err'); open = String(rules.indexOf(bad)); draw(); return; }
+          const clean = rules.map((r) => ({ id: r.id, title: String(r.title).trim(), keys: (r.keys || []).map((k) => k.trim().toLowerCase()).filter(Boolean), answer: String(r.answer || '').trim(), action: r.action || '', priority: r.priority === 'tinggi' ? 'tinggi' : 'normal', active: r.active !== false, builtin: !!r.builtin }));
+          rules.filter((r) => r.fromMiss).forEach((r) => DB.dismissChatMiss(r.fromMiss));
+          const next = Object.assign({}, S(), { chatRules: clean, chatSpecial: Object.assign({}, sp) });
+          cfgSave(next, 'Mengubah aturan Asisten Trip (tanya jawab)', [['chatRules', 'Aturan tanya jawab', (v) => `${(v || []).filter((r) => r.active !== false).length} aktif dari ${(v || []).length} aturan`], ['chatSpecial', 'Aturan khusus', (v) => Object.entries(v || {}).filter(([, on]) => !on).map(([k]) => k + ' nonaktif').join(', ') || 'semua aktif']]);
+        }
+      };
+      box.oninput = null; box.onchange = null;
+    },
     /* ---------- Laundry & Jasa Tenda ---------- */
     layanan() {
       const st = S(); let cats = JSON.parse(JSON.stringify(DB.laundryPrices()));

@@ -315,6 +315,42 @@
     'Item dalam paket tektok bisa ditukar dengan item lain dengan harga yang sama.',
   ];
 
+  /* ---------- Asisten Trip · Tanya jawab (chatbot aturan JIKA–MAKA) ----------
+     Topik bawaan: kata kunci (JIKA) bisa diubah Owner; jawabannya otomatis dari pengaturan toko kecuali Owner menulis jawaban sendiri.
+     Owner juga bisa menambah aturan baru di Konfigurasi Sistem → Asisten Trip. */
+  const CHAT_BUILTIN = [
+    { id: 'cara', title: 'Cara sewa', keys: ['cara sewa', 'cara booking', 'gimana sewa', 'bagaimana sewa', 'cara pesan', 'langkah', 'prosedur', 'alur'] },
+    { id: 'dp', title: 'Pembayaran & DP', keys: ['dp', 'uang muka', 'bayar', 'pembayaran', 'transfer', 'rekening', 'qris', 'lunas', 'pelunasan'] },
+    { id: 'batal', title: 'Pembatalan', keys: ['batal', 'cancel', 'refund', 'pembatalan', 'h-2', 'uang kembali', 'reschedule'] },
+    { id: 'denda', title: 'Denda', keys: ['denda', 'telat', 'terlambat', 'rusak', 'hilang', 'lewat', 'molor'] },
+    { id: 'jam', title: 'Jam buka', keys: ['jam', 'buka', 'tutup', 'operasional', 'libur', 'hari apa'] },
+    { id: 'lokasi', title: 'Lokasi toko', keys: ['lokasi', 'alamat', 'dimana', 'di mana', 'maps', 'tempat', 'toko', 'arah'] },
+    { id: 'antar', title: 'Pengantaran', keys: ['antar', 'diantar', 'kirim', 'dikirim', 'delivery', 'ongkir', 'cod', 'gojek', 'grab'] },
+    { id: 'laundry', title: 'Laundry', keys: ['laundry', 'londri', 'cuci tenda', 'cuci sepatu', 'cuci carrier', 'cuci jaket', 'cuci sleeping bag', 'harga cuci', 'jasa cuci'] },
+    { id: 'pasang', title: 'Jasa tenda', keys: ['bongkar pasang', 'pasang tenda', 'pasangin', 'bongkar tenda', 'dirikan tenda', 'setup tenda', 'jasa pasang', 'jasa tenda', 'pasang saja', 'bongkar saja'] },
+    { id: 'syarat', title: 'Syarat sewa', keys: ['syarat', 'ktp', 'ktm', 'sim', 'identitas', 'jaminan', 'ketentuan', 'aturan'] },
+    { id: 'hitung', title: 'Durasi sewa', keys: ['batas pengembalian', 'batas kembali', 'pengembalian', 'kembali jam', 'kapan kembali', 'hitung', 'durasi', 'lama sewa', 'per hari', 'per malam', 'permalam', 'kegiatan', 'ekspedisi', '24 jam', 'berapa hari', 'hitungan', 'paket hari'] },
+    { id: 'tektok', title: 'Paket tektok', keys: ['tektok', 'paket tektok', 'tek tok'] },
+    { id: 'cuci', title: 'Barang kotor', keys: ['cuci', 'kotor', 'bersih', 'mencuci', 'dicuci'] },
+    { id: 'beli', title: 'Membeli alat', keys: ['beli', 'jual', 'membeli', 'dijual', 'belanja'] },
+    { id: 'ganti', title: 'Ganti barang', keys: ['ganti barang', 'tukar', 'ubah pesanan', 'ganti alat', 'upgrade'] },
+    { id: 'kontak', title: 'Hubungi admin', keys: ['admin', 'cs', 'whatsapp', 'wa', 'telepon', 'hubungi', 'nomor', 'kontak', 'manusia', 'orang'] },
+  ];
+  /* Aturan khusus berbasis data (tetap di kode, hanya bisa diaktif/nonaktifkan) */
+  const CHAT_SPECIAL = [
+    ['nota', 'Status pesanan dari nomor nota (RNTL / ODR / DRY)'], ['pesanan', 'Daftar pesanan aktif customer'],
+    ['layanan', 'Info laundry, jasa tenda & pengantaran (harga dari pengaturan)'], ['admin', 'Serahkan ke admin: nego, komplain, harga khusus'],
+    ['keranjang', 'Cek kelengkapan isi keranjang'], ['trip', 'Rencanakan trip dari cerita (sistem rekomendasi)'],
+    ['produk', 'Info produk: tarif, stok, ukuran, sering disewa bersama, perbandingan paket'],
+  ];
+  /* Isian otomatis yang bisa dipakai di jawaban Owner */
+  const CHAT_PH = [['{nama_toko}', 'Nama toko'], ['{jam_buka}', 'Jam buka'], ['{alamat}', 'Alamat toko'], ['{whatsapp}', 'Nomor WhatsApp'], ['{instagram}', 'Instagram'],
+    ['{dp_persen}', 'Persen DP'], ['{batas_kembali}', 'Jam batas pengembalian'], ['{denda}', 'Aturan denda keterlambatan'], ['{batas_bayar}', 'Batas waktu bayar DP (jam)'],
+    ['{link_katalog}', 'Tautan Sewa Alat'], ['{link_paket}', 'Tautan Paket Sewa'], ['{link_laundry}', 'Tautan Laundry'], ['{link_pesanan}', 'Tautan Pesanan Saya'], ['{link_kontak}', 'Tautan Kontak']];
+  const CHAT_ACTIONS = [['', 'Tanpa tombol'], ['katalog', 'Ke Sewa Alat'], ['paket', 'Ke Paket Sewa'], ['belanja', 'Ke Beli Alat'], ['laundry', 'Ke Laundry'], ['pesanan', 'Ke Pesanan Saya'], ['kontak', 'Ke Kontak'], ['wa', 'Chat WhatsApp admin']];
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const chatNorm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\- ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const chatHas = (q, w) => (` ${q} `).includes(` ${w} `) || (w.includes(' ') && q.includes(w));
   const SETTINGS = {
     storeName: 'Annapurna Adventure',
     phone: '+62 896 3469 6969',
@@ -949,6 +985,53 @@
     financeCats: (kind) => ((read('settings', SETTINGS).financeCats || SETTINGS.financeCats)[kind] || []),
     formCfg: (k) => Object.assign({ note: 'opsional', photo: 'opsional', custom: [] }, ((read('settings', SETTINGS).forms || {})[k]) || {}),
     sops: (ctx) => (read('settings', SETTINGS).sops || []).filter((x) => !ctx || x.context === ctx),
+    /* ---------- Asisten Trip · aturan tanya jawab ---------- */
+    CHAT_BUILTIN, CHAT_SPECIAL, CHAT_PH, CHAT_ACTIONS, chatNorm,
+    /* Daftar aturan lengkap: topik bawaan (dengan ubahan Owner) + aturan buatan Owner */
+    chatRules() {
+      const saved = DB.settings().chatRules;
+      const L = Array.isArray(saved) ? saved.map((r) => Object.assign({}, r)) : [];
+      CHAT_BUILTIN.forEach((b) => { if (!L.some((r) => r.id === b.id)) L.push({ id: b.id, title: b.title, keys: b.keys.slice(), answer: '', action: b.id === 'kontak' ? 'wa' : '', priority: 'normal', active: true, builtin: true }); });
+      return L;
+    },
+    chatSpecial() { return Object.assign(Object.fromEntries(CHAT_SPECIAL.map(([k]) => [k, true])), DB.settings().chatSpecial || {}); },
+    /* Cocokkan pertanyaan dengan aturan aktif. tier: 'tinggi' = hanya aturan prioritas tinggi; 'normal' = sisanya.
+       Skor = jumlah kata kunci cocok (frasa 2 kata atau lebih bernilai 2). */
+    chatMatch(text, tier) {
+      const q = chatNorm(text); let best = null, bestScore = 0;
+      DB.chatRules().filter((r) => r.active !== false && (!tier || (tier === 'tinggi' ? r.priority === 'tinggi' : r.priority !== 'tinggi'))).forEach((r) => {
+        const sc = (r.keys || []).reduce((s, w) => { w = chatNorm(w); return s + (w && chatHas(q, w) ? (w.includes(' ') ? 2 : 1) : 0); }, 0);
+        if (sc > bestScore) { best = r; bestScore = sc; }
+      });
+      return best ? { rule: best, score: bestScore } : null;
+    },
+    /* Jawaban Owner → HTML aman: teks di-escape, **tebal**, baris "- " jadi daftar, isian {…} diganti data toko */
+    chatRender(text) {
+      const st = DB.settings(); const U = (p) => (window.UI && UI.url ? UI.url(p) : p);
+      const link = (p, l) => `<a href="${U(p)}">${l}</a>`;
+      const PH = { '{nama_toko}': esc(st.storeName), '{jam_buka}': esc(st.hours), '{alamat}': esc(st.address), '{whatsapp}': esc(st.phone), '{instagram}': esc(st.instagram || ''),
+        '{dp_persen}': esc(String(st.dpPercent)) + '%', '{batas_kembali}': esc(String(st.returnTime || '22:00').replace(':', '.')) + ' WIB', '{denda}': esc(DB.lateFeeText()), '{batas_bayar}': esc(String(st.payWindowHours || 1)) + ' jam',
+        '{link_katalog}': link('katalog', 'Sewa Alat'), '{link_paket}': link('paket', 'Paket Sewa'), '{link_laundry}': link('laundry', 'Laundry'), '{link_pesanan}': link('pesanan', 'Pesanan Saya'), '{link_kontak}': link('kontak', 'Kontak') };
+      const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\{[a-z_]+\}/g, (m) => (PH[m] != null ? PH[m] : m));
+      let html = '', inList = false;
+      String(text || '').replace(/\r/g, '').split('\n').forEach((ln) => {
+        const m = ln.match(/^\s*[-•]\s+(.*)$/);
+        if (m) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(m[1])}</li>`; return; }
+        if (inList) { html += '</ul>'; inList = false; }
+        html += ln.trim() ? `${inline(ln)}<br>` : '<br>';
+      });
+      if (inList) html += '</ul>';
+      return html.replace(/<br><ul>/g, '<ul>').replace(/(<br>)+$/, '');
+    },
+    /* Pertanyaan yang belum terjawab (jatuh ke ELSE) — dikelompokkan per teks, untuk dijadikan aturan baru oleh Owner */
+    chatMisses: () => read('chatMiss', []),
+    logChatMiss(text) {
+      const k = chatNorm(text); if (!k || k.length < 3) return;
+      const L = read('chatMiss', []); const x = L.find((m) => m.key === k);
+      if (x) { x.count += 1; x.last = nowStamp(); } else L.unshift({ key: k, text: String(text).slice(0, 200), count: 1, first: nowStamp(), last: nowStamp() });
+      write('chatMiss', L.slice(0, 200));
+    },
+    dismissChatMiss(key) { write('chatMiss', read('chatMiss', []).filter((m) => m.key !== key)); },
     lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per malam keterlambatan` : st.lateFeePercent === 100 ? 'sebesar harga sewa per malam untuk setiap barang, setiap malam keterlambatan' : `${st.lateFeePercent}% harga sewa per malam untuk setiap barang, setiap malam keterlambatan`; },
     /* Simpan satu bagian konfigurasi + catat di histori */
     saveConfig(key, value, action, changes) {

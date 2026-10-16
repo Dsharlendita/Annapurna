@@ -3429,3 +3429,25 @@ td.bk-pay { min-width: 200px; } td.bk-pay .kv span, td.bk-pay .kv b { white-spac
 td.bk-pay .kv { padding: 1px 0; font-size: 12.5px; gap: 12px; } td.bk-pay .kv span:first-child { color: var(--muted); }
 td.bk-pay .kv b { font-size: 13.5px; } td.bk-pay .kv.due span:last-child { color: var(--orange); font-weight: 700; }
 td.bk-pay .kv.lay { margin-top: 3px; padding-top: 3px; border-top: 1px dashed var(--line-2); }
+
+/* ===== Revisi: nota laundry, penjualan diantar/ekspedisi, badge jadwal kalender ===== */
+/* Modal perbarui nota ongkir: tidak ada garis di atas baris pertama (Ongkir) */
+.svc-bill > .kv.total:first-child { border-top: 0; margin-top: 0; padding-top: 4px; }
+/* Badge bulat jumlah jadwal antar-jemput pada header tanggal kalender */
+.cal-tbl thead th.has-sched { position: relative; }
+.cal-sched { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #d9822b; color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px #fff; cursor: pointer; border: 0; font-family: inherit; }
+.cal-tbl thead th.today .cal-sched { box-shadow: 0 0 0 2px var(--g800); }
+.cal-sched:hover { background: #b86a1c; }
+/* Kolom pengiriman penjualan (mirip sv-cell sewa) */
+.sv-cell .sv-who { font-size: 12px; color: var(--muted); margin: 0; display: block; }
+.sv-cell .sv-who b { color: var(--ink); font-weight: 700; }
+.sv-b.info { background: #e3ecfa; color: #24488a; }
+td.sl-pay { min-width: 200px; } td.sl-pay .kv span, td.sl-pay .kv b { white-space: nowrap; }
+td.sl-pay .kv { padding: 1px 0; font-size: 12.5px; gap: 12px; } td.sl-pay .kv span:first-child { color: var(--muted); }
+td.sl-pay .kv b { font-size: 13.5px; } td.sl-pay .kv.due span:last-child { color: var(--orange); font-weight: 700; }
+td.sl-pay .kv.lay { margin-top: 3px; padding-top: 3px; border-top: 1px dashed var(--line-2); }
+.ship-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+@media (max-width: 640px) { .ship-grid { grid-template-columns: 1fr; } }
+.ship-sec { margin: 14px 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--g700); display: flex; align-items: center; gap: 6px; }
+.sched-it.flash { animation: schedFlash 2.4s ease; }
+@keyframes schedFlash { 0%, 60% { box-shadow: 0 0 0 3px #d9822b66; background: #fff6e8; } 100% { box-shadow: none; } }

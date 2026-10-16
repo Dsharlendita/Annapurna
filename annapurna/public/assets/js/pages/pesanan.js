@@ -84,6 +84,18 @@
       <div class="sb-grid"><div class="sb-sched">${sched}</div><div class="sb-cost">${cost}</div></div>
     </div>`;
   }
+  /* Pembelian yang minta diantar ke tempat: alamat + ongkir (dikonfirmasi admin via WhatsApp, sama dengan alur sewa) */
+  function saleSvcBox(s) {
+    if (!Svc.isSaleDeliv(s)) return '';
+    const d = s.deliv || {}; const bl = Svc.bill(s); const live = !['selesai', 'dibatalkan'].includes(s.status);
+    return `<div class="svc-box2">
+      <div class="sb-h"><i class="fa-solid fa-truck-fast"></i> <b>Diantar ke tempat</b>${live && s.status !== 'menunggu_pembayaran' ? `<a class="btn btn-wa btn-xs" href="${UI.waLink(Svc.waTextSale(s))}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> ${bl.ongkirSet ? 'Chat admin' : 'Hubungi admin (ongkir)'}</a>` : ''}</div>
+      <div class="sb-grid"><div class="sb-sched"><div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>${Svc.shipRows(s).filter((r) => !['Catatan kurir', 'Penerima', 'Kota / kode pos'].includes(r[1])).map(([ic, l, v]) => `<div class="r"><i class="fa-solid ${ic}"></i><span><span class="muted">${esc(l)}:</span> <b>${esc(v)}</b></span></div>`).join('')}</div>
+      <div class="sb-cost"><div class="kv"><span>Ongkir antar</span><span>${bl.ongkirSet ? rupiah(bl.ongkir) : '<em>menunggu admin</em>'}</span></div>
+        ${bl.paid ? `<div class="kv"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>` : ''}
+        <div class="kv due"><span>${bl.ongkirSet && !bl.due ? 'Ongkir lunas' : 'Sisa ongkir (bayar ke admin)'}</span><span>${bl.ongkirSet && !bl.due ? '<i class="fa-solid fa-circle-check"></i>' : bl.ongkirSet ? rupiah(bl.due) : 'sesuai jarak'}</span></div></div></div>
+    </div>`;
+  }
   function saleCard(s) {
     const acts = [...(!['selesai', 'dibatalkan'].includes(s.status) ? [`<button class="btn btn-ghost btn-sm wa-admin" data-act="waadmin" data-id="${s.id}" title="Tanya admin soal pesanan ini (mis. minta diantar)"><i class="fa-brands fa-whatsapp"></i> Chat admin</button>`] : []), `<button class="btn btn-ghost btn-sm" data-act="sdetail" data-id="${s.id}">Detail</button>`];
     if (s.paymentStatus === 'paid') acts.push(`<a class="btn btn-light btn-sm" href="invoice?id=${s.id}"><i class="fa-solid fa-receipt"></i> Nota digital</a>`);
@@ -91,10 +103,11 @@
     if (s.status === 'siap_diambil') acts.push(`<button class="btn btn-primary btn-sm" data-act="received" data-id="${s.id}"><i class="fa-solid fa-check"></i> Sudah saya ambil</button>`);
     if (s.status === 'selesai') { acts.push(revBtn(s)); acts.push(`<button class="btn btn-outline btn-sm" data-act="buyagain" data-id="${s.id}">Beli lagi</button>`); }
     return `<article class="order-card">
-      <div class="oh"><div><strong>${NO(s)}</strong><small>Dibuat ${D.fmtDateTime(s.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div></div>
+      <div class="oh"><div><strong>${NO(s)}</strong><small>Dibuat ${D.fmtDateTime(s.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${Svc.isSaleDeliv(s) ? '<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Diantar</span>' : ''}${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div></div>
       ${UI.orderTracker(s)}
-      <div class="ob"><div><div style="font-size:13.5px;margin-bottom:8px"><i class="fa-solid fa-store" style="color:var(--g600)"></i> ${s.status === 'siap_diambil' ? '<strong style="color:var(--g700)">Siap diambil di toko</strong> — bawa nota digital' : 'Ambil di toko'}</div>${lines(s.items)}</div>
+      <div class="ob"><div><div style="font-size:13.5px;margin-bottom:8px">${Svc.isSaleDeliv(s) ? '<i class="fa-solid fa-truck-fast" style="color:var(--g600)"></i> ' + (s.status === 'siap_diambil' ? '<strong style="color:var(--g700)">Siap diantar</strong> — admin akan menghubungimu' : 'Diantar ke tempat') : `<i class="fa-solid fa-store" style="color:var(--g600)"></i> ${s.status === 'siap_diambil' ? '<strong style="color:var(--g700)">Siap diambil di toko</strong> — bawa nota digital' : 'Ambil di toko'}`}</div>${lines(s.items)}</div>
       <div class="sum"><small>Total belanja</small><strong>${rupiah(s.total)}</strong>${s.status !== 'dibatalkan' ? `<small>Sudah dibayar ${rupiah(Rules.paidTotal ? (s.payments || []).reduce((a, p) => a + (+p.amount || 0), 0) : 0)}</small>` : ''}${UI.pendingPay(s) ? `<small class="pay-wait-s"><i class="fa-regular fa-clock"></i> ${rupiah(UI.pendingPay(s))} menunggu verifikasi</small>` : ''}</div></div>
+      ${saleSvcBox(s)}
       <div class="of">${acts.join('')}</div>
     </article>`;
   }
@@ -142,7 +155,7 @@
   }
   function sdetail(s) {
     modal({ title: `Detail ${NO(s)}`, body: `<div style="display:flex;gap:6px;margin-bottom:12px">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div>${lines(s.items)}
-      <div class="kv"><span>Pengambilan</span><span>Ambil di toko</span></div>
+      <div class="kv"><span>Pengambilan</span><span>${Svc.isSaleDeliv(s) ? `<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Diantar</span> ${esc((s.deliv || {}).address || '')}` : 'Ambil di toko'}</span></div>
       <div class="kv"><span>Subtotal</span><span>${rupiah(s.subtotal)}</span></div>
       <div class="kv total"><span>Total</span><span>${rupiah(s.total)}</span></div>
       <h4 style="margin:14px 0 10px">Riwayat status</h4><ul class="timeline">${[...s.history].reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul>`, foot: `<button class="btn btn-light" data-close>Tutup</button>` });

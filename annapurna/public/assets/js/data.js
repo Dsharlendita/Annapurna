@@ -2036,6 +2036,55 @@
       L.push(`Berapa ${Svc.ongkirText(b)} ke lokasi ini?`);
       return L.join('\n');
     },
+    /* Penjualan yang minta diantar ke tempat: ongkir dikonfirmasi admin via WhatsApp (sama dengan alur sewa) */
+    isSaleDeliv: (s) => !!s && s.delivery === 'antar',
+    waTextSale(s) {
+      const d = s.deliv || {};
+      return [`Halo admin ${DB.settings().storeName}, saya sudah mengirim bukti pembayaran ${window.NO ? window.NO(s) : s.id}.`,
+        'Saya minta barang pembelian saya diantar ke tempat.',
+        `Barang: ${(s.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ')}`,
+        `Alamat: ${d.address || '-'}`, 'Berapa ongkirnya ke alamat ini?'].join('\n');
+    },
+    /* ---- Pengiriman penjualan (diantar ke tempat): kurir toko atau ekspedisi ----
+       Disimpan di s.deliv: method ('kurir'|'ekspedisi'), courier/courierPhone/vehicle, date/time (jadwal antar kurir toko),
+       exp/expSvc/resi/weight/koli/shipDate/eta/insured/insVal/packing (ekspedisi), recName/recPhone/city/postcode/shipNote, ship (status). */
+    SHIP: {
+      EXPEDISI: ['JNE', 'J&T Express', 'SiCepat', 'AnterAja', 'Ninja Xpress', 'ID Express', 'Lion Parcel', 'Pos Indonesia', 'SAP Express', 'Indah Cargo', 'Gojek (GoSend)', 'Grab (GrabExpress)', 'Lalamove', 'Lainnya'],
+      LAYANAN: ['Reguler', 'Ekonomis', 'Express / Next Day', 'Same Day / Instant', 'Kargo (barang besar)'],
+      KENDARAAN: ['Motor', 'Mobil', 'Pick-up / Box'],
+      STATUS: { disiapkan: ['Disiapkan', 'warn', 'fa-box'], dikirim: ['Dalam pengiriman', 'info', 'fa-truck-fast'], tiba: ['Sudah tiba', 'ok', 'fa-circle-check'] },
+    },
+    shipMode: (s) => { const m = ((s && s.deliv) || {}).method; return m === 'ekspedisi' || m === 'kurir' ? m : ''; },
+    shipStatus: (s) => { const d = (s && s.deliv) || {}; return Svc.SHIP.STATUS[d.ship] ? d.ship : Svc.shipMode(s) ? 'disiapkan' : ''; },
+    /* Baris rincian pengiriman: [ikon, label, nilai]. Dipakai panel admin, nota, dan halaman customer (nilai belum di-escape). */
+    shipRows(s) {
+      const d = (s && s.deliv) || {}; const m = Svc.shipMode(s); const R = []; if (!m) return R;
+      const t = (x) => (x ? ' pukul ' + Svc.fmtT(x) : '');
+      if (m === 'kurir') {
+        R.push(['fa-user', 'Diantar oleh', [d.courier, d.courierPhone].filter(Boolean).join(' · ') || 'belum ditentukan']);
+        if (d.vehicle) R.push(['fa-motorcycle', 'Kendaraan', d.vehicle]);
+        if (d.date) R.push(['fa-calendar-day', 'Jadwal antar', fmtDate(d.date, true) + t(d.time)]);
+      } else {
+        R.push(['fa-truck-field', 'Ekspedisi', [d.exp, d.expSvc].filter(Boolean).join(' · ') || 'belum ditentukan']);
+        R.push(['fa-barcode', 'No. resi', d.resi || 'belum ada resi']);
+        if (d.shipDate) R.push(['fa-calendar-day', 'Tanggal kirim', fmtDate(d.shipDate, true)]);
+        if (d.eta) R.push(['fa-hourglass-half', 'Estimasi tiba', fmtDate(d.eta, true)]);
+        const pk = [d.weight ? d.weight + ' kg' : '', d.koli ? d.koli + ' koli' : ''].filter(Boolean).join(' · '); if (pk) R.push(['fa-weight-scale', 'Berat / koli', pk]);
+        if (d.insured) R.push(['fa-shield-halved', 'Asuransi', 'Ya' + (+d.insVal ? ' · nilai ' + rupiah(+d.insVal) : '')]);
+        if (d.packing) R.push(['fa-box-open', 'Packing', d.packing]);
+      }
+      if (d.recName || d.recPhone) R.push(['fa-id-card', 'Penerima', [d.recName, d.recPhone].filter(Boolean).join(' · ')]);
+      const area = [d.city, d.postcode].filter(Boolean).join(' ');
+      if (area) R.push(['fa-map', 'Kota / kode pos', area]);
+      if (d.shipNote) R.push(['fa-note-sticky', 'Catatan kurir', d.shipNote]);
+      return R;
+    },
+    /* Ringkasan satu baris untuk pesan WhatsApp / daftar */
+    shipBrief(s) {
+      const d = (s && s.deliv) || {}; const m = Svc.shipMode(s); if (!m) return '';
+      if (m === 'kurir') return ['Diantar kurir toko' + (d.courier ? ' (' + d.courier + ')' : ''), d.date ? fmtDate(d.date) + (d.time ? ' ' + Svc.fmtT(d.time) : '') : ''].filter(Boolean).join(' · ');
+      return ['Ekspedisi ' + (d.exp || '-') + (d.expSvc ? ' ' + d.expSvc : ''), d.resi ? 'resi ' + d.resi : '', d.eta ? 'estimasi tiba ' + fmtDate(d.eta) : ''].filter(Boolean).join(' · ');
+    },
     /* Jam pilihan antar/jemput mengikuti jam operasional toko (s.d. 22.00) */
     hours() { const out = []; for (let h = 7; h <= 21; h++) { out.push(`${pad(h)}:00`); out.push(`${pad(h)}:30`); } out.push('22:00'); return out; },
   };
@@ -2048,6 +2097,37 @@
     est: (o) => o.estDone || addDays(day(o.createdAt), Laundry.days()),
     qty: (o) => (o.items || []).reduce((a, i) => a + (+i.qty || 0), 0),
     terms: () => DB.settings().laundryTerms || SETTINGS.laundryTerms,
+    /* Link nota publik: isi nota dibawa di dalam link (parameter s), jadi bisa dibuka siapa pun yang punya link, tanpa akun/login.
+       Dikompres (deflate) bila browser mendukung agar link tetap pendek; awalan z = terkompres, p = biasa. */
+    async share(o) {
+      const st = DB.settings();
+      const snap = { v: 1, at: nowStamp(), id: o.id, no: o.no, c: o.createdAt, s: o.status, e: Laundry.est(o), n: [o.customer?.name || '', o.customer?.phone || ''],
+        i: (o.items || []).map((i) => [i.name, i.cat || '', +i.qty || 0, +i.price || 0]), o: +o.ongkir || 0, d: +o.discount || 0,
+        p: (o.payments || []).map((p) => [p.at, +p.amount || 0, p.via || '']), r: (o.refunds || []).map((r) => +r.amount || 0),
+        t: [st.storeName || '', st.address || '', st.phone || '', st.email || ''], k: Laundry.terms() };
+      const raw = new TextEncoder().encode(JSON.stringify(snap));
+      const b64 = (u8) => { let b = ''; u8.forEach((c) => { b += String.fromCharCode(c); }); return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+      try {
+        if (typeof CompressionStream === 'undefined') throw new Error('no-cs');
+        const z = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+        return 'z' + b64(new Uint8Array(await new Response(z).arrayBuffer()));
+      } catch (e) { return 'p' + b64(raw); }
+    },
+    /* Kebalikan share(): kembalikan objek laundry dari parameter s, atau null bila rusak. */
+    async fromShare(str) {
+      try {
+        str = String(str || ''); const mode = str[0], b = str.slice(1).replace(/-/g, '+').replace(/_/g, '/');
+        const u8 = Uint8Array.from(atob(b + '='.repeat((4 - (b.length % 4)) % 4)), (c) => c.charCodeAt(0));
+        let bytes = u8;
+        if (mode === 'z') bytes = new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+        else if (mode !== 'p') return null;
+        const a = JSON.parse(new TextDecoder().decode(bytes)); if (!a || a.v !== 1 || !a.id) return null;
+        return { id: a.id, no: a.no, createdAt: a.c, status: a.s, estDone: a.e, customer: { name: a.n[0], phone: a.n[1], email: '' },
+          items: a.i.map((i) => ({ name: i[0], cat: i[1], qty: i[2], price: i[3] })), ongkir: a.o, discount: a.d,
+          payments: a.p.map((p) => ({ at: p[0], amount: p[1], via: p[2] })), refunds: (a.r || []).map((n) => ({ amount: n })), history: [],
+          _snap: { at: a.at, store: { storeName: a.t[0], address: a.t[1], phone: a.t[2], email: a.t[3] }, terms: a.k } };
+      } catch (e) { return null; }
+    },
     FLOW: { diterima: ['dicuci', 'fa-jug-detergent', 'Mulai dicuci'], dicuci: ['siap', 'fa-box', 'Tandai siap diambil'], siap: ['selesai', 'fa-circle-check', 'Sudah diambil customer'] },
   };
   window.Ann = { DEFAULT_SETTINGS: SETTINGS, DB, Rules, STATUS, AUDIT_TYPES, Svc, Laundry, D: { day, today, addDays, rel, diffDays, toISO, fmtDate, fmtDateTime, fmtRange, nowStamp, BULAN, BULAN_PANJANG, HARI }, rupiah };

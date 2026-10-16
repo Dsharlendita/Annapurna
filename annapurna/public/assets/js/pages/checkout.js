@@ -27,6 +27,16 @@
   const svcFee = () => (Svc.isTent(SV.mode) ? SV.tents * Svc.fee(SV.mode) : 0);
   const minFee = Math.min(...Svc.TENT_MODES.map((m) => Svc.fee(m)));
 
+  /* Barang beli: ambil di toko atau diantar ke tempat (ongkir dikonfirmasi admin via WhatsApp, tidak masuk total belanja) */
+  const SB = { pick: 'ambil', address: '' };
+  const buyBlock = buy.length ? `<div class="dl-buy" ${rent.length ? 'style="margin-top:18px"' : ''}>
+        ${rent.length ? '<h4 style="margin:0 0 8px;font-size:14px"><i class="fa-solid fa-bag-shopping"></i> Barang beli</h4>' : ''}
+        <div class="dl-opts" role="radiogroup" aria-label="Cara penerimaan barang beli">
+          <label class="radio-card"><input type="radio" name="bpick" value="ambil" checked><span class="rc-ic"><i class="fa-solid fa-store"></i></span><span><strong>Ambil di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></span></label>
+          <label class="radio-card"><input type="radio" name="bpick" value="antar"><span class="rc-ic"><i class="fa-solid fa-truck-fast"></i></span><span><strong>Diantar ke tempat</strong><small>Staff mengantar barang ke alamatmu. Hubungi admin untuk biaya ongkir.</small></span><span class="dl-price">+ ongkir</span></label>
+        </div>
+        <div id="dlBuyFields"></div>
+      </div>` : '';
   const blocked = !!user && DB.blockedContact(user.email, user.phone);
   let promo = null;
   const promoCalc = () => (promo ? DB.checkPromo(promo, { rent: rentTotal, buy: buyTotal, starts: rent.map((r) => r.start) }) : null);
@@ -36,6 +46,7 @@
     $('#coSum').innerHTML = `${rent.length ? `<div class="kv"><span>Total sewa</span><span>${rupiah(rentTotal)}</span></div>${dr ? `<div class="kv"><span>Diskon sewa (${esc(pr.promo.code)})</span><span style="color:var(--g700)">− ${rupiah(dr)}</span></div>` : ''}<div class="kv hl"><span>DP ${st.dpPercent}%</span><span>${rupiah(dpNow)}</span></div>` : ''}
       ${buy.length ? `<div class="kv"><span>Total belanja</span><span>${rupiah(buyTotal)}</span></div>${db ? `<div class="kv"><span>Diskon belanja (${esc(pr.promo.code)})</span><span style="color:var(--g700)">− ${rupiah(db)}</span></div>` : ''}` : ''}
       ${SV.mode !== 'ambil' ? `<div class="kv svc-kv"><span>${Svc.isTent(SV.mode) ? `${Svc.spec(SV.mode).short} ${SV.tents} tenda + ${Svc.spec(SV.mode).ongkir}` : 'Ongkir antar'}</span><span>${Svc.isTent(SV.mode) ? rupiah(svcFee()) + ' + ongkir' : 'sesuai jarak'}<small>dibayar ke admin, tidak masuk DP</small></span></div>` : ''}
+      ${buy.length && SB.pick === 'antar' ? `<div class="kv svc-kv"><span>Ongkir antar barang beli</span><span>sesuai jarak<small>hubungi admin, dibayar ke admin, tidak masuk total belanja</small></span></div>` : ''}
       ${depositTotal ? `<div class="kv dep-kv"><span>Jaminan <small>dibayar saat ambil, dikembalikan saat kembali</small></span><span>${rupiah(depositTotal)}</span></div>` : ''}
       <div class="kv total"><span>Dibayar sekarang</span><span id="payNow">${rupiah(dpNow + buyTotal - db)}</span></div>`;
     const sb = document.getElementById('coStickyAmt'); if (sb) sb.textContent = rupiah(dpNow + buyTotal - db);
@@ -55,16 +66,12 @@
 
       <div class="card">
         <div class="card-title"><i class="fa-solid fa-store"></i> Pengambilan barang</div>
-        ${rent.length ? `<div class="dl-opts" role="radiogroup" aria-label="Cara pengambilan barang">
+        ${rent.length ? `${buy.length ? '<h4 style="margin:0 0 8px;font-size:14px"><i class="fa-solid fa-tents"></i> Barang sewa</h4>' : ''}<div class="dl-opts" role="radiogroup" aria-label="Cara pengambilan barang">
           <label class="radio-card"><input type="radio" name="dpick" value="ambil" checked><span class="rc-ic"><i class="fa-solid fa-store"></i></span><span><strong>Ambil di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></span></label>
           <label class="radio-card"><input type="radio" name="dpick" value="antar"><span class="rc-ic"><i class="fa-solid fa-truck-fast"></i></span><span><strong>Diantar ke lokasi</strong><small>Staff mengantar barang ke alamatmu. Pengembalian diatur bersama admin.</small></span><span class="dl-price">+ ongkir</span></label>
           ${tentsInCart ? `<label class="radio-card"><input type="radio" name="dpick" value="tenda"><span class="rc-ic"><i class="fa-solid fa-tents"></i></span><span><strong>Jasa tenda</strong><small>Bongkar pasang, pasang saja, atau bongkar saja oleh tim kami.</small></span><span class="dl-price">mulai ${rupiah(minFee)}/tenda + ongkir</span></label>` : ''}
         </div>
-        <div id="dlFields"></div>` : `<div class="pickup-box">
-          <span class="rc-ic"><i class="fa-solid fa-store"></i></span>
-          <div><strong>Ambil di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></div>
-          <a class="btn btn-light btn-xs" href="kontak#lokasi" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-location-dot"></i> Lihat peta</a>
-        </div>`}
+        <div id="dlFields"></div>` : ''}${buyBlock}
         <p class="muted" style="font-size:13px;margin-top:12px"><i class="fa-solid fa-circle-info"></i> Tunjukkan nota digital${rent.length ? ' dan kartu identitas asli' : ''} saat ${rent.length ? 'menerima' : 'mengambil'} barang.</p>
         <div class="field" style="margin-top:14px"><label for="notes">Catatan untuk admin <span class="muted">(opsional)</span></label><input class="input" id="notes" name="notes" placeholder="Contoh: ambil sore sekitar jam 4"></div>
       </div>
@@ -118,6 +125,18 @@
       <p class="dl-info"><i class="fa-brands fa-whatsapp"></i><span>${tent ? `Biaya jasa ${rupiah(svcFee())} + ${sp.ongkir} sesuai jarak` : 'Ongkir sesuai jarak'} dikonfirmasi admin via WhatsApp setelah DP, <b>tidak masuk DP</b>, dan dibayar langsung ke admin.${!tent ? ' Pengembalian bisa diantar sendiri ke toko atau dijemput, atur bersama admin.' : ''}${back ? ` Jemput paling lambat pukul ${Svc.fmtT(st.returnTime || '22:00')} supaya tidak dihitung terlambat.` : ''}</span></p>
     </div>`;
   }
+  function drawBuyDeliv() {
+    const box = $('#dlBuyFields'); if (!box) return;
+    if (SB.pick !== 'antar') { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="dl-fields">
+      <div class="field"><label for="dlAddrBuy">Alamat / lokasi antar</label><textarea class="textarea" id="dlAddrBuy" name="dlAddrBuy" rows="2" placeholder="Contoh: Jl. Raya Baturraden No. 12, Banyumas">${esc(SB.address)}</textarea></div>
+      <p class="dl-info"><i class="fa-brands fa-whatsapp"></i><span>Ongkir sesuai jarak dikonfirmasi admin via WhatsApp setelah kamu mengirim bukti pembayaran, <b>tidak masuk total belanja</b>, dan dibayar langsung ke admin.</span></p>
+    </div>`;
+  }
+  if (buy.length) {
+    form.addEventListener('change', (e) => { if (e.target.name === 'bpick') { SB.pick = e.target.value; drawBuyDeliv(); drawSum(); } });
+    form.addEventListener('input', (e) => { if (e.target.id === 'dlAddrBuy') SB.address = e.target.value; });
+  }
   if (rent.length) {
     form.addEventListener('change', (e) => {
       if (e.target.name === 'dpick') { SV.pick = e.target.value; drawDeliv(); drawSum(); }
@@ -145,6 +164,7 @@
       phone: (v) => (!isPhone(v) ? 'Nomor WhatsApp tidak valid. Contoh: 081234567890.' : ''),
       email: (v) => (!isEmail(v) ? 'Format email belum benar.' : ''),
       agree: (v, el) => (!el.checked ? 'Centang persetujuan untuk melanjutkan.' : ''),
+      dlAddrBuy: (v) => (SB.pick === 'antar' && v.length < 8 ? 'Isi alamat lengkap supaya admin bisa menghitung ongkir.' : ''),
       dlAddr: (v) => (SV.mode !== 'ambil' && v.length < 8 ? 'Isi alamat / lokasi lengkap supaya admin bisa menghitung ongkir.' : ''),
     });
     if (!ok) return;
@@ -248,7 +268,7 @@
       const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const dAmt = usePr ? usePr.buy : 0;
-      const o = Object.assign({}, common, { id: DB.nextId('ORD', DB.sales()), items, subtotal, total: subtotal - dAmt, ...(dAmt ? { discount: { code: usePr.promo.code, amount: dAmt } } : {}), delivery: 'ambil', status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], history: [{ at: D.nowStamp(), text: 'Pesanan dibuat' }] });
+      const o = Object.assign({}, common, { id: DB.nextId('ORD', DB.sales()), items, subtotal, total: subtotal - dAmt, ...(dAmt ? { discount: { code: usePr.promo.code, amount: dAmt } } : {}), delivery: SB.pick === 'antar' ? 'antar' : 'ambil', ...(SB.pick === 'antar' ? { deliv: { address: SB.address.trim() } } : {}), status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], history: [{ at: D.nowStamp(), text: SB.pick === 'antar' ? `Pesanan dibuat · minta diantar ke ${SB.address.trim()}` : 'Pesanan dibuat' }] });
       DB.saveSale(o); ids.push(o.id);
       /* Admin baru diberi tahu saat bukti pembayaran diunggah */
     }

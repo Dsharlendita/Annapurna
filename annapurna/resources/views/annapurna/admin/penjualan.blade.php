@@ -13,7 +13,7 @@
     <span class="exp" id="exp"><button class="btn btn-light btn-sm" data-export="xlsx"><i class="fa-solid fa-file-excel" style="color:#1d6f42"></i> Excel</button><button class="btn btn-light btn-sm" data-export="pdf"><i class="fa-solid fa-file-pdf" style="color:#c0392b"></i> PDF</button></span>
   </div>
   <div class="table-wrap"><table class="table wide">
-    <thead><tr><th>No. Pesanan</th><th>Customer</th><th>Barang</th><th class="num">Total</th><th>Pembayaran</th><th>Status</th><th class="num">Aksi</th></tr></thead>
+    <thead><tr><th>Pesanan</th><th>Barang &amp; pengiriman</th><th>Pembayaran</th><th>Status</th><th class="num">Aksi</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
 @endsection

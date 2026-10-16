@@ -21,12 +21,15 @@
       + st('fa-circle-check', '', 'Selesai bulan ini', paidMonth.filter((s) => s.status === 'selesai').length) + st('fa-sack-dollar', '', 'Omzet bulan ini', rupiah(paidMonth.reduce((a, s) => a + s.total, 0)));
     $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${k === tab ? 'active' : ''}" data-tab="${k}">${l} <span class="cnt">${S.filter((s) => match(s, k)).length}</span></button>`).join('');
     const L = list();
-    $('#rows').innerHTML = L.length ? L.map((s) => { const a = Admin.saleActions(s)[0]; return `<tr>
-      <td><strong>${NO(s)}</strong><small>${D.fmtDateTime(s.createdAt)}</small></td><td>${esc(s.customer.name)}<small>${esc(s.customer.phone)}</small></td>
-      <td style="min-width:190px;max-width:260px">${esc(txt(s))}</td>
-      <td class="num">${rupiah(s.total)}</td><td>${pill('payment', s.paymentStatus)}</td><td>${pill('sale', s.status)}</td>
+    $('#rows').innerHTML = L.length ? L.map((s) => { const a = Admin.saleActions(s)[0]; const dl = Ann.Svc.isSaleDeliv(s);
+      const stp = dl && s.status === 'siap_diambil' ? '<span class="pill green">Siap Diantar</span>' : pill('sale', s.status);
+      return `<tr>
+      <td class="bk-who"><strong>${NO(s)}</strong><span>${esc(s.customer.name)}</span><small>${esc(s.customer.phone)}<br>dibuat ${D.fmtDate(s.createdAt)}</small></td>
+      <td style="min-width:220px;max-width:280px"><span class="bk-items">${esc(txt(s))}</span>${Admin.saleShipCell(s)}</td>
+      <td class="sl-pay">${Admin.salePayCell(s)}</td>
+      <td class="bk-st">${stp}${pill('payment', s.paymentStatus)}</td>
       <td><div class="acts">${a ? `<button class="btn ${a[3]} btn-xs" data-act="${a[0]}" data-id="${s.id}"><i class="fa-solid ${a[1]}"></i> ${a[2]}</button>` : ''}<button class="btn btn-light btn-xs" data-act="sdetail" data-id="${s.id}">Detail</button></div></td></tr>`; }).join('')
-      : '<tr><td colspan="7"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid fa-bag-shopping"></i></div><h3>Tidak ada pesanan</h3><p>Coba ubah filter.</p></div></td></tr>';
+      : '<tr><td colspan="5"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid fa-bag-shopping"></i></div><h3>Tidak ada pesanan</h3><p>Coba ubah filter.</p></div></td></tr>';
   }
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; draw(); } });
   ['#q', '#from', '#to'].forEach((s) => $(s).addEventListener('input', draw));

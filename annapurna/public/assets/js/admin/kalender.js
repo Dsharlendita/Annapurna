@@ -31,7 +31,7 @@
     $('#sched').innerHTML = ev.length ? ev.map((e) => { const x = new Date(e.date + 'T00:00:00'); const d = e.b.deliv || {};
       const wa = UI.waLink(`Halo ${e.b.customer.name}, kami dari Annapurna Adventure ingin mengonfirmasi jadwal ${e.kind.toLowerCase()} untuk ${NO(e.b)} pada ${D.fmtDate(e.date, true)}${e.time ? ' pukul ' + Svc.fmtT(e.time) : ''} di ${d.address || '-'}. Terima kasih.`, e.b.customer.phone);
       const day = e.date === T ? '<span class="sx-day now">Hari ini</span>' : e.date === D.addDays(T, 1) ? '<span class="sx-day">Besok</span>' : '';
-      return `<div class="sched-it sx-${e.type} ${e.date === T ? 'today' : ''}">
+      return `<div class="sched-it sx-${e.type} ${e.date === T ? 'today' : ''}" data-date="${e.date}">
         <div class="sx-time"><b>${e.time ? Svc.fmtT(e.time) : '—'}</b><small>${DAYN[x.getDay()]}, ${D.fmtDate(e.date)}</small></div>
         <div class="sx-body">
           <div class="sx-tags">${day}<span class="sx-type"><i class="fa-solid ${e.ic}"></i> ${esc(e.kind)}</span>${Svc.isTent(e.b) ? `<span class="sx-svc">${esc(Svc.short(e.b))}${d.tents ? ' · ' + d.tents + ' tenda' : ''}</span>` : ''}</div>
@@ -44,12 +44,19 @@
   function draw() {
     const f = $('#from').value || T;
     drawSched(f); const days = [...Array(DAYS)].map((_, i) => D.addDays(f, i));
+    /* Jumlah jadwal antar/jemput per tanggal → badge bulat di header tanggal */
+    const perDay = {}; Admin.svcSchedule(days[0], days[DAYS - 1]).forEach((e) => { const k = perDay[e.date] || (perDay[e.date] = { n: 0, a: 0, j: 0 }); k.n++; if (e.type === 'antar') k.a++; else k.j++; });
     const R = rows();
-    $('#cal').innerHTML = `<thead><tr><th class="cal-name">Barang</th>${days.map((d) => { const x = new Date(d + 'T00:00:00'); const we = x.getDay() === 0 || x.getDay() === 6; return `<th class="${d === T ? 'today' : ''} ${we ? 'we' : ''}"><small>${D.HARI[x.getDay()]}</small>${x.getDate()}</th>`; }).join('')}</tr></thead>
+    $('#cal').innerHTML = `<thead><tr><th class="cal-name">Barang</th>${days.map((d) => { const x = new Date(d + 'T00:00:00'); const we = x.getDay() === 0 || x.getDay() === 6; const sc = perDay[d]; return `<th class="${d === T ? 'today' : ''} ${we ? 'we' : ''} ${sc ? 'has-sched' : ''}"><small>${D.HARI[x.getDay()]}</small>${x.getDate()}${sc ? `<button type="button" class="cal-sched" data-sched="${d}" title="${sc.n} jadwal antar/jemput (${[sc.a && sc.a + ' antar', sc.j && sc.j + ' jemput'].filter(Boolean).join(', ')})" aria-label="${sc.n} jadwal antar atau jemput">${sc.n}</button>` : ''}</th>`; }).join('')}</tr></thead>
       <tbody>${R.length ? R.map((r) => `<tr class="${r.child ? 'child' : ''}"><td class="cal-name">${r.child ? `<span class="cal-size">${esc(r.label)}</span>` : `<div class="prod"><img loading="lazy" decoding="async" src="${asset(r.p.img)}" alt=""><div><strong>${esc(r.label)}</strong><small>${r.total} unit siap sewa</small></div></div>`}</td>
         ${days.map((d) => { const a = Rules.availableOn(r.p.id, d, null, r.size); const pct = r.total ? a / r.total : 0; const cls = a <= 0 ? 'full' : pct <= .34 ? 'mid' : 'ok';
           return `<td><button class="cal-c ${cls}" data-p="${r.p.id}" data-s="${esc(r.size || '')}" data-d="${d}" title="${esc(r.label)} · ${D.fmtDate(d)}: ${a} tersedia">${a}<small>/${r.total}</small></button></td>`; }).join('')}</tr>`).join('') : `<tr><td colspan="${DAYS + 1}" class="muted" style="text-align:center;padding:24px">Tidak ada barang.</td></tr>`}</tbody>`;
   }
+  /* Klik badge → gulir ke daftar jadwal dan sorot jadwal di tanggal itu */
+  $('#cal').addEventListener('click', (e) => {
+    const bd = e.target.closest('.cal-sched'); if (!bd) return; const d = bd.dataset.sched; const card = $('#schedCard'); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelectorAll('#sched .sched-it').forEach((el) => el.classList.remove('flash')); const items = [...document.querySelectorAll('#sched .sched-it')].filter((el) => el.dataset.date === d); items.forEach((el) => el.classList.add('flash'));
+  });
   $('#cal').addEventListener('click', (e) => {
     const c = e.target.closest('.cal-c'); if (!c) return; const p = DB.product(c.dataset.p); const d = c.dataset.d; const size = c.dataset.s || null;
     const L = DB.staffBookings().filter((b) => ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'].includes(b.status) && ((b.start <= d && d <= b.end) || (b.status === 'disewa' && b.end < T && d >= T)))

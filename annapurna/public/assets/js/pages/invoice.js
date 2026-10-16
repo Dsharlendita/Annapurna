@@ -1,25 +1,32 @@
 (async function () {
-  const { DB, Rules, STATUS, D, rupiah, Laundry } = Ann; const { $, esc, asset, param, pill, waLink } = UI;
+  const { DB, Rules, STATUS, D, rupiah, Laundry, Share } = Ann; const { $, esc, asset, param, pill, waLink } = UI;
   const id = param('id') || '';
   const isRent = id.startsWith('RNT');
   const isLd = id.startsWith('DRY'); /* nota laundry (DRY/001/X/2026): halaman PUBLIK, siapa pun yang punya link bisa membuka tanpa akun */
-  const user = isLd ? DB.session() : Site.requireLogin(); if (!user && !isLd) return;
+  const hasS = !!param('s'); /* link publik (nota sewa/beli/laundry yang dikirim lewat WhatsApp): isi nota ada di parameter s, tanpa login */
+  const user = (isLd || hasS) ? DB.session() : Site.requireLogin(); if (!user && !isLd && !hasS) return;
   const staff = DB.isStaff(user);
   /* Nota laundry di link WhatsApp membawa isi notanya (parameter s) agar terbuka di HP customer mana pun. Staff tetap melihat data terkini. */
   const snap = isLd && param('s') ? await Laundry.fromShare(param('s')) : null;
   const local = isRent ? DB.booking(id) : isLd ? DB.laundryOrder(id) : DB.sale(id);
-  const x = isLd ? ((staff ? local || snap : snap || local)) : local;
+  const pubSnap = !isLd && hasS ? await Share.from(param('s')) : null;
+  const mine = !isLd && local && user && (staff || (local.customer.email && local.customer.email === user.email)); /* pemilik/staff melihat data terkini */
+  const x = isLd ? ((staff ? local || snap : snap || local)) : mine ? local : pubSnap && pubSnap.id === id ? pubSnap : (hasS ? null : local);
   const st = x && x._snap ? Object.assign({}, DB.settings(), x._snap.store, { laundryTerms: x._snap.terms || DB.settings().laundryTerms }) : DB.settings();
   const NUM = x ? (isLd ? x.no : NO(x)) : id;
   if (staff) $('#back').href = isRent ? 'admin/booking?id=' + id : isLd ? 'admin/laundry?id=' + id : 'admin/penjualan?id=' + id;
-  else if (isLd && !user) $('#back').remove(); /* pengunjung tanpa akun: tidak ada halaman "Kembali" yang relevan */
+  else if (!user) $('#back').remove(); /* pengunjung tanpa akun: tidak ada halaman "Kembali" yang relevan */
   else $('#back').href = isRent ? 'pesanan?id=' + id : isLd ? 'pesanan' : 'pesanan?tab=beli';
 
   if (isLd && !x) {
     $('#inv').innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-regular fa-file-lines"></i></div><h3>Nota laundry tidak ditemukan</h3><p>Link nota tidak lengkap atau sudah rusak. Minta admin ${esc(st.storeName || 'Annapurna')} mengirim ulang link notanya.</p><a class="btn btn-primary" href="./">Ke Beranda</a></div>`;
     return;
   }
-  if (!x || (!isLd && !staff && (!x.customer.email || x.customer.email !== user.email))) {
+  if (!isLd && hasS && !x) {
+    $('#inv').innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-regular fa-file-lines"></i></div><h3>Nota tidak ditemukan</h3><p>Link nota tidak lengkap atau sudah rusak. Minta admin ${esc(st.storeName || 'Annapurna')} mengirim ulang link notanya.</p><a class="btn btn-primary" href="./">Ke Beranda</a></div>`;
+    return;
+  }
+  if (!x || (!isLd && !hasS && !staff && (!x.customer.email || x.customer.email !== user.email))) {
     $('#inv').innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-regular fa-file-lines"></i></div><h3>Invoice tidak ditemukan</h3><p>Nomor transaksi tidak valid atau bukan milik akunmu.</p><a class="btn btn-primary" href="pesanan">Ke Pesanan Saya</a></div>`;
     return;
   }
@@ -90,7 +97,7 @@
       <div><h5>Ditagihkan kepada</h5><strong>${esc(x.customer.name)}</strong><br>${esc(x.customer.phone)}${x.customer.email ? '<br>' + esc(x.customer.email) : ''}</div>
       <div><h5>${isRent ? 'Detail sewa' : isLd ? 'Detail laundry' : 'Detail pesanan'}</h5>
         ${isLd ? `<div>Diterima: ${D.fmtDateTime(x.createdAt)}</div><div>Estimasi selesai: <strong>${D.fmtDate(Laundry.est(x), true)}</strong></div><div>Pengambilan: Antar &amp; ambil sendiri di toko</div>` : ''}
-        ${isRent ? `<div>Periode: <strong>${D.fmtRange(x.start, x.end)}</strong> (${x.days} malam · kembali maks. pukul ${String(Ann.DB.settings().returnTime || '22:00').replace(':', '.')} WIB)</div><div>Ambil: ${D.fmtDate(x.start, true)} · Kembali: ${D.fmtDate(x.end, true)}</div>` : ''}
+        ${isRent ? `<div>Periode: <strong>${D.fmtRange(x.start, x.end)}</strong> (${x.days} malam · kembali maks. pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB)</div><div>Ambil: ${D.fmtDate(x.start, true)} · Kembali: ${D.fmtDate(x.end, true)}</div>` : ''}
         ${isLd ? '' : `<div>Pengambilan: ${isRent ? esc(Ann.Svc.label(x)) : saleDel ? 'Diantar ke tempat' : 'Ambil di toko'}</div>`}${isRent && Ann.Svc.has(x) ? `<div>Layanan: ${esc(Ann.Svc.brief(x))}</div>` : ''}${saleDel ? `<div>Alamat antar: ${esc((x.deliv || {}).address || '-')}</div>${Ann.Svc.shipRows(x).map(([, l, v]) => `<div>${esc(l)}: <strong>${esc(v)}</strong></div>`).join('')}` : ''}
         <div>Pembayaran: ${esc(isLd ? ((x.payments || []).slice(-1)[0] || {}).via || '-' : x.method || '-')}</div>
         <div style="margin-top:6px">${saleDel ? '<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Diantar</span> ' : ''}${isRent ? pill('rental', x.status) : isLd ? pill('laundry', x.status) : pill('sale', x.status)} ${pill('payment', isLd ? (paid >= total ? 'paid' : 'unpaid') : x.paymentStatus)}</div>
@@ -127,8 +134,9 @@
   </div>`;
   (async () => { try { await UI.loadScript(UI.asset('assets/vendor/qr/qrcode-generator.js')); const q = window.qrcode(0, 'M'); q.addData(`${UI.BASE}${isRent ? 'admin/booking' : isLd ? 'admin/laundry' : 'admin/penjualan'}?id=${x.id}`); q.make(); $('#invQr').innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true }); } catch (e) { $('#invQr').closest('.inv-qr').remove(); } })();
   /* Tombol WhatsApp: membuka jendela kirim nota digital (gambar nota + pesan) ke admin */
-  $('#waShare').href = isLd ? waLink(`Halo ${st.storeName || 'Annapurna'}, saya mau tanya soal nota laundry ${NUM}.`) : waLink('');
-  if (isLd) $('#waShare').dataset.direct = '1'; else $('#waShare').dataset.nota = x.id;
+  const direct = isLd || !!x._snap; /* nota dari link publik: tidak ada data lokal, jadi langsung buka chat admin */
+  $('#waShare').href = direct ? waLink(`Halo ${st.storeName || 'Annapurna'}, saya mau tanya soal nota ${isLd ? 'laundry ' : ''}${NUM}.`) : waLink('');
+  if (direct) $('#waShare').dataset.direct = '1'; else $('#waShare').dataset.nota = x.id;
   if (x._snap) $('#inv .invoice').insertAdjacentHTML('beforeend', `<p class="muted no-print" style="text-align:center;font-size:11.5px;margin-top:6px">Data nota per ${D.fmtDateTime(x._snap.at)}. Untuk status terbaru, hubungi toko.</p>`);
   /* Dibuka staff/owner dari panel admin: tombol WhatsApp customer tidak ditampilkan */
   const staffView = ['admin', 'owner'].includes((user || {}).role);

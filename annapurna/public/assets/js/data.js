@@ -2130,5 +2130,54 @@
     },
     FLOW: { diterima: ['dicuci', 'fa-jug-detergent', 'Mulai dicuci'], dicuci: ['siap', 'fa-box', 'Tandai siap diambil'], siap: ['selesai', 'fa-circle-check', 'Sudah diambil customer'] },
   };
-  window.Ann = { DEFAULT_SETTINGS: SETTINGS, DB, Rules, STATUS, AUDIT_TYPES, Svc, Laundry, D: { day, today, addDays, rel, diffDays, toISO, fmtDate, fmtDateTime, fmtRange, nowStamp, BULAN, BULAN_PANJANG, HARI }, rupiah };
+  /* Nota publik untuk SEWA & BELI (sama seperti laundry): isi nota dibawa di link (parameter s), jadi siapa pun yang punya link
+     bisa membuka tanpa akun. Data dikurangi: tanpa email, riwayat internal, catatan, bukti bayar/jaminan; nomor HP disamarkan.
+     Di backend ganti dengan public_token acak (lihat catatan-backend.md). */
+  const Share = {
+    _c: {},
+    DROP: ['history', 'notes', 'reminders', 'kasir', 'guarantee', 'guaranteeType', 'guaranteeNo', 'idCard', 'proof', 'proofs', 'proofFile', 'components', 'email', 'note', 'audit'],
+    SET: ['storeName', 'address', 'phone', 'email', 'rentalTerms', 'cancelPolicy', 'dpPercent', 'returnTime', 'hours', 'lateFee'],
+    mask: (p) => String(p || '').replace(/^(\d{3,4})\d+(\d{3})$/, '$1•••$2'),
+    kind: (x) => (String(x.id).startsWith('RNT') ? 'rent' : 'sale'),
+    b64(u8) { let b = ''; u8.forEach((c) => { b += String.fromCharCode(c); }); return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+    snapshot(x) {
+      const st = DB.settings(); const t = {}; Share.SET.forEach((k) => { if (st[k] !== undefined) t[k] = st[k]; });
+      const rec = JSON.parse(JSON.stringify(x, (k, v) => (Share.DROP.includes(k) || (typeof v === 'string' && (v.startsWith('data:') || v.length > 400)) ? undefined : v)));
+      if (rec.customer) rec.customer.phone = Share.mask(rec.customer.phone);
+      if (rec.deliv && rec.deliv.recPhone) rec.deliv.recPhone = Share.mask(rec.deliv.recPhone);
+      if (rec.deliv && rec.deliv.courierPhone) rec.deliv.courierPhone = Share.mask(rec.deliv.courierPhone);
+      rec.no = NO(x);
+      return { v: 2, k: Share.kind(x), at: nowStamp(), t, r: rec };
+    },
+    async encode(x) {
+      const raw = new TextEncoder().encode(JSON.stringify(Share.snapshot(x)));
+      try {
+        if (typeof CompressionStream === 'undefined') throw new Error('no-cs');
+        const z = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+        return 'z' + Share.b64(new Uint8Array(await new Response(z).arrayBuffer()));
+      } catch (e) { return 'p' + Share.b64(raw); }
+    },
+    /* Siapkan link terkompresi (panggil sebelum link() agar link pendek) */
+    async ensure(...list) { for (const x of list.flat()) if (x && x.id) Share._c[x.id] = { sig: JSON.stringify(x).length + ':' + (x.status || '') + (x.paymentStatus || ''), code: await Share.encode(x) }; },
+    /* Link nota publik (sinkron). Bila belum di-ensure: pakai versi tidak terkompres (lebih panjang tapi tetap berfungsi). */
+    link(x) {
+      const c = Share._c[x.id]; let code = c && c.code;
+      if (!code) { const raw = new TextEncoder().encode(JSON.stringify(Share.snapshot(x))); code = 'p' + Share.b64(raw); }
+      return new URL(window.UI.url('invoice?id=' + encodeURIComponent(x.id) + '&s=' + code), location.href).href;
+    },
+    async from(str) {
+      try {
+        str = String(str || ''); const mode = str[0], b = str.slice(1).replace(/-/g, '+').replace(/_/g, '/');
+        const u8 = Uint8Array.from(atob(b + '='.repeat((4 - (b.length % 4)) % 4)), (ch) => ch.charCodeAt(0));
+        let bytes = u8;
+        if (mode === 'z') bytes = new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+        else if (mode !== 'p') return null;
+        const a = JSON.parse(new TextDecoder().decode(bytes)); if (!a || a.v !== 2 || !a.r || !a.r.id) return null;
+        const r = a.r; r.customer = Object.assign({ name: '', phone: '', email: '' }, r.customer); r.items = r.items || []; r.payments = r.payments || []; r.refunds = r.refunds || []; r.changes = r.changes || []; r.history = [];
+        r._snap = { at: a.at, store: a.t || {}, pub: true, k: a.k };
+        return r;
+      } catch (e) { return null; }
+    },
+  };
+  window.Ann = { DEFAULT_SETTINGS: SETTINGS, DB, Rules, STATUS, AUDIT_TYPES, Svc, Laundry, Share, D: { day, today, addDays, rel, diffDays, toISO, fmtDate, fmtDateTime, fmtRange, nowStamp, BULAN, BULAN_PANJANG, HARI }, rupiah };
 })();

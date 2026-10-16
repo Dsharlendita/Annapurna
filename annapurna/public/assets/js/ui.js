@@ -1037,7 +1037,7 @@
   }
   const paidOf = (x) => (x.payments || []).reduce((s, p) => s + (+p.amount || 0), 0) - (x.refunds || []).reduce((s, p) => s + (+p.amount || 0), 0);
   const stLabel = (g, k) => ((STATUS[g] || {})[k] || { label: k }).label;
-  const notaUrl = (x) => new URL(url('invoice?id=' + x.id), location.href).href;
+  const notaUrl = (x) => Ann.Share.link(x);
   function notaText(o) {
     const x = o.x, rent = o.kind === 'rent';
     const items = x.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
@@ -1241,6 +1241,7 @@
     m.$('#waGo').addEventListener('click', async () => {
       const pick = m.$$('.wa-ord input:checked').map((c) => orders[+c.value]);
       const msg = m.$('#waMsg').value.trim();
+      await Ann.Share.ensure(pick.map((o) => o.x));
       const body = [pick.length ? `Halo admin ${DB.settings().storeName}, berikut nota digital saya:\n\n${pick.map(notaText).join('\n\n')}` : `Halo admin ${DB.settings().storeName},`, msg ? `\n*Pesan:*\n${msg}` : ''].join('\n');
       if (!pick.length) { m.close(); window.open(waLink(body), '_blank', 'noopener'); return; }
       /* Gambar nota: desain sama dengan nota booking di website (satu halaman per pesanan, disusun ke bawah) */

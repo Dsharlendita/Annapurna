@@ -294,9 +294,9 @@
     if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
     w.document.open(); w.document.write(strukHtml(x, kind, mm)); w.document.close();
   }
-  function done(x, kind) {
+  async function done(x, kind) {
     const k = x.kasir || {};
-    const link = location.origin + UI.url('invoice?id=' + x.id);
+    await Ann.Share.ensure(x); const link = Ann.Share.link(x);
     const wa = `Halo ${x.customer.name}, terima kasih sudah ${kind === 'rent' ? 'menyewa' : 'berbelanja'} di Annapurna Adventure.\nNo. nota: ${NO(x)}\nTotal: ${rupiah(x.total)} · dibayar ${rupiah(Rules.paidTotal(x))} (${k.method || x.method})${kind === 'rent' ? `\nSewa: ${D.fmtRange(x.start, x.end)}, kembali paling lambat ${D.fmtDate(x.end, true)} pukul 22.00 WIB` : ''}\nNota digital: ${link}`;
     const m = modal({ title: `Transaksi tersimpan · ${NO(x)}`, body: `
       <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-circle-check"></i><div><b>${kind === 'rent' ? (x.status === 'disewa' ? 'Sewa offline tersimpan, barang sudah keluar.' : x.start <= D.today() ? 'Sewa offline tersimpan, tapi barang BELUM dicatat keluar.' : 'Booking offline tersimpan, barang diambil ' + D.fmtDate(x.start, true) + '.') : 'Penjualan offline tersimpan, stok sudah berkurang.'}</b>${kind === 'rent' && x.status !== 'disewa' && x.start <= D.today() ? `<br><a class="link" href="${UI.url('admin/pengembalian')}">Catat barang keluar sekarang →</a>` : ''}<br>Total ${rupiah(x.total)} · dibayar ${rupiah(Rules.paidTotal(x))}${k.method === 'Tunai' && k.change ? ` · kembalian ${rupiah(k.change)}` : ''}</div></div>

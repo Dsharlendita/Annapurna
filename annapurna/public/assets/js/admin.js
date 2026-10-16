@@ -85,7 +85,7 @@
   function reminderText(b) {
     const st = DB.settings(); const first = b.customer.name.split(' ')[0];
     const bl = UI.billOf(b); const late = bl.late, sisa = bl.sisa, fl = bl.fines, fine = bl.fine;
-    const notaUrl = new URL(url('invoice?id=' + b.id), location.href).href;
+    const notaUrl = Ann.Share.link(b); /* link publik: bisa dibuka customer tanpa login */
     const L = [];
     L.push(late
       ? `Halo Kak ${first}, kami dari ${st.storeName}. Sewa *${NO(b)}* seharusnya dikembalikan *${D.fmtDate(b.end, true)}* paling lambat pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB, dan sekarang sudah *terlambat ${late} malam*. Mohon segera dikembalikan ke toko ya.`
@@ -106,7 +106,7 @@
      Link wa.me hanya bisa membawa teks, jadi gambar tidak diunduh otomatis lagi — staff memilih sendiri cara melampirkannya. */
   async function remindCustomer(b) {
     if (!b) return;
-    b = DB.booking(b.id) || b;
+    b = DB.booking(b.id) || b; await Ann.Share.ensure(b);
     const text = reminderText(b); const bill = UI.billOf(b);
     const cv = await UI.tagihanCanvas(b);
     const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
@@ -925,8 +925,8 @@
     });
   }
   /* Setelah nota diperbarui: kirim ringkasan + link nota ke WhatsApp customer */
-  function svcNotaSent(b, done) {
-    const bl = Svc.bill(b); const link = location.origin + url('invoice?id=' + b.id);
+  async function svcNotaSent(b, done) {
+    await Ann.Share.ensure(b); const bl = Svc.bill(b); const link = Ann.Share.link(b);
     const txt = [`Halo ${b.customer.name}, nota ${NO(b)} sudah kami perbarui.`, `${Svc.label(b)}${Svc.isTent(b) ? ` (${(b.deliv || {}).tents || 1} tenda)` : ''}`,
       ...(Svc.isTent(b) ? [`Jasa: ${rupiah(bl.jasa)}`] : []), `${Svc.ongkirText(b).replace(/^o/, 'O')}: ${rupiah(bl.ongkir)}`, `Total layanan: ${rupiah(bl.total)}${bl.due ? ` · sisa ${rupiah(bl.due)} dibayar ${Svc.delivers(b) ? 'saat barang diantar' : 'ke admin'}` : ' · lunas'}`,
       Svc.brief(b), `Nota: ${link}`].join('\n');
@@ -1496,7 +1496,7 @@
   /* Teks WhatsApp penjualan: rincian nota + link nota digital */
   function saleWaText(s) {
     const st = DB.settings(); const bl = Svc.bill(s); const paid = Rules.paidTotal(s); const sisa = Math.max(0, s.total - paid);
-    const link = new URL(url('invoice?id=' + encodeURIComponent(s.id)), location.href).href;
+    const link = Ann.Share.link(s);
     const L = [`Halo ${s.customer.name}, berikut nota pembelian dari ${st.storeName}.`, '', `*NOTA PEMBELIAN ${NO(s)}*`, `Tanggal: ${D.fmtDate(s.createdAt, true)}`,
       ...s.items.map((i) => `• ${i.qty}× ${i.name} = ${rupiah(i.qty * i.price)}`),
       ...(s.discount ? [`Promo ${s.discount.code}: −${rupiah(s.discount.amount)}`] : []),
@@ -1512,6 +1512,7 @@
     const extra = saleDeliv(s) ? [{ l: 'Diantar ke tempat', r: String((s.deliv || {}).address || '-').slice(0, 40), head: true }, { l: 'Ongkir antar', r: bl.ongkirSet ? rupiah(bl.ongkir) : 'menunggu admin' }, ...(Svc.shipMode(s) ? [{ l: 'Pengiriman', r: Svc.shipBrief(s).slice(0, 44) }] : [])] : [];
     const cv = UI.notaCanvas([{ kind: 'buy', x: s, extra }]);
     const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+    await Ann.Share.ensure(s);
     const text = saleWaText(s);
     UI.sendPreview({ title: `Hubungi customer · ${NO(s)}`, blob, name: `nota-${NO(s).replace(/\//g, '_')}.png`, text, waUrl: `https://wa.me/${waNum(s.customer)}?text=${encodeURIComponent(text)}`, waLabel: `Hubungi ${(s.customer.name || 'customer').split(' ')[0]}`,
       onSent: () => { const x = DB.sale(s.id); if (!x) return; x.history = x.history || []; x.history.push({ at: D.nowStamp(), text: `Customer dihubungi via WhatsApp + nota digital oleh ${me.name}` }); DB.saveSale(x); } });

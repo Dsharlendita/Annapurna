@@ -59,11 +59,17 @@
         <strong>${netV < 0 ? '− ' : ''}${rupiah(Math.abs(netV))}</strong>
         <span class="fin-cmp">${netV >= 0 ? 'Surplus' : 'Defisit'} · margin ${LIN.in ? Math.round((netV / LIN.in) * 100) : 0}% · ${cmp(netV, LPV.profit, true).replace(/<\/?span[^>]*>/g, '')}</span>
         ${V === 'all' ? strip : V === 'sale' ? stripSale : stripRent}</a>`;
+    /* Rincian pengeluaran untuk setiap kartu (angka 0 tetap ditampilkan agar jelas tidak ada pengeluaran) */
+    const brk = (rows, note) => `<span class="fin-break">${rows.map(([l, v]) => `<span>${l} <b>${short(v)}</b></span>`).join('')}</span>${note ? `<span class="fin-sub">${note}</span>` : ''}`;
+    const saleRs = DB.restocks().filter((r) => r.kind !== 'rent' && r.status !== 'dibatalkan' && inR(r.date, f, t)).reduce((a, r) => a + r.qty * r.cost, 0);
+    const saleOther = Math.max(0, L.by.sale.out - saleRs);
+    const umCat = {}; L.expense.filter((x) => x.line === 'umum').forEach((x) => { umCat[x.cat || 'Lainnya'] = (umCat[x.cat || 'Lainnya'] || 0) + x.amount; });
+    const umTop = Object.entries(umCat).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, v]) => `${esc(c)} ${short(v)}`).join(' · ');
     $('#fin').innerHTML = big + `<div class="od-fin-side">${[
       fin('fa-arrow-trend-up', 'in', `Pemasukan${nm} · ${lbl}`, rupiah(LIN.in), cmp(LIN.in, LPV.in, true), A('keuangan' + (V !== 'all' ? '?lini=' + V : ''))),
-      V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), '<span class="fin-cmp">Harga beli × jumlah terjual · rincian di tabel bawah</span>', A('laporan?type=penjualan'))
-        : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(LIN.out), `${cmp(LIN.out, LPV.out, false)}<span class="fin-break"><span>Restock barang sewa <b>${short(ob.restock)}</b></span><span>Operasional &amp; kebutuhan lain <b>${short(ob.ops)}</b></span><span>Perawatan &amp; perbaikan <b>${short(ob.care)}</b></span></span>`, A('keuangan?tab=out&lini=rent'))
-        : fin('fa-arrow-trend-down', 'out', `Pengeluaran · ${lbl}`, rupiah(LIN.out), cmp(LIN.out, LPV.out, false), A('keuangan?tab=out')),
+      V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), `<span class="fin-cmp">Harga beli × jumlah terjual · rincian di tabel bawah</span>${brk([['Restock barang jual (uang keluar)', saleRs], ...(saleOther ? [['Pengeluaran lain penjualan', saleOther]] : [])], 'Restock baru menjadi modal saat barangnya terjual, jadi tidak langsung mengurangi laba.')}`, A('laporan?type=penjualan'))
+        : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(LIN.out), `${cmp(LIN.out, LPV.out, false)}${brk([['Restock barang rental', ob.restock], ['Belanja kebutuhan lain', ob.ops], ['Perawatan &amp; perbaikan', ob.care]])}`, A('keuangan?tab=out&lini=rent'))
+        : fin('fa-arrow-trend-down', 'out', `Pengeluaran · ${lbl}`, rupiah(LIN.out), `${cmp(LIN.out, LPV.out, false)}${brk([['Rental · restock &amp; kebutuhan lain', L.by.rent.out], ['Penjualan · restock barang jual', L.by.sale.out], ['Umum · biaya operasional toko', L.by.umum.out]])}${umTop ? `<span class="fin-sub">Biaya umum terbesar: ${umTop}</span>` : ''}`, A('keuangan?tab=out')),
     ].join('')}</div>`;
     /* Tab Penjualan: rincian laba per produk (total = kartu di atas) + belanja stok bulan ini */
     $('#profitTbl').innerHTML = V !== 'sale' ? '' : (() => {

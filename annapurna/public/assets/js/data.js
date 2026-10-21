@@ -1389,12 +1389,19 @@
     /* ---------- Restock barang SEWA ----------
        Unit fisik baru dibuat otomatis (kode unit lanjut dari unit terakhir), stok varian/total bertambah,
        harga beli per unit dicatat (modal barang sewa) dan pengeluaran "Pembelian Barang" (lini Rental) tercatat di Keuangan. */
-    restockRent({ productId, size, qty, cost, date, supplier, note }) {
+    restockRent({ productId, size, qty, cost, date, supplier, note, newCombo }) {
       const all = read('products', PRODUCTS); const p = all.find((x) => x.id === productId); if (!p) return { ok: false, msg: 'Barang tidak ditemukan.' };
       if (!tracked(p)) return { ok: false, msg: 'Barang ini bukan barang sewa.' };
       qty = Math.max(0, parseInt(qty, 10) || 0); cost = Math.max(0, +cost || 0);
       if (!qty) return { ok: false, msg: 'Isi jumlah unit yang ditambahkan.' };
       if (qty > 200) return { ok: false, msg: 'Maksimal 200 unit sekali restock.' };
+      /* Kombinasi / ukuran baru (belum pernah ada): dibuat sebagai opsi varian baru */
+      if (hasVariant(p) && newCombo && newCombo.v1) {
+        const v1 = String(newCombo.v1).trim(), v2 = String(newCombo.v2 || '').trim();
+        if (isVar2(p) && !v2) return { ok: false, msg: `Isi ${String(p.variant.label2).toLowerCase()} untuk kombinasi baru.` };
+        size = isVar2(p) ? `${v1}${VSEP}${v2}` : v1;
+        if (!p.variant.options.some((o) => o.name === size)) p.variant.options.push(Object.assign({ name: size, stock: 0 }, isVar2(p) ? { v1, v2 } : {}));
+      }
       if (hasVariant(p) && !p.variant.options.some((o) => o.name === size)) return { ok: false, msg: `Pilih ${variantLabel(p).toLowerCase()} yang di-restock.` };
       const me = DB.session() || { name: 'Sistem' }; const at = nowStamp(); const d = date || today();
       const before = DB.sizeStock(p, size); const had = new Set((p.units || []).map((u) => u.code));
@@ -2246,7 +2253,8 @@
     terms: () => DB.settings().laundryTerms || SETTINGS.laundryTerms,
     /* Link nota publik: isi nota dibawa di dalam link (parameter s), jadi bisa dibuka siapa pun yang punya link, tanpa akun/login.
        Dikompres (deflate) bila browser mendukung agar link tetap pendek; awalan z = terkompres, p = biasa. */
-    async share(o) {
+    async share(o) { const code = await Laundry.shareCode(o); const sh = await Share.short('laundry', o.id, code); return sh ? { short: sh } : code; },
+    async shareCode(o) {
       const st = DB.settings();
       const snap = { v: 1, at: nowStamp(), id: o.id, no: o.no, c: o.createdAt, s: o.status, e: Laundry.est(o), n: [o.customer?.name || '', o.customer?.phone || ''],
         i: (o.items || []).map((i) => [i.name, i.cat || '', +i.qty || 0, +i.price || 0]), o: +o.ongkir || 0, d: +o.discount || 0,
@@ -2305,10 +2313,22 @@
       } catch (e) { return 'p' + Share.b64(raw); }
     },
     /* Siapkan link terkompresi (panggil sebelum link() agar link pendek) */
-    async ensure(...list) { for (const x of list.flat()) if (x && x.id) Share._c[x.id] = { sig: JSON.stringify(x).length + ':' + (x.status || '') + (x.paymentStatus || ''), code: await Share.encode(x) }; },
+    async ensure(...list) { for (const x of list.flat()) if (x && x.id) { Share._c[x.id] = { sig: JSON.stringify(x).length + ':' + (x.status || '') + (x.paymentStatus || ''), code: await Share.encode(x) }; const sh = await Share.short(Share.kind(x), x.id, Share._c[x.id].code); if (sh) Share._c[x.id].short = sh; } },
+    /* Link nota PENDEK (mis. https://annapurna.id/n/K7x2Q9) — butuh endpoint backend POST /api/nota-link (lihat catatan-backend.md C.9).
+       Selama endpoint belum ada (404/405/offline), otomatis memakai link panjang seperti biasa dan tidak dicoba lagi di sesi ini. */
+    _shortOff: false,
+    async short(kind, id, code) {
+      if (Share._shortOff || !window.Api || !code) return '';
+      try {
+        const r = await window.Api.post('api/nota-link', { kind, id, payload: code }, { redirectOn401: false, timeout: 4000 });
+        if (r && r.ok && r.data && (r.data.url || r.data.token)) return r.data.url || new URL(window.UI.url('n/' + r.data.token), location.href).href;
+        if (!r || [0, 404, 405, 408, 419, 500].includes(r.status)) Share._shortOff = true;
+      } catch (e) { Share._shortOff = true; }
+      return '';
+    },
     /* Link nota publik (sinkron). Bila belum di-ensure: pakai versi tidak terkompres (lebih panjang tapi tetap berfungsi). */
     link(x) {
-      const c = Share._c[x.id]; let code = c && c.code;
+      const c = Share._c[x.id]; if (c && c.short) return c.short; let code = c && c.code;
       if (!code) { const raw = new TextEncoder().encode(JSON.stringify(Share.snapshot(x))); code = 'p' + Share.b64(raw); }
       return new URL(window.UI.url('invoice?id=' + encodeURIComponent(x.id) + '&s=' + code), location.href).href;
     },

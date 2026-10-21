@@ -116,6 +116,7 @@
         <div id="dSize"></div>
         <div class="field"><label>Jumlah</label><div class="qty"><button type="button" data-q="-1" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input id="dQty" type="number" min="1" value="1" aria-label="Jumlah"><button type="button" data-q="1" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div></div>
         <div class="avail-msg" id="dAvail"></div>
+        ${DB.hasVariant(p) ? '<div class="pick-add"><button type="button" class="btn btn-light btn-sm" id="dPickAdd"><i class="fa-solid fa-plus"></i> Tambahkan ke pilihan</button><small class="muted">Butuh beberapa ukuran/warna? Tambahkan satu per satu, lalu sewa sekaligus.</small></div><div id="dPicks"></div>' : ''}
         <div class="card" style="padding:16px;margin-top:14px">
           <div class="kv"><span>Harga sewa</span><span id="dLine"></span></div>
           <div class="kv total"><span>Total sewa</span><span id="dTotal"></span></div>
@@ -126,7 +127,7 @@
           <button class="btn btn-primary" id="dNow" style="flex:1">Sewa sekarang <i class="fa-solid fa-arrow-right"></i></button>
         </div>
         <a class="btn btn-ghost btn-sm" style="margin-top:8px" href="${waLink('Halo Annapurna, saya mau tanya ketersediaan ' + p.name)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya lewat WhatsApp</a>`;
-      const s = $('#dStart'), e = $('#dEnd'), q = $('#dQty');
+      const s = $('#dStart'), e = $('#dEnd'), q = $('#dQty'); const picks = []; /* [{ size, qty }] */
       dateGuard(s, e);
       $('#dDur').appendChild(UI.durationChips(s, e));
       const calc = () => {
@@ -156,6 +157,19 @@
         $('#dDp').textContent = rupiah(Math.round(unitTotal * qty * st.dpPercent / 100));
         $('#dCart').disabled = $('#dNow').disabled = !ok;
         const sb = $('#stickyBuy'); if (sb) { sb.querySelector('b').textContent = rupiah(unitTotal * qty); sb.querySelector('small').textContent = `${qty} unit · ${days} malam${selSize ? ' · ' + selSize.replace(/\s*\(.*\)/, '') : ''}`; sb.querySelector('button').disabled = !ok; }
+        if ($('#dPickAdd')) $('#dPickAdd').disabled = !ok;
+        /* Daftar pilihan (beberapa ukuran/warna sekaligus): total & tombol mengikuti daftar */
+        if (sized && picks.length) {
+          let allOk = days >= minD && days <= maxD; const N = picks.reduce((a, x) => a + x.qty, 0);
+          $('#dPicks').innerHTML = `<div class="picks"><div class="picks-h"><b><i class="fa-solid fa-list-check"></i> Pilihanmu</b><span class="muted">${N} unit · ${days} malam</span></div>${picks.map((x, i) => { const av = Rules.available(p.id, s.value, e.value, null, x.size); const bad = x.qty > av; if (bad) allOk = false;
+            return `<div class="pick-row ${bad ? 'bad' : ''}"><span class="nm"><b>${esc(String(x.size).replace(/\s*\(.*\)/, ''))}</b><small>${bad ? `stok hanya ${av} di tanggal ini` : `${av} tersedia`}</small></span>
+              <span class="qty sm"><button type="button" data-pq="-1" data-pi="${i}" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input value="${x.qty}" readonly aria-label="Jumlah"><button type="button" data-pq="1" data-pi="${i}" aria-label="Tambah" ${x.qty >= av ? 'disabled' : ''}><i class="fa-solid fa-plus"></i></button></span>
+              <span class="pr">${rupiah(unitTotal * x.qty)}</span><button type="button" class="icon-btn sm" data-pdel="${i}" aria-label="Hapus ${esc(x.size)}"><i class="fa-solid fa-xmark"></i></button></div>`; }).join('')}</div>`;
+          $('#dLine').textContent = `${Rules.tierLabel(tiers, days)} · ${rupiah(unitTotal)} × ${N}`; $('#dTotal').textContent = rupiah(unitTotal * N); $('#dDp').textContent = rupiah(Math.round(unitTotal * N * st.dpPercent / 100));
+          $('#dCart').disabled = $('#dNow').disabled = !allOk;
+          if (sb) { sb.querySelector('b').textContent = rupiah(unitTotal * N); sb.querySelector('small').textContent = `${N} unit · ${picks.length} pilihan · ${days} malam`; sb.querySelector('button').disabled = !allOk; }
+          drawCal(); return allOk;
+        } else if ($('#dPicks')) $('#dPicks').innerHTML = '';
         drawCal();
         return ok;
       };
@@ -163,9 +177,19 @@
       [s, e, q].forEach((x) => x.addEventListener('change', calc));
       q.addEventListener('input', calc);
       $('#dSize').addEventListener('click', (ev) => { const b = ev.target.closest('[data-size]'); if (b && !b.disabled) { selSize = b.dataset.size; calc(); } });
-      const add = () => calc() && (DB.setTrip(s.value, e.value), Cart.add(Object.assign({ type: 'rent', kind: 'product', refId: p.id, qty: +q.value, start: s.value, end: e.value }, selSize ? { size: selSize } : {})), true);
-      $('#dCart').addEventListener('click', () => add() && toast(`${esc(DB.variantName(p, selSize))} masuk ke keranjang sewa.`));
-      $('#dNow').addEventListener('click', () => add() && (location.href = 'keranjang'));
+      const add = () => { if (!calc()) return false; DB.setTrip(s.value, e.value);
+        const L = picks.length ? picks : [{ size: selSize, qty: +q.value }];
+        L.forEach((x) => Cart.add(Object.assign({ type: 'rent', kind: 'product', refId: p.id, qty: x.qty, start: s.value, end: e.value }, x.size ? { size: x.size } : {}))); return L; };
+      $('#dCart').addEventListener('click', () => { const L = add(); if (!L) return; toast(L.length > 1 ? `${L.length} pilihan ${esc(p.name)} (${L.reduce((a, x) => a + x.qty, 0)} unit) masuk ke keranjang sewa.` : `${esc(DB.variantName(p, L[0].size))} masuk ke keranjang sewa.`); if (picks.length) { picks.length = 0; calc(); } });
+      /* Sewa sekarang: langsung ke checkout (tanpa mampir ke keranjang) */
+      $('#dNow').addEventListener('click', () => add() && (location.href = UI.url('checkout')));
+      if ($('#dPickAdd')) {
+        $('#dPickAdd').addEventListener('click', () => { if (!calc() || !selSize) return; const n = Math.max(1, +q.value || 1); const ex = picks.find((x) => x.size === selSize); const av = Rules.available(p.id, s.value, e.value, null, selSize);
+          if (ex) ex.qty = Math.min(av, ex.qty + n); else picks.push({ size: selSize, qty: Math.min(av, n) });
+          q.value = 1; toast(`${esc(String(selSize).replace(/\s*\(.*\)/, ''))} ditambahkan ke pilihan. Pilih ukuran/warna lain bila perlu.`); calc(); });
+        $('#dPicks').addEventListener('click', (ev) => { const pq = ev.target.closest('[data-pq]'); if (pq) { const x = picks[+pq.dataset.pi]; x.qty += +pq.dataset.pq; if (x.qty < 1) picks.splice(+pq.dataset.pi, 1); calc(); return; }
+          const d = ev.target.closest('[data-pdel]'); if (d) { picks.splice(+d.dataset.pdel, 1); calc(); } });
+      }
       if (!$('#stickyBuy')) { document.body.insertAdjacentHTML('beforeend', '<div class="sticky-buy" id="stickyBuy"><div><b></b><small></small></div><button class="btn btn-primary" type="button">Sewa sekarang <i class="fa-solid fa-arrow-right"></i></button></div>'); document.body.classList.add('has-sticky'); }
       $('#stickyBuy button').addEventListener('click', () => { if (!$('#dNow').disabled) $('#dNow').click(); else box.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
       window.__setStart = (d) => { s.value = d; s.dispatchEvent(new Event('change')); calc(); };

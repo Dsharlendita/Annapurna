@@ -1254,6 +1254,94 @@
     return out;
   }
 
+  /* ===== Struk thermal (58/80 mm) — sewa, jual & laundry. Dipakai Kasir, Detail transaksi, dan halaman nota ===== */
+  function strukHtml(x, kind, mm) {
+    const st = DB.settings(); const RC = Object.assign({ paper: 58, footerRent: 'Bawa struk ini & kartu identitas saat mengembalikan barang.', footerSale: 'Barang yang sudah dibeli tidak dapat ditukar kecuali cacat produksi.' }, st.receipt || {}); mm = mm || RC.paper;
+    const L = kind === 'sale' ? x.items.map((i) => [i.name, `${i.qty} x ${rupiah(i.price)}`, rupiah(i.qty * i.price)]) : x.items.map((i) => [i.name, `${i.qty} x ${rupiah(Rules.lineUnit(i, x.days))}`, rupiah(i.qty * Rules.lineUnit(i, x.days))]);
+    const paid = Rules.paidTotal(x), k = x.kasir || {};
+    const row = (a, b, cls) => `<div class="r ${cls || ''}"><span>${a}</span><span>${b}</span></div>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Struk ${esc(NO(x))}</title><style>
+      @page { size: ${mm}mm 200mm; margin: 0; } * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      body { width: ${mm}mm; padding: 3mm ${mm === 58 ? 2.5 : 4}mm 6mm; font: ${mm === 58 ? 10.5 : 12}px/1.35 'Courier New', monospace; color: #000; }
+      .c { text-align: center; } h1 { font-size: 1.25em; margin: 0; letter-spacing: .05em; } .s { font-size: .9em; }
+      hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; } .r { display: flex; justify-content: space-between; gap: 6px; } .r span:last-child { text-align: right; white-space: nowrap; }
+      .b { font-weight: 700; } .it { margin: 3px 0; } .big { font-size: 1.15em; font-weight: 700; }
+    </style></head><body>
+      <div class="c"><h1>ANNAPURNA ADVENTURE</h1><div class="s">${esc(st.address || '')}<br>WA ${esc(st.phone || '')}</div></div><hr>
+      ${row('No. nota', esc(NO(x)), 'b')}${row('Tanggal', D.fmtDateTime(x.createdAt))}${row('Kasir', esc(k.by || ((DB.session() || {}).name || '-')))}${row('Customer', esc(x.customer.name))}
+      ${kind === 'rent' ? `${row('Sewa', D.fmtRange(x.start, x.end) + ' · ' + x.days + ' mlm')}${row('Kembali maks.', D.fmtDate(x.end) + ' 22.00')}` : ''}<hr>
+      ${L.map(([n, q, tot]) => `<div class="it"><div>${esc(n)}</div>${row(q, tot)}</div>`).join('')}<hr>
+      ${row('Subtotal', rupiah(x.subtotal))}${x.discount ? row('Diskon', '- ' + rupiah(x.discount.amount || x.discount.fixed || 0)) : ''}${row('TOTAL', rupiah(x.total), 'big')}
+      ${row('Dibayar (' + esc(k.method || x.method) + ')', rupiah(paid))}${k.method === 'Tunai' ? row('Tunai', rupiah(k.received || paid)) + row('Kembalian', rupiah(k.change || 0)) : ''}
+      ${x.total - paid > 0 ? row('Sisa bayar saat ambil', rupiah(x.total - paid), 'b') : ''}
+      ${(x.svc || []).length ? `<hr>${x.svc.map((v) => row(v.kind === 'pasang' ? 'Jasa tenda' + (v.note ? ' (' + esc(v.note) + ')' : '') : 'Ongkir antar/jemput', rupiah(v.amount))).join('')}${row('Layanan dibayar', rupiah(x.svc.reduce((a, v) => a + v.amount, 0)), 'b')}` : ''}<hr>
+      <div class="c s">${esc((kind === 'rent' ? RC.footerRent : RC.footerSale) || '')}<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '@annapurnaadv')}</div>
+      <script>window.onload = () => { /* Tinggi kertas = panjang isi struk (bukan A4) */ const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 120); };<\/script></body></html>`;
+  }
+  function printStruk(x, kind, mm) {
+    const w = window.open('', '_blank', 'width=420,height=640');
+    if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
+    w.document.open(); w.document.write(strukHtml(x, kind, mm)); w.document.close();
+  }
+  function ldStruk(o, mm) {
+    const { Laundry } = window.Ann;
+    const st = DB.settings(); const RC = Object.assign({ paper: 58 }, st.receipt || {}); mm = mm || RC.paper;
+    const W = mm === 58 ? 32 : 42; /* lebar karakter monospace */
+    const pad2 = (a, b) => { a = String(a); b = String(b); const sp = Math.max(1, W - a.length - b.length); return a + ' '.repeat(sp) + b; };
+    const line = (c) => (c || '-').repeat(W);
+    const num = (n) => Math.round(+n || 0).toLocaleString('id-ID');
+    const dt = (iso) => { const d = new Date(iso); return `${D.fmtDate(iso)} ${String(d.getHours()).padStart(2, '0')}.${String(d.getMinutes()).padStart(2, '0')}`; };
+    const total = Laundry.total(o), paid = Laundry.paid(o), sub = (o.items || []).reduce((a, i) => a + i.price * i.qty, 0);
+    const lunas = paid >= total; const last = (o.payments || []).slice(-1)[0];
+    const k = o.kasir || {};
+    const T = [];
+    T.push(pad2('No. Nota', o.no));
+    T.push(pad2('Terima', dt(o.createdAt)));
+    T.push(pad2('Est. selesai', D.fmtDate(Laundry.est(o))));
+    if (o.status === 'selesai' && o.pickedAt) T.push(pad2('Diambil', dt(o.pickedAt)));
+    T.push(pad2('Kasir', o.by || ((DB.session() || {}).name || '-')));
+    T.push(line());
+    T.push(pad2('Pelanggan', o.customer.name.slice(0, W - 11)));
+    T.push(pad2('No. HP', o.customer.phone));
+    T.push(line());
+    (o.items || []).forEach((i) => { T.push(i.name.slice(0, W)); T.push(pad2(`  ${i.qty} x ${num(i.price)}`, num(i.qty * i.price))); });
+    T.push(line());
+    T.push(pad2('Jumlah barang', `${Laundry.qty(o)} pcs`));
+    T.push(pad2('Subtotal', num(sub)));
+    if (o.ongkir) T.push(pad2('Ongkir', num(o.ongkir)));
+    if (o.discount) T.push(pad2('Diskon', '-' + num(o.discount)));
+    const P = []; /* baris pembayaran, dicetak setelah TOTAL */
+    if (paid) { P.push(pad2(`Dibayar${last ? ' (' + String(last.via || '').replace('Kasir · ', '') + ')' : ''}`, num(paid))); if (k.method === 'Tunai' && k.received && k.received > paid) { P.push(pad2('Tunai', num(k.received))); P.push(pad2('Kembali', num(k.change || 0))); } }
+    else P.push(pad2('Dibayar', '0'));
+    if (!lunas) P.push(pad2('SISA BAYAR', 'Rp ' + num(total - paid)));
+    const terms = Laundry.terms();
+    const w = window.open('', '_blank', 'width=420,height=700'); if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
+    w.document.open(); w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk ${esc(o.no)}</title><style>
+      @page { size: ${mm}mm 260mm; margin: 0; } * { box-sizing: border-box; } html, body { margin: 0; padding: 0; background: #fff; }
+      body { width: ${mm}mm; padding: 3mm ${mm === 58 ? 2 : 3.5}mm 6mm; font: ${mm === 58 ? 10 : 11.5}px/1.35 'Courier New', monospace; color: #000; }
+      pre { margin: 0; font: inherit; white-space: pre; } .c { text-align: center; } h1 { font-size: 1.3em; margin: 0; letter-spacing: .04em; }
+      .s { font-size: .92em; } .big { font-size: 1.25em; font-weight: 700; margin: 2px 0; } .stamp { display: inline-block; margin: 6px 0 2px; padding: 3px 10px; border: 2px solid #000; font-weight: 700; letter-spacing: .15em; }
+      .terms { font-size: .86em; margin: 4px 0 0; padding-left: 1.3em; } .terms li { margin: 1px 0; } .sign { display: flex; justify-content: space-between; margin-top: 14px; font-size: .9em; } .sign > div { width: 46%; text-align: center; } .sign .ln { border-top: 1px dotted #000; margin-top: 30px; padding-top: 2px; }
+      .tot { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: 1.2em; margin: 3px 0; }
+    </style></head><body>
+      <div class="c"><h1>ANNAPURNA ADVENTURE</h1><div class="s"><b>LAUNDRY OUTDOOR EQUIPMENT</b><br>${esc(st.address || '')}<br>WA ${esc(st.phone || '')}</div></div>
+      <pre>${line('=')}</pre>
+      <pre>${T.map(esc).join('\n')}</pre>
+      <div class="tot"><span>TOTAL</span><span>Rp ${num(total)}</span></div>
+      <pre>${P.map(esc).join('\n')}</pre>
+      <div class="c"><span class="stamp">${lunas ? 'LUNAS' : paid ? 'BELUM LUNAS' : 'BAYAR SAAT AMBIL'}</span></div>
+      ${o.notes ? `<pre>${line()}</pre><div class="s">Catatan: ${esc(o.notes)}</div>` : ''}
+      <pre>${line()}</pre>
+      <div class="s"><b>KETENTUAN</b></div><ol class="terms">${terms.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
+      <div class="sign"><div><div class="ln">${o.pickedAt ? esc(D.fmtDate(o.pickedAt)) : 'Tgl ambil'}</div></div><div><div class="ln">Paraf pelanggan</div></div></div>
+      <pre>${line('=')}</pre>
+      <div class="c s">Simpan struk ini untuk pengambilan.<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '')}</div>
+      <script>window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 150); };<\/script></body></html>`);
+    w.document.close();
+  }
+  /* kind: 'rent' | 'sale' | 'laundry'. mm kosong = ukuran dari Konfigurasi → Nota & Struk */
+  function printAny(x, mm) { const id = String(x.id || ''); if (/^DRY/.test(id) || x.no && /^DRY/.test(x.no)) return ldStruk(x, mm); return printStruk(x, /^RNT/.test(id) ? 'rent' : 'sale', mm); }
   /* Gambar INVOICE PENJUALAN (PNG): desain sama dengan nota sewa & laundry (logo, stempel, QR, tabel, ringkasan) */
   async function saleCanvas(s) {
     const st = DB.settings(); const Svc = window.Ann.Svc;
@@ -1592,5 +1680,5 @@
     let h = 0; for (const ch of String(name || '').toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return `<span class="rv-av av-c${h % AV_COLORS}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
-  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, variantInfo, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

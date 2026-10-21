@@ -142,6 +142,8 @@
   const staffView = ['admin', 'owner'].includes((user || {}).role);
   if (staffView) $('#waShare').remove();
   document.title = `Nota ${NUM} — Annapurna Adventure`;
+  /* Struk thermal 58/80 mm (ukuran dari Konfigurasi → Nota & Struk) */
+  if ($('#prStruk')) $('#prStruk').addEventListener('click', () => UI.printAny(Object.assign({}, x, { no: x.no || NUM })));
   $('#dlPdf').addEventListener('click', async () => {
     const btn = $('#dlPdf'), h = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan…';
     try { await UI.elementToPDF($('#inv .invoice'), `${isRent ? 'Nota-Booking' : isLd ? 'Nota-Laundry' : 'Invoice'}-${NUM.replace(/\//g, '-')}`); UI.toast('Nota PDF berhasil diunduh.'); }

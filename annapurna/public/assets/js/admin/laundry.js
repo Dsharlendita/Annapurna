@@ -42,14 +42,15 @@
         <td style="white-space:nowrap">${D.fmtDate(o.createdAt)}<small>${['selesai', 'dibatalkan'].includes(o.status) ? (o.pickedAt ? 'diambil ' + D.fmtDate(o.pickedAt) : '—') : `selesai ${D.fmtDate(Laundry.est(o))}${Laundry.est(o) < D.today() ? ' · <b style="color:var(--red)">lewat</b>' : Laundry.est(o) === D.today() ? ' · <b style="color:#9a6508">hari ini</b>' : ''}`}</small></td>
         <td class="num">${rupiah(total)}${o.discount ? `<small>diskon ${rupiah(o.discount)}</small>` : ''}</td>
         <td>${pill('payment', paid >= total ? 'paid' : 'unpaid')}${paid && paid < total ? `<small>dibayar ${rupiah(paid)}</small>` : ''}</td>
-        <td>${pill('laundry', o.status)}</td>
-        <td><div class="acts">${nx && o.status !== 'dibatalkan' ? `<button class="btn btn-primary btn-xs" data-next="${o.id}"><i class="fa-solid ${nx[1]}"></i> ${nx[2]}</button>` : ''}<button class="btn btn-light btn-xs" data-detail="${o.id}">Detail</button></div></td></tr>`;
+        <td>${pill('laundry', o.status)}${o.status === 'siap' && !o.notifiedReady ? '<small style="color:var(--red);font-weight:600"><i class="fa-solid fa-bell"></i> belum dikabari</small>' : ''}</td>
+        <td><div class="acts">${o.status === 'siap' && !o.notifiedReady ? `<button class="btn btn-wa btn-xs" data-notify="${o.id}"><i class="fa-brands fa-whatsapp"></i> Kabari</button>` : ''}${nx && o.status !== 'dibatalkan' ? `<button class="btn btn-primary btn-xs" data-next="${o.id}"><i class="fa-solid ${nx[1]}"></i> ${nx[2]}</button>` : ''}<button class="btn btn-light btn-xs" data-detail="${o.id}">Detail</button></div></td></tr>`;
     }).join('') : `<tr><td colspan="8"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid fa-jug-detergent"></i></div><h3>Tidak ada laundry</h3><p>Input laundry baru dari Kasir saat barang customer diterima.</p></div></td></tr>`;
   }
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; history.replaceState(null, '', '?tab=' + tab); draw(); } });
   ['#q', '#from', '#to'].forEach((s) => $(s).addEventListener('input', draw));
   $('#rows').addEventListener('click', async (e) => {
     const d = e.target.closest('[data-detail]'); if (d) { Admin.laundryModal(d.dataset.detail, draw); return; }
+    const nt = e.target.closest('[data-notify]'); if (nt) { Admin.ldNotify(DB.laundryOrder(nt.dataset.notify), draw); return; }
     const n = e.target.closest('[data-next]'); if (!n) return;
     const o = DB.laundryOrder(n.dataset.next); const to = Laundry.FLOW[o.status][0];
     if (to === 'selesai') { Admin.ldPickup(o, draw); return; }

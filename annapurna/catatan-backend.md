@@ -1,7 +1,7 @@
 # Catatan Progres & Analisis Kebutuhan Backend
 ## Sistem Informasi Sewa dan Penjualan Perlengkapan Outdoor — Annapurna Adventure
 **Referensi:** Dokumen Teknis (Technical Specification) Versi 1.0 (2 Oktober 2026)  
-**Terakhir Diperbarui:** 21 Oktober 2026 (lihat Bagian C untuk kebutuhan backend dari revisi mitra 21 Oktober 2026)  
+**Terakhir Diperbarui:** 21 Oktober 2026 (lihat Bagian C: revisi mitra 21 Oktober 2026, termasuk C.9–C.12 revisi lanjutan)  
 
 ---
 
@@ -629,3 +629,29 @@ Semua fitur di bawah sudah berjalan di frontend (data di `localStorage`, migrasi
 - 12 kunci: `sale_nota`, `kasir_sale`, `kasir_rent`, `rent_booking`, `rent_reminder`, `rent_fine`, `svc_nota`, `ld_diterima`, `ld_dicuci`, `ld_siap`, `ld_selesai`, `ld_dibatalkan`.
 - Kode pengganti: `{nama} {nama_depan} {no_nota} {tanggal} {rincian} {total} {dibayar} {sisa} {metode} {link_nota} {pengiriman} {tgl_sewa} {tgl_ambil} {tgl_kembali} {jam_kembali} {lama} {status} {terlambat} {denda} {total_bayar} {estimasi} {nama_toko} {alamat_toko} {jam_buka} {wa_toko}`.
 - Hanya owner yang boleh mengubah template (audit `konfigurasi`). Staff mengedit isi pesan per pengiriman di jendela kirim (tidak disimpan sebagai template, hanya dicatat "dihubungi via WhatsApp" di riwayat transaksi).
+
+## C.9 Link nota pendek (`/n/{token}`)
+Saat ini link nota publik membawa **seluruh isi nota** di parameter `s` (ratusan karakter), karena data transaksi masih di browser staff. Frontend sudah siap memakai link pendek: `Share.short()` di `data.js` memanggil endpoint di bawah, dan otomatis kembali ke link panjang bila endpoint belum ada (404/405/offline), tanpa mencoba lagi di sesi itu.
+- Tabel `nota_links`: `token CHAR(8) PK` (acak, huruf+angka, unik), `kind ENUM('rent','sale','laundry')`, `ref_id VARCHAR(30)`, `payload LONGTEXT` (isi `s` dari frontend; nanti diganti data langsung dari tabel transaksi), `created_by`, `created_at`, `expires_at NULL`. Index `(kind, ref_id)`.
+- `POST /api/nota-link` (auth staff / pemilik pesanan) body `{ kind, id, payload }` → `{ data: { token, url } }`. Bila `(kind, ref_id)` sudah punya token, perbarui `payload` dan kembalikan token yang sama (link lama tetap berlaku).
+- `GET /n/{token}` (publik, tanpa login) → render halaman `invoice` dengan data token (nomor HP disamarkan seperti `Share.snapshot`). Token tidak ditemukan → halaman "Nota tidak ditemukan".
+- Rate limit (mis. 30/menit per IP) dan jangan tampilkan email, bukti bayar, atau foto identitas.
+
+## C.10 Pengeluaran lini Rental
+- Lini Rental sekarang **punya pengeluaran**: Laba Rental = pemasukan Rental − pengeluaran Rental.
+- `expenses.line` boleh `rent` (form Keuangan sudah menyediakan pilihan Rental / Penjualan / Umum).
+- Pengelompokan di dashboard (`rentOutKind` di `admin.js`): **restock** (kategori/keterangan memuat "Pembelian Barang"/"Restock"), **perawatan & perbaikan** (kategori Perawatan/Perbaikan/Servis/Cuci), sisanya **operasional & kebutuhan lain**.
+- Perawatan & perbaikan alat (termasuk biaya dari menu Perawatan Unit) otomatis masuk lini Rental.
+- Laporan/rekap bulanan (`byLine`) wajib menyimpan `rent.out` (sebelumnya dipaksa 0).
+
+## C.11 Dashboard owner berdasarkan periode
+Endpoint ringkasan (`GET /api/owner/summary`) perlu menerima `period=day|week|month` + `month=YYYY-MM`:
+- `day` = hari ini vs kemarin;
+- `week` = Senin–hari ini vs rentang yang sama minggu lalu;
+- `month` = bulan terpilih vs bulan sebelumnya.
+
+Isi: pemasukan, pengeluaran, laba per lini (`rent`, `sale`, `umum`), rincian pengeluaran Rental (C.10), dan jumlah transaksi.
+
+## C.12 Restock kombinasi baru & daftar pilihan varian
+- `POST /api/admin/products/{id}/restock` menerima `new_combo: { value_1, value_2? }`. Server membuat baris `product_variants` baru (stok 0) lalu menambah unit, dan menambahkan nilai baru ke `attributes.values` bila belum ada.
+- Checkout dari halaman produk dapat berisi beberapa baris barang yang sama dengan `size` (kombinasi) berbeda dalam satu booking. Validasi ketersediaan dilakukan **per kombinasi** dan dikunci bersamaan (`lockForUpdate`) agar tidak ada stok ganda.

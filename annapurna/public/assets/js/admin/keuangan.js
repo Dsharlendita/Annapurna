@@ -29,8 +29,8 @@
   const LINE_LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
   const lini = (x) => `<span class="lini ${x.line}">${LINE_LBL[x.line] || ''}</span>`;
   /* Tebakan awal lini untuk transaksi manual (aturan sama dengan Admin.ledger); staff tetap bisa mengubahnya di form */
-  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'umum' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
-  const LINE_HINT = { rent: 'Untuk usaha sewa, mis. beli tenda baru untuk disewakan, servis alat sewa.', sale: 'Untuk usaha jual, mis. kulakan / restock barang jual.', umum: 'Biaya operasional toko, termasuk perawatan alat sewa, deterjen laundry, bensin antar, listrik, gaji, internet, promosi.' };
+  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'rent' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
+  const LINE_HINT = { rent: 'Mengurangi laba Rental: restock / beli barang sewa, perawatan & perbaikan alat sewa, kebutuhan operasional rental (deterjen laundry, bensin antar jemput, dll.).', sale: 'Untuk usaha jual, mis. kulakan / restock barang jual.', umum: 'Biaya toko secara umum yang tidak khusus satu lini, mis. listrik, gaji, internet, promosi.' };
   function led(f, t) {
     const L = Admin.ledger(f, t); if (LINE === 'all') return L;
     const income = L.income.filter((x) => x.line === LINE), expense = L.expense.filter((x) => x.line === LINE);
@@ -87,11 +87,10 @@
     const isNew = !e; const cats = [...CATS[kind]]; if (e && e.category && !cats.includes(e.category)) cats.unshift(e.category); e = e || { date: T, category: cats[0], desc: '', amount: '' };
     const label = kind === 'in' ? 'pemasukan lainnya' : 'pengeluaran';
     let ln = e.line || (isNew && LINE !== 'all' ? LINE : guessLine(kind, e.category));
-    if (kind === 'out' && ln === 'rent') ln = 'umum'; /* lini Rental tidak punya pengeluaran (ketentuan mitra) */
     const m = modal({ title: `${isNew ? 'Catat' : 'Edit'} ${label}`, body: `<form id="ef" novalidate>
       <div class="grid-2"><div class="field"><label>Tanggal</label><input class="input" type="date" name="date" value="${e.date}" max="${T}"></div>
       <div class="field"><label>Kategori</label><select class="select" name="category">${cats.map((c) => `<option ${c === e.category ? 'selected' : ''}>${c}</option>`).join('')}</select></div></div>
-      <div class="field"><label>Untuk lini usaha</label><select class="select" name="line">${(kind === 'out' ? ['sale', 'umum'] : ['rent', 'sale', 'umum']).map((k) => `<option value="${k}" ${k === ln ? 'selected' : ''}>${LINE_LBL[k]}</option>`).join('')}</select><small class="muted lini-hint" id="lnHint">${LINE_HINT[ln]}</small></div>
+      <div class="field"><label>Untuk lini usaha</label><select class="select" name="line">${['rent', 'sale', 'umum'].map((k) => `<option value="${k}" ${k === ln ? 'selected' : ''}>${LINE_LBL[k]}</option>`).join('')}</select><small class="muted lini-hint" id="lnHint">${LINE_HINT[ln]}</small></div>
       <div class="field"><label>Keterangan</label><input class="input" name="desc" value="${esc(e.desc)}" placeholder="${kind === 'in' ? 'Contoh: Jasa cuci tenda milik customer' : 'Contoh: Servis kompor portable'}"></div>
       <div class="field"><label>Jumlah (Rp)</label><input class="input" type="number" min="0" step="500" name="amount" value="${e.amount}"></div>
       ${isNew ? '' : '<div class="notice"><i class="fa-solid fa-clock-rotate-left"></i><div>Perubahan tercatat di histori sistem beserta nilai sebelum dan sesudahnya.</div></div>'}</form>`,

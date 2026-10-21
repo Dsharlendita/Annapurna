@@ -10,7 +10,8 @@
   <div class="od-bar">
     <div class="seg biz-view" id="bizView" role="tablist" aria-label="Tampilan data"><button type="button" data-v="all" class="active" role="tab"><i class="fa-solid fa-layer-group"></i> Gabungan</button><button type="button" data-v="rent" role="tab"><i class="fa-solid fa-campground"></i> Rental</button><button type="button" data-v="sale" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan</button></div>
     <div class="od-tools">
-      <label class="od-period"><i class="fa-regular fa-calendar"></i><input class="input" type="month" id="period" aria-label="Periode ringkasan"></label>
+      <div class="seg od-per" id="perMode" role="tablist" aria-label="Periode"><button type="button" data-per="day" role="tab">Hari ini</button><button type="button" data-per="week" role="tab">Minggu ini</button><button type="button" data-per="month" role="tab">Bulan</button></div>
+      <label class="od-period" title="Pilih bulan"><i class="fa-regular fa-calendar"></i><input class="input" type="month" id="period" aria-label="Pilih bulan"></label>
       <a class="btn btn-light btn-sm" href="{{ route('admin.laporan') }}"><i class="fa-solid fa-file-lines"></i> Laporan</a>
       <a class="btn btn-light btn-sm" href="{{ route('owner.histori') }}"><i class="fa-solid fa-clock-rotate-left"></i> Histori</a>
     </div>

@@ -8,18 +8,13 @@
   let tab = param('tab') || 'semua';
   /* Terlambat dikembalikan (denda berjalan) — ditampilkan di tabel terpisah di atas, tidak ikut tabel utama */
   const isLate = (b) => b.status === 'disewa' && UI.billOf(b).late > 0;
+  /* Keterlambatan tidak ditampilkan dobel di sini: rinciannya ada di Barang Keluar & Kembali dan Dashboard.
+     Cukup satu baris petunjuk; booking terlambat tetap muncul di tabel (tab Sedang Disewa) dengan tombol Tagih denda. */
   function drawLate() {
-    const L = DB.staffBookings().filter(isLate).sort((a, b) => UI.billOf(b).late - UI.billOf(a).late);
+    const L = DB.staffBookings().filter(isLate);
     if (!L.length) { $('#lateBox').innerHTML = ''; return; }
     const tot = L.reduce((a, b) => a + (UI.billOf(b).fine || 0), 0);
-    $('#lateBox').innerHTML = `<div class="late-box"><div class="late-h"><span class="ic"><i class="fa-solid fa-triangle-exclamation"></i></span><div><h3>Terlambat · perlu ditagih denda</h3><small>${L.length} booking melewati batas pengembalian · denda berjalan total <b>${rupiah(tot)}</b></small></div></div>
-      <div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>No. Booking</th><th>Customer</th><th>Barang</th><th>Harus kembali</th><th class="num">Terlambat</th><th class="num">Denda berjalan</th><th class="num">Sisa tagihan</th><th class="num">Aksi</th></tr></thead><tbody>
-      ${L.map((b) => { const bl = UI.billOf(b); const ld = bl.late; return `<tr>
-        <td><strong>${NO(b)}</strong></td><td>${esc(b.customer.name)}<small>${esc(b.customer.phone)}</small></td><td style="max-width:240px">${esc(Admin.itemsText(b))}</td>
-        <td>${D.fmtDate(b.end, true)}<small>maks. pukul ${esc(String(DB.settings().returnTime || '22:00').replace(':', '.'))}</small></td>
-        <td class="num"><b style="color:var(--red)">${ld} hari</b></td><td class="num"><b>${rupiah(bl.fine || 0)}</b></td><td class="num">${rupiah(bl.due)}</td>
-        <td><div class="acts"><button class="btn btn-wa btn-xs" data-remind="${b.id}"><i class="fa-brands fa-whatsapp"></i> Tagih denda</button><button class="btn btn-light btn-xs" data-detail="${b.id}">Detail</button></div></td></tr>`; }).join('')}
-      </tbody></table></div></div>`;
+    $('#lateBox').innerHTML = `<div class="late-line"><i class="fa-solid fa-triangle-exclamation"></i><span><b>${L.length} sewa terlambat</b> · denda berjalan ${rupiah(tot)}</span><a class="link" href="${UI.url('admin/pengembalian')}">Tagih di Barang Keluar &amp; Kembali <i class="fa-solid fa-arrow-right"></i></a></div>`;
   }
   /* Ringkasan layanan antar / jasa tenda untuk satu baris: jenis, jadwal, dan status ongkir & pembayaran layanan */
   const sd = (iso) => D.fmtDate(iso).replace(/ \d{4}$/, '');
@@ -44,7 +39,7 @@
   }
   function list() {
     const q = $('#q').value.trim().toLowerCase(), f = $('#from').value, t = $('#to').value;
-    return DB.staffBookings().filter((b) => !isLate(b) && (tab === 'semua' || b.status === tab)
+    return DB.staffBookings().filter((b) => (tab === 'semua' || b.status === tab)
       && (!q || [b.id, NO(b), b.customer.name, b.customer.phone, Admin.itemsText(b)].join(' ').toLowerCase().includes(q))
       && (!f || b.start >= f) && (!t || b.start <= t))
       .sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
@@ -66,7 +61,7 @@
         <td class="bk-st">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</td>
         <td><div class="acts">${due ? `<button class="btn btn-wa btn-xs" data-remind="${b.id}" title="${late ? 'Kirim nota + denda ke customer' : 'Ingatkan pengembalian hari ini'}"><i class="fa-brands fa-whatsapp"></i> ${late ? 'Tagih denda' : 'Ingatkan'}</button>` : ''}${acts.map(([k, ic, l, c]) => `<button class="btn ${c} btn-xs" data-act="${k}" data-id="${b.id}" title="${l}"><i class="fa-solid ${ic}"></i> ${l}</button>`).join('')}<button class="btn btn-light btn-xs" data-act="detail" data-id="${b.id}">Detail</button></div></td></tr>`;
     }).join('') : `<tr><td colspan="6"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-regular fa-calendar"></i></div><h3>Tidak ada booking</h3><p>Coba ubah filter atau kata kunci pencarian.</p></div></td></tr>`;
-    $('#count').textContent = `Menampilkan ${L.length} booking${DB.staffBookings().some(isLate) ? ' (booking terlambat ada di tabel atas)' : ''}.`;
+    $('#count').textContent = `Menampilkan ${L.length} booking.`;
   }
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; draw(); } });
   ['#q', '#from', '#to'].forEach((s) => $(s).addEventListener('input', draw));

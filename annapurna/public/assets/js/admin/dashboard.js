@@ -33,7 +33,9 @@
     $('#stats2').innerHTML = [
       stat('fa-person-hiking', '', 'Rental aktif', active, `${units.av} unit tersedia di toko`, 'booking?tab=disewa'),
       stat('fa-jug-detergent', ldReady || ldLate ? 'gold' : '', 'Laundry berjalan', ldRun + ldReady, `${ldReady} siap diambil${ldLate ? ` · ${ldLate} lewat estimasi` : ''}`, 'laundry'),
-      stat('fa-wallet', 'blue', 'Pemasukan rental hari ini', rupiah(L.by.rent.in), 'sewa, laundry & jasa tenda', 'keuangan?lini=rent'),
+      /* Owner: angka uang dilihat di Ringkasan bisnis → Hari ini (tab ini khusus pekerjaan, tidak dobel) */
+      Admin.isOwner ? stat('fa-chart-line', 'blue', 'Pendapatan hari ini', '<span style="font-size:15px">Lihat ringkasan →</span>', 'laba, pemasukan & pengeluaran', Admin.O('dashboard?periode=day'))
+        : stat('fa-wallet', 'blue', 'Pemasukan rental hari ini', rupiah(L.by.rent.in), 'sewa, laundry & jasa tenda', 'keuangan?lini=rent'),
     ].join('');
 
     /* ===== Pusat tindakan: tugas dikelompokkan 3 tingkat ===== */
@@ -105,6 +107,8 @@
   }
   let ch;
   function chart() {
+    /* Owner: grafik uang sudah ada di Ringkasan bisnis — tab Operasional hari ini fokus ke pekerjaan */
+    if (Admin.isOwner) { const pn = $('#chart') && $('#chart').closest('.panel'); if (pn) { pn.hidden = true; pn.parentElement.style.gridTemplateColumns = '1fr'; } return; }
     const days = [...Array(7)].map((_, i) => D.rel(i - 6));
     const L = Admin.ledger(days[0], T);
     const by = (cat) => days.map((d) => L.income.filter((x) => D.day(x.date) === d && cat(x.cat)).reduce((s, x) => s + x.amount, 0));
@@ -134,7 +138,8 @@
       stat('fa-hourglass-half', 'blue', 'Pembayaran perlu diverifikasi', verif.length, 'cek bukti transfer', 'penjualan'),
       stat('fa-box', 'gold', 'Perlu dikemas', proses.length, 'pembayaran sudah diterima', 'penjualan'),
       stat('fa-store', '', 'Siap diambil', ready.length, 'menunggu customer datang', 'penjualan'),
-      stat('fa-wallet', 'blue', 'Pemasukan penjualan hari ini', rupiah(L.by.sale.in), `${S.filter((s) => D.day(s.createdAt) === T && s.status !== 'dibatalkan').length} pesanan masuk hari ini`, 'keuangan'),
+      Admin.isOwner ? stat('fa-chart-line', 'blue', 'Pesanan masuk hari ini', S.filter((s) => D.day(s.createdAt) === T && s.status !== 'dibatalkan').length, 'pendapatan: Ringkasan bisnis → Hari ini', Admin.O('dashboard?periode=day'))
+        : stat('fa-wallet', 'blue', 'Pemasukan penjualan hari ini', rupiah(L.by.sale.in), `${S.filter((s) => D.day(s.createdAt) === T && s.status !== 'dibatalkan').length} pesanan masuk hari ini`, 'keuangan'),
     ].join('');
     const latest = S.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 10);
     $('#saleLatest').innerHTML = latest.length ? latest.map((s) => `<tr><td class="nw"><strong>${NO(s)}</strong><small class="muted" style="display:block">${D.fmtDate(s.createdAt)}</small></td><td>${esc(s.customer.name)}</td><td>${esc(s.items.map((i) => `${i.qty}× ${i.name}`).join(', '))}</td><td class="num">${rupiah(s.total)}</td><td>${pill('sale', s.status)}</td><td><a class="btn btn-light btn-xs" href="${UI.url('admin/penjualan?id=' + s.id)}">Detail</a></td></tr>`).join('') : '<tr><td colspan="6" class="muted">Belum ada pesanan penjualan.</td></tr>';

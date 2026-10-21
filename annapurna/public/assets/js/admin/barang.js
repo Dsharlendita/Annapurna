@@ -51,7 +51,11 @@
       : '<tr><th>Barang</th><th>Kategori</th><th class="num">Harga beli · jual</th><th title="Stok saat ini & batas restock (stok minimum)">Stok &amp; batas restock</th><th class="num">Terjual</th><th class="num">Aksi</th></tr>';
     const L = list();
     const prodCell = (p) => `<td><div class="prod"><img loading="lazy" decoding="async" src="${asset(p.img)}" alt=""><div><strong>${esc(p.name)}</strong><small>${esc(p.sku || p.id)}${p.brand ? ` · ${esc(p.brand)}` : ''}${p.badge ? ` · ${esc(p.badge)}` : ''}${p.featured ? ' · <i class="fa-solid fa-star" style="color:var(--gold)"></i> Unggulan' : ''}</small></div></div></td>`;
-    const varChips = (p) => (DB.hasVariant(p) ? `<div class="var-chips">${p.variant.options.map((o) => `<span title="${esc(o.name)}">${esc(o.name.replace(/\s*\(.*\)/, ''))} <b>${o.stock}</b></span>`).join('')}</div>` : '');
+    /* Varian 2 atribut: ringkas per atribut 1 (mis. ukuran) + tombol tabel Ukuran × Warna */
+    const varChips = (p) => { if (!DB.hasVariant(p)) return '';
+      if (!DB.isVar2(p)) return `<div class="var-chips">${p.variant.options.map((o) => `<span title="${esc(o.name)}">${esc(o.name.replace(/\s*\(.*\)/, ''))} <b>${o.stock}</b></span>`).join('')}</div>`;
+      const [A, B] = DB.variantAxes(p); const tot = (a) => p.variant.options.filter((o) => DB.vParts(p, o.name)[0] === a).reduce((x, o) => x + (+o.stock || 0), 0);
+      return `<div class="var-chips">${A.values.map((a) => `<span>${esc(String(a).replace(/\s*\(.*\)/, ''))} <b>${tot(a)}</b></span>`).join('')}</div><button type="button" class="link-btn var-mx-btn" data-vmx="${p.id}"><i class="fa-solid fa-table-cells"></i> ${esc(String(A.label).replace(/\s*\(.*\)/, ''))} × ${esc(B.label)} (${B.values.length} ${esc(B.label.toLowerCase())})</button>`; };
     /* Aksi per baris: tombol utama (Unit, Edit) + menu "⋯" untuk riwayat, lihat di website, dan aktif/nonaktif */
     const actions = (p, off) => `<td><div class="acts acts-compact">
           ${KIND === 'rent' && p.units ? `<button class="btn btn-light btn-xs" data-units="${p.id}" title="Unit fisik"><i class="fa-solid fa-barcode"></i> Unit${needsCare(p) ? ' <span class="dot-warn" title="Ada unit yang perlu perawatan"></span>' : ''}</button>` : ''}
@@ -346,10 +350,15 @@
     const p = DB.product(pid); if (!p) return; const sized = DB.hasVariant(p); const rent = kindOf(p) === 'rent';
     const vl = DB.variantLabel(p) || 'Ukuran';
     const optLabel = (o) => (DB.isVar2(p) ? DB.vParts(p, o.name).join(' / ') : o.name);
+    const axisVals = (ax) => { const a = DB.attributes(true).find((x) => x.id === (ax === 1 ? p.variant.attrId : p.variant.attrId2)); const ax0 = DB.variantAxes(p)[ax - 1] || { values: [] }; return [...new Set([...(a ? a.values : []), ...ax0.values])]; };
+    const isNew = () => sized && m.$('#rsSize').value === '__new';
     const m = modal({ title: `Restock ${rent ? 'barang sewa' : 'barang jual'} · ${esc(p.name)}`, size: 'lg', body: `
       <div class="rs-head"><img src="${asset(p.img)}" alt=""><div><b>${esc(p.name)}</b><small>${rent ? `<b>${p.stock}</b> unit sewa · tarif ${rupiah(p.rent)}/malam${p.cost ? ` · harga beli terakhir ${rupiah(p.cost)}` : ''}` : `Stok sekarang <b>${p.stock}</b> unit · harga jual ${rupiah(p.price)}`}</small></div></div>
       ${rent ? '<div class="notice green" style="margin:0 0 12px"><i class="fa-solid fa-barcode"></i><div>Unit fisik baru dibuat otomatis dengan kode lanjutan dan langsung bisa disewakan. Harga beli dicatat sebagai pengeluaran <b>Pembelian Barang</b> (lini Rental).</div></div>' : ''}
-      ${sized ? `<div class="field"><label>${esc(vl)} <span class="req">*</span></label><select class="select" id="rsSize"><option value="">Pilih ${esc(vl.toLowerCase())}…</option>${p.variant.options.map((o) => `<option value="${esc(o.name)}">${esc(optLabel(o))} · ${rent ? 'unit' : 'stok'} ${o.stock}</option>`).join('')}</select></div>` : ''}
+      ${sized ? `<div class="field"><label>${esc(vl)} <span class="req">*</span></label><select class="select" id="rsSize"><option value="">Pilih ${esc(vl.toLowerCase())}…</option>${p.variant.options.map((o) => `<option value="${esc(o.name)}">${esc(optLabel(o))} · ${rent ? 'unit' : 'stok'} ${o.stock}</option>`).join('')}${rent ? `<option value="__new">+ ${DB.isVar2(p) ? 'Kombinasi' : esc(vl)} baru (belum ada di daftar)…</option>` : ''}</select></div>
+      ${rent ? `<div class="rs-new" id="rsNewBox" hidden><div class="grid-2"><div class="field"><label>${esc(p.variant.label)} <span class="req">*</span></label><input class="input" id="rsV1" list="rsV1L" placeholder="Contoh: 44" maxlength="30"><datalist id="rsV1L">${axisVals(1).map((v) => `<option value="${esc(v)}">`).join('')}</datalist></div>
+        ${DB.isVar2(p) ? `<div class="field"><label>${esc(p.variant.label2)} <span class="req">*</span></label><input class="input" id="rsV2" list="rsV2L" placeholder="Contoh: Hitam" maxlength="30"><datalist id="rsV2L">${axisVals(2).map((v) => `<option value="${esc(v)}">`).join('')}</datalist></div>` : ''}</div>
+        <small class="muted">Pilih dari saran atau ketik nilai baru. Nilai baru otomatis ditambahkan ke atribut barang.</small></div>` : ''}` : ''}
       <div class="grid-2">
         <div class="field"><label>${rent ? 'Jumlah unit ditambahkan' : 'Jumlah masuk'} <span class="req">*</span></label><input class="input" type="number" min="1" max="200" id="rsQty" placeholder="Contoh: ${rent ? '2' : '48'}"></div>
         <div class="field"><label>Harga beli per unit (Rp) <span class="req">*</span></label><input class="input" type="number" min="0" id="rsCost" value="${p.cost != null && p.cost !== '' ? p.cost : ''}" placeholder="Harga dari supplier"><small class="muted">${p.cost ? 'Terisi harga beli terakhir. Ubah bila harga supplier berubah.' : 'Dipakai untuk menghitung modal & balik modal.'}</small></div>
@@ -363,8 +372,10 @@
       ${rent ? '' : '<p class="muted" style="font-size:12.5px;margin-top:10px"><i class="fa-solid fa-circle-info"></i> Otomatis: stok bertambah, harga beli diperbarui, dan pengeluaran <b>Pembelian Barang</b> tercatat di Keuangan (lini Penjualan). Belanja stok tidak mengurangi laba; modal baru dihitung saat barangnya terjual.</p>'}`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="rsOk"><i class="fa-solid fa-check"></i> Simpan restock</button>' });
     const n = (id) => +String((m.$(id) || {}).value || '').replace(/[^\d]/g, '') || 0;
-    const sum = () => { const q = n('#rsQty'), c = n('#rsCost'); const sz = sized ? m.$('#rsSize').value : '';
-      const cur = sized ? (sz ? DB.sizeStock(p, sz) : null) : p.stock;
+    const sum = () => { const q = n('#rsQty'), c = n('#rsCost'); if (m.$('#rsNewBox')) m.$('#rsNewBox').hidden = !isNew();
+      const nv = isNew() ? [m.$('#rsV1').value.trim(), m.$('#rsV2') ? m.$('#rsV2').value.trim() : ''].filter(Boolean).join(' / ') : '';
+      const sz = sized ? (isNew() ? nv : m.$('#rsSize').value) : '';
+      const cur = sized ? (sz ? (isNew() ? (DB.sizeStock(p, sz) || 0) : DB.sizeStock(p, sz)) : null) : p.stock;
       const bep = rent && c && p.rent ? Math.ceil(c / p.rent) : null; const mg = !rent && p.price && c ? Math.round(((p.price - c) / p.price) * 100) : null;
       m.$('#rsSum').innerHTML = `<div class="kv"><span>Total belanja</span><strong>${q && c ? `${q} × ${rupiah(c)} = ${rupiah(q * c)}` : '-'}</strong></div>
         <div class="kv"><span>${rent ? 'Unit' : 'Stok'}${sz ? ' ' + esc(sz) : ''} setelah restock</span><span>${cur == null ? 'pilih ' + esc(vl.toLowerCase()) + ' dulu' : `${cur} → <b>${cur + q}</b> unit`}</span></div>
@@ -373,9 +384,15 @@
     m.el.addEventListener('input', sum); m.el.addEventListener('change', sum); sum(); setTimeout(() => (sized ? m.$('#rsSize') : m.$('#rsQty')).focus(), 50);
     m.$('#rsOk').addEventListener('click', () => {
       if (sized && !m.$('#rsSize').value) { toast(`Pilih ${vl.toLowerCase()} yang di-restock.`, 'err'); m.$('#rsSize').focus(); return; }
+      let newCombo = null;
+      if (isNew()) { newCombo = { v1: m.$('#rsV1').value.trim().replace(/\s+/g, ' '), v2: m.$('#rsV2') ? m.$('#rsV2').value.trim().replace(/\s+/g, ' ') : '' };
+        if (!newCombo.v1 || (DB.isVar2(p) && !newCombo.v2)) { toast(`Isi ${DB.isVar2(p) ? 'kedua nilai kombinasi' : esc(vl.toLowerCase())} yang baru.`, 'err'); (newCombo.v1 ? m.$('#rsV2') : m.$('#rsV1')).focus(); return; }
+        /* nilai baru → tambahkan ke atribut (supaya muncul di form barang & filter) */
+        const all = DB.attributes(true); let ch = false; [[p.variant.attrId, newCombo.v1], [p.variant.attrId2, newCombo.v2]].forEach(([id, v]) => { const a = all.find((x) => x.id === id); if (a && v && !a.values.some((x) => x.toLowerCase() === v.toLowerCase())) { a.values.push(v); ch = true; } });
+        if (ch) DB.saveConfig('attributes', all, `Menambahkan nilai varian baru dari restock ${p.name}`, [{ field: 'Nilai', from: '', to: [newCombo.v1, newCombo.v2].filter(Boolean).join(' / ') }]); }
       if (!n('#rsQty')) { toast('Isi jumlah barang masuk.', 'err'); m.$('#rsQty').focus(); return; }
       if (!n('#rsCost')) { toast('Isi harga beli per unit.', 'err'); m.$('#rsCost').focus(); return; }
-      const args = { productId: pid, size: sized ? m.$('#rsSize').value : '', qty: n('#rsQty'), cost: n('#rsCost'), date: m.$('#rsDate').value || T, supplier: m.$('#rsSup').value, note: m.$('#rsNote').value };
+      const args = { newCombo, productId: pid, size: sized && !newCombo ? m.$('#rsSize').value : '', qty: n('#rsQty'), cost: n('#rsCost'), date: m.$('#rsDate').value || T, supplier: m.$('#rsSup').value, note: m.$('#rsNote').value };
       const r = rent ? DB.restockRent(args) : DB.restock(args);
       if (!r.ok) { toast(r.msg, 'err'); return; }
       m.close(); draw();
@@ -385,6 +402,17 @@
           foot: `<button class="btn btn-light" data-close>Tutup</button><button class="btn btn-primary" data-close data-units-after="${p.id}"><i class="fa-solid fa-barcode"></i> Lihat unit</button>` }).el.addEventListener('click', (e) => { const b = e.target.closest('[data-units-after]'); if (b) setTimeout(() => { const x = document.querySelector(`[data-units="${b.dataset.unitsAfter}"]`); if (x) x.click(); }, 250); });
       } else toast(`Restock tersimpan: +${r.restock.qty} ${esc(p.name)}. Pengeluaran ${rupiah(r.restock.qty * r.restock.cost)} tercatat di Keuangan.`);
     });
+  }
+  /* Tabel stok Ukuran × Warna (barang varian 2 atribut): total unit & tersedia hari ini per kombinasi */
+  function varMatrix(pid) {
+    const p = DB.product(pid); if (!p || !DB.isVar2(p)) return; const [A, B] = DB.variantAxes(p); const rent = kindOf(p) === 'rent';
+    const cell = (a, b) => { const o = p.variant.options.find((x) => { const [v1, v2] = DB.vParts(p, x.name); return v1 === a && v2 === b; }); if (!o) return '<td class="muted">—</td>';
+      const av = rent ? Rules.availableOn(p.id, T, null, o.name) : DB.saleableStock(p, o.name); return `<td><b>${o.stock}</b>${rent ? `<small class="${av ? '' : 'zero'}">${av} siap</small>` : ''}</td>`; };
+    modal({ title: `Stok per kombinasi · ${esc(p.name)}`, size: 'lg', body: `<p class="muted" style="font-size:12.5px;margin:0 0 10px">Angka besar = jumlah ${rent ? 'unit' : 'stok'}${rent ? '; kecil = siap disewa hari ini' : ''}. Ubah stok lewat <b>Edit</b>, tambah unit lewat <b>Restock</b>.</p>
+      <div class="var-mx var-mx-ro"><table><thead><tr><th>${esc(A.label)} \\ ${esc(B.label)}</th>${B.values.map((b) => `<th>${esc(b)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+      ${A.values.map((a) => `<tr><td>${esc(a)}</td>${B.values.map((b) => cell(a, b)).join('')}<td><b>${p.variant.options.filter((o) => DB.vParts(p, o.name)[0] === a).reduce((x, o) => x + (+o.stock || 0), 0)}</b></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Total</td>${B.values.map((b) => `<td>${p.variant.options.filter((o) => DB.vParts(p, o.name)[1] === b).reduce((x, o) => x + (+o.stock || 0), 0)}</td>`).join('')}<td>${p.stock}</td></tr></tfoot></table></div>`,
+      foot: `<button class="btn btn-light" data-close>Tutup</button>${rent ? `<button class="btn btn-light" data-close onclick="setTimeout(()=>document.querySelector('[data-units=&quot;${p.id}&quot;]').click(),220)"><i class="fa-solid fa-barcode"></i> Unit fisik</button>` : ''}<button class="btn btn-primary" data-close onclick="setTimeout(()=>document.querySelector('[data-restock=&quot;${p.id}&quot;]').click(),220)"><i class="fa-solid fa-truck-ramp-box"></i> Restock</button>` });
   }
   /* Restock dari tombol utama: pilih barang dulu (cari nama / kode) */
   function restockPick() {
@@ -422,17 +450,14 @@
     });
   }
   function unitsModal(pid) {
+    const UF = { v1: '', v2: '', st: '' };
     const draw = () => {
       const p = DB.get('products').find((x) => x.id === pid); const every = p.serviceEvery || DB.settings().serviceEvery || 10;
       const U = p.units || []; const sz = DB.hasVariant(p);
       const sum = (f) => U.filter(f).length;
       const st = (u) => DB.unitState(u);
       const OFF = U.filter((u) => u.status !== 'aktif' && u.status !== 'terjual'); const offBy = (r) => OFF.filter((u) => st(u).reason === r).length;
-      m.$('.modal-body').innerHTML = `<div class="unit-sum"><span>Total aktif <b>${sum((u) => u.status === 'aktif')}</b></span><span class="green">Siap disewa <b>${sum((u) => st(u).k === 'siap')}</b></span><span class="blue">Sedang disewa <b>${sum((u) => st(u).k === 'out')}</b></span>${sum((u) => st(u).due === 'late') ? `<span class="red">Terlambat <b>${sum((u) => st(u).due === 'late')}</b></span>` : ''}<span class="teal">Perlu dicuci <b>${sum((u) => st(u).k === 'cuci')}</b></span><span class="red">Dalam perbaikan <b>${sum((u) => st(u).k === 'perbaikan')}</b></span><span class="gray" title="Hilang ${offBy('hilang')} · Rusak total ${offBy('rusak')} · Lainnya ${offBy('lainnya')}">Nonaktif <b>${OFF.length}</b>${OFF.length ? `<small>Hilang ${offBy('hilang')} · Rusak total ${offBy('rusak')} · Lainnya ${offBy('lainnya')}</small>` : ''}</span></div>
-        <div class="unit-legend"><b>Status unit:</b> <span class="pill green plain">Siap disewa</span> bisa diberikan ke customer · <span class="pill blue plain">Disewa</span>, <span class="pill teal plain">Perlu dicuci</span>, dan <span class="pill red plain">Dalam perbaikan</span> tidak bisa disewa sampai selesai · <span class="pill gray plain">Nonaktif</span> (hilang / rusak total) keluar dari stok.</div>
-        <p class="muted" style="font-size:12.5px;margin:0 0 12px">${DB.needsWash(p) ? '<i class="fa-solid fa-soap"></i> Kategori ini <b>wajib dicuci setiap kembali</b>. ' : ''}Servis berkala setiap ${every} kali sewa. Unit tidak dihapus — nonaktifkan bila hilang / rusak total. <a class="link" href="perawatan">Buka Perawatan Unit</a></p>
-        <div class="table-wrap"><table class="table"><thead><tr><th>Kode</th>${sz ? '<th>Ukuran</th>' : ''}<th>Status</th><th class="num">Disewa</th><th>Servis berkala</th><th class="num">Aksi</th></tr></thead><tbody>
-        ${U.map((u) => { const due = DB.serviceDue(p, u); const off = u.status !== 'aktif'; const S = st(u); const ci = u.careInfo || {};
+      const rowOf = (u) => { const due = DB.serviceDue(p, u); const off = u.status !== 'aktif'; const S = st(u); const ci = u.careInfo || {};
           const acts = off ? (u.status === 'nonaktif' ? `<button class="btn btn-light btn-xs" data-uon="${u.code}">Aktifkan</button>` : '')
             : S.k === 'out' ? (S.due ? `<button class="btn btn-wa btn-xs" data-uwa="${S.booking}" title="Kirim pengingat ke customer"><i class="fa-brands fa-whatsapp"></i> ${S.due === 'late' ? 'Tagih denda' : 'Ingatkan'}</button>` : `<span class="muted unit-wait"><i class="fa-solid fa-person-hiking"></i> Dibawa customer</span>`)
             : S.k === 'cuci' ? `<button class="btn btn-primary btn-xs" data-uclean="${u.code}"><i class="fa-solid fa-check"></i> Sudah bersih</button>`
@@ -442,7 +467,24 @@
           <td><span class="pill ${S.tone} plain">${esc(S.l)}</span>${S.k === 'perbaikan' ? `<small class="issue">${esc(ci.issue || '')}</small>` : S.k === 'cuci' && ci.booking ? `<small>dari ${ci.booking}</small>` : ''}</td>
           <td class="num">${u.rents}×</td>
           <td>${due ? '<span class="pill amber plain">Perlu servis</span>' : `<span class="muted">${u.sinceService}/${every}×</span>`}<small>${u.lastService ? 'terakhir ' + D.fmtDate(u.lastService) : 'belum pernah'}</small></td>
-          <td><div class="acts">${acts}<button class="btn btn-light btn-xs" data-ulog="${u.code}" title="Riwayat unit"><i class="fa-solid fa-clock-rotate-left"></i></button>${off || S.k === 'out' ? '' : `<button class="btn btn-light btn-xs" data-uoff="${u.code}" title="Nonaktifkan unit (hilang / rusak total)"><i class="fa-solid fa-ban"></i></button>`}</div></td></tr>`; }).join('')}
+          <td><div class="acts">${acts}<button class="btn btn-light btn-xs" data-ulog="${u.code}" title="Riwayat unit"><i class="fa-solid fa-clock-rotate-left"></i></button>${off || S.k === 'out' ? '' : `<button class="btn btn-light btn-xs" data-uoff="${u.code}" title="Nonaktifkan unit (hilang / rusak total)"><i class="fa-solid fa-ban"></i></button>`}</div></td></tr>`; };
+      /* Filter & kelompok per kombinasi (ukuran / warna) supaya unit mudah dicari */
+      const stOf = (u) => (u.status !== 'aktif' ? 'off' : st(u).k);
+      const pass = (u) => { const [a, b2] = sz ? DB.vParts(p, u.size) : ['', '']; return (!UF.v1 || a === UF.v1) && (!UF.v2 || b2 === UF.v2) && (!UF.st || stOf(u) === UF.st); };
+      const UL = U.filter(pass); const AX = DB.variantAxes(p);
+      const chip = (k, v, l, n) => `<button type="button" class="chip ${UF[k] === v ? 'on' : ''}" data-uf="${k}|${esc(v)}">${esc(l)}${n != null ? ` <b>${n}</b>` : ''}</button>`;
+      const STL = [['', 'Semua status'], ['siap', 'Siap disewa'], ['out', 'Disewa'], ['cuci', 'Perlu dicuci'], ['perbaikan', 'Perbaikan'], ['off', 'Nonaktif']];
+      const filt = `<div class="u-filter">${sz ? AX.map((x, i) => `<div class="u-frow"><span>${esc(String(x.label).replace(/\s*\(.*\)/, ''))}</span>${chip('v' + (i + 1), '', 'Semua')}${x.values.map((v) => chip('v' + (i + 1), v, v, U.filter((u) => DB.vParts(p, u.size)[i] === v && u.status === 'aktif').length)).join('')}</div>`).join('') : ''}
+        <div class="u-frow"><span>Status</span>${STL.map(([k, l]) => chip('st', k, l, k ? U.filter((u) => stOf(u) === k).length : null)).join('')}</div></div>`;
+      const groups = sz ? p.variant.options.map((o) => ({ o, L: UL.filter((u) => u.size === o.name) })).filter((g) => g.L.length) : [{ o: null, L: UL }];
+      const stray = sz ? UL.filter((u) => !p.variant.options.some((o) => o.name === u.size)) : []; if (stray.length) groups.push({ o: { name: 'Tanpa ' + DB.variantLabel(p).toLowerCase() }, L: stray });
+      const COLS = 5 + (sz ? 1 : 0);
+      const grpHead = (g) => { const k = (f) => g.L.filter(f).length; return `<tr class="u-grp"><td colspan="${COLS}"><b>${esc(String(g.o.name).replace(/\s*\(.*\)/, ''))}</b> <span>${g.L.filter((u) => u.status === 'aktif').length} unit</span><small>${[['siap', 'siap', 'green'], ['out', 'disewa', 'blue'], ['cuci', 'perlu dicuci', 'teal'], ['perbaikan', 'perbaikan', 'red']].map(([s0, l, t]) => { const n = k((u) => u.status === 'aktif' && st(u).k === s0); return n ? `<em class="${t}">${n} ${l}</em>` : ''; }).join('')}</small></td></tr>`; };
+      m.$('.modal-body').innerHTML = `<div class="unit-sum"><span>Total aktif <b>${sum((u) => u.status === 'aktif')}</b></span><span class="green">Siap disewa <b>${sum((u) => st(u).k === 'siap')}</b></span><span class="blue">Sedang disewa <b>${sum((u) => st(u).k === 'out')}</b></span>${sum((u) => st(u).due === 'late') ? `<span class="red">Terlambat <b>${sum((u) => st(u).due === 'late')}</b></span>` : ''}<span class="teal">Perlu dicuci <b>${sum((u) => st(u).k === 'cuci')}</b></span><span class="red">Dalam perbaikan <b>${sum((u) => st(u).k === 'perbaikan')}</b></span><span class="gray" title="Hilang ${offBy('hilang')} · Rusak total ${offBy('rusak')} · Lainnya ${offBy('lainnya')}">Nonaktif <b>${OFF.length}</b>${OFF.length ? `<small>Hilang ${offBy('hilang')} · Rusak total ${offBy('rusak')} · Lainnya ${offBy('lainnya')}</small>` : ''}</span></div>
+        <div class="unit-legend"><b>Status unit:</b> <span class="pill green plain">Siap disewa</span> bisa diberikan ke customer · <span class="pill blue plain">Disewa</span>, <span class="pill teal plain">Perlu dicuci</span>, dan <span class="pill red plain">Dalam perbaikan</span> tidak bisa disewa sampai selesai · <span class="pill gray plain">Nonaktif</span> (hilang / rusak total) keluar dari stok.</div>
+        ${filt}<p class="muted" style="font-size:12.5px;margin:0 0 12px">${DB.needsWash(p) ? '<i class="fa-solid fa-soap"></i> Kategori ini <b>wajib dicuci setiap kembali</b>. ' : ''}Servis berkala setiap ${every} kali sewa. Unit tidak dihapus — nonaktifkan bila hilang / rusak total. <a class="link" href="perawatan">Buka Perawatan Unit</a></p>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Kode</th>${sz ? `<th>${esc(DB.variantLabel(p))}</th>` : ''}<th>Status</th><th class="num">Disewa</th><th>Servis berkala</th><th class="num">Aksi</th></tr></thead><tbody>
+        ${groups.map((g) => (sz ? grpHead(g) : '') + g.L.map(rowOf).join('')).join('') || `<tr><td colspan="${COLS}" class="muted" style="text-align:center;padding:18px">Tidak ada unit yang cocok dengan filter.</td></tr>`}
         </tbody></table></div>
         <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${sz ? `<select class="select sm" id="uSize" style="width:auto">${p.variant.options.map((o) => `<option>${esc(o.name)}</option>`).join('')}</select>` : ''}<button class="btn btn-light btn-sm" id="uAdd"><i class="fa-solid fa-plus"></i> Tambah unit baru</button><span class="muted" style="font-size:12.5px">Stok ikut bertambah otomatis.</span></div>`;
     };
@@ -450,6 +492,7 @@
     const m = modal({ title: `Unit fisik · ${esc(p0.name)}`, size: 'xl', body: '<div></div>', foot: '<button class="btn btn-primary" data-close>Selesai</button>' });
     const body = m.$('.modal-body');
     body.addEventListener('click', async (e) => {
+      const uf = e.target.closest('[data-uf]'); if (uf) { const [k, v] = uf.dataset.uf.split('|'); UF[k] = v; draw(); return; }
       const svc = e.target.closest('[data-usvc]'), lg = e.target.closest('[data-ulog]'), off = e.target.closest('[data-uoff]'), on = e.target.closest('[data-uon]');
       const wsh = e.target.closest('[data-uwash]'), brk = e.target.closest('[data-ubroke]'), cln = e.target.closest('[data-uclean]');
       if (wsh) { DB.setCare(pid, wsh.dataset.uwash, 'cuci'); toast(`${wsh.dataset.uwash} masuk antrian cuci.`); draw(); return; }
@@ -563,6 +606,7 @@
     const rs = e.target.closest('[data-restock]'); if (rs) { restockModal(rs.dataset.restock); return; }
     if (e.target.closest('#rsHist')) { restockHistory(); return; }
     if (e.target.closest('#rsNew')) { restockPick(); return; }
+    const vx = e.target.closest('[data-vmx]'); if (vx) { varMatrix(vx.dataset.vmx); return; }
     const ed = e.target.closest('[data-edit]'), tg = e.target.closest('[data-toggle]'), h = e.target.closest('[data-hist]'), ce = e.target.closest('[data-cedit]'), ct = e.target.closest('[data-ctoggle]');
     if (ed) form(DB.product(ed.dataset.edit));
     if (h) history(h.dataset.hist);

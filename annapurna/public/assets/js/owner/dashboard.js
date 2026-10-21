@@ -12,10 +12,14 @@
 
   const stat = (ic, tone, label, val, d, href) => `<a class="stat" href="${href}"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${label}</small><strong>${val}</strong>${d ? `<span class="d">${d}</span>` : ''}</div></a>`;
 
-  let VIEW = 'all', drawn = false;
+  let VIEW = 'all', drawn = false; let PER = ['day', 'week', 'month'].includes(UI.param('periode')) ? UI.param('periode') : 'month';
   function drawBiz() {
+    /* Periode: Hari ini · Minggu ini · Bulan (pilih bulan). Perbandingan otomatis dengan periode sebelumnya. */
     const period = $('#period').value || T.slice(0, 7);
-    let [f, t] = Reports.monthRange(period); if (t > T) t = T;
+    let f, t, lbl, pf, pt0, pmL;
+    if (PER === 'day') { f = t = T; lbl = 'Hari ini'; pf = pt0 = D.addDays(T, -1); pmL = 'kemarin'; }
+    else if (PER === 'week') { const dow = (new Date(T + 'T00:00:00').getDay() + 6) % 7; f = D.addDays(T, -dow); t = T; lbl = 'Minggu ini'; pf = D.addDays(f, -7); pt0 = D.addDays(t, -7); pmL = 'minggu lalu'; }
+    else { [f, t] = Reports.monthRange(period); if (t > T) t = T; lbl = Reports.monthName(period); const pv = Reports.prevPeriod(f); [pf, pt0] = Reports.monthRange(pv); pmL = Reports.monthName(pv).split(' ')[0]; }
     const B = DB.staffBookings(), S = DB.staffSales(), L = Admin.ledger(f, t);
     const rentals = B.filter((b) => inR(b.start, f, t));
     const cancelled = B.filter((b) => b.cancel && inR(b.cancel.at, f, t));
@@ -25,11 +29,10 @@
     const cq = DB.careQueue();
     const dmgReturns = B.filter((b) => b.ret && inR(b.ret.at, f, t) && /Rusak|Hilang/.test(b.ret.cond)).length;
     const net = L.totalIn - L.totalOut;
-    const lbl = Reports.monthName(period);
-    const prev = Reports.prevPeriod(f); const [pf, pt0] = Reports.monthRange(prev); const LP = Admin.ledger(pf, pt0);
+    const LP = Admin.ledger(pf, pt0);
     /* Perbandingan dengan bulan lalu: selisih rupiah (persen hanya bila wajar, supaya tidak muncul angka seperti +1589%) */
     const short = (n) => { const a = Math.abs(n); return a >= 1e6 ? `Rp ${(a / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt` : a >= 1e3 ? `Rp ${Math.round(a / 1e3).toLocaleString('id-ID')} rb` : rupiah(a); };
-    const cmp = (cur, old, goodUp) => { const pm = Reports.monthName(prev).split(' ')[0];
+    const cmp = (cur, old, goodUp) => { const pm = pmL;
       if (!old) return `<span class="fin-cmp">Belum ada data ${pm} untuk dibandingkan</span>`;
       const diff = cur - old; if (!diff) return `<span class="fin-cmp">Sama dengan ${pm}</span>`;
       const up = diff > 0; const good = goodUp ? up : !up; const pct = Math.round((diff / Math.abs(old)) * 100);
@@ -46,9 +49,10 @@
     const ri = (re) => L.income.filter((x) => x.line === 'rent' && re.test(x.cat)).reduce((q, x) => q + x.amount, 0);
     const box = (l, v) => `<span class="lb-i"><small>${l}</small><b>${short(v)}</b></span>`;
     const stripSale = `<div class="lb-strip in-card">${box('Pemasukan', L.by.sale.in)}<span class="lb-op">−</span>${box('Modal barang terjual', L.by.sale.cogs)}</div>`;
-    const stripRent = `<div class="lb-strip in-card">${box('Sewa &amp; denda', ri(/^Rental$|^Denda$|refund/i))}<span class="lb-op">+</span>${box('Laundry', ri(/laundry/i))}<span class="lb-op">+</span>${box('Jasa tenda &amp; ongkir', ri(/tenda|bongkar|ongkir/i))}</div>`;
+    const stripRent = `<div class="lb-strip in-card">${box('Sewa &amp; denda', ri(/^Rental$|^Denda$|refund/i))}<span class="lb-op">+</span>${box('Laundry', ri(/laundry/i))}<span class="lb-op">+</span>${box('Jasa tenda &amp; ongkir', ri(/tenda|bongkar|ongkir/i))}<span class="lb-op">−</span>${box('Pengeluaran', L.by.rent.out)}</div>`;
+    const ob = L.by.rent.outBy || { restock: 0, care: 0, ops: 0 };
     $('#bizNote').innerHTML = V === 'all' ? 'Kartu Pemasukan &amp; Pengeluaran = uang yang benar-benar masuk/keluar (termasuk belanja stok). Laba dihitung per lini usaha.'
-      : V === 'rent' ? 'Rental = sewa, denda, laundry, jasa tenda &amp; ongkir (refund DP mengurangi). Biaya operasional dicatat di lini Umum, jadi pengeluaran Rental Rp0.'
+      : V === 'rent' ? 'Laba rental = (sewa + denda + laundry + jasa tenda + ongkir; refund DP mengurangi) − pengeluaran rental (restock barang sewa, biaya operasional &amp; kebutuhan lain, perawatan &amp; perbaikan). Catat pengeluaran dengan lini <b>Rental</b> di Keuangan.'
       : `Laba penjualan = pemasukan − modal barang terjual (harga beli × jumlah). Belanja stok tidak mengurangi laba.${L.by.sale.missingCost ? ` <b style="color:var(--red)">${L.by.sale.missingCost} transaksi memuat barang tanpa harga beli</b> (modal dihitung Rp0).` : ''}`;
     const big = `<a class="fin-card net big ${netV < 0 ? 'neg' : ''}" href="${A('laporan?type=' + (V === 'sale' ? 'penjualan' : V === 'rent' ? 'rental' : 'keuangan'))}">
         <div class="fin-h"><span class="ic"><i class="fa-solid fa-scale-balanced"></i></span><small>${V === 'all' ? 'Laba bersih toko' : 'Laba' + nm} · ${lbl}</small></div>
@@ -58,7 +62,7 @@
     $('#fin').innerHTML = big + `<div class="od-fin-side">${[
       fin('fa-arrow-trend-up', 'in', `Pemasukan${nm} · ${lbl}`, rupiah(LIN.in), cmp(LIN.in, LPV.in, true), A('keuangan' + (V !== 'all' ? '?lini=' + V : ''))),
       V === 'sale' ? fin('fa-boxes-packing', 'out', `Modal barang terjual · ${lbl}`, rupiah(LIN.cogs), '<span class="fin-cmp">Harga beli × jumlah terjual · rincian di tabel bawah</span>', A('laporan?type=penjualan'))
-        : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(0), '<span class="fin-cmp">Biaya operasional dicatat di lini Umum</span>', A('keuangan?tab=out&lini=umum'))
+        : V === 'rent' ? fin('fa-arrow-trend-down', 'out', `Pengeluaran rental · ${lbl}`, rupiah(LIN.out), `${cmp(LIN.out, LPV.out, false)}<span class="fin-break"><span>Restock barang sewa <b>${short(ob.restock)}</b></span><span>Operasional &amp; kebutuhan lain <b>${short(ob.ops)}</b></span><span>Perawatan &amp; perbaikan <b>${short(ob.care)}</b></span></span>`, A('keuangan?tab=out&lini=rent'))
         : fin('fa-arrow-trend-down', 'out', `Pengeluaran · ${lbl}`, rupiah(LIN.out), cmp(LIN.out, LPV.out, false), A('keuangan?tab=out')),
     ].join('')}</div>`;
     /* Tab Penjualan: rincian laba per produk (total = kartu di atas) + belanja stok bulan ini */
@@ -105,7 +109,7 @@
       stat('fa-boxes-stacked', 'blue', 'Stok barang jual', SP.reduce((a, p) => a + (+p.stock || 0), 0) + ' unit', `${SP.length} jenis barang`, A('barang?tab=jual')),
       stat('fa-warehouse', 'gold', 'Nilai stok (harga beli)', rupiah(SP.reduce((a, p) => a + (+p.stock || 0) * (+p.cost || 0), 0)), `${SP.filter((p) => p.cost == null || p.cost === '').length ? SP.filter((p) => p.cost == null || p.cost === '').length + ' barang belum ada harga beli' : 'uang belanja stok yang tersimpan di gudang'}`, A('barang?jenis=jual')),
       stat('fa-triangle-exclamation', 'red', 'Stok menipis', lowStock.length + ' barang', lowStock.slice(0, 2).map((p) => p.name).join(', ') || 'Aman', A('barang?tab=jual')),
-      stat('fa-receipt', 'gold', 'Terjual bulan ini', units + ' unit', lbl, A('penjualan')),
+      stat('fa-receipt', 'gold', 'Unit terjual', units + ' unit', lbl, A('penjualan')),
     ] : [
       stat('fa-boxes-stacked', 'blue', 'Barang sewa tersedia', avail + ' unit', 'siap disewa hari ini', A('barang')),
       stat('fa-box-open', 'gold', 'Barang sedang disewa', rented + ' unit', 'di tangan penyewa', A('pengembalian')),
@@ -166,7 +170,10 @@
     }).join('');
   }
 
-  $('#period').addEventListener('change', drawBiz);
+  $('#period').addEventListener('change', () => { PER = 'month'; syncPer(); drawBiz(); });
+  function syncPer() { $$('#perMode [data-per]').forEach((b) => b.classList.toggle('active', b.dataset.per === PER)); $('#period').closest('.od-period').classList.toggle('dim', PER !== 'month'); }
+  $('#perMode').addEventListener('click', (e) => { const b = e.target.closest('[data-per]'); if (!b) return; PER = b.dataset.per; history.replaceState(null, '', PER === 'month' ? location.pathname : '?periode=' + PER); syncPer(); drawBiz(); });
+  syncPer();
   $('#bizView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; VIEW = b.dataset.v; $$('#bizView [data-v]').forEach((x) => x.classList.toggle('active', x === b)); drawn = true; drawBiz(); });
   drawBiz(); drawChart(); drawRekap(); drawFeed();
 })();

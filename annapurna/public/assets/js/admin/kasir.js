@@ -47,7 +47,8 @@
     const row = (o) => { const due = Math.max(0, Laundry.total(o) - Laundry.paid(o));
       return `<div class="list-row"><div class="nm"><strong>${esc(o.no)} · ${esc(o.customer.name)}</strong><small>${esc(Admin.ldItems(o))}</small><small>${UI.pill('laundry', o.status)} <span class="muted">selesai ${D.fmtDate(Laundry.est(o))}</span> ${due ? `<b style="color:var(--orange)">sisa ${rupiah(due)}</b>` : '<b style="color:var(--g700)">lunas</b>'}</small></div>
         ${due ? `<button type="button" class="btn btn-gold btn-xs" data-ldpay="${o.id}"><i class="fa-solid fa-cash-register"></i> Bayar</button>` : ''}
-        ${o.status === 'siap' ? `<button type="button" class="btn btn-primary btn-xs" data-lddone="${o.id}"><i class="fa-solid fa-circle-check"></i> Diambil</button>` : `<button type="button" class="btn btn-light btn-xs" data-lddet="${o.id}">Detail</button>`}</div>`; };
+        ${o.status === 'siap' ? `<button type="button" class="btn btn-primary btn-xs" data-lddone="${o.id}"><i class="fa-solid fa-circle-check"></i> Sudah diambil</button>` : Laundry.FLOW[o.status] ? `<button type="button" class="btn btn-primary btn-xs" data-ldnext="${o.id}"><i class="fa-solid ${Laundry.FLOW[o.status][1]}"></i> ${Laundry.FLOW[o.status][2]}</button>` : ''}
+        <button type="button" class="btn btn-light btn-xs" data-lddet="${o.id}">Detail</button></div>`; };
     $('#kDates').innerHTML = `<div class="k-ldq"><div class="k-ldq-h"><span><i class="fa-solid fa-jug-detergent"></i> Laundry berjalan (${L.length}) · ambil &amp; bayar</span><a class="link" href="${UI.url('admin/laundry')}" style="font-size:12.5px">Buka menu Laundry</a></div>
       ${L.length ? L.slice(0, 6).map(row).join('') + (L.length > 6 ? `<p class="muted" style="font-size:12.5px">+${L.length - 6} lainnya di menu Laundry.</p>` : '') : '<p class="muted" style="font-size:13px">Tidak ada laundry yang sedang berjalan.</p>'}
       <p class="muted" style="font-size:12.5px;margin-top:8px">Laundry baru: pilih barang di bawah, isi data customer, lalu simpan.</p></div>`;
@@ -56,6 +57,7 @@
     const refresh = () => { drawLaundryQueue(); Admin.refreshShell(); };
     const p = e.target.closest('[data-ldpay]'); if (p) { Admin.ldPay(DB.laundryOrder(p.dataset.ldpay), refresh); return; }
     const d = e.target.closest('[data-lddet]'); if (d) { Admin.laundryModal(d.dataset.lddet, refresh); return; }
+    const nx = e.target.closest('[data-ldnext]'); if (nx) { const o = DB.laundryOrder(nx.dataset.ldnext); Admin.ldAdvance(o, Laundry.FLOW[o.status][0], refresh); return; }
     const k = e.target.closest('[data-lddone]'); if (k) { const o = DB.laundryOrder(k.dataset.lddone);
       Admin.ldPickup(o, refresh); }
   });
@@ -311,35 +313,8 @@
     else done(DB.booking(b.id), 'rent');
   }
 
-  /* ---------- Nota: struk thermal 58/80 mm & A4 ---------- */
-  function strukHtml(x, kind, mm) {
-    const L = kind === 'sale' ? x.items.map((i) => [i.name, `${i.qty} x ${rupiah(i.price)}`, rupiah(i.qty * i.price)]) : x.items.map((i) => [i.name, `${i.qty} x ${rupiah(Rules.lineUnit(i, x.days))}`, rupiah(i.qty * Rules.lineUnit(i, x.days))]);
-    const paid = Rules.paidTotal(x), k = x.kasir || {};
-    const row = (a, b, cls) => `<div class="r ${cls || ''}"><span>${a}</span><span>${b}</span></div>`;
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Struk ${esc(NO(x))}</title><style>
-      @page { size: ${mm}mm 200mm; margin: 0; } * { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; background: #fff; }
-      body { width: ${mm}mm; padding: 3mm ${mm === 58 ? 2.5 : 4}mm 6mm; font: ${mm === 58 ? 10.5 : 12}px/1.35 'Courier New', monospace; color: #000; }
-      .c { text-align: center; } h1 { font-size: 1.25em; margin: 0; letter-spacing: .05em; } .s { font-size: .9em; }
-      hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; } .r { display: flex; justify-content: space-between; gap: 6px; } .r span:last-child { text-align: right; white-space: nowrap; }
-      .b { font-weight: 700; } .it { margin: 3px 0; } .big { font-size: 1.15em; font-weight: 700; }
-    </style></head><body>
-      <div class="c"><h1>ANNAPURNA ADVENTURE</h1><div class="s">${esc(st.address || '')}<br>WA ${esc(st.phone || '')}</div></div><hr>
-      ${row('No. nota', esc(NO(x)), 'b')}${row('Tanggal', D.fmtDateTime(x.createdAt))}${row('Kasir', esc(k.by || me.name))}${row('Customer', esc(x.customer.name))}
-      ${kind === 'rent' ? `${row('Sewa', D.fmtRange(x.start, x.end) + ' · ' + x.days + ' mlm')}${row('Kembali maks.', D.fmtDate(x.end) + ' 22.00')}` : ''}<hr>
-      ${L.map(([n, q, tot]) => `<div class="it"><div>${esc(n)}</div>${row(q, tot)}</div>`).join('')}<hr>
-      ${row('Subtotal', rupiah(x.subtotal))}${x.discount ? row('Diskon', '- ' + rupiah(x.discount.amount || x.discount.fixed || 0)) : ''}${row('TOTAL', rupiah(x.total), 'big')}
-      ${row('Dibayar (' + esc(k.method || x.method) + ')', rupiah(paid))}${k.method === 'Tunai' ? row('Tunai', rupiah(k.received || paid)) + row('Kembalian', rupiah(k.change || 0)) : ''}
-      ${x.total - paid > 0 ? row('Sisa bayar saat ambil', rupiah(x.total - paid), 'b') : ''}
-      ${(x.svc || []).length ? `<hr>${x.svc.map((v) => row(v.kind === 'pasang' ? 'Jasa tenda' + (v.note ? ' (' + esc(v.note) + ')' : '') : 'Ongkir antar/jemput', rupiah(v.amount))).join('')}${row('Layanan dibayar', rupiah(x.svc.reduce((a, v) => a + v.amount, 0)), 'b')}` : ''}<hr>
-      <div class="c s">${esc((kind === 'rent' ? RC.footerRent : RC.footerSale) || '')}<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '@annapurnaadv')}</div>
-      <script>window.onload = () => { /* Tinggi kertas = panjang isi struk (bukan A4) */ const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 120); };<\/script></body></html>`;
-  }
-  function printStruk(x, kind, mm) {
-    const w = window.open('', '_blank', 'width=420,height=640');
-    if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
-    w.document.open(); w.document.write(strukHtml(x, kind, mm)); w.document.close();
-  }
+  /* Struk thermal 58/80 mm: dipindah ke UI.printStruk (dipakai juga di Detail booking, penjualan & halaman nota) */
+  const printStruk = (x, kind, mm) => UI.printStruk(x, kind, mm);
   async function done(x, kind) {
     const k = x.kasir || {};
     await Ann.Share.ensure(x);

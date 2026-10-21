@@ -935,61 +935,7 @@
   const ldItems = (o) => o.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
   /* Struk laundry gaya kasir laundry pada umumnya: tgl terima, estimasi selesai, rincian per item, status bayar,
      ketentuan (diatur Owner), kolom tanggal ambil & paraf. Kertas thermal 58/80 mm. */
-  function ldStruk(o, mm) {
-    const st = DB.settings(); const RC = Object.assign({ paper: 58 }, st.receipt || {}); mm = mm || RC.paper;
-    const W = mm === 58 ? 32 : 42; /* lebar karakter monospace */
-    const pad2 = (a, b) => { a = String(a); b = String(b); const sp = Math.max(1, W - a.length - b.length); return a + ' '.repeat(sp) + b; };
-    const line = (c) => (c || '-').repeat(W);
-    const num = (n) => Math.round(+n || 0).toLocaleString('id-ID');
-    const dt = (iso) => { const d = new Date(iso); return `${D.fmtDate(iso)} ${String(d.getHours()).padStart(2, '0')}.${String(d.getMinutes()).padStart(2, '0')}`; };
-    const total = Laundry.total(o), paid = Laundry.paid(o), sub = (o.items || []).reduce((a, i) => a + i.price * i.qty, 0);
-    const lunas = paid >= total; const last = (o.payments || []).slice(-1)[0];
-    const k = o.kasir || {};
-    const T = [];
-    T.push(pad2('No. Nota', o.no));
-    T.push(pad2('Terima', dt(o.createdAt)));
-    T.push(pad2('Est. selesai', D.fmtDate(Laundry.est(o))));
-    if (o.status === 'selesai' && o.pickedAt) T.push(pad2('Diambil', dt(o.pickedAt)));
-    T.push(pad2('Kasir', o.by || me.name));
-    T.push(line());
-    T.push(pad2('Pelanggan', o.customer.name.slice(0, W - 11)));
-    T.push(pad2('No. HP', o.customer.phone));
-    T.push(line());
-    (o.items || []).forEach((i) => { T.push(i.name.slice(0, W)); T.push(pad2(`  ${i.qty} x ${num(i.price)}`, num(i.qty * i.price))); });
-    T.push(line());
-    T.push(pad2('Jumlah barang', `${Laundry.qty(o)} pcs`));
-    T.push(pad2('Subtotal', num(sub)));
-    if (o.ongkir) T.push(pad2('Ongkir', num(o.ongkir)));
-    if (o.discount) T.push(pad2('Diskon', '-' + num(o.discount)));
-    const P = []; /* baris pembayaran, dicetak setelah TOTAL */
-    if (paid) { P.push(pad2(`Dibayar${last ? ' (' + String(last.via || '').replace('Kasir · ', '') + ')' : ''}`, num(paid))); if (k.method === 'Tunai' && k.received && k.received > paid) { P.push(pad2('Tunai', num(k.received))); P.push(pad2('Kembali', num(k.change || 0))); } }
-    else P.push(pad2('Dibayar', '0'));
-    if (!lunas) P.push(pad2('SISA BAYAR', 'Rp ' + num(total - paid)));
-    const terms = Laundry.terms();
-    const w = window.open('', '_blank', 'width=420,height=700'); if (!w) { toast('Izinkan pop-up di browser untuk mencetak struk.', 'err'); return; }
-    w.document.open(); w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk ${esc(o.no)}</title><style>
-      @page { size: ${mm}mm 260mm; margin: 0; } * { box-sizing: border-box; } html, body { margin: 0; padding: 0; background: #fff; }
-      body { width: ${mm}mm; padding: 3mm ${mm === 58 ? 2 : 3.5}mm 6mm; font: ${mm === 58 ? 10 : 11.5}px/1.35 'Courier New', monospace; color: #000; }
-      pre { margin: 0; font: inherit; white-space: pre; } .c { text-align: center; } h1 { font-size: 1.3em; margin: 0; letter-spacing: .04em; }
-      .s { font-size: .92em; } .big { font-size: 1.25em; font-weight: 700; margin: 2px 0; } .stamp { display: inline-block; margin: 6px 0 2px; padding: 3px 10px; border: 2px solid #000; font-weight: 700; letter-spacing: .15em; }
-      .terms { font-size: .86em; margin: 4px 0 0; padding-left: 1.3em; } .terms li { margin: 1px 0; } .sign { display: flex; justify-content: space-between; margin-top: 14px; font-size: .9em; } .sign > div { width: 46%; text-align: center; } .sign .ln { border-top: 1px dotted #000; margin-top: 30px; padding-top: 2px; }
-      .tot { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: 1.2em; margin: 3px 0; }
-    </style></head><body>
-      <div class="c"><h1>ANNAPURNA ADVENTURE</h1><div class="s"><b>LAUNDRY OUTDOOR EQUIPMENT</b><br>${esc(st.address || '')}<br>WA ${esc(st.phone || '')}</div></div>
-      <pre>${line('=')}</pre>
-      <pre>${T.map(esc).join('\n')}</pre>
-      <div class="tot"><span>TOTAL</span><span>Rp ${num(total)}</span></div>
-      <pre>${P.map(esc).join('\n')}</pre>
-      <div class="c"><span class="stamp">${lunas ? 'LUNAS' : paid ? 'BELUM LUNAS' : 'BAYAR SAAT AMBIL'}</span></div>
-      ${o.notes ? `<pre>${line()}</pre><div class="s">Catatan: ${esc(o.notes)}</div>` : ''}
-      <pre>${line()}</pre>
-      <div class="s"><b>KETENTUAN</b></div><ol class="terms">${terms.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
-      <div class="sign"><div><div class="ln">${o.pickedAt ? esc(D.fmtDate(o.pickedAt)) : 'Tgl ambil'}</div></div><div><div class="ln">Paraf pelanggan</div></div></div>
-      <pre>${line('=')}</pre>
-      <div class="c s">Simpan struk ini untuk pengambilan.<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '')}</div>
-      <script>window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 150); };<\/script></body></html>`);
-    w.document.close();
-  }
+  function ldStruk(o, mm) { return UI.ldStruk(o, mm); }
   /* Pesan WhatsApp laundry mengikuti status saat ini, beserta nota (rincian barang, total, status bayar) */
   const hariTgl = (iso) => { const x = new Date(String(iso).slice(0, 10) + 'T00:00:00'); return `${['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][x.getDay()]}, ${D.fmtDate(iso, true)}`; };
   function ldNotaText(o) {
@@ -1006,25 +952,28 @@
   }
   const ldKey = (o) => (DB.WA_TPL.some((x) => x.key === 'ld_' + o.status) ? 'ld_' + o.status : 'ld_diterima');
   function ldWaText(o, link) { return DB.waText(ldKey(o), ldVars(o, link)).replace(/\n?Nota digital: *$/m, ''); }
-  async function ldLink(o) { return new URL(url('invoice?id=' + encodeURIComponent(o.id) + '&s=' + await Laundry.share(o)), location.href).href; }
+  async function ldLink(o) { const s = await Laundry.share(o); return s && s.short ? s.short : new URL(url('invoice?id=' + encodeURIComponent(o.id) + '&s=' + s), location.href).href; }
   function ldWa(o) { return UI.waLink(ldWaText(o), o.customer.phone); }
   /* Kabari customer laundry: gambar nota laundry + pesan template (bisa diedit). onSent dipanggil setelah WhatsApp dibuka. */
   async function ldContact(o, opts = {}) {
     if (!o) return;
     const cv = await ldNotaCanvas(o); const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
     const text = ldWaText(o, await ldLink(o));
-    return UI.waCompose({ title: opts.title || `Hubungi customer · ${o.no}`, blob, name: `nota-laundry-${String(o.no).replace(/\//g, '_')}.png`, text, phone: o.customer.phone,
+    return UI.waCompose({ title: opts.title || `Hubungi customer · ${o.no}`, note: opts.note, blob, name: `nota-laundry-${String(o.no).replace(/\//g, '_')}.png`, text, phone: o.customer.phone,
       waLabel: `Hubungi ${esc((o.customer.name || 'customer').split(' ')[0])}`, tplKey: ldKey(o),
       onSent: (how) => { const x = DB.laundryOrder(o.id); if (x) { x.history = x.history || []; x.history.push({ at: D.nowStamp(), text: `${opts.logText || 'Customer dihubungi via WhatsApp + nota digital'}${how ? ' · ' + how : ''} oleh ${me.name}` }); if (opts.patch) Object.assign(x, opts.patch()); DB.saveLaundry(x); } opts.onSent && opts.onSent(); } });
   }
   /* Laundry SIAP DIAMBIL: staff WAJIB mengabari customer via WhatsApp (pesan + nota). Tidak perlu cetak struk di tahap ini. */
   function ldNotify(o, done) {
-    const m = modal({ title: `${o.no}: Siap diambil`, locked: true, body: `
-      <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div>Cucian sudah selesai. <b>Wajib kabari customer</b> bahwa laundry-nya siap diambil.</div></div>
-      <p class="svc-msg-l">Pratinjau pesan (bisa diedit di langkah berikutnya)</p><div class="svc-msg">${esc(ldWaText(o))}</div>`,
-      foot: `<button type="button" class="btn btn-wa" id="lnWa"><i class="fa-brands fa-whatsapp"></i> Kirim ke customer</button>` });
-    m.$('#lnWa').addEventListener('click', () => ldContact(DB.laundryOrder(o.id), { title: `Kabari siap diambil · ${o.no}`, logText: 'Customer dikabari via WhatsApp (siap diambil)', patch: () => ({ notifiedReady: D.nowStamp() }),
-      onSent: () => setTimeout(() => { document.querySelectorAll('.modal').forEach((x) => { if (x !== m.el) x.remove(); }); m.close(); toast('Customer sudah dikabari.'); done && done(); }, 400) }));
+    let sent = false;
+    Promise.resolve(ldContact(DB.laundryOrder(o.id), { title: `Kabari siap diambil · ${o.no}`, logText: 'Customer dikabari via WhatsApp (siap diambil)', patch: () => ({ notifiedReady: D.nowStamp() }),
+      note: '<b>Cucian sudah selesai.</b> Wajib kabari customer bahwa laundry-nya siap diambil.', onSent: () => { sent = true; } })).then((cm) => {
+      if (!cm || !cm.el) { done && done(); return; }
+      const obs = new MutationObserver(() => { if (document.body.contains(cm.el)) return; obs.disconnect();
+        if (sent) toast('Customer sudah dikabari.'); else toast(`${o.no} belum dikabari. Tetap muncul di Dashboard sampai pesan dikirim.`, 'err');
+        done && done(); });
+      obs.observe(document.body, { childList: true });
+    });
   }
   /* Laundry diambil customer:
      - sudah lunas → langsung selesai, tanpa cetak struk
@@ -1189,9 +1138,9 @@
       if (act === 'contact') { ldNota(DB.laundryOrder(id)); return; }
       m.close();
       if (act === 'pay') ldPay(DB.laundryOrder(id), again);
-      if (act === 'next') {
+      if (act === 'next') { /* popup detail ditutup, daftar diperbarui — tidak membuka detail lagi */
         const cur = DB.laundryOrder(id);
-        if (nx[0] === 'selesai') ldPickup(cur, again); else ldAdvance(cur, nx[0], again);
+        if (nx[0] === 'selesai') ldPickup(cur, done); else ldAdvance(cur, nx[0], done);
       }
       if (act === 'cancel') { const r = await confirmBox({ title: `Batalkan ${o.no}?`, text: 'Laundry dibatalkan dan tidak dihitung lagi.', ok: 'Batalkan', danger: true, input: { label: 'Alasan', required: true, error: 'Tulis alasan.' } }); if (r) { const cur = DB.laundryOrder(id); cur.cancelReason = r; ldAdvance(cur, 'dibatalkan', done); } else again(); }
     });
@@ -1285,8 +1234,9 @@
       ${b.ret ? outRetHtml(b, 'ret') : ''}
       ${reqSection(b)}
       <details class="mini-sec hist-fold"><summary><h4>Riwayat booking (${(b.history || []).length})</h4></summary><ul class="timeline">${(b.history || []).slice().reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul></details>`,
-      foot: `<a class="btn btn-light" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a><button type="button" class="btn btn-wa" data-bcontact><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic}"></i> ${l}</button>`).join('')}` });
+      foot: `<a class="btn btn-light" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a><button type="button" class="btn btn-light" data-bprint title="Struk thermal ${UI.receiptPaper()} mm"><i class="fa-solid fa-print"></i> Struk</button><button type="button" class="btn btn-wa" data-bcontact><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic}"></i> ${l}</button>`).join('')}` });
     m.$$('[data-bact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); runBooking(btn.dataset.bact, id, done); }));
+    m.$('[data-bprint]').addEventListener('click', () => UI.printStruk(DB.booking(id), 'rent'));
     m.$('[data-bcontact]').addEventListener('click', async (e) => { const bt = e.currentTarget; bt.disabled = true; try { await contactBooking(DB.booking(id)); } finally { bt.disabled = false; } });
     m.$$('[data-svcact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); (btn.dataset.svcact === 'edit' ? svcEdit : svcPay)(DB.booking(id), () => { refreshShell(); done && done(); bookingModal(id, done); }); }));
     const fin2 = () => { refreshShell(); done && done(); };
@@ -1530,10 +1480,11 @@
       </div>
       ${s.proof ? `<div class="mini-sec"><h4>Bukti pembayaran</h4><img class="proof-img" src="${asset(s.proof)}" alt="Bukti"></div>` : ''}
       <div class="mini-sec"><h4>Riwayat</h4><ul class="timeline">${(s.history || []).slice().reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul></div>`,
-      foot: `${s.paymentStatus === 'paid' || saleDeliv(s) ? `<a class="btn btn-light" href="${url('invoice?id=' + s.id)}"><i class="fa-solid fa-receipt"></i> Nota</a>` : ''}<button class="btn btn-wa" data-ssvc="contact"><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-sact="${k}"><i class="fa-solid ${ic}"></i> ${l}</button>`).join('') || '<button class="btn btn-light" data-close>Tutup</button>'}` });
+      foot: `${s.paymentStatus === 'paid' || saleDeliv(s) ? `<a class="btn btn-light" href="${url('invoice?id=' + s.id)}"><i class="fa-solid fa-receipt"></i> Nota</a>` : ''}<button class="btn btn-light" data-ssvc="print" title="Struk thermal ${UI.receiptPaper()} mm"><i class="fa-solid fa-print"></i> Struk</button><button class="btn btn-wa" data-ssvc="contact"><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-sact="${k}"><i class="fa-solid ${ic}"></i> ${l}</button>`).join('') || '<button class="btn btn-light" data-close>Tutup</button>'}` });
     m.$$('[data-sact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); runSale(btn.dataset.sact, id, done); }));
     m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-ssvc]'); if (!b) return; const cur = DB.sale(id);
       if (b.dataset.ssvc === 'contact') { contactSale(cur); return; }
+      if (b.dataset.ssvc === 'print') { UI.printStruk(cur, 'sale'); return; }
       if (b.dataset.ssvc === 'pay') { m.close(); salePay(cur, () => { done && done(); saleModal(id, done); }); }
       if (b.dataset.ssvc === 'ship') { m.close(); saleShip(cur, () => { done && done(); saleModal(id, done); }); } });
   }
@@ -1579,8 +1530,10 @@
       if (kind === 'in' && /cuci|servis|laundry|bongkar|ongkir/i.test(x.cat)) return 'rent';
       return 'umum';
     };
-    /* Ketentuan mitra: lini Rental TIDAK punya pengeluaran. Biaya alat sewa, laundry (deterjen, listrik), dll. masuk lini Umum. */
-    const lineOf = (x, kind) => { const l = lineOf0(x, kind); return kind === 'out' && l === 'rent' ? 'umum' : l; };
+    /* Revisi mitra 21 Okt 2026: lini Rental PUNYA pengeluaran — restock barang sewa, biaya operasional/kebutuhan lain rental,
+       serta perawatan & perbaikan alat. Laba Rental = pemasukan Rental − pengeluaran Rental. */
+    const lineOf = (x, kind) => lineOf0(x, kind);
+    const rentOutKind = (x) => (/restock|pembelian barang/i.test(`${x.cat} ${x.desc}`) ? 'restock' : /perawatan|perbaikan|servis|cuci/i.test(x.cat) ? 'care' : 'ops');
     const by = { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: 0, out: 0 } };
     income.forEach((x) => { x.line = lineOf(x, 'in'); by[x.line].in += x.amount; });
     expense.forEach((x) => { x.line = lineOf(x, 'out'); by[x.line].out += x.amount; });
@@ -1589,14 +1542,15 @@
        Penjualan = pemasukan penjualan − modal barang terjual (belanja/restock stok = arus kas, bukan pengurang laba)
        Umum      = pemasukan lain − pengeluaran operasional
        Laba bersih toko = jumlah ketiganya. totalIn/totalOut tetap arus kas (uang masuk/keluar sebenarnya). */
-    const withProfit = (B0) => { B0.sale.cogs = sum(cogs); B0.sale.missingCost = missingCost; B0.rent.profit = B0.rent.in; B0.sale.profit = B0.sale.in - B0.sale.cogs; B0.umum.profit = B0.umum.in - B0.umum.out; return B0.rent.profit + B0.sale.profit + B0.umum.profit; };
+    const withProfit = (B0) => { B0.sale.cogs = sum(cogs); B0.sale.missingCost = missingCost; B0.rent.profit = B0.rent.in - B0.rent.out;
+      B0.rent.outBy = { restock: 0, care: 0, ops: 0 }; expense.filter((x) => x.line === 'rent').forEach((x) => { B0.rent.outBy[rentOutKind(x)] += x.amount; }); B0.sale.profit = B0.sale.in - B0.sale.cogs; B0.umum.profit = B0.umum.in - B0.umum.out; return B0.rent.profit + B0.sale.profit + B0.umum.profit; };
     voided.forEach((x) => { x.line = lineOf(x, x.kind); });
     /* Bulan yang data mentahnya sudah dibersihkan: angka diambil dari ringkasan arsip */
     const per = from && to && from.endsWith('-01') ? from.slice(0, 7) : null;
     const arc = per && DB.archive ? DB.archive(per) : null;
     if (arc && arc.purged && arc.summary && String(to).slice(0, 7) === per) {
       const sm = arc.summary; const bl = sm.byLine || { rent: { in: 0, out: 0 }, sale: { in: 0, out: 0 }, umum: { in: sm.pemasukan || 0, out: sm.pengeluaran || 0 } };
-      const BA = { rent: { in: Math.max(by.rent.in, bl.rent.in), out: Math.max(by.rent.out, bl.rent.out) }, sale: { in: Math.max(by.sale.in, bl.sale.in), out: Math.max(by.sale.out, bl.sale.out) }, umum: { in: Math.max(by.umum.in, bl.umum.in), out: Math.max(by.umum.out, bl.umum.out) } }; BA.rent.out = 0; const pA = withProfit(BA); if (bl.sale && bl.sale.cogs) { BA.sale.cogs = Math.max(BA.sale.cogs, bl.sale.cogs); BA.sale.profit = BA.sale.in - BA.sale.cogs; }
+      const BA = { rent: { in: Math.max(by.rent.in, bl.rent.in), out: Math.max(by.rent.out, bl.rent.out) }, sale: { in: Math.max(by.sale.in, bl.sale.in), out: Math.max(by.sale.out, bl.sale.out) }, umum: { in: Math.max(by.umum.in, bl.umum.in), out: Math.max(by.umum.out, bl.umum.out) } }; const pA = withProfit(BA); if (bl.sale && bl.sale.cogs) { BA.sale.cogs = Math.max(BA.sale.cogs, bl.sale.cogs); BA.sale.profit = BA.sale.in - BA.sale.cogs; }
       return { income, expense, voided, cogs, totalIn: Math.max(sum(income), sm.pemasukan || 0), totalOut: Math.max(sum(expense), sm.pengeluaran || 0), by: BA, profit: BA.rent.profit + BA.sale.profit + BA.umum.profit, fromArchive: true };
     }
     const profit = withProfit(by);

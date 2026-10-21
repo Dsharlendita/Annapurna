@@ -1,7 +1,7 @@
 # Catatan Progres & Analisis Kebutuhan Backend
 ## Sistem Informasi Sewa dan Penjualan Perlengkapan Outdoor — Annapurna Adventure
 **Referensi:** Dokumen Teknis (Technical Specification) Versi 1.0 (2 Oktober 2026)  
-**Terakhir Diperbarui:** 15 Oktober 2026 (lihat Bagian B untuk kebutuhan backend dari revisi frontend 9–15 Oktober 2026)  
+**Terakhir Diperbarui:** 21 Oktober 2026 (lihat Bagian C untuk kebutuhan backend dari revisi mitra 21 Oktober 2026)  
 
 ---
 
@@ -579,3 +579,53 @@ Jangan lupa cron server: `* * * * * php artisan schedule:run` dan `php artisan q
 | T-B08 | Restock 48 gas @12.000 lalu terjual 5 @20.000 | Pengeluaran 576.000 (kas), laba penjualan = 100.000 − 60.000 = 40.000 |
 | T-B09 | Laundry belum lunas ditandai diambil | Ditolak sampai pelunasan tercatat |
 | T-B10 | Refund DP 15.000 | Pemasukan Rental berkurang 15.000, pengeluaran tidak bertambah |
+
+---
+
+# Bagian C — Kebutuhan Backend dari Revisi Mitra 21 Oktober 2026
+
+Semua fitur di bawah sudah berjalan di frontend (data di `localStorage`, migrasi otomatis `migrateRev2110` di `data.js`). Saat dipindah ke server, pakai struktur berikut.
+
+## C.1 Gambar item laundry & laundry "Lain-lain"
+- `laundry_items`: tambah kolom `image_path VARCHAR(255) NULL`. Gambar bisa diganti **admin & owner** (bukan hanya owner) → endpoint `POST /api/admin/laundry-items/{id}/image` (multipart, maks. 8 MB, simpan versi 640×480 JPG).
+- `settings.laundry_other` (JSON): `{ enabled, name, minPrice (default 5000), note, img }` — diubah owner di Konfigurasi → Laundry & Jasa Tenda.
+- `laundry_order_items`: tambah `is_custom BOOLEAN DEFAULT 0`. Item "Lain-lain" menyimpan `name` & `price` hasil input manual staff, `laundry_item_id = NULL`.
+- **Validasi server:** item custom wajib `name` ≥ 2 karakter dan `price ≥ settings.laundry_other.minPrice`.
+
+## C.2 Penjualan tanpa data customer (pelanggan umum)
+- Penjualan dari kasir boleh tanpa nama & no. WA. Frontend menyimpan `customer = { name: 'Pelanggan Umum', phone: '', walkIn: true }`.
+- `sales`: `customer_name` & `customer_phone` jadi `NULL`-able, tambah `is_walk_in BOOLEAN DEFAULT 0`.
+- Penjualan walk-in **tidak** dihitung di Data Pelanggan / arsip pelanggan.
+- Sewa & laundry: nama + no. WA **tetap wajib** (validasi server).
+
+## C.3 Foto barang keluar / kembali opsional
+- Default `settings.forms.pickup.photo` dan `settings.forms.return.photo` = `opsional`. Owner tetap bisa mengubah ke `wajib` di Konfigurasi → Form & Field Staff.
+- Kolom foto di `booking_out` / `booking_returns` → `NULL`-able. Server hanya mewajibkan foto bila setting = `wajib`.
+
+## C.4 Varian 2 atribut (stok per kombinasi, harga sama)
+- `product_variants` (lihat Bagian 3.1 no. 1): tambah `attribute_id_2 NULL`, `value_1 VARCHAR(40)`, `value_2 VARCHAR(40) NULL`, `name VARCHAR(90)` (= `value_1` atau `value_1 + ' / ' + value_2`, contoh `42 / Hitam`), `stock INT`.
+- `products`: `variant_label`, `variant_label_2 NULL`, `variant_attribute_id`, `variant_attribute_id_2 NULL`.
+- Unit fisik (`product_units.size`) & baris booking/penjualan (`size`) menyimpan **nama kombinasi** (`42 / Hitam`). Ketersediaan dihitung per kombinasi.
+- Atribut baru bawaan: **Warna** (`at-warna`, varian stok, kategori fashion/footwear/tas). Owner bisa menambah nilai langsung dari form barang (tercatat di histori).
+- Saat struktur varian berubah (1 → 2 atribut), unit lama dipindah ke kombinasi dengan `value_1` yang sama; server wajib menolak bila jumlah stok kombinasi < unit fisik aktif.
+
+## C.5 Restock barang sewa
+- Tabel `restocks` (sudah ada untuk barang jual): tambah `kind ENUM('sale','rent') DEFAULT 'sale'`, `unit_codes JSON NULL`, `note TEXT NULL`.
+- Restock barang sewa: membuat N baris `product_units` baru (kode lanjutan, mis. `TND-4P-07`), `product_units.purchase_cost` diisi harga beli, `products.cost` diperbarui, dan otomatis membuat pengeluaran `Pembelian Barang` dengan **lini Rental** (`line = 'rent'`).
+- Laporan Penjualan → bagian Restock hanya memuat `kind = 'sale'`.
+- Endpoint: `POST /api/admin/products/{id}/restock` `{ size?, qty (1–200), cost, date, supplier?, note? }`.
+
+## C.6 Identitas jaminan "Lainnya"
+- `settings.id_types` (JSON array, default `["KTP","KTM","SIM","Kartu Pelajar"]`) diatur owner. Pilihan **Lainnya** selalu tersedia dan diketik manual (mis. Paspor, Kartu Pegawai).
+- `bookings.id_type` & `booking_out.id_card` → `VARCHAR(40)` teks bebas (bukan ENUM). Validasi: wajib bila `forms.pickup.idCard = wajib`, panjang 2–40 karakter.
+- Dipakai di kasir (sewa), catat barang keluar, dan checkout customer.
+
+## C.7 Invoice penjualan & tombol Hubungi customer di detail booking
+- Gambar invoice dibuat di frontend (canvas). Backend cukup menyediakan data invoice (`GET /api/sales/{id}/invoice`) dan token nota publik (lihat Share/`public_token`).
+- Total tagihan invoice = total barang + ongkir antar (bila sudah dikonfirmasi admin); sudah dibayar = pembayaran barang + pembayaran ongkir.
+
+## C.8 Template pesan WhatsApp
+- Tabel `wa_templates` (`key VARCHAR(40) PK`, `body TEXT`, `updated_by`, `updated_at`), atau `settings.wa_templates` JSON. Kosong = pakai bawaan (`WA_TPL` di `data.js`).
+- 12 kunci: `sale_nota`, `kasir_sale`, `kasir_rent`, `rent_booking`, `rent_reminder`, `rent_fine`, `svc_nota`, `ld_diterima`, `ld_dicuci`, `ld_siap`, `ld_selesai`, `ld_dibatalkan`.
+- Kode pengganti: `{nama} {nama_depan} {no_nota} {tanggal} {rincian} {total} {dibayar} {sisa} {metode} {link_nota} {pengiriman} {tgl_sewa} {tgl_ambil} {tgl_kembali} {jam_kembali} {lama} {status} {terlambat} {denda} {total_bayar} {estimasi} {nama_toko} {alamat_toko} {jam_buka} {wa_toko}`.
+- Hanya owner yang boleh mengubah template (audit `konfigurasi`). Staff mengedit isi pesan per pengiriman di jendela kirim (tidak disimpan sebagai template, hanya dicatat "dihubungi via WhatsApp" di riwayat transaksi).

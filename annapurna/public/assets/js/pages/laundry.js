@@ -4,7 +4,7 @@
 (function () {
   const { DB, D, rupiah, Laundry } = Ann; const { $, $$, esc, url, waLink } = UI;
   const st = DB.settings();
-  const cats = DB.laundryPrices();
+  const cats = DB.laundryPrices(); const OT = DB.laundryOther();
   const days = Laundry.days();
   const minAll = Math.min(...cats.flatMap((c) => c.items.map((i) => i.price)));
   const qty = {}; /* id item → jumlah */
@@ -35,7 +35,8 @@
       </div>
       ${cats.map((c) => `<section class="lp-cat" data-cat="${esc(c.id)}" aria-labelledby="ldc-${esc(c.id)}">
         <h3 class="lp-cat-h" id="ldc-${esc(c.id)}"><span><i class="fa-solid ${esc(c.icon || 'fa-circle')}" aria-hidden="true"></i></span>${esc(c.name)}<small>${c.items.length} jenis</small></h3>
-        <div class="lp-items">${c.items.map((it) => `<div class="lp-item" data-row="${esc(it.id)}">
+        <div class="lp-items">${c.items.map((it) => `<div class="lp-item has-pic" data-row="${esc(it.id)}">
+          <span class="lp-pic">${it.img ? `<img src="${UI.asset(it.img)}" alt="" loading="lazy" decoding="async">` : `<i class="fa-solid ${esc(c.icon || 'fa-jug-detergent')}"></i>`}</span>
           <div class="nm"><b>${esc(it.name)}</b><span>${rupiah(it.price)} <small>/ pcs</small></span></div>
           <div class="qty sm" role="group" aria-label="Jumlah ${esc(it.name)}">
             <button type="button" data-q="-1" data-id="${esc(it.id)}" aria-label="Kurangi ${esc(it.name)}"><i class="fa-solid fa-minus"></i></button>
@@ -44,6 +45,10 @@
           </div>
         </div>`).join('')}</div>
       </section>`).join('')}
+      ${OT.enabled !== false ? `<section class="lp-cat" data-cat="__other"><h3 class="lp-cat-h"><span><i class="fa-solid fa-plus" aria-hidden="true"></i></span>${esc(OT.name)}<small>barang di luar daftar</small></h3>
+        <div class="lp-items"><div class="lp-item has-pic lp-other"><span class="lp-pic">${OT.img ? `<img src="${UI.asset(OT.img)}" alt="" loading="lazy">` : '<i class="fa-solid fa-shirt"></i>'}</span>
+          <div class="nm"><b>Barang lainnya</b><span>mulai ${rupiah(OT.minPrice)} <small>/ pcs</small></span><small class="muted" style="display:block;font-size:12.5px;line-height:1.4;margin-top:2px">${esc(OT.note || '')}</small></div>
+          <a class="btn btn-light btn-xs" href="${waLink('Halo admin Annapurna, saya mau laundry barang yang tidak ada di daftar: ')}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> Tanya harga</a></div></div></section>` : ''}
     </div>
     <aside class="sticky-side lp-sum" aria-live="polite">
       <div class="lp-ticket">

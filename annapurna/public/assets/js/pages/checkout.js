@@ -61,7 +61,7 @@
           <div class="field"><label for="phone">No. WhatsApp</label><input class="input" id="phone" name="phone" inputmode="tel" value="${esc(user ? user.phone || '' : '')}" autocomplete="tel" placeholder="08xxxxxxxxxx"></div>
         </div>
         <div class="field"><label for="email">Email</label><input class="input" id="email" name="email" type="email" value="${esc(user ? user.email : '')}" autocomplete="email" placeholder="nama@email.com"></div>
-        <div class="field"><label for="idType">Kartu identitas yang dibawa saat ambil</label><select class="select" id="idType" name="idType"><option>KTP</option><option>KTM (Kartu Mahasiswa)</option><option>SIM</option></select></div>
+        ${rent.length ? UI.idField('ckId', (user && user.idType) || 'KTP', { label: 'Kartu identitas yang dibawa saat ambil', hint: 'Kartu asli dititipkan sebagai jaminan selama masa sewa. Pilih <b>Lainnya</b> bila memakai identitas lain.' }) : ''}
       </div>
 
       <div class="card">
@@ -104,6 +104,7 @@
   document.body.classList.add('has-sticky');
 
   const form = $('#coForm');
+  UI.idBind(form, 'ckId');
   drawSum();
 
   function drawDeliv() {
@@ -156,6 +157,7 @@
   const pre = new URLSearchParams(location.search).get('promo'); if (pre) { $('#promoIn').value = pre; applyPromo(); }
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!UI.idRead(form, 'ckId').ok) return;
     /* Paket berisi barang berukuran wajib sudah dipilih ukurannya */
     const noSz = Cart.all().filter((it) => it.type === 'rent' && it.kind === 'package' && ((Cart.resolve(it) || {}).missingSizes || []).length);
     if (noSz.length) { toast('Pilih dulu ukuran barang di paket (mis. sepatu / jaket) di keranjang.', 'err'); setTimeout(() => (location.href = UI.url('keranjang')), 900); return; }
@@ -235,7 +237,7 @@
     if (bad.length) { toast('Stok berubah untuk beberapa alat. Periksa lagi keranjangmu.', 'err'); setTimeout(() => (location.href = 'keranjang'), 1200); return; }
 
     const customer = { name: form.elements.name.value.trim(), phone: form.phone.value.trim(), email: user.email };
-    const common = { customer, userEmail: user.email, method: form.elements.method.value, delivery: 'ambil', notes: form.notes.value.trim(), idType: form.idType.value, createdAt: D.nowStamp() };
+    const common = { customer, userEmail: user.email, method: form.elements.method.value, delivery: 'ambil', notes: form.notes.value.trim(), idType: UI.idRead(form, 'ckId', true).value, createdAt: D.nowStamp() };
     /* Layanan antar / bongkar pasang menempel ke booking sewa. Bila checkout memecah beberapa booking (durasi berbeda),
        layanan dipasang ke booking yang tanggal ambilnya paling awal (dan jumlah tendanya mengikuti isi booking itu). */
     let svcPlaced = false;

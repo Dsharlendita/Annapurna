@@ -34,7 +34,7 @@
 
   /* ---------- Katalog kiri ---------- */
   function drawCats() {
-    if (isLd()) { $('#kCats').innerHTML = [`<button type="button" class="chip ${!S.cat ? 'on' : ''}" data-c="">Semua</button>`, ...DB.laundryPrices().map((c) => `<button type="button" class="chip ${S.cat === c.id ? 'on' : ''}" data-c="${esc(c.id)}"><i class="fa-solid ${esc(c.icon || 'fa-circle')}"></i> ${esc(c.name)}</button>`)].join(''); return; }
+    if (isLd()) { const OT = DB.laundryOther(); $('#kCats').innerHTML = [`<button type="button" class="chip ${!S.cat ? 'on' : ''}" data-c="">Semua</button>`, ...DB.laundryPrices().map((c) => `<button type="button" class="chip ${S.cat === c.id ? 'on' : ''}" data-c="${esc(c.id)}"><i class="fa-solid ${esc(c.icon || 'fa-circle')}"></i> ${esc(c.name)}</button>`), ...(OT.enabled !== false ? [`<button type="button" class="chip ${S.cat === '__other' ? 'on' : ''}" data-c="__other"><i class="fa-solid fa-plus"></i> ${esc(OT.name)}</button>`] : [])].join(''); return; }
     const cats = DB.categories().filter((c) => c.active !== false);
     $('#kCats').innerHTML = [`<button type="button" class="chip ${!S.cat ? 'on' : ''}" data-c="">Semua</button>`, ...(S.mode === 'rent' ? [`<button type="button" class="chip ${S.cat === 'paket' ? 'on' : ''}" data-c="paket"><i class="fa-solid fa-box-open"></i> Paket</button>`] : []),
       ...cats.map((c) => `<button type="button" class="chip ${S.cat === c.id ? 'on' : ''}" data-c="${c.id}">${esc(c.name)}</button>`)].join('');
@@ -84,7 +84,11 @@
     if (isLd()) {
       const q = S.q.toLowerCase();
       const L = DB.laundryPrices().filter((c) => !S.cat || c.id === S.cat).flatMap((c) => c.items.map((i) => Object.assign({ icon: c.icon, cat: c.name }, i))).filter((i) => !q || i.name.toLowerCase().includes(q));
-      $('#kGrid').innerHTML = L.length ? L.map((i) => `<button type="button" class="k-item" data-add="laundry|${esc(i.id)}"><span class="k-ic"><i class="fa-solid ${esc(i.icon || 'fa-jug-detergent')}"></i></span><span class="k-nm">${esc(i.name)}</span><span class="k-pr">${rupiah(i.price)}</span><span class="k-st">${esc(i.cat)}</span></button>`).join('') : '<p class="muted" style="grid-column:1/-1;padding:20px">Barang laundry tidak ditemukan.</p>';
+      const OT = DB.laundryOther(); const showOther = OT.enabled !== false && (!S.cat || S.cat === '__other') && (!q || 'lain lainnya barang lain'.includes(q) || OT.name.toLowerCase().includes(q));
+      const pic = (img, icon) => (img ? `<img src="${asset(img)}" alt="" loading="lazy" decoding="async">` : `<span class="k-ic"><i class="fa-solid ${esc(icon || 'fa-jug-detergent')}"></i></span>`);
+      const tiles = (S.cat === '__other' ? [] : L).map((i) => `<button type="button" class="k-item" data-add="laundry|${esc(i.id)}">${pic(i.img, i.icon)}<span class="k-nm">${esc(i.name)}</span><span class="k-pr">${rupiah(i.price)}</span><span class="k-st">${esc(i.cat)}</span></button>`);
+      if (showOther) tiles.push(`<button type="button" class="k-item k-other" data-add="ldx|new">${OT.img ? pic(OT.img) : '<span class="k-ic k-ic-plus"><i class="fa-solid fa-plus"></i></span>'}<span class="k-nm">${esc(OT.name)}</span><span class="k-pr">mulai ${rupiah(OT.minPrice)}</span><span class="k-st">Isi nama &amp; harga manual</span></button>`);
+      $('#kGrid').innerHTML = tiles.length ? tiles.join('') : '<p class="muted" style="grid-column:1/-1;padding:20px">Barang laundry tidak ditemukan. Pakai kartu <b>Lain-lain</b> untuk barang di luar daftar.</p>';
       return;
     }
     const L = list();
@@ -98,7 +102,37 @@
   }
 
   /* ---------- Tambah barang (pilih ukuran bila perlu) ---------- */
+  /* Laundry "Lain-lain": nama barang & harga diisi manual (harga minimal dari Owner, default Rp5.000) */
+  function ldOther(edit) {
+    const OT = DB.laundryOther(); const min = Math.max(0, +OT.minPrice || 0); const cur = edit || { name: '', price: min, qty: 1 };
+    const m = modal({ title: edit ? 'Ubah barang laundry lain-lain' : `Laundry ${esc(OT.name)}`, body: `
+      <p class="muted" style="font-size:13px;margin:0 0 12px">${esc(OT.note || 'Barang di luar daftar harga.')} Harga minimal <b>${rupiah(min)}</b> per barang.</p>
+      <div class="field"><label for="loName">Nama barang <span class="req">*</span></label><input class="input" id="loName" value="${esc(cur.name)}" placeholder="Contoh: Sarung tangan gunung" maxlength="60" autocomplete="off"></div>
+      <div class="ld-other-sug">${['Sarung tangan', 'Topi / kupluk', 'Buff / masker', 'Tas pinggang', 'Gaiter', 'Hammock'].map((x) => `<button type="button" class="chip" data-sug="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <div class="grid-2">
+        <div class="field"><label for="loPrice">Harga per barang (Rp) <span class="req">*</span></label><input class="input" id="loPrice" inputmode="numeric" value="${Number(cur.price || min).toLocaleString('id-ID')}"><span class="hint" id="loHint">Minimal ${rupiah(min)}</span></div>
+        <div class="field"><label for="loQty">Jumlah</label><input class="input" id="loQty" type="number" min="1" max="99" value="${cur.qty || 1}"></div>
+      </div>
+      <div class="kv total" id="loSum"></div>`,
+      foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="loOk"><i class="fa-solid fa-${edit ? 'check' : 'plus'}"></i> ${edit ? 'Simpan' : 'Tambahkan'}</button>` });
+    const price = () => num(m.$('#loPrice').value), qty = () => Math.max(1, parseInt(m.$('#loQty').value, 10) || 1);
+    const sum = () => { const p = price(); const bad = p < min; m.$('#loPrice').classList.toggle('err', bad); m.$('#loHint').classList.toggle('error', bad); m.$('#loHint').textContent = bad ? `Harga minimal ${rupiah(min)}` : `Minimal ${rupiah(min)}`; m.$('#loSum').innerHTML = `<span>Subtotal</span><span>${rupiah(p * qty())}</span>`; };
+    m.$('#loPrice').addEventListener('input', (e) => { const v = num(e.target.value); e.target.value = v ? v.toLocaleString('id-ID') : ''; sum(); });
+    m.$('#loQty').addEventListener('input', sum); sum();
+    m.el.addEventListener('click', (e) => { const s = e.target.closest('[data-sug]'); if (s) { m.$('#loName').value = s.dataset.sug; m.$('#loPrice').focus(); m.$('#loPrice').select(); } });
+    const ok = () => {
+      const n = m.$('#loName').value.trim().replace(/\s+/g, ' ');
+      if (n.length < 2) { m.$('#loName').classList.add('err'); m.$('#loName').focus(); toast('Isi nama barang yang dilaundry.', 'err'); return; }
+      if (price() < min) { m.$('#loPrice').focus(); toast(`Harga minimal ${rupiah(min)}.`, 'err'); return; }
+      m.close();
+      if (edit) { Object.assign(edit, { name: n, price: price(), qty: qty() }); drawBill(); return; }
+      push({ kind: 'ldx', refId: 'ldx-' + Date.now().toString(36), name: n, price: price(), qty: qty() });
+    };
+    m.$('#loOk').addEventListener('click', ok);
+    m.el.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); ok(); } });
+  }
   function add(kind, id) {
+    if (kind === 'ldx') return ldOther();
     if (kind === 'laundry') return push({ kind, refId: id, qty: 1 });
     if (kind === 'product') {
       const p = DB.product(id);
@@ -113,7 +147,13 @@
   }
   function pickSize(p) {
     const opts = S.mode === 'buy' ? p.variant.options.map((o) => ({ name: o.name, avail: DB.saleableStock(p, o.name) })) : Rules.sizeAvailability(p.id, S.start, S.end);
-    const m = modal({ title: `Pilih ${p.variant.label || 'ukuran'} · ${p.name}`, body: `<div class="k-sizes">${opts.map((o) => `<button type="button" class="size-btn" data-sz="${esc(o.name)}" ${o.avail <= 0 ? 'disabled' : ''}><b>${esc(o.name.replace(/\s*\(.*\)/, ''))}</b><small>${o.avail <= 0 ? 'habis' : `${o.avail} tersedia`}</small></button>`).join('')}</div>`, foot: '<button class="btn btn-light" data-close>Batal</button>' });
+    const btn = (o, lbl) => `<button type="button" class="size-btn" data-sz="${esc(o.name)}" ${o.avail <= 0 ? 'disabled' : ''}><b>${esc(lbl)}</b><small>${o.avail <= 0 ? 'habis' : `${o.avail} tersedia`}</small></button>`;
+    let body;
+    if (DB.isVar2(p)) { /* matriks: baris = atribut 1 (mis. ukuran), tombol = atribut 2 (mis. warna) */
+      const groups = []; opts.forEach((o) => { const [a, b] = DB.vParts(p, o.name); let g = groups.find((x) => x.a === a); if (!g) groups.push(g = { a, L: [] }); g.L.push([o, b]); });
+      body = `<p class="muted" style="font-size:12.5px;margin:0 0 10px">${esc(p.variant.label)} × ${esc(p.variant.label2)} · klik kombinasi yang dibeli/disewa.</p><div class="k-matrix">${groups.map((g) => `<div class="km-row"><span class="km-h">${esc(String(g.a).replace(/\s*\(.*\)/, ''))}</span><div class="k-sizes">${g.L.map(([o, b]) => btn(o, b)).join('')}</div></div>`).join('')}</div>`;
+    } else body = `<div class="k-sizes">${opts.map((o) => btn(o, o.name.replace(/\s*\(.*\)/, ''))).join('')}</div>`;
+    const m = modal({ title: `Pilih ${esc(DB.variantLabel(p).toLowerCase() || 'ukuran')} · ${esc(p.name)}`, size: DB.isVar2(p) ? 'lg' : '', body, foot: '<button class="btn btn-light" data-close>Batal</button>' });
     m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-sz]'); if (!b) return; m.close(); push({ kind: 'product', refId: p.id, size: b.dataset.sz, qty: 1 }); });
   }
   function push(it) {
@@ -124,14 +164,15 @@
     drawBill();
   }
   function fits(it) {
-    if (it.kind === 'laundry') return true;
+    if (it.kind === 'laundry' || it.kind === 'ldx') return true;
     if (S.mode === 'buy') return DB.saleableStock(DB.product(it.refId), it.size) >= it.qty;
     return Cart.availability(cartItem(it)) >= it.qty;
   }
 
   /* ---------- Rincian transaksi (kanan) ---------- */
   function lines() {
-    if (isLd()) return S.items.map((it) => { const x = DB.laundryItem(it.refId) || { name: it.refId, price: 0, cat: '' }; return { it, x, name: x.name, img: '', icon: x.icon || 'fa-jug-detergent', unit: x.price, total: x.price * it.qty, sub: `${it.qty} × ${rupiah(x.price)} · ${x.cat}` }; });
+    if (isLd()) { const OT = DB.laundryOther(); return S.items.map((it) => { if (it.kind === 'ldx') { const x = { name: it.name, price: it.price, cat: OT.name }; return { it, x, name: x.name, img: OT.img || '', icon: 'fa-plus', unit: x.price, total: x.price * it.qty, sub: `${it.qty} × ${rupiah(x.price)} · ${OT.name} (input manual)`, editable: true }; }
+      const x = DB.laundryItem(it.refId) || { name: it.refId, price: 0, cat: '' }; return { it, x, name: x.name, img: x.img || '', icon: x.icon || 'fa-jug-detergent', unit: x.price, total: x.price * it.qty, sub: `${it.qty} × ${rupiah(x.price)} · ${x.cat}` }; }); }
     if (S.mode === 'buy') return S.items.map((it) => { const p = DB.product(it.refId); return { it, name: DB.variantName(p, it.size), img: p.img, unit: p.price, total: p.price * it.qty, sub: `${it.qty} × ${rupiah(p.price)}` }; });
     return S.items.map((it) => { const r = Cart.resolve(cartItem(it)); const unit = Rules.lineUnit({ pricePerDay: r.unit, tiers: r.tiers }, days());
       return { it, r, name: r.name, img: r.img, unit, total: unit * it.qty, sub: `${it.qty} × ${rupiah(unit)} · ${Rules.tierLabel(r.tiers || { d1: r.unit }, days())}` }; });
@@ -172,14 +213,15 @@
     const t = totals();
     $('#kBill').innerHTML = `
       <div class="kb-h"><h3><i class="fa-solid ${isLd() ? 'fa-jug-detergent' : 'fa-receipt'}"></i> ${S.mode === 'rent' ? 'Transaksi sewa' : isLd() ? 'Transaksi laundry' : 'Transaksi jual'}</h3><small class="muted">No. nota dibuat otomatis saat disimpan (format ${isLd() ? DB.nextLaundryNo() : (S.mode === 'rent' ? 'RNT' : 'ODR') + '/001/' + ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][new Date().getMonth()] + '/' + new Date().getFullYear()})</small></div>
-      <div class="kb-items">${t.L.length ? t.L.map((x, i) => `<div class="kb-it">${x.img ? `<img src="${asset(x.img)}" alt="">` : `<span class="kb-ic"><i class="fa-solid ${x.icon}"></i></span>`}<div class="kb-nm"><b>${esc(x.name)}</b><small>${esc(x.sub)}</small></div>
+      <div class="kb-items">${t.L.length ? t.L.map((x, i) => `<div class="kb-it">${x.img ? `<img src="${asset(x.img)}" alt="">` : `<span class="kb-ic"><i class="fa-solid ${x.icon}"></i></span>`}<div class="kb-nm"><b>${esc(x.name)}</b><small>${esc(x.sub)}${x.editable ? ` · <button type="button" class="link-btn" data-ldedit="${i}"><i class="fa-solid fa-pen"></i> ubah</button>` : ''}</small></div>
         <div class="qty sm"><button type="button" data-q="-1" data-i="${i}" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input value="${x.it.qty}" readonly aria-label="Jumlah"><button type="button" data-q="1" data-i="${i}" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div>
         <span class="kb-pr">${rupiah(x.total)}</span><button type="button" class="icon-btn sm" data-del="${i}" aria-label="Hapus"><i class="fa-solid fa-xmark"></i></button></div>`).join('') : `<div class="kb-empty"><i class="fa-solid fa-basket-shopping"></i><p>Klik ${isLd() ? 'jenis barang laundry' : 'barang'} di kiri untuk menambahkannya.</p></div>`}</div>
       ${svcSec(t)}
       <div class="kb-sec"><h4>Customer</h4>
-        <div class="grid-2"><div class="field"><label>Nama <span class="req">*</span></label><input class="input" id="kName" value="${esc(S.name)}" placeholder="Nama customer"></div>
-        <div class="field"><label>No. WhatsApp <span class="req">*</span></label><input class="input" id="kPhone" value="${esc(S.phone)}" placeholder="08xxxxxxxxxx" inputmode="tel"></div></div>
-        ${S.mode === 'rent' ? `<div class="field"><label>Kartu identitas jaminan <span class="req">*</span></label><select class="select" id="kId">${['KTP', 'KTM', 'SIM'].map((x) => `<option ${S.idType === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>` : ''}
+        ${S.mode === 'buy' ? '<p class="muted kb-opt-note"><i class="fa-solid fa-circle-info"></i> Untuk penjualan, nama &amp; WhatsApp <b>boleh dikosongkan</b> (pelanggan umum). Isi bila invoice ingin dikirim ke WhatsApp customer.</p>' : ''}
+        <div class="grid-2"><div class="field"><label>Nama ${S.mode === 'buy' ? '<span class="opt">(opsional)</span>' : '<span class="req">*</span>'}</label><input class="input" id="kName" value="${esc(S.name)}" placeholder="${S.mode === 'buy' ? 'Pelanggan umum' : 'Nama customer'}"></div>
+        <div class="field"><label>No. WhatsApp ${S.mode === 'buy' ? '<span class="opt">(opsional)</span>' : '<span class="req">*</span>'}</label><input class="input" id="kPhone" value="${esc(S.phone)}" placeholder="08xxxxxxxxxx" inputmode="tel"></div></div>
+        ${S.mode === 'rent' ? UI.idField('kId', S.idType) : ''}
         <div class="field"><label>Catatan <span class="opt">(opsional)</span></label><input class="input" id="kNote" value="${esc(S.note)}" placeholder="${isLd() ? 'Contoh: noda lumpur di bagian bawah tenda' : 'Contoh: ambil jam 4 sore'}"></div>
       </div>
       <div class="kb-sec"><h4>Pembayaran</h4>
@@ -198,23 +240,27 @@
       </div>
       <button type="button" class="btn btn-primary btn-block btn-lg" id="kSave" ${t.L.length ? '' : 'disabled'}><i class="fa-solid fa-check"></i> ${S.mode === 'rent' && S.pickup === 'now' ? 'Simpan & catat barang keluar' : isLd() ? 'Simpan laundry' : 'Simpan transaksi'}</button>
       ${t.L.length ? '<button type="button" class="btn btn-ghost btn-block btn-sm" id="kReset">Kosongkan transaksi</button>' : ''}`;
+    if ($('#kIdType')) UI.idBind($('#kBill'), 'kId', (v) => { S.idType = v; });
   }
   const num = (v) => +String(v || '').replace(/[^\d]/g, '') || 0;
 
   /* ---------- Simpan ---------- */
   function save() {
     const t = totals();
-    S.name = $('#kName').value.trim(); S.phone = $('#kPhone').value.trim(); S.note = $('#kNote').value.trim(); if ($('#kId')) S.idType = $('#kId').value;
-    if (S.name.length < 2) { toast('Isi nama customer.', 'err'); $('#kName').focus(); return; }
-    if (!UI.isPhone(S.phone)) { toast('Nomor WhatsApp tidak valid. Contoh: 081234567890.', 'err'); $('#kPhone').focus(); return; }
+    S.name = $('#kName').value.trim(); S.phone = $('#kPhone').value.trim(); S.note = $('#kNote').value.trim();
+    const optCust = S.mode === 'buy'; /* penjualan: nama & WA opsional · sewa & laundry: wajib */
+    if (S.mode === 'rent') { const r = UI.idRead($('#kBill'), 'kId'); if (!r.ok) return; S.idType = r.value; }
+    if (!optCust && S.name.length < 2) { toast(`Nama customer wajib diisi untuk ${isLd() ? 'laundry' : 'sewa'}.`, 'err'); $('#kName').classList.add('err'); $('#kName').focus(); return; }
+    if (optCust && S.name && S.name.length < 2) { toast('Nama terlalu pendek. Kosongkan saja bila pelanggan umum.', 'err'); $('#kName').focus(); return; }
+    if ((!optCust || S.phone) && !UI.isPhone(S.phone)) { toast(optCust ? 'Nomor WhatsApp tidak valid. Kosongkan bila tidak ada. Contoh: 081234567890.' : `No. WhatsApp wajib diisi untuk ${isLd() ? 'laundry' : 'sewa'}. Contoh: 081234567890.`, 'err'); $('#kPhone').classList.add('err'); $('#kPhone').focus(); return; }
     if (S.items.some((it) => !fits(it))) { toast('Ada barang yang stoknya tidak cukup. Periksa lagi jumlahnya.', 'err'); drawGrid(); return; }
     if (t.payNow && S.method === 'Tunai' && num(S.received) < t.payNow) { toast(`Uang diterima kurang dari ${rupiah(t.payNow)}.`, 'err'); return; }
-    const customer = { name: S.name, phone: S.phone, email: '' };
+    const customer = optCust && !S.name ? { name: 'Pelanggan Umum', phone: S.phone, email: '', walkIn: true } : { name: S.name, phone: S.phone, email: '' };
     const via = `Kasir · ${S.method}`;
     const kasir = { by: me.name, method: S.method, received: S.method === 'Tunai' ? num(S.received) : t.payNow, change: t.change, at: D.nowStamp() };
     if (isLd()) {
       const at = D.nowStamp();
-      const items = t.L.map((x) => ({ id: x.it.refId, name: x.x.name, cat: x.x.cat, price: x.x.price, qty: x.it.qty }));
+      const items = t.L.map((x) => Object.assign({ id: x.it.refId, name: x.x.name, cat: x.x.cat, price: x.x.price, qty: x.it.qty }, x.it.kind === 'ldx' ? { custom: true } : {}));
       const o = { id: DB.nextId('DRY', DB.laundry()), no: DB.nextLaundryNo(at), customer: { name: S.name, phone: S.phone, email: '' }, items, discount: t.disc || 0, estDone: S.ldEst || D.addDays(T, Laundry.days()),
         notes: S.note, channel: 'kasir', by: me.name, kasir, createdAt: at, status: 'diterima', payments: t.payNow ? [{ at, amount: t.payNow, type: 'Lunas', via }] : [], paymentStatus: t.payNow ? 'paid' : 'unpaid',
         history: [{ at, text: `Barang diterima di toko dan dicatat di kasir oleh ${me.name}${t.payNow ? ` · dibayar ${rupiah(t.payNow)} (${S.method})` : ' · dibayar saat diambil'}` }] };
@@ -296,17 +342,25 @@
   }
   async function done(x, kind) {
     const k = x.kasir || {};
-    await Ann.Share.ensure(x); const link = Ann.Share.link(x);
-    const wa = `Halo ${x.customer.name}, terima kasih sudah ${kind === 'rent' ? 'menyewa' : 'berbelanja'} di Annapurna Adventure.\nNo. nota: ${NO(x)}\nTotal: ${rupiah(x.total)} · dibayar ${rupiah(Rules.paidTotal(x))} (${k.method || x.method})${kind === 'rent' ? `\nSewa: ${D.fmtRange(x.start, x.end)}, kembali paling lambat ${D.fmtDate(x.end, true)} pukul 22.00 WIB` : ''}\nNota digital: ${link}`;
+    await Ann.Share.ensure(x);
     const m = modal({ title: `Transaksi tersimpan · ${NO(x)}`, body: `
       <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-circle-check"></i><div><b>${kind === 'rent' ? (x.status === 'disewa' ? 'Sewa offline tersimpan, barang sudah keluar.' : x.start <= D.today() ? 'Sewa offline tersimpan, tapi barang BELUM dicatat keluar.' : 'Booking offline tersimpan, barang diambil ' + D.fmtDate(x.start, true) + '.') : 'Penjualan offline tersimpan, stok sudah berkurang.'}</b>${kind === 'rent' && x.status !== 'disewa' && x.start <= D.today() ? `<br><a class="link" href="${UI.url('admin/pengembalian')}">Catat barang keluar sekarang →</a>` : ''}<br>Total ${rupiah(x.total)} · dibayar ${rupiah(Rules.paidTotal(x))}${k.method === 'Tunai' && k.change ? ` · kembalian ${rupiah(k.change)}` : ''}</div></div>
       <h4 style="margin:0 0 8px">Cetak / kirim nota</h4>
       <div class="k-print"><button type="button" class="btn btn-primary" data-pr="${RC.paper}"><i class="fa-solid fa-print"></i> Cetak struk (${RC.paper} mm)</button>
         <a class="btn btn-light" href="${UI.url('invoice?id=' + x.id)}" target="_blank" rel="noopener noreferrer"><i class="fa-regular fa-file-lines"></i> Nota A4 / PDF</a>
-        <a class="btn btn-wa" href="${UI.waLink(wa, x.customer.phone)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim ke WhatsApp</a></div>`,
+        <button type="button" class="btn btn-wa" id="kWa"><i class="fa-brands fa-whatsapp"></i> Kirim ${kind === 'sale' ? 'invoice' : 'nota'} ke WhatsApp</button></div>
+      ${kind === 'sale' && !x.customer.phone ? '<p class="muted" style="font-size:12.5px;margin-top:8px"><i class="fa-solid fa-circle-info"></i> Pelanggan umum tanpa nomor WhatsApp: gambar invoice tetap bisa diunduh / disalin dari tombol di atas.</p>' : ''}`,
       foot: '<button class="btn btn-primary" id="kNew"><i class="fa-solid fa-plus"></i> Transaksi baru</button>' });
     m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-pr]'); if (b) printStruk(DB[kind === 'sale' ? 'sale' : 'booking'](x.id), kind, +b.dataset.pr); });
     m.$('#kNew').addEventListener('click', () => { m.close(); reset(); $('#kQ').focus(); });
+    m.$('#kWa').addEventListener('click', async (e) => { const bt = e.currentTarget; bt.disabled = true;
+      try {
+        if (kind === 'sale') { await Admin.contactSale(DB.sale(x.id), { tplKey: 'kasir_sale', title: `Kirim invoice · ${NO(x)}` }); return; }
+        const b = DB.booking(x.id); await Ann.Share.ensure(b);
+        const cv = await UI.tagihanCanvas(b, { booking: true, title: b.status === 'disewa' ? 'NOTA SEWA' : 'NOTA BOOKING' }); const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+        UI.waCompose({ title: `Kirim nota · ${NO(b)}`, blob, name: `nota-${NO(b).replace(/\//g, '_')}.png`, text: DB.waText('kasir_rent', Object.assign(Admin.rentVars(b, false), { metode: (b.kasir || {}).method || b.method || '' })), phone: b.customer.phone,
+          waLabel: `Kirim ke ${esc((b.customer.name || 'customer').split(' ')[0])}`, tplKey: 'kasir_rent' });
+      } finally { bt.disabled = false; } });
     toast(`Transaksi ${NO(x)} tersimpan.`);
   }
   /* Setelah laundry disimpan: staff WAJIB mencetak struk DAN mengabari customer.
@@ -320,10 +374,9 @@
       <h4 style="margin:0 0 10px">Wajib dilakukan sebelum lanjut</h4>
       <ol class="ld-steps-req">
         <li id="stPrint"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>1. Cetak struk (${RC.paper} mm)</b><small>Berikan struk ke customer sebagai bukti pengambilan.</small></div><button type="button" class="btn btn-primary btn-sm" data-pr="${RC.paper}"><i class="fa-solid fa-print"></i> Cetak</button></li>
-        <li id="stWa"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>2. Kabari customer via WhatsApp</b><small>Pesan &amp; nota sudah disiapkan otomatis.</small></div><a class="btn btn-wa btn-sm" id="ldWaBtn" href="${Admin.ldWa(o)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Kirim</a></li>
+        <li id="stWa"><span class="ck"><i class="fa-solid fa-check"></i></span><div><b>2. Kabari customer via WhatsApp</b><small>Gambar nota &amp; pesan disiapkan otomatis, isi pesan bisa diedit dulu.</small></div><button type="button" class="btn btn-wa btn-sm" id="ldWaBtn"><i class="fa-brands fa-whatsapp"></i> Kirim</button></li>
       </ol>
       <p class="ld-lock-note" id="ldLockNote"><i class="fa-solid fa-lock"></i> Jendela ini baru bisa ditutup setelah kedua langkah di atas selesai.</p>
-      <details class="ld-msg-prev"><summary>Lihat isi pesan</summary><div class="svc-msg">${esc(Admin.ldWaText(o))}</div></details>
       <details class="ld-skip" id="ldSkip"><summary>Ada kendala (printer rusak / customer tidak punya WhatsApp)?</summary>
         <div class="field" style="margin-top:8px"><label>Alasan <span class="req">*</span></label><select class="select" id="ldSkipWhy"><option value="">Pilih alasan…</option><option>Printer struk bermasalah</option><option>Customer tidak punya WhatsApp</option><option>Nomor WhatsApp tidak aktif</option><option>Lainnya</option></select></div>
         <div class="field"><label>Keterangan <span class="req">*</span></label><input class="input" id="ldSkipNote" placeholder="Contoh: kertas struk habis, struk ditulis tangan"></div>
@@ -335,7 +388,7 @@
       ['#kNew', '#kOpenLd'].forEach((id) => { m.$(id).disabled = !ok(); m.$(id).title = ok() ? '' : 'Cetak struk dan kabari customer dulu'; });
       m.$('#ldLockNote').hidden = ok(); m.$('#ldSkip').hidden = ok(); };
     m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-pr]'); if (b) { Admin.ldStruk(DB.laundryOrder(o.id), +b.dataset.pr); step.print = true; sync(); } });  /* ldStruk mencatat receiptPrintedAt */
-    m.$('#ldWaBtn').addEventListener('click', () => { step.wa = true; const x = DB.laundryOrder(o.id); x.notifiedReceivedAt = D.nowStamp(); x.history.push({ at: D.nowStamp(), text: `Customer dikabari via WhatsApp (laundry diterima) oleh ${me.name}` }); DB.saveLaundry(x); sync(); });
+    m.$('#ldWaBtn').addEventListener('click', () => Admin.ldContact(DB.laundryOrder(o.id), { title: `Kabari customer · ${o.no}`, logText: 'Customer dikabari via WhatsApp (laundry diterima)', patch: () => ({ notifiedReceivedAt: D.nowStamp() }), onSent: () => { step.wa = true; sync(); } }));
     const finish = (toLaundry) => { m.close(); if (toLaundry) location.href = UI.url('admin/laundry?id=' + o.id); else $('#kQ').focus(); };
     m.$('#kNew').addEventListener('click', () => { if (ok()) finish(false); });
     m.$('#kOpenLd').addEventListener('click', () => { if (ok()) finish(true); });
@@ -370,6 +423,7 @@
   $('#kGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-add]'); if (!b) return; const [kind, id] = b.dataset.add.split('|'); add(kind, id); });
   $('#kBill').addEventListener('click', (e) => {
     const q = e.target.closest('[data-q]'); if (q) { const it = S.items[+q.dataset.i]; it.qty += +q.dataset.q; if (it.qty < 1) S.items.splice(+q.dataset.i, 1); else if (!fits(it)) { it.qty -= 1; toast('Stok tidak cukup.', 'err'); } drawBill(); return; }
+    const le = e.target.closest('[data-ldedit]'); if (le) { ldOther(S.items[+le.dataset.ldedit]); return; }
     const d = e.target.closest('[data-del]'); if (d) { S.items.splice(+d.dataset.del, 1); drawBill(); return; }
     const o = e.target.closest('[data-o]'); if (o) { S.payOpt = o.dataset.o; drawBill(); return; }
     const svm = e.target.closest('[data-svm]'); if (svm) { S.svcMode = svm.dataset.svm; if (Svc.isTent(S.svcMode) && !S.svcTents) S.svcTents = 1; drawBill(); return; }
@@ -386,7 +440,6 @@
   $('#kBill').addEventListener('change', (e) => {
     if (e.target.id === 'kDisc') { S.disc = num(e.target.value); drawBill(); }
     if (e.target.id === 'kRecv') { S.received = num(e.target.value); drawBill(); }
-    if (e.target.id === 'kId') S.idType = e.target.value;
     if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); drawBill(); }
     if (e.target.id === 'kLdEst') S.ldEst = e.target.value >= T ? e.target.value : T;
     if (e.target.id === 'kSvcTime') S.svcTime = e.target.value; if (e.target.id === 'kSvcBack') S.svcBack = e.target.value;

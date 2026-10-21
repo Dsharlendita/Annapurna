@@ -64,7 +64,7 @@
     },
     /* Restock barang jual: uang keluar untuk membeli stok (dicatat lewat tombol Restock di Data Barang) */
     restock(f, t) {
-      const L = DB.restocks().filter((r) => inR(r.date, f, t) && r.status !== 'dibatalkan').sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const L = DB.restocks().filter((r) => r.kind !== 'rent' && inR(r.date, f, t) && r.status !== 'dibatalkan').sort((a, b) => String(b.date).localeCompare(String(a.date)));
       const amt = L.reduce((a, r) => a + r.qty * r.cost, 0), q = L.reduce((a, r) => a + r.qty, 0);
       return { title: 'Laporan Restock Barang', note: 'Pembelian stok barang jual dari supplier. Ini uang keluar (kas), bukan pengurang laba: modal baru dihitung saat barangnya terjual.',
         sum: [['Restock', L.length + ' kali'], ['Unit masuk', q + ' unit'], ['Total belanja stok', rupiah(amt)]],

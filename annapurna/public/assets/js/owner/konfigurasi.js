@@ -11,6 +11,7 @@
     ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, lama sewa, jam batas pengembalian.'],
     ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
+    ['pesan', 'fa-comment-dots', 'Template Pesan WhatsApp', 'Pesan otomatis ke customer: invoice, nota sewa, pengingat, laundry.'],
     ['asisten', 'fa-comments', 'Asisten Trip (Tanya jawab)', 'Aturan JIKA–MAKA chatbot, kata kunci & jawaban, pertanyaan belum terjawab.'],
     ['layanan', 'fa-jug-detergent', 'Laundry & Jasa Tenda', 'Harga laundry, estimasi selesai, ketentuan struk, tarif jasa tenda.'],
     ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis (default nonaktif).'],
@@ -42,6 +43,52 @@
   function go(k) { const mn = $('#cfgMain'); mn.onclick = mn.oninput = mn.onchange = null; cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
   const R = {
+    /* ---------- Template pesan WhatsApp ----------
+       Owner mengatur kalimat pesan otomatis. Kode {nama}, {no_nota}, … diganti data asli saat dikirim.
+       Staff tetap bisa mengedit isi pesan di jendela kirim sebelum WhatsApp dibuka. */
+    pesan() {
+      const saved = Object.assign({}, S().waTemplates || {}); const cur = {}; DB.WA_TPL.forEach((t) => { cur[t.key] = typeof saved[t.key] === 'string' && saved[t.key].trim() ? saved[t.key] : t.def; });
+      const openKey = param('t') || '';
+      const SAMPLE = { nama: 'Dimas Saputra', nama_depan: 'Dimas', no_nota: 'RNTL/019/X/2026', tanggal: D.fmtDate(D.today(), true), total: rupiah(185000), dibayar: rupiah(92500), sisa: rupiah(92500), metode: 'Tunai',
+        rincian: '• 1× Tenda Kapasitas 4 (Double Layer) — Rp 40.000\n• 1× Sleeping Bag — Rp 10.000\nTotal sewa: Rp 50.000 · Sudah dibayar: Rp 25.000 · Sisa: Rp 25.000',
+        link_nota: 'https://annapurna.id/invoice?id=…', pengiriman: 'Diantar ke: Kost Lestari, Jl. Kampus', tgl_sewa: '20–21 Okt 2026', tgl_ambil: '20 Oktober 2026', tgl_kembali: '21 Oktober 2026', jam_kembali: String(S().returnTime || '22:00').replace(':', '.'),
+        lama: '1 malam', status: 'Booking Dikonfirmasi · DP Lunas', terlambat: 2, denda: rupiah(80000), total_bayar: rupiah(105000), estimasi: 'Kamis, 24 Oktober 2026' };
+      const prev = (k) => DB.waFill(cur[k], Object.assign({}, SAMPLE, k.startsWith('ld_') ? { no_nota: 'DRY/004/X/2026', rincian: '*NOTA LAUNDRY DRY/004/X/2026*\nTanggal terima: 21 Oktober 2026\n• 1× Tenda 2P Double Layer = Rp 30.000\n• 1× Sarung tangan = Rp 5.000\n*Total: Rp 35.000*\nDibayar saat pengambilan: Rp 35.000' } : k.startsWith('sale') || k === 'kasir_sale' ? { no_nota: 'ODR/008/X/2026', rincian: '• 1× Kursi Camping = Rp 185.000\nOngkir antar: Rp 20.000\n*Total: Rp 205.000* · Dibayar: Rp 205.000 · LUNAS' } : {}));
+      const waHtml = (t) => esc(t).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(^|\s)_([^_\n]+)_/g, '$1<i>$2</i>');
+      const groups = [...new Set(DB.WA_TPL.map((t) => t.group))];
+      const ICON = { Penjualan: 'fa-bag-shopping', Rental: 'fa-campground', Laundry: 'fa-jug-detergent' };
+      const card = (t) => { const changed = cur[t.key] !== t.def;
+        return `<details class="tpl-card" data-tc="${t.key}" ${openKey === t.key ? 'open' : ''}><summary><span class="ic"><i class="fa-brands fa-whatsapp"></i></span><span class="t"><b>${esc(t.title)}</b><small>Dipakai di: ${esc(t.when)}</small></span>${changed ? '<span class="pill blue plain" data-chg>Diubah</span>' : '<span class="pill gray plain" data-chg>Bawaan</span>'}<i class="fa-solid fa-chevron-down muted"></i></summary>
+          <div class="tpl-body"><div>
+            <label class="muted" style="font-size:12.5px;font-weight:600">Isi template</label>
+            <textarea class="textarea" data-tk="${t.key}" spellcheck="false">${esc(cur[t.key])}</textarea>
+            <div class="tpl-vars">${[...new Set([...t.vars, 'nama_toko', 'alamat_toko', 'jam_buka'])].map((v) => `<button type="button" data-ins="${t.key}|${v}" title="${esc(DB.WA_VARS[v] || v)}">{${v}}</button>`).join('')}</div>
+            <p class="muted" style="font-size:12px;margin:0 0 8px">Klik kode untuk menyisipkan di posisi kursor. <b>*teks*</b> = tebal, <b>_teks_</b> = miring di WhatsApp. Kode yang datanya kosong otomatis dihapus.</p>
+            <div class="tpl-acts"><button type="button" class="btn btn-light btn-xs" data-tdef="${t.key}" ${changed ? '' : 'disabled'}><i class="fa-solid fa-rotate-left"></i> Kembalikan ke bawaan</button></div></div>
+            <div class="tpl-prev"><h5>Pratinjau (data contoh)</h5><div class="tpl-bubble" data-tp="${t.key}">${waHtml(prev(t.key))}</div></div></div></details>`; };
+      $('#cfgMain').innerHTML = head('Template Pesan WhatsApp', 'Atur kalimat pesan otomatis yang dikirim staff ke customer. Saat mengirim, staff tetap bisa mengedit pesan sebelum WhatsApp dibuka.')
+        + groups.map((g) => `<div class="cfg-block"><h3><i class="fa-solid ${ICON[g] || 'fa-comment'}"></i> ${esc(g)}</h3><div class="tpl-list">${DB.WA_TPL.filter((t) => t.group === g).map(card).join('')}</div></div>`).join('')
+        + `<div class="cfg-block"><h3><i class="fa-solid fa-code"></i> Arti kode</h3><div class="kv-grid">${Object.entries(DB.WA_VARS).map(([k, l]) => `<div class="kv"><span><code>{${k}}</code></span><span>${esc(l)}</span></div>`).join('')}</div></div>`
+        + saveBar('saveTpl');
+      const box = $('#cfgMain');
+      const sync = (k) => { const b = box.querySelector(`[data-tp="${k}"]`); if (b) b.innerHTML = waHtml(prev(k)); const t = DB.WA_TPL.find((x) => x.key === k); const card0 = box.querySelector(`[data-tc="${k}"]`); const ch = cur[k] !== t.def;
+        card0.querySelector('[data-chg]').outerHTML = ch ? '<span class="pill blue plain" data-chg>Diubah</span>' : '<span class="pill gray plain" data-chg>Bawaan</span>'; card0.querySelector('[data-tdef]').disabled = !ch; };
+      box.oninput = (e) => { const k = e.target.dataset.tk; if (!k) return; cur[k] = e.target.value; sync(k); };
+      box.onchange = null;
+      box.onclick = (e) => {
+        const ins = e.target.closest('[data-ins]'); if (ins) { const [k, v] = ins.dataset.ins.split('|'); const ta = box.querySelector(`[data-tk="${k}"]`); const s0 = ta.selectionStart ?? ta.value.length, e0 = ta.selectionEnd ?? s0;
+          ta.value = ta.value.slice(0, s0) + `{${v}}` + ta.value.slice(e0); ta.focus(); ta.selectionStart = ta.selectionEnd = s0 + v.length + 2; cur[k] = ta.value; sync(k); return; }
+        const df = e.target.closest('[data-tdef]'); if (df) { const k = df.dataset.tdef; const t = DB.WA_TPL.find((x) => x.key === k); cur[k] = t.def; box.querySelector(`[data-tk="${k}"]`).value = t.def; sync(k); return; }
+        if (e.target.closest('#saveTpl')) {
+          const empty = DB.WA_TPL.filter((t) => !String(cur[t.key] || '').trim()); if (empty.length) { toast(`Template "${empty[0].title}" masih kosong. Isi atau kembalikan ke bawaan.`, 'err'); return; }
+          const next = {}; DB.WA_TPL.forEach((t) => { if (cur[t.key].trim() !== t.def.trim()) next[t.key] = cur[t.key]; });
+          const ch = DB.WA_TPL.filter((t) => (saved[t.key] || '') !== (next[t.key] || '')).map((t) => ({ field: t.title, from: saved[t.key] ? 'versi Owner' : 'bawaan', to: next[t.key] ? 'versi Owner (diperbarui)' : 'bawaan' }));
+          if (!ch.length) { toast('Tidak ada perubahan.'); return; }
+          DB.saveConfig('waTemplates', next, 'Mengubah template pesan WhatsApp', ch); toast('Template pesan disimpan. Berlaku untuk semua staff.'); R.pesan();
+        }
+      };
+      if (openKey) setTimeout(() => { const c = box.querySelector(`[data-tc="${openKey}"]`); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
+    },
     /* ---------- Asisten Trip: aturan chatbot JIKA (kata kunci) – MAKA (jawaban) ---------- */
     asisten() {
       let rules = DB.chatRules(); let sp = DB.chatSpecial(); let open = '';
@@ -128,8 +175,9 @@
     layanan() {
       const st = S(); let cats = JSON.parse(JSON.stringify(DB.laundryPrices()));
       /* Nilai yang sedang diketik (hari, ketentuan, tarif) disimpan dulu supaya tidak hilang saat daftar harga digambar ulang */
-      const tmp = { days: +st.laundryDays || 3, terms: (st.laundryTerms || []).slice(), fees: {} };
-      const grab = () => { if (!$('#ldDays')) return; tmp.days = $('#ldDays').value; tmp.terms = $$('#ldTerms textarea').map((t) => t.value); $$('[data-fee]').forEach((el) => { tmp.fees[el.dataset.fee] = el.value; }); };
+      const tmp = { days: +st.laundryDays || 3, terms: (st.laundryTerms || []).slice(), fees: {}, other: DB.laundryOther() };
+      const grab = () => { if (!$('#ldDays')) return; tmp.days = $('#ldDays').value; tmp.terms = $$('#ldTerms textarea').map((t) => t.value); $$('[data-fee]').forEach((el) => { tmp.fees[el.dataset.fee] = el.value; });
+        if ($('#ldoName')) Object.assign(tmp.other, { enabled: $('#ldoOn').checked, name: $('#ldoName').value, note: $('#ldoNote').value, minPrice: num($('#ldoMin').value) }); };
       const FK = { pasang: 'setupFee', pasang_saja: 'pasangFee', bongkar_saja: 'bongkarFee' };
       const ICONS = [['fa-tent', 'Ikon tenda'], ['fa-bed', 'Ikon sleeping bag'], ['fa-shirt', 'Ikon pakaian'], ['fa-suitcase-rolling', 'Ikon tas'], ['fa-shoe-prints', 'Ikon sepatu'], ['fa-rug', 'Ikon matras'], ['fa-hat-cowboy', 'Ikon topi'], ['fa-mitten', 'Ikon sarung tangan'], ['fa-jug-detergent', 'Ikon umum']];
       const draw = () => {
@@ -140,11 +188,20 @@
               <div class="ld-cfg-h"><select class="select" data-ci="${ci}" data-k="icon" aria-label="Ikon kategori">${ICONS.map(([ic, l]) => `<option value="${ic}" ${ic === c.icon ? 'selected' : ''}>${l}</option>`).join('')}</select>
                 <input class="input" data-ci="${ci}" data-k="name" value="${esc(c.name)}" placeholder="Nama kategori" aria-label="Nama kategori">
                 <button type="button" class="btn btn-light btn-xs" data-rmcat="${ci}" title="Hapus kategori"><i class="fa-solid fa-trash-can"></i></button></div>
-              ${c.items.map((it, ii) => `<div class="ld-cfg-row"><input class="input" data-ci="${ci}" data-ii="${ii}" data-k="name" value="${esc(it.name)}" placeholder="Nama barang" aria-label="Nama barang">
+              ${c.items.map((it, ii) => `<div class="ld-cfg-row"><label class="ld-thumb ${it.img ? 'has' : ''}" style="${it.img ? `background-image:url('${asset(it.img)}')` : ''}" title="${it.img ? 'Ganti gambar' : 'Pasang gambar'}">${it.img ? '' : '<i class="fa-regular fa-image"></i>'}<input type="file" accept="image/*" hidden data-ldimg="${ci}|${ii}"></label><input class="input" data-ci="${ci}" data-ii="${ii}" data-k="name" value="${esc(it.name)}" placeholder="Nama barang" aria-label="Nama barang">
                 <div class="ld-cfg-pr"><span>Rp</span><input class="input" data-ci="${ci}" data-ii="${ii}" data-k="price" inputmode="numeric" value="${it.price ? Number(it.price).toLocaleString('id-ID') : ''}" placeholder="0" aria-label="Harga"></div>
                 <button type="button" class="icon-btn sm" data-rmit="${ci}|${ii}" aria-label="Hapus ${esc(it.name)}"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}
               <button type="button" class="btn btn-ghost btn-xs" data-addit="${ci}"><i class="fa-solid fa-plus"></i> Tambah barang</button></div>`).join('')}</div>
-            <button type="button" class="btn btn-light btn-sm" id="addLdCat"><i class="fa-solid fa-folder-plus"></i> Tambah kategori laundry</button></div>
+            <button type="button" class="btn btn-light btn-sm" id="addLdCat"><i class="fa-solid fa-folder-plus"></i> Tambah kategori laundry</button>
+            <p class="muted" style="font-size:12.5px;margin:10px 0 0"><i class="fa-regular fa-image"></i> Klik kotak gambar di kiri tiap barang untuk memasang / mengganti gambar. Admin juga bisa mengganti gambar dari menu Laundry → Daftar harga.</p></div>
+          <div class="cfg-block"><h3><i class="fa-solid fa-plus"></i> Laundry lain-lain <small class="muted" style="font-weight:500">barang di luar daftar, nama &amp; harga diisi manual di kasir</small></h3>
+            <label class="chk-line" style="margin-bottom:10px"><input type="checkbox" id="ldoOn" ${tmp.other.enabled !== false ? 'checked' : ''}> <span>Tampilkan kartu <b>Lain-lain</b> di kasir &amp; halaman Laundry website</span></label>
+            <div class="ld-cfg-other" style="display:grid;grid-template-columns:auto minmax(0,1fr) 200px;gap:12px;align-items:start">
+              <label class="ld-thumb ${tmp.other.img ? 'has' : ''}" style="width:72px;height:72px;border-radius:12px;border:1px dashed var(--line-2);background:var(--g50) center/cover no-repeat;display:grid;place-items:center;color:var(--g600);cursor:pointer;${tmp.other.img ? `background-image:url('${asset(tmp.other.img)}');border-style:solid` : ''}" title="Gambar kartu Lain-lain">${tmp.other.img ? '' : '<i class="fa-regular fa-image"></i>'}<input type="file" accept="image/*" hidden data-ldimg="other"></label>
+              <div><div class="field"><label>Nama kartu</label><input class="input" id="ldoName" value="${esc(tmp.other.name)}" maxlength="30"></div>
+                <div class="field"><label>Keterangan <span class="opt">(tampil di kasir &amp; website)</span></label><input class="input" id="ldoNote" value="${esc(tmp.other.note || '')}" maxlength="140"></div></div>
+              <div class="field"><label>Harga minimal (mulai dari)</label><div class="ld-cfg-pr"><span>Rp</span><input class="input" id="ldoMin" inputmode="numeric" value="${Number(tmp.other.minPrice || 0).toLocaleString('id-ID')}"></div><small class="muted">Staff tidak bisa mengisi harga di bawah angka ini.</small></div>
+            </div></div>
           <div class="cfg-block"><h3 id="ldTermsH"><i class="fa-solid fa-receipt"></i> Struk &amp; ketentuan laundry</h3>
             <div class="field" style="max-width:260px"><label>Estimasi lama pengerjaan (hari)</label><input class="input" type="number" min="1" max="30" id="ldDays" value="${esc(String(tmp.days))}"><small class="muted">Tanggal estimasi selesai otomatis terisi di kasir, staff tetap bisa mengubahnya.</small></div>
             <div class="field"><label>Ketentuan laundry <span class="opt">(tampil di halaman Laundry website &amp; dicetak di struk)</span></label>${listEditor('ldTerms', tmp.terms, 'Contoh: Pengambilan wajib menunjukkan struk.')}</div></div>
@@ -158,7 +215,13 @@
       const onInput = (e) => { const t = e.target; if (t.dataset.ci == null) return; const c = cats[+t.dataset.ci];
         if (t.dataset.ii != null) { const it = c.items[+t.dataset.ii]; if (t.dataset.k === 'price') { it.price = num(t.value); t.value = it.price ? it.price.toLocaleString('id-ID') : ''; } else it.name = t.value; }
         else c[t.dataset.k] = t.value; };
-      box.oninput = onInput; box.onchange = onInput;
+      box.oninput = onInput;
+      box.onchange = async (e) => { const fi = e.target.closest('[data-ldimg]');
+        if (fi) { const f = fi.files[0]; fi.value = ''; if (!f) return; if (f.size > 8e6) { toast('Ukuran gambar maksimal 8 MB.', 'err'); return; }
+          const out = await UI.cropImage(f, { aspect: 4 / 3, size: 640, title: 'Atur gambar laundry' }); if (!out) return;
+          if (fi.dataset.ldimg === 'other') { grab(); tmp.other.img = out; } else { const [ci, ii] = fi.dataset.ldimg.split('|').map(Number); cats[ci].items[ii].img = out; }
+          draw(); toast('Gambar dipasang. Jangan lupa Simpan perubahan.'); return; }
+        onInput(e); };
       box.onclick = async (e) => {
         const a = e.target.closest('[data-addit]'); if (a) { cats[+a.dataset.addit].items.push({ id: 'ld-' + Date.now().toString(36), name: '', price: 0 }); draw(); const L = $$(`[data-ci="${a.dataset.addit}"][data-k="name"][data-ii]`); L[L.length - 1].focus(); return; }
         const r = e.target.closest('[data-rmit]'); if (r) { const [ci, ii] = r.dataset.rmit.split('|').map(Number); cats[ci].items.splice(ii, 1); draw(); return; }
@@ -167,10 +230,12 @@
         if (e.target.closest('#saveLd')) {
           if (!cats.length) { toast('Minimal ada satu kategori laundry.', 'err'); return; }
           if (cats.some((c) => !c.name.trim() || !c.items.length || c.items.some((i) => !i.name.trim() || !i.price))) { toast('Lengkapi nama kategori, nama barang, dan harga (tidak boleh kosong).', 'err'); return; }
-          const next = Object.assign({}, S(), { laundry: cats.map((c) => Object.assign({}, c, { name: c.name.trim(), items: c.items.map((i) => Object.assign({}, i, { name: i.name.trim() })) })), laundryDays: Math.max(1, Math.min(30, +$('#ldDays').value || 3)), laundryTerms: readLines('ldTerms') });
+          grab(); if (!String(tmp.other.name || '').trim()) { toast('Isi nama kartu Lain-lain.', 'err'); $('#ldoName').focus(); return; }
+          const next = Object.assign({}, S(), { laundry: cats.map((c) => Object.assign({}, c, { name: c.name.trim(), items: c.items.map((i) => Object.assign({}, i, { name: i.name.trim() })) })), laundryDays: Math.max(1, Math.min(30, +$('#ldDays').value || 3)), laundryTerms: readLines('ldTerms'),
+            laundryOther: Object.assign({}, tmp.other, { name: String(tmp.other.name).trim(), note: String(tmp.other.note || '').trim(), minPrice: Math.max(0, +tmp.other.minPrice || 0) }) });
           $$('[data-fee]').forEach((el) => { next[el.dataset.fee] = num(el.value); });
           const flat = (L) => (L || []).map((c) => `${c.name}: ` + c.items.map((i) => `${i.name} ${rupiah(i.price)}`).join(', ')).join(' | ');
-          cfgSave(next, 'Mengubah pengaturan laundry & jasa tenda', [['laundry', 'Harga laundry', flat], ['laundryDays', 'Estimasi pengerjaan (hari)'], ['laundryTerms', 'Ketentuan struk laundry', (v) => `${(v || []).length} poin`],
+          cfgSave(next, 'Mengubah pengaturan laundry & jasa tenda', [['laundry', 'Harga laundry', flat], ['laundryOther', 'Laundry lain-lain', (v) => `${v && v.enabled === false ? 'Nonaktif' : 'Aktif'} · ${(v && v.name) || ''} mulai ${rupiah((v && v.minPrice) || 0)}${v && v.img ? ' · bergambar' : ''}`], ['laundryDays', 'Estimasi pengerjaan (hari)'], ['laundryTerms', 'Ketentuan struk laundry', (v) => `${(v || []).length} poin`],
             ['setupFee', 'Tarif bongkar pasang', rupiah], ['pasangFee', 'Tarif pasang saja', rupiah], ['bongkarFee', 'Tarif bongkar saja', rupiah]]);
         }
       };
@@ -421,8 +486,12 @@
           <button type="button" class="btn btn-light btn-xs" data-crmf="${k}|${i}" title="Keluarkan field"><i class="fa-solid fa-xmark"></i></button></div>`).join('') || '<p class="muted" style="font-size:13px">Belum ada field tambahan.</p>'}</div>
         <button type="button" class="btn btn-light btn-sm" data-addf="${k}"><i class="fa-solid fa-plus"></i> Tambah field</button></div>`;
       const draw = () => { $('#formCards').innerHTML = card('pickup', '<i class="fa-solid fa-box-open" style="color:var(--g600)"></i> Barang keluar') + card('return', '<i class="fa-solid fa-rotate-left" style="color:var(--g600)"></i> Pengembalian barang'); };
-      $('#cfgMain').innerHTML = head('Form & Field Staff', 'Tentukan isian yang wajib diisi staff sesuai SOP toko. Contoh: setiap barang kembali wajib ada foto kondisi barang.')
-        + `<div class="grid-dash" style="grid-template-columns:1fr 1fr" id="formCards"></div>${saveBar('saveForm')}`;
+      $('#cfgMain').innerHTML = head('Form & Field Staff', 'Tentukan isian yang wajib diisi staff sesuai SOP toko. Foto barang bawaannya opsional karena staff lebih sering memakai komputer; ubah ke Wajib bila memang diperlukan.')
+        + `<div class="grid-dash" style="grid-template-columns:1fr 1fr" id="formCards"></div>${saveBar('saveForm')}
+          <div class="cfg-block" style="margin-top:18px"><h3><i class="fa-regular fa-id-card"></i> Jenis kartu identitas jaminan</h3>
+            <p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Pilihan di kasir, catat barang keluar, dan checkout customer. Pilihan <b>Lainnya</b> (ketik manual, mis. Paspor) selalu tersedia.</p>
+            <div class="field" style="max-width:520px"><input class="input" id="idTypes" value="${esc(DB.idTypes().join(', '))}" placeholder="KTP, KTM, SIM, Kartu Pelajar"><span class="hint">Pisahkan dengan koma.</span></div>
+            <button type="button" class="btn btn-primary btn-sm" id="saveIdT"><i class="fa-solid fa-floppy-disk"></i> Simpan jenis identitas</button></div>`;
       draw();
       const box = $('#formCards');
       box.addEventListener('click', (e) => {
@@ -436,6 +505,10 @@
         if (key === 'options') c.options = lines(e.target.value);
         if (key === 'type') { c.type = e.target.value; draw(); }
       });
+      $('#saveIdT').addEventListener('click', () => { const L = [...new Set(lines($('#idTypes').value).filter((x) => !/^lain/i.test(x)))];
+        if (!L.length) { toast('Isi minimal satu jenis identitas.', 'err'); return; }
+        const old = DB.idTypes(); if (old.join('|') === L.join('|')) { toast('Tidak ada perubahan.'); return; }
+        DB.saveConfig('idTypes', L, 'Mengubah jenis kartu identitas jaminan', [{ field: 'Jenis identitas', from: old.join(', '), to: L.join(', ') }]); toast('Jenis identitas disimpan.'); R.form(); });
       $('#saveForm').addEventListener('click', () => {
         for (const k of ['pickup', 'return']) { f[k].custom = f[k].custom.filter((c) => c.label.trim()).map((c) => Object.assign({}, c, { label: c.label.trim() }));
           if (f[k].custom.some((c) => c.type === 'pilihan' && !(c.options || []).length)) { toast('Field bertipe pilihan harus punya daftar pilihan.', 'err'); return; } }

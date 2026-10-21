@@ -15,7 +15,7 @@
 
   const detailRows = [
     ['Merek', p.brand], ['Kode barang', p.sku], ['Kategori', cat.name], ['Warna', p.color], ['Bahan', p.material], ['Berat', p.weight], ['Ukuran / kapasitas', p.dimension],
-    [DB.hasVariant(p) ? p.variant.label : 'Pilihan ukuran', DB.hasVariant(p) ? p.variant.options.map((o) => o.name).join(', ') : ''],
+    ...(DB.isVar2(p) ? DB.variantAxes(p).map((x) => [x.label, x.values.join(', ')]) : [[DB.hasVariant(p) ? p.variant.label : 'Pilihan ukuran', DB.hasVariant(p) ? p.variant.options.map((o) => o.name).join(', ') : '']]),
     ...Object.entries(p.attrs || {}).map(([k, v]) => [(DB.attributes(true).find((a) => a.id === k) || { name: '' }).name, v]).filter(([k]) => k),
     ['Status', DB.condRentable(p.cond) ? '' : `${p.cond} — sementara tidak bisa disewa`], ['Kelengkapan', p.includes], ['Minimal sewa', p.rent && p.minDays > 1 ? `${p.minDays} malam` : ''],
     ['Jaminan', p.deposit ? rupiah(p.deposit) + ' (dikembalikan saat barang kembali)' : ''],
@@ -56,7 +56,8 @@
         </div>
         <p style="color:var(--ink-2)">${esc(p.desc || '')}</p>
         <ul class="spec-list">${(p.specs || []).map((s) => `<li><i class="fa-solid fa-check"></i>${esc(s)}</li>`).join('')}</ul>
-        ${DB.hasVariant(p) ? `<p class="size-note"><i class="fa-solid fa-ruler"></i> Tersedia ${esc(p.variant.label.toLowerCase())}: <b>${esc(p.variant.options.map((o) => o.name.replace(/\s*\(.*\)/, '')).join(', '))}</b>. Pilih ukuran di bawah.</p>` : ''}
+        ${DB.isVar2(p) ? `<p class="size-note"><i class="fa-solid fa-ruler"></i> Tersedia ${DB.variantAxes(p).map((x) => `${esc(x.label.replace(/\s*\(.*\)/, '').toLowerCase())}: <b>${esc(x.values.join(', '))}</b>`).join(' · ')}. Pilih ${esc(DB.variantLabel(p).toLowerCase())} di bawah.</p>`
+          : DB.hasVariant(p) ? `<p class="size-note"><i class="fa-solid fa-ruler"></i> Tersedia ${esc(p.variant.label.toLowerCase())}: <b>${esc(p.variant.options.map((o) => o.name.replace(/\s*\(.*\)/, '')).join(', '))}</b>. Pilih ukuran di bawah.</p>` : ''}
 
         <div class="mode-switch" role="tablist">
           <button data-m="rent" class="${p.rent ? '' : 'na'}"><i class="fa-solid fa-campground"></i> Sewa${p.rent ? '' : '<em>Tidak tersedia</em>'}</button>

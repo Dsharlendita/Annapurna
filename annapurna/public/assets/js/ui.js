@@ -172,9 +172,51 @@
   /* Pilihan ukuran berbentuk chip. list: [{ name, avail }] */
   function sizePicker(p, list, selected) {
     if (!DB.hasVariant(p)) return '';
+    if (DB.isVar2(p)) return sizePicker2(p, list, selected);
     return `<div class="field size-field"><label>${esc(p.variant.label)} <span class="req">*</span></label><div class="size-pick" data-size-pick>${list.map((o) => {
       const short = o.name.replace(/\s*\(.*\)/, ''); const note = (o.name.match(/\((.*)\)/) || [])[1];
       return `<button type="button" data-size="${esc(o.name)}" class="${o.name === selected ? 'on' : ''}" ${o.avail > 0 ? '' : 'disabled'} title="${esc(o.name)}"><b>${esc(short)}</b><small>${o.avail > 0 ? `${o.avail} tersedia` : 'Habis'}</small>${note ? `<em>${esc(note)}</em>` : ''}</button>`; }).join('')}</div></div>`;
+  }
+  /* Varian 2 atribut: baris 1 (mis. Ukuran), baris 2 (mis. Warna) mengikuti pilihan baris 1. Tombol tetap memakai data-size
+     berisi nama kombinasi ("42 / Hitam"), jadi semua pemanggil sizePicker tidak perlu diubah. */
+  function sizePicker2(p, list, selected) {
+    const clean = (t) => String(t || '').replace(/\s*\(.*\)/, '');
+    const rows = list.map((o) => { const [a, b] = DB.vParts(p, o.name); return { o, a, b }; });
+    const sel = rows.find((r) => r.o.name === selected) || rows.find((r) => r.o.avail > 0) || rows[0];
+    if (!sel) return '';
+    const A = [...new Set(rows.map((r) => r.a))];
+    const btnA = A.map((a) => { const same = rows.filter((r) => r.a === a); const tot = same.reduce((s, r) => s + Math.max(0, r.o.avail), 0);
+      const tgt = same.find((r) => r.b === sel.b && r.o.avail > 0) || same.find((r) => r.o.avail > 0) || same[0];
+      return `<button type="button" data-size="${esc(tgt.o.name)}" class="${a === sel.a && selected ? 'on' : ''}" ${tot > 0 ? '' : 'disabled'}><b>${esc(clean(a))}</b><small>${tot > 0 ? `${tot} tersedia` : 'Habis'}</small></button>`; }).join('');
+    const btnB = rows.filter((r) => r.a === sel.a).map((r) => `<button type="button" data-size="${esc(r.o.name)}" class="${r.o.name === selected ? 'on' : ''}" ${r.o.avail > 0 ? '' : 'disabled'} title="${esc(r.o.name)}"><b>${esc(r.b)}</b><small>${r.o.avail > 0 ? `${r.o.avail} tersedia` : 'Habis'}</small></button>`).join('');
+    return `<div class="field size-field"><label>${esc(p.variant.label)} <span class="req">*</span></label><div class="size-pick" data-size-pick>${btnA}</div></div>
+      <div class="field size-field"><label>${esc(p.variant.label2)} <span class="req">*</span>${selected ? ` <span class="size-sel">untuk ${esc(clean(sel.a))}: <b>${esc(sel.b)}</b></span>` : ''}</label><div class="size-pick size-pick-2" data-size-pick>${btnB}</div></div>`;
+  }
+  /* Ringkasan varian untuk kartu / halaman produk: "Ukuran 40, 41 · Warna Hitam, Pink" */
+  const variantInfo = (p) => DB.variantAxes(p).map((x) => `${String(x.label).replace(/\s*\(.*\)/, '')} ${x.values.map((v) => String(v).replace(/\s*\(.*\)/, '')).join(', ')}`).join(' · ');
+  /* Kartu identitas jaminan: pilihan Owner + "Lainnya" (ketik jenis identitas sendiri).
+     idField(prefix, value, opts) → HTML; idRead(root, prefix) → { ok, value, no } */
+  function idField(prefix, value, opts = {}) {
+    const L = DB.idTypes(); let v = String(value || ''); const base = L.find((x) => v === x || v.startsWith(x + ' (')); if (base) v = base; const other = !!v && !base; if (v === '__other') v = '';
+    const req = opts.required !== false; const lbl = opts.label || 'Kartu identitas jaminan';
+    return `<div class="field id-field" data-idf="${prefix}"><label for="${prefix}Type">${lbl}${req ? ' <span class="req">*</span>' : ''}</label>
+      <select class="select" id="${prefix}Type" ${opts.name ? `name="${opts.name}"` : ''}>${req ? '' : '<option value="">Tidak ada</option>'}${L.map((x) => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__other" ${other ? 'selected' : ''}>Lainnya…</option></select>
+      <div class="id-other" ${other ? '' : 'hidden'}><input class="input" id="${prefix}Other" value="${other ? esc(v) : ''}" placeholder="Jenis identitas, mis. Paspor, Kartu Pegawai" maxlength="40"></div>
+      ${opts.hint ? `<span class="hint">${opts.hint}</span>` : ''}</div>`;
+  }
+  function idBind(root, prefix, onChange) {
+    const sel = root.querySelector(`#${prefix}Type`); if (!sel) return;
+    const box = sel.closest('.id-field').querySelector('.id-other');
+    const emit = () => onChange && onChange(sel.value === '__other' ? (idRead(root, prefix, true).value || '__other') : sel.value);
+    sel.addEventListener('change', () => { box.hidden = sel.value !== '__other'; if (!box.hidden) box.querySelector('input').focus(); emit(); });
+    box.querySelector('input').addEventListener('input', emit);
+  }
+  function idRead(root, prefix, quiet) {
+    const sel = root.querySelector(`#${prefix}Type`); if (!sel) return { ok: true, value: '' };
+    if (sel.value !== '__other') return { ok: true, value: sel.value };
+    const inp = root.querySelector(`#${prefix}Other`); const v = inp.value.trim().replace(/\s+/g, ' ');
+    if (v.length < 2) { if (!quiet) { inp.classList.add('err'); inp.focus(); toast('Tulis jenis identitas lainnya (mis. Paspor).', 'err'); } return { ok: false, value: '' }; }
+    inp.classList.remove('err'); return { ok: true, value: v };
   }
   const firstAvailSize = (list, cur) => { const c = list.find((o) => o.name === cur && o.avail > 0); return c ? c.name : (list.find((o) => o.avail > 0) || {}).name || null; };
 
@@ -332,7 +374,7 @@
     const badge = autoB + (p.badge ? `<span class="pc-badge adm ${String(p.badge).toLowerCase()}">${esc(p.badge)}</span>` : '');
     const cat = (DB.categories().find((c) => c.id === p.cat) || {}).name || '';
     const price = mode === 'buy' ? `<strong>${rupiah(p.price)}</strong>` : `<strong>${rupiah(p.rent)}</strong><small>/ malam</small>`;
-    const info = DB.hasVariant(p) ? `<i class="fa-solid fa-ruler"></i> Ukuran ${esc(p.variant.options.map((o) => o.name.replace(/\s*\(.*\)/, '')).join(', '))}`
+    const info = DB.hasVariant(p) ? `<i class="fa-solid fa-ruler"></i> ${esc(variantInfo(p))}`
       : p.brand ? `<i class="fa-solid fa-tag"></i> ${esc(p.brand)}`
       : mode === 'buy' ? (p.rent ? '<i class="fa-solid fa-campground"></i> Bisa juga disewa' : '<i class="fa-solid fa-bag-shopping"></i> Barang jual')
       : (p.price ? '<i class="fa-solid fa-bag-shopping"></i> Bisa juga dibeli' : '');
@@ -1042,7 +1084,7 @@
     const x = o.x, rent = o.kind === 'rent';
     const items = x.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
     const paid = paidOf(x), sisa = Math.max(0, x.total - paid);
-    return [`*${rent ? 'Nota Sewa' : 'Nota Pembelian'} #${NO(x)}*`,
+    return [`*${rent ? 'Nota Sewa' : 'Invoice Pembelian'} #${NO(x)}*`,
       rent ? `Tanggal: ${D.fmtRange(x.start, x.end)} (${x.days} malam), ambil & kembali di toko` : null,
       `Barang: ${items}`,
       ...(rent ? (x.changes || []).filter((c) => c.status !== 'ditolak').map((c) => `Ganti barang: ${c.fromName} → ${c.toName} (${(+c.diff || 0) >= 0 ? '+' : '−'}${rupiah(Math.abs(+c.diff || 0))}${c.status === 'menunggu' ? ', menunggu persetujuan' : ''})`) : []),
@@ -1212,21 +1254,146 @@
     return out;
   }
 
-  /* Pratinjau gambar sebelum dikirim ke WhatsApp (laptop): Salin gambar → Buka WhatsApp → Ctrl+V */
-  function sendPreview({ title, blob, name, text, waUrl, waLabel, onSent }) {
+  /* Gambar INVOICE PENJUALAN (PNG): desain sama dengan nota sewa & laundry (logo, stempel, QR, tabel, ringkasan) */
+  async function saleCanvas(s) {
+    const st = DB.settings(); const Svc = window.Ann.Svc;
+    const W = 820, S = 2, P = 44, F = '"Plus Jakarta Sans", "Figtree", "Segoe UI", Arial, sans-serif', rowH = 50;
+    const items = s.items || [], pays = (s.payments || []).filter((p) => +p.amount);
+    const deliv = Svc.isSaleDeliv(s); const bl = Svc.bill(s); const ship = deliv && Svc.shipMode(s) ? Svc.shipBrief(s) : '';
+    const paidItems = paidOf(s); const disc = s.discount ? +(s.discount.amount || s.discount.fixed || 0) : 0;
+    const ongkir = deliv && bl.ongkirSet ? bl.ongkir : 0; const grand = (s.total || 0) + ongkir; const paid = paidItems + (deliv ? bl.paid : 0); const sisa = Math.max(0, grand - paid);
+    const footer = ((st.receipt || {}).footerSale) || '';
+    const H = 470 + items.length * rowH + 7 * 32 + (pays.length ? 60 + pays.length * 28 : 0) + 220;
+    const cv = document.createElement('canvas'); cv.width = W * S; cv.height = H * S;
+    const c = cv.getContext('2d'); c.scale(S, S);
+    const f = (w, z) => `${w} ${z}px ${F}`;
+    const txt = (t, x, y, o = {}) => { c.font = f(o.w || 500, o.z || 13); c.fillStyle = o.c || '#2a3a2f'; c.textAlign = o.a || 'left'; c.fillText(String(t), x, y); c.textAlign = 'left'; };
+    const fit = (t, max, w, z) => { c.font = f(w, z); t = String(t); if (c.measureText(t).width <= max) return t; while (t.length > 3 && c.measureText(t + '…').width > max) t = t.slice(0, -1); return t + '…'; };
+    const line = (x1, y1, x2, y2, col, lw = 1, dash) => { c.save(); c.strokeStyle = col; c.lineWidth = lw; if (dash) c.setLineDash(dash); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.restore(); };
+    const rrect = (x, y, w, h, r, fill, stroke) => { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.stroke(); } };
+    c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+    /* kepala */
+    const logo = await loadImg(asset('assets/img/logo.png'));
+    if (logo) c.drawImage(logo, P, 30, 136, 64); else txt(st.storeName, P, 70, { w: 800, z: 22, c: '#1f4d2f' });
+    const addr = String(st.address || ''); const cut = addr.lastIndexOf(',', 46) > 0 ? addr.lastIndexOf(',', 46) + 1 : 46;
+    txt(addr.slice(0, cut).trim(), P, 118, { c: '#6b7a70', z: 12.5 }); txt(addr.slice(cut).trim(), P, 136, { c: '#6b7a70', z: 12.5 });
+    txt(`${st.phone || ''} · ${st.email || ''}`, P, 154, { c: '#6b7a70', z: 12.5 });
+    const QX = W - P - 132, TX = QX - 24;
+    txt('INVOICE', TX, 58, { w: 800, z: 30, c: '#1f4d2f', a: 'right' });
+    txt(`#${NO(s)}`, TX, 84, { w: 800, z: 16, c: '#15311f', a: 'right' });
+    txt(`Tanggal: ${D.fmtDate(s.createdAt, true)}`, TX, 104, { c: '#6b7a70', z: 13, a: 'right' });
+    const stamp = s.status === 'dibatalkan' ? ['DIBATALKAN', '#b23a2a'] : s.paymentStatus === 'verifying' ? ['MENUNGGU VERIFIKASI', '#2b5aa8'] : sisa <= 0 && paid > 0 ? ['LUNAS', '#1f4d2f'] : paid > 0 ? ['BELUM LUNAS', '#b7791f'] : ['BELUM DIBAYAR', '#b7791f'];
+    c.save(); c.translate(TX - 100, 152); c.rotate(-0.1); c.font = f(800, 14); const sw = c.measureText(stamp[0]).width + 30;
+    c.strokeStyle = stamp[1]; c.lineWidth = 3; rrect(-sw / 2, -18, sw, 34, 7, null, stamp[1]); c.fillStyle = stamp[1]; c.textAlign = 'center'; c.fillText(stamp[0], 0, 5); c.restore();
+    rrect(QX, 28, 132, 146, 12, '#fff', '#e6e1d6');
+    try {
+      await loadScript(asset('assets/vendor/qr/qrcode-generator.js'));
+      const q = window.qrcode(0, 'M'); q.addData(new URL(url('invoice?id=' + s.id), location.href).href); q.make();
+      const n = q.getModuleCount(), cs = 108 / n; c.fillStyle = '#111';
+      for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) c.fillRect(QX + 12 + k * cs, 38 + r * cs, cs + 0.3, cs + 0.3);
+    } catch (e) { /* QR opsional */ }
+    txt('Scan untuk buka invoice', QX + 66, 164, { z: 10.5, c: '#6b7a70', a: 'center' });
+    line(P, 194, W - P, 194, '#1f4d2f', 2.5);
+    /* ditagihkan & detail */
+    let y = 226; const CX = W / 2 + 10;
+    const cu = s.customer || {};
+    txt('DITAGIHKAN KEPADA', P, y, { w: 700, z: 11.5, c: '#6b7a70' }); txt('DETAIL PESANAN', CX, y, { w: 700, z: 11.5, c: '#6b7a70' });
+    txt(cu.name || 'Pelanggan Umum', P, y + 26, { w: 700, z: 15, c: '#15311f' }); if (cu.phone) txt(cu.phone, P, y + 48, { z: 13.5 }); if (cu.email) txt(fit(cu.email, 330, 500, 13.5), P, y + (cu.phone ? 68 : 48), { z: 13.5 });
+    if (deliv && (s.deliv || {}).address) { const ad = fit('Alamat: ' + s.deliv.address, 330, 500, 12.5); txt(ad, P, y + 90, { z: 12.5, c: '#5d6b62' }); }
+    txt(`Metode bayar: ${s.method || '-'}`, CX, y + 26, { z: 13.5 });
+    txt(`Pengambilan: ${deliv ? 'Diantar ke tempat' : 'Ambil di toko'}`, CX, y + 48, { z: 13.5 });
+    if (ship) txt(fit(ship, W - P - CX, 500, 12.5), CX, y + 68, { z: 12.5, c: '#5d6b62' });
+    txt(`Status: ${stLabel('sale', s.status)} · ${stLabel('payment', s.paymentStatus)}`, CX, y + 90, { z: 13, c: '#2f6b43', w: 700 });
+    /* tabel */
+    y = 350; const col = { no: P + 14, nm: P + 92, q: 500, h: 630, j: W - P - 14 };
+    rrect(P, y, W - P * 2, 40, 0, '#f8f6f1'); [['No', col.no], ['Barang', col.nm], ['Qty', col.q, 'right'], ['Harga satuan', col.h, 'right'], ['Subtotal', col.j, 'right']].forEach(([t, x, a]) => txt(t, x, y + 25, { w: 700, z: 12, c: '#5d6b62', a }));
+    line(P, y + 40, W - P, y + 40, '#e6e1d6'); y += 40;
+    const imgs = await Promise.all(items.map((it) => loadImg(asset(it.img))));
+    items.forEach((it, i) => { const yy = y + i * rowH; const p = DB.product(it.productId);
+      const base = p ? p.name : it.name; const vr = it.size && p ? String(DB.variantName(p, it.size)).slice(p.name.length).replace(/^\s*·\s*/, '') : '';
+      txt(i + 1, col.no, yy + 30, { z: 13, c: '#6b7a70' });
+      if (imgs[i]) { c.save(); rrect(P + 40, yy + 9, 32, 32, 6); c.clip(); c.drawImage(imgs[i], P + 40, yy + 9, 32, 32); c.restore(); }
+      txt(fit(base, 300, 700, 13.5), col.nm, yy + (vr ? 23 : 30), { w: 700, z: 13.5, c: '#15311f' }); if (vr) txt(fit(vr, 300, 500, 11.5), col.nm, yy + 40, { z: 11.5, c: '#6b7a70' });
+      txt(it.qty, col.q, yy + 30, { z: 13.5, a: 'right' }); txt(rupiah(it.price), col.h, yy + 30, { z: 13.5, a: 'right' }); txt(rupiah(it.price * it.qty), col.j, yy + 30, { z: 13.5, a: 'right', w: 600 });
+      line(P, yy + rowH, W - P, yy + rowH, '#efebe2'); });
+    y += items.length * rowH + 34;
+    /* ringkasan */
+    const LX = W / 2 + 40, RX = W - P;
+    const kv = (l, r, o = {}) => { txt(l, LX, y, { z: o.z || 14, w: o.w || 500, c: o.c || '#5d6b62' }); txt(r, RX, y, { z: o.z || 14, w: o.w || 600, c: o.rc || o.c || '#15311f', a: 'right' }); y += o.gap || 30; };
+    kv('Subtotal', rupiah(s.subtotal != null ? s.subtotal : items.reduce((a, i) => a + i.price * i.qty, 0)));
+    if (disc) kv(`Diskon${s.discount.code && s.discount.code !== 'KASIR' ? ' (' + s.discount.code + ')' : ''}`, '− ' + rupiah(disc), { rc: '#1f4d2f', w: 700 });
+    if (deliv) { kv('Total barang', rupiah(s.total)); kv('Ongkir antar', bl.ongkirSet ? rupiah(ongkir) : 'menunggu konfirmasi', { rc: bl.ongkirSet ? '#15311f' : '#9a6508' }); }
+    kv('Total tagihan', rupiah(grand), { w: 800, c: '#15311f', z: 15 });
+    kv('Sudah dibayar', rupiah(paid), { rc: '#2f6b43', w: 700 });
+    if (pendingPay(s)) kv('Menunggu verifikasi', rupiah(pendingPay(s)), { c: '#9aa39d', rc: '#9aa39d' });
+    line(LX, y - 12, RX, y - 12, '#d8d2c4', 1, [4, 4]); y += 10;
+    kv('Sisa pembayaran', sisa ? rupiah(sisa) : 'LUNAS', { z: 17, w: 800, c: sisa ? '#b4561c' : '#1f4d2f', gap: 34 });
+    /* riwayat pembayaran */
+    if (pays.length) {
+      y += 6; txt('RIWAYAT PEMBAYARAN', P, y, { w: 700, z: 11.5, c: '#6b7a70' }); y += 14;
+      pays.forEach((p) => { y += 24; txt(`${D.fmtDateTime(p.at)} · ${p.via || p.type || 'Pembayaran'}`, P, y, { z: 13 }); txt(rupiah(p.amount), W - P, y, { z: 13, w: 600, a: 'right' }); line(P, y + 8, W - P, y + 8, '#efebe2', 1, [3, 3]); y += 4; });
+      y += 14;
+    }
+    y += 10; rrect(P, y, W - P * 2, footer ? 64 : 44, 10, '#f1f7f2', '#d4e6d8');
+    txt(deliv && !bl.ongkirSet ? 'Ongkir dikonfirmasi admin via WhatsApp sesuai jarak.' : 'Simpan invoice ini sebagai bukti pembelian yang sah.', P + 18, y + 26, { z: 12.5, w: 700, c: '#1f4d2f' });
+    if (footer) txt(fit(footer, W - P * 2 - 36, 500, 12), P + 18, y + 46, { z: 12, c: '#5d6b62' });
+    y += (footer ? 64 : 44) + 34; txt(`Terima kasih telah berbelanja di ${st.storeName || 'Annapurna Adventure'}.`, W / 2, y, { z: 12.5, w: 700, c: '#1f4d2f', a: 'center' });
+    const endH = Math.min(H, Math.ceil(y + 28)); const out = document.createElement('canvas'); out.width = W * S; out.height = endH * S;
+    out.getContext('2d').drawImage(cv, 0, 0); return out;
+  }
+
+  /* ===== Jendela kirim WhatsApp terpadu (semua pesan otomatis lewat sini) =====
+     - Gambar nota/invoice (opsional): salin (Ctrl+V di WhatsApp) / unduh / bagikan (HP)
+     - Isi pesan dari template bisa DIEDIT staff sebelum dikirim; "Kembalikan pesan awal" untuk membatalkan suntingan
+     - phone = nomor tujuan (customer). Tanpa phone → ke WhatsApp toko (dipakai customer). */
+  function waCompose({ title, blob, name, text, phone, waLabel, onSent, tplKey, note, waUrl }) {
+    if (!phone && waUrl) { const mm = String(waUrl).match(/wa\.me\/(\d+)/); if (mm) phone = mm[1]; }
     const canCopy = !!(navigator.clipboard && window.ClipboardItem && window.isSecureContext);
-    const imgUrl = URL.createObjectURL(blob);
-    const m = modal({ title, size: 'lg', body: `
-      <div class="tg-steps"><span><b>1</b> ${canCopy ? 'Tekan <b>Salin gambar nota</b>' : 'Tekan <b>Unduh gambar</b>'}</span><span><b>2</b> Tekan <b>${esc(waLabel)}</b> — pesan sudah terisi</span><span><b>3</b> Di chat WhatsApp, ${canCopy ? 'tekan <b>Ctrl+V</b> untuk menempel gambar' : 'lampirkan gambar yang diunduh'}, lalu kirim</span></div>
-      <div class="tg-prev"><img src="${imgUrl}" alt="Nota"></div>
-      <details class="tg-msg"><summary>Lihat isi pesan WhatsApp</summary><pre>${esc(text)}</pre></details>`,
-      foot: `<button class="btn btn-light" id="spDl"><i class="fa-solid fa-download"></i> Unduh gambar</button>${canCopy ? '<button class="btn btn-light" id="spCopy"><i class="fa-regular fa-copy"></i> Salin gambar nota</button>' : ''}<button class="btn btn-wa" id="spWa"><i class="fa-brands fa-whatsapp"></i> ${esc(waLabel)}</button>` });
-    const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); URL.revokeObjectURL(imgUrl); } }); obs.observe(document.body, { childList: true });
-    m.$('#spDl').addEventListener('click', () => { const a = document.createElement('a'); a.href = imgUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Gambar nota tersimpan di folder Unduhan.'); });
-    if (m.$('#spCopy')) m.$('#spCopy').addEventListener('click', async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); m.$('#spCopy').innerHTML = '<i class="fa-solid fa-check"></i> Gambar tersalin'; m.$('#spCopy').classList.add('done'); toast('Gambar nota tersalin. Tempel di chat WhatsApp dengan Ctrl+V.'); } catch (e) { toast('Browser tidak mengizinkan menyalin gambar. Pakai tombol Unduh gambar.', 'err'); } });
-    m.$('#spWa').addEventListener('click', () => { window.open(waUrl, '_blank', 'noopener'); if (onSent) onSent(); });
+    const num = phone ? String(phone).replace(/[^\d]/g, '').replace(/^0/, '62').replace(/^8/, '628') : '';
+    const noPhone = phone !== undefined && phone !== null && num.length < 10 && !waUrl;
+    const imgUrl = blob ? URL.createObjectURL(blob) : '';
+    const file = blob && typeof File !== 'undefined' ? new File([blob], name || 'nota.png', { type: 'image/png' }) : null;
+    const canShare = !!(file && matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] }));
+    const sess = DB.session(); const owner = sess && sess.role === 'owner';
+    const tpl = tplKey ? (DB.WA_TPL.find((x) => x.key === tplKey) || null) : null;
+    const label = waLabel || 'Buka WhatsApp';
+    const steps = blob ? (canShare ? '<span><b>1</b> Periksa / ubah isi pesan</span><span><b>2</b> Tekan <b>Bagikan</b>, pilih WhatsApp lalu chat tujuan</span>'
+      : `<span><b>1</b> ${canCopy ? 'Tekan <b>Salin gambar</b>' : 'Tekan <b>Unduh gambar</b>'}</span><span><b>2</b> Periksa / ubah isi pesan, lalu tekan <b>${esc(label)}</b></span><span><b>3</b> Di chat WhatsApp, ${canCopy ? 'tekan <b>Ctrl+V</b> untuk menempel gambar' : 'lampirkan gambar yang diunduh'}, lalu kirim</span>`)
+      : `<span><b>1</b> Periksa / ubah isi pesan</span><span><b>2</b> Tekan <b>${esc(label)}</b>, lalu kirim di WhatsApp</span>`;
+    const m = modal({ title, size: blob ? 'xl' : 'lg', body: `
+      <div class="tg-steps">${steps}</div>
+      ${note ? `<div class="notice" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>${note}</div></div>` : ''}
+      ${noPhone ? '<div class="notice amber" style="margin-bottom:12px"><i class="fa-solid fa-phone-slash"></i><div>Nomor WhatsApp customer belum ada / tidak valid. Gambar & pesan tetap bisa disalin atau diunduh.</div></div>' : ''}
+      <div class="wc-grid ${blob ? '' : 'one'}">
+        ${blob ? `<div class="wc-prev"><div class="tg-prev"><img src="${imgUrl}" alt="Pratinjau nota"></div>
+          <div class="wc-img-acts"><button type="button" class="btn btn-light btn-sm" id="wcDl"><i class="fa-solid fa-download"></i> Unduh gambar</button>${canCopy ? '<button type="button" class="btn btn-light btn-sm" id="wcCopy"><i class="fa-regular fa-copy"></i> Salin gambar</button>' : ''}</div></div>` : ''}
+        <div class="wc-msg">
+          <div class="wc-msg-h"><label for="wcText"><i class="fa-brands fa-whatsapp"></i> Isi pesan <small>bisa diedit sebelum dikirim</small></label>
+            <button type="button" class="link-btn" id="wcReset" hidden><i class="fa-solid fa-rotate-left"></i> Kembalikan pesan awal</button></div>
+          <textarea class="textarea wc-text" id="wcText" rows="${blob ? 16 : 12}" spellcheck="false">${esc(text || '')}</textarea>
+          <div class="wc-msg-f"><span class="muted" id="wcLen"></span>
+            ${tpl ? `<span class="muted wc-tpl">Template: <b>${esc(tpl.title)}</b>${owner ? ` · <a class="link" href="${url('owner/konfigurasi?s=pesan&t=' + tpl.key)}" target="_blank" rel="noopener">Atur template</a>` : ' · diatur Owner'}</span>` : ''}</div>
+          <button type="button" class="btn btn-light btn-sm" id="wcCopyTxt"><i class="fa-regular fa-clipboard"></i> Salin teks pesan</button>
+        </div>
+      </div>`,
+      foot: `<button class="btn btn-light" data-close>Tutup</button>${canShare ? '<button class="btn btn-wa" id="wcShare"><i class="fa-solid fa-share-nodes"></i> Bagikan ke WhatsApp</button>' : ''}<button class="btn btn-wa" id="wcWa" ${noPhone ? 'disabled' : ''}><i class="fa-brands fa-whatsapp"></i> ${esc(label)}</button>` });
+    const ta = m.$('#wcText'); const orig = text || '';
+    const len = () => { m.$('#wcLen').textContent = `${ta.value.length} karakter`; m.$('#wcReset').hidden = ta.value === orig; };
+    ta.addEventListener('input', len); len();
+    setTimeout(() => { if (!blob) { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; } }, 60);
+    m.$('#wcReset').addEventListener('click', () => { ta.value = orig; len(); ta.focus(); });
+    if (imgUrl) { const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); URL.revokeObjectURL(imgUrl); } }); obs.observe(document.body, { childList: true }); }
+    if (m.$('#wcDl')) m.$('#wcDl').addEventListener('click', () => { const a = document.createElement('a'); a.href = imgUrl; a.download = name || 'nota.png'; document.body.appendChild(a); a.click(); a.remove(); toast('Gambar tersimpan di folder Unduhan.'); });
+    if (m.$('#wcCopy')) m.$('#wcCopy').addEventListener('click', async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); m.$('#wcCopy').innerHTML = '<i class="fa-solid fa-check"></i> Gambar tersalin'; m.$('#wcCopy').classList.add('done'); toast('Gambar tersalin. Tempel di chat WhatsApp dengan Ctrl+V.'); } catch (e) { toast('Browser tidak mengizinkan menyalin gambar. Pakai tombol Unduh gambar.', 'err'); } });
+    m.$('#wcCopyTxt').addEventListener('click', async () => { try { await navigator.clipboard.writeText(ta.value); toast('Teks pesan tersalin.'); } catch (e) { ta.select(); document.execCommand && document.execCommand('copy'); toast('Teks pesan tersalin.'); } });
+    let sent = false; const done = (how) => { if (sent) return; sent = true; onSent && onSent(how || '', ta.value); };
+    m.$('#wcWa').addEventListener('click', () => { const t = ta.value.trim(); if (!t) { toast('Isi pesan masih kosong.', 'err'); ta.focus(); return; }
+      window.open(num ? `https://wa.me/${num}?text=${encodeURIComponent(t)}` : waLink(t), '_blank', 'noopener'); done(''); });
+    if (m.$('#wcShare')) m.$('#wcShare').addEventListener('click', async () => { try { await navigator.share({ files: [file], text: ta.value }); done('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ } });
     return m;
   }
+  /* Nama lama tetap bisa dipakai */
+  function sendPreview(o) { return waCompose(o); }
   function waContact(text, opts = {}) {
     const user = DB.session(); const orders = activeOrders(user);
     /* Dari halaman nota: pesanan itu selalu ikut, walau sudah selesai / belum dibayar */
@@ -1248,7 +1415,7 @@
       const parts = [];
       for (const o of pick) {
         if (o.kind === 'rent') { const bl = billOf(o.x); parts.push(await tagihanCanvas(o.x, { booking: true, title: bl.late ? 'NOTA TAGIHAN' : 'NOTA BOOKING' })); }
-        else parts.push(notaCanvas([o]));
+        else parts.push(await saleCanvas(o.x));
       }
       const W = Math.max(...parts.map((c) => c.width)), GAP = 40, H = parts.reduce((a, c) => a + c.height, 0) + GAP * (parts.length - 1);
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'); cx.fillStyle = '#f4f1ea'; cx.fillRect(0, 0, W, H);
@@ -1425,5 +1592,5 @@
     let h = 0; for (const ch of String(name || '').toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return `<span class="rv-av av-c${h % AV_COLORS}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
-  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, variantInfo, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

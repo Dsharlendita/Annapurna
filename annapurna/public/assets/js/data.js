@@ -401,33 +401,39 @@
     ],
     laundry: [
       { id: 'tenda', name: 'Tenda', icon: 'fa-tent', items: [
-        { id: 'ld-t2s', name: 'Tenda 2P Single Layer', price: 25000 },
-        { id: 'ld-t2d', name: 'Tenda 2P Double Layer', price: 30000 },
-        { id: 'ld-t45', name: 'Tenda 4P - 5P Double Layer', price: 35000 },
-        { id: 'ld-t6', name: 'Tenda 6P Up / Family', price: 50000 },
+        { id: 'ld-t2s', img: 'assets/img/wa/tnd-2.jpg', name: 'Tenda 2P Single Layer', price: 25000 },
+        { id: 'ld-t2d', img: 'assets/img/wa/pk-2p.jpg', name: 'Tenda 2P Double Layer', price: 30000 },
+        { id: 'ld-t45', img: 'assets/img/wa/tnd-45.jpg', name: 'Tenda 4P - 5P Double Layer', price: 35000 },
+        { id: 'ld-t6', img: 'assets/img/wa/tnd-6.jpg', name: 'Tenda 6P Up / Family', price: 50000 },
       ] },
       { id: 'sb', name: 'Sleeping Bag', icon: 'fa-bed', items: [
-        { id: 'ld-sb', name: 'Sleeping Bag Biasa', price: 10000 },
-        { id: 'ld-sbb', name: 'Sleeping Bag Besar / Bulu', price: 15000 },
+        { id: 'ld-sb', img: 'assets/img/wa/oe-sb.jpg', name: 'Sleeping Bag Biasa', price: 10000 },
+        { id: 'ld-sbb', img: 'assets/img/products/sleeping-bag.jpg', name: 'Sleeping Bag Besar / Bulu', price: 15000 },
       ] },
       { id: 'jaket', name: 'Jaket', icon: 'fa-shirt', items: [
-        { id: 'ld-jw', name: 'Jaket Waterproof', price: 10000 },
-        { id: 'ld-ji', name: 'Jaket Insulated', price: 15000 },
+        { id: 'ld-jw', img: 'assets/img/wa/fs-jkt.jpg', name: 'Jaket Waterproof', price: 10000 },
+        { id: 'ld-ji', img: 'assets/img/wa/fs-insulated.jpg', name: 'Jaket Insulated', price: 15000 },
       ] },
       { id: 'tas', name: 'Carrier & Daypack', icon: 'fa-suitcase-rolling', items: [
-        { id: 'ld-dp', name: 'Daypack', price: 15000 },
-        { id: 'ld-c45', name: 'Carrier 40L - 50L', price: 15000 },
-        { id: 'ld-c60', name: 'Carrier 60L Up', price: 20000 },
+        { id: 'ld-dp', img: 'assets/img/wa/tas-day.jpg', name: 'Daypack', price: 15000 },
+        { id: 'ld-c45', img: 'assets/img/wa/crr-4050m.jpg', name: 'Carrier 40L - 50L', price: 15000 },
+        { id: 'ld-c60', img: 'assets/img/wa/crr-60m.jpg', name: 'Carrier 60L Up', price: 20000 },
       ] },
       { id: 'sepatu', name: 'Sepatu', icon: 'fa-shoe-prints', items: [
-        { id: 'ld-sth', name: 'Sepatu Trekking / Hiking', price: 20000 },
-        { id: 'ld-str', name: 'Sepatu Trail Run / Running', price: 20000 },
+        { id: 'ld-sth', img: 'assets/img/wa/fw-mid.jpg', name: 'Sepatu Trekking / Hiking', price: 20000 },
+        { id: 'ld-str', img: 'assets/img/wa/fw-trail.jpg', name: 'Sepatu Trail Run / Running', price: 20000 },
       ] },
       { id: 'matras', name: 'Matras', icon: 'fa-rug', items: [
-        { id: 'ld-ms', name: 'Matras Spon', price: 5000 },
-        { id: 'ld-mf', name: 'Matras Foil', price: 5000 },
+        { id: 'ld-ms', img: 'assets/img/wa/oe-matras.jpg', name: 'Matras Spon', price: 5000 },
+        { id: 'ld-mf', img: 'assets/img/categories/matras.jpg', name: 'Matras Foil', price: 5000 },
       ] },
     ],
+    /* Laundry "Lain-lain": barang di luar daftar (mis. sarung tangan). Nama & harga diisi manual staff di kasir, harga minimal minPrice. */
+    laundryOther: { enabled: true, name: 'Lain-lain', minPrice: 5000, img: '', note: 'Barang di luar daftar, mis. sarung tangan, topi, tas kecil. Harga ditentukan saat barang dicek di toko.' },
+    /* Jenis kartu identitas jaminan sewa. "Lainnya" selalu tersedia: staff/customer mengetik sendiri jenisnya. */
+    idTypes: ['KTP', 'KTM', 'SIM', 'Kartu Pelajar'],
+    /* Template pesan WhatsApp yang diubah Owner (kosong = pakai bawaan, lihat WA_TPL) */
+    waTemplates: {},
     /* Section "Produk Rental Terlaris" di beranda: sumber data (otomatis | manual | gabungan), periode hitung (hari, 0 = semua), jumlah barang */
     homeBest: { mode: 'gabungan', days: 90, count: 6, onlyAvailable: true },
     cancelDays: 2,
@@ -488,6 +494,7 @@
       { id: 'at-sepatu', name: 'Ukuran sepatu (EU)', type: 'pilihan', values: ['38', '39', '40', '41', '42', '43', '44', '45'], variant: true, cats: ['footwear'], required: false, active: true },
       { id: 'at-kapasitas', name: 'Kapasitas', type: 'pilihan', values: ['2 orang', '4 orang', '4-5 orang', '6 orang', '40-50 L', '60 L', '70-80 L'], variant: false, cats: ['tenda', 'tas'], required: false, active: true },
       { id: 'at-tipe-tenda', name: 'Tipe tenda', type: 'pilihan', values: ['Double layer', 'Single layer'], variant: false, cats: ['tenda'], required: false, active: true },
+      { id: 'at-warna', name: 'Warna', type: 'pilihan', values: ['Hitam', 'Abu-abu', 'Navy', 'Hijau Army', 'Coklat', 'Merah', 'Biru', 'Pink', 'Putih'], variant: true, cats: ['fashion', 'footwear', 'tas'], required: false, active: true },
       { id: 'at-gender', name: 'Gender', type: 'pilihan', values: ['Pria', 'Wanita', 'Unisex', 'Anak'], variant: false, cats: ['fashion', 'footwear'], required: false, active: true },
     ],
     conditions: [
@@ -502,15 +509,66 @@
     },
     forms: {
       pickup: { note: 'opsional', photo: 'opsional', idCard: 'wajib', custom: [{ id: 'f-kelengkapan', label: 'Kelengkapan sudah dicek bersama customer', type: 'centang', required: true }] },
-      return: { note: 'opsional', photo: 'wajib', custom: [] },
+      return: { note: 'opsional', photo: 'opsional', custom: [] },
     },
     sops: [
       { id: 'sop-1', title: 'Pemeriksaan barang keluar', context: 'barang_keluar', pinned: true, body: 'Periksa kelengkapan barang bersama customer sebelum diserahkan (frame, pasak, flysheet, tas). Minta kartu identitas asli sebagai jaminan dan pastikan sisa pembayaran sudah lunas.' },
-      { id: 'sop-2', title: 'Pemeriksaan barang kembali', context: 'pengembalian', pinned: true, body: 'Semua barang yang dikembalikan wajib diperiksa kondisi fisiknya dan difoto sebelum status rental diselesaikan. Pilih hasil pemeriksaan per unit: kotor → "Perlu dicuci", rusak → "Rusak — perlu diperbaiki" dengan keterangan. Unit baru bisa disewakan lagi setelah ditandai bersih / selesai diperbaiki di menu Perawatan Unit.' },
+      { id: 'sop-2', title: 'Pemeriksaan barang kembali', context: 'pengembalian', pinned: true, body: 'Semua barang yang dikembalikan wajib diperiksa kondisi fisiknya (foto bila memungkinkan) sebelum status rental diselesaikan. Pilih hasil pemeriksaan per unit: kotor → "Perlu dicuci", rusak → "Rusak — perlu diperbaiki" dengan keterangan. Unit baru bisa disewakan lagi setelah ditandai bersih / selesai diperbaiki di menu Perawatan Unit.' },
       { id: 'sop-3', title: 'Pengingat pengembalian', context: 'umum', pinned: false, body: 'Kirim pengingat WhatsApp ke penyewa yang jadwal kembalinya hari ini paling lambat pukul 12.00. Untuk yang terlambat, hubungi setiap hari sampai barang kembali.' },
       { id: 'sop-4', title: 'Pembatalan & refund', context: 'pembatalan', pinned: false, body: 'Cek tanggal pembatalan terhadap batas H-refund. Refund ditransfer maksimal 2×24 jam dan nomor referensi transfer wajib dicatat.' },
     ],
   };
+
+  /* ---------- Template pesan WhatsApp (bisa diubah Owner di Konfigurasi → Template Pesan WhatsApp) ----------
+     Kode {nama}, {no_nota}, … diganti otomatis dengan data transaksi. {rincian} = rincian otomatis (barang, total, denda, dll.).
+     Staff tetap bisa mengedit isi pesan di jendela kirim sebelum WhatsApp dibuka. */
+  const WA_VARS = {
+    nama: 'Nama customer', nama_depan: 'Nama depan customer', no_nota: 'Nomor nota / invoice', tanggal: 'Tanggal nota', rincian: 'Rincian otomatis (barang, total, status bayar)',
+    total: 'Total', dibayar: 'Sudah dibayar', sisa: 'Sisa bayar', metode: 'Metode bayar', link_nota: 'Link nota digital', pengiriman: 'Info pengiriman (bila diantar)',
+    tgl_sewa: 'Periode sewa', tgl_ambil: 'Tanggal ambil', tgl_kembali: 'Tanggal kembali', jam_kembali: 'Jam batas kembali', lama: 'Lama sewa', status: 'Status pesanan',
+    terlambat: 'Jumlah malam terlambat', denda: 'Total denda', total_bayar: 'Total dibayar saat kembali', estimasi: 'Estimasi selesai laundry',
+    nama_toko: 'Nama toko', alamat_toko: 'Alamat toko', jam_buka: 'Jam buka', wa_toko: 'Nomor WhatsApp toko',
+  };
+  const T_TAIL = '\n\nNota digital: {link_nota}\nAlamat toko: {alamat_toko} ({jam_buka}). Terima kasih!';
+  const LD_TAIL = '\n\n{rincian}\n\nNota digital: {link_nota}\n\nTerima kasih,\n{nama_toko}';
+  const WA_TPL = [
+    { key: 'sale_nota', group: 'Penjualan', title: 'Kirim invoice penjualan', when: 'Penjualan → Detail → Hubungi customer',
+      vars: ['nama', 'no_nota', 'tanggal', 'rincian', 'total', 'dibayar', 'sisa', 'pengiriman', 'link_nota'],
+      def: 'Halo {nama}, berikut invoice pembelian dari {nama_toko}.\n\n*INVOICE {no_nota}*\nTanggal: {tanggal}\n{rincian}\n\n{pengiriman}\n\nInvoice digital: {link_nota}\nTerima kasih!' },
+    { key: 'kasir_sale', group: 'Penjualan', title: 'Setelah transaksi jual di kasir', when: 'Kasir → Jual → Transaksi tersimpan',
+      vars: ['nama', 'no_nota', 'total', 'dibayar', 'metode', 'rincian', 'link_nota'],
+      def: 'Halo {nama}, terima kasih sudah berbelanja di {nama_toko}.\nNo. invoice: {no_nota}\n{rincian}\nDibayar {dibayar} ({metode})\n\nInvoice digital: {link_nota}' },
+    { key: 'kasir_rent', group: 'Rental', title: 'Setelah transaksi sewa di kasir', when: 'Kasir → Sewa → Transaksi tersimpan',
+      vars: ['nama', 'no_nota', 'total', 'dibayar', 'metode', 'tgl_sewa', 'tgl_kembali', 'jam_kembali', 'link_nota'],
+      def: 'Halo {nama}, terima kasih sudah menyewa di {nama_toko}.\nNo. nota: {no_nota}\nTotal: {total} · dibayar {dibayar} ({metode})\nSewa: {tgl_sewa}, kembali paling lambat {tgl_kembali} pukul {jam_kembali} WIB\n\nNota digital: {link_nota}' },
+    { key: 'rent_booking', group: 'Rental', title: 'Kirim nota booking', when: 'Booking Rental → Detail → Hubungi customer',
+      vars: ['nama_depan', 'no_nota', 'rincian', 'tgl_sewa', 'tgl_ambil', 'tgl_kembali', 'jam_kembali', 'lama', 'status', 'sisa', 'link_nota'],
+      def: 'Halo Kak {nama_depan}, berikut nota booking *{no_nota}* dari {nama_toko}.\n\n*Rincian sewa*\n{rincian}\n\nPeriode: {tgl_sewa} ({lama})\nAmbil: {tgl_ambil} · kembali paling lambat {tgl_kembali} pukul {jam_kembali} WIB\nStatus: {status}' + T_TAIL },
+    { key: 'rent_reminder', group: 'Rental', title: 'Pengingat pengembalian', when: 'Booking / Barang Keluar & Kembali → Ingatkan',
+      vars: ['nama_depan', 'no_nota', 'tgl_kembali', 'jam_kembali', 'rincian', 'sisa', 'link_nota'],
+      def: 'Halo Kak {nama_depan}, kami dari {nama_toko} mengingatkan bahwa sewa *{no_nota}* jadwal pengembaliannya *{tgl_kembali}*, paling lambat pukul {jam_kembali} WIB.\n\n*Nota sewa*\n{rincian}' + T_TAIL },
+    { key: 'rent_fine', group: 'Rental', title: 'Tagih denda keterlambatan', when: 'Booking Rental → Tagih denda',
+      vars: ['nama_depan', 'no_nota', 'tgl_kembali', 'jam_kembali', 'terlambat', 'denda', 'total_bayar', 'rincian', 'link_nota'],
+      def: 'Halo Kak {nama_depan}, kami dari {nama_toko}. Sewa *{no_nota}* seharusnya dikembalikan *{tgl_kembali}* paling lambat pukul {jam_kembali} WIB, dan sekarang sudah *terlambat {terlambat} malam*. Mohon segera dikembalikan ke toko ya.\n\n*Nota sewa*\n{rincian}' + T_TAIL },
+    { key: 'svc_nota', group: 'Rental', title: 'Nota layanan antar / jasa tenda diperbarui', when: 'Booking → Layanan → Simpan nota layanan',
+      vars: ['nama', 'no_nota', 'rincian', 'link_nota'],
+      def: 'Halo {nama}, nota {no_nota} sudah kami perbarui.\n{rincian}\n\nNota: {link_nota}' },
+    { key: 'ld_diterima', group: 'Laundry', title: 'Laundry diterima', when: 'Kasir → Laundry tersimpan / Hubungi customer (status Diterima)',
+      vars: ['nama', 'no_nota', 'estimasi', 'rincian', 'link_nota'],
+      def: 'Halo {nama}, laundry Anda telah kami terima. Untuk estimasi selesainya di hari {estimasi}, tapi akan kami kabari lagi ya.' + LD_TAIL },
+    { key: 'ld_dicuci', group: 'Laundry', title: 'Laundry sedang dicuci', when: 'Laundry → Hubungi customer (status Dicuci)',
+      vars: ['nama', 'no_nota', 'estimasi', 'rincian', 'link_nota'],
+      def: 'Halo {nama}, laundry Anda sedang kami cuci. Estimasi selesai {estimasi}, nanti kami kabari begitu sudah siap ya.' + LD_TAIL },
+    { key: 'ld_siap', group: 'Laundry', title: 'Laundry siap diambil', when: 'Laundry → Tandai siap diambil',
+      vars: ['nama', 'no_nota', 'rincian', 'link_nota', 'alamat_toko', 'jam_buka'],
+      def: 'Halo {nama}, cucian Anda sudah selesai dan siap diambil di toko {nama_toko} ({alamat_toko}, {jam_buka}). Jangan lupa tunjukkan nota ini saat mengambil ya.' + LD_TAIL },
+    { key: 'ld_selesai', group: 'Laundry', title: 'Laundry sudah diambil', when: 'Laundry → Hubungi customer (status Selesai)',
+      vars: ['nama', 'no_nota', 'rincian', 'link_nota'],
+      def: 'Halo {nama}, terima kasih sudah mempercayakan laundry perlengkapan outdoor Anda ke {nama_toko}. Sampai jumpa di petualangan berikutnya!' + LD_TAIL },
+    { key: 'ld_dibatalkan', group: 'Laundry', title: 'Laundry dibatalkan', when: 'Laundry → Hubungi customer (status Dibatalkan)',
+      vars: ['nama', 'no_nota', 'rincian'],
+      def: 'Halo {nama}, laundry {no_nota} dibatalkan. Silakan hubungi kami bila ada pertanyaan.' + LD_TAIL },
+  ];
 
   const USERS = [
     { id: 'u1', name: 'Pak Ikun', email: 'owner@annapurna.id', role: 'owner', status: 'aktif', phone: '081200001111', address: SETTINGS.address, createdAt: stampRel(-120, 8) },
@@ -524,7 +582,24 @@
   const STAFF_ROLES = ['admin', 'owner'];
   const isStaff = (u) => !!u && STAFF_ROLES.includes(u.role);
   const hasVariant = (p) => !!(p && p.variant && (p.variant.options || []).length);
-  const variantName = (p, size) => (size && hasVariant(p) ? `${p.name} · ${p.variant.label.replace(/\s*\(.*\)/, '')} ${String(size).replace(/\s*\(.*\)/, '')}` : p.name);
+  /* Varian 2 atribut (mis. Ukuran + Warna): stok per kombinasi, nama opsi = "42 / Hitam" (v1 / v2). */
+  const VSEP = ' / ';
+  const isVar2 = (p) => hasVariant(p) && !!p.variant.label2;
+  const vParts = (p, name) => { const o = hasVariant(p) && p.variant.options.find((x) => x.name === name); if (o && o.v1 != null) return [o.v1, o.v2 || '']; const s = String(name || ''); if (isVar2(p) && s.includes(VSEP)) { const i = s.indexOf(VSEP); return [s.slice(0, i), s.slice(i + VSEP.length)]; } return [s, '']; };
+  const vClean = (t) => String(t || '').replace(/\s*\(.*\)/, '');
+  const variantName = (p, size) => {
+    if (!size || !hasVariant(p)) return p.name;
+    if (isVar2(p)) { const [a, b] = vParts(p, size); return `${p.name} · ${vClean(p.variant.label)} ${vClean(a)}${b ? ` · ${vClean(p.variant.label2)} ${b}` : ''}`; }
+    return `${p.name} · ${vClean(p.variant.label)} ${vClean(size)}`;
+  };
+  /* Ringkasan atribut varian: [{ label, values }] — 1 atau 2 baris */
+  const variantAxes = (p) => {
+    if (!hasVariant(p)) return [];
+    if (!isVar2(p)) return [{ label: p.variant.label, values: p.variant.options.map((o) => o.name) }];
+    const A = [], B = []; p.variant.options.forEach((o) => { const [a, b] = vParts(p, o.name); if (!A.includes(a)) A.push(a); if (b && !B.includes(b)) B.push(b); });
+    return [{ label: p.variant.label, values: A }, { label: p.variant.label2, values: B }];
+  };
+  const variantLabel = (p) => (hasVariant(p) ? (isVar2(p) ? `${vClean(p.variant.label)} & ${vClean(p.variant.label2)}` : p.variant.label) : '');
 
   /* ---------- Tarif sewa (price list Annapurna Adventure) ----------
      Tiga tarif resmi: per malam (d1), perkegiatan 3 hari 3 malam (d3), ekspedisi 5 hari 5 malam (d5).
@@ -975,6 +1050,7 @@
     isActiveProduct: (p) => !!p && isActiveProduct(p),
     hasVariant,
     variantName,
+    isVar2, vParts, variantAxes, variantLabel, VSEP,
     sizeStock: (p, size) => { if (!hasVariant(p)) return p ? p.stock : 0; const o = p.variant.options.find((x) => x.name === size); return o ? o.stock : 0; },
     get COND_LIST() { return condList().map((c) => c.name); },
     conditions: condList,
@@ -1182,7 +1258,7 @@
       const get = (c) => { const k = key(c); return map[k] || (map[k] = { key: k, name: c.name, email: c.email || '', phone: c.phone || '', rentals: [], sales: [], total: 0, late: 0, cancel: 0, last: '' }); };
       read('users', USERS).filter((u) => u.role === 'customer').forEach((u) => { const x = get(u); x.registered = true; });
       read('bookings', []).forEach((b) => { const x = get(b.customer); x.rentals.push(b); if (b.status !== 'dibatalkan') x.total += Rules.paidTotal(b); else x.cancel++; if ((b.ret && b.ret.lateDays) || (b.status === 'disewa' && b.end < today())) x.late++; if (String(b.createdAt) > x.last) x.last = b.createdAt; });
-      read('sales', []).forEach((s) => { const x = get(s.customer); x.sales.push(s); if (s.status !== 'dibatalkan') x.total += Rules.paidTotal(s); else x.cancel++; if (String(s.createdAt) > x.last) x.last = s.createdAt; });
+      read('sales', []).filter((s) => !(s.customer && s.customer.walkIn)).forEach((s) => { const x = get(s.customer); x.sales.push(s); if (s.status !== 'dibatalkan') x.total += Rules.paidTotal(s); else x.cancel++; if (String(s.createdAt) > x.last) x.last = s.createdAt; });
       /* Riwayat pelanggan dari data yang sudah dibersihkan (setelah rekap bulanan) tetap dihitung */
       Object.values(read('customerArchive', {})).forEach((a) => { const x = get(a); x.arcRent = a.rent || 0; x.arcSale = a.sale || 0; x.total += a.total || 0; x.late += a.late || 0; x.cancel += a.cancel || 0; if (String(a.last) > x.last) x.last = a.last; });
       return Object.values(map).map((x) => Object.assign(x, { meta: DB.customerMeta(x.email), count: x.rentals.length + x.sales.length + (x.arcRent || 0) + (x.arcSale || 0) }));
@@ -1229,6 +1305,32 @@
     },
     laundryPrices: () => (read('settings', SETTINGS).laundry || SETTINGS.laundry),
     laundryItem(id) { for (const c of DB.laundryPrices()) { const it = (c.items || []).find((x) => x.id === id); if (it) return Object.assign({ cat: c.name, icon: c.icon }, it); } return null; },
+    /* Laundry "Lain-lain": barang di luar daftar, nama & harga diisi manual (harga ≥ minPrice) */
+    laundryOther: () => Object.assign({}, SETTINGS.laundryOther, DB.settings().laundryOther || {}),
+    /* Gambar item laundry (admin & owner boleh mengganti). id '__other' = kartu Lain-lain. */
+    setLaundryImage(id, img) {
+      const st = read('settings', SETTINGS); let name = '';
+      if (id === '__other') { st.laundryOther = Object.assign({}, SETTINGS.laundryOther, st.laundryOther || {}, { img: img || '' }); name = st.laundryOther.name; }
+      else { (st.laundry || []).forEach((c) => (c.items || []).forEach((i) => { if (i.id === id) { i.img = img || ''; name = i.name; } })); }
+      if (!name) return false;
+      write('settings', st);
+      DB.audit({ type: 'pengaturan', action: `${img ? 'Mengganti' : 'Menghapus'} gambar laundry "${name}"`, ref: id, changes: [{ field: 'Gambar', from: 'gambar lama', to: img ? 'gambar baru diunggah' : 'tanpa gambar' }] });
+      return true;
+    },
+    /* Kartu identitas jaminan: daftar Owner + "Lainnya" (diketik manual) */
+    idTypes: () => { const L = DB.settings().idTypes; return (Array.isArray(L) && L.length ? L : SETTINGS.idTypes).filter(Boolean); },
+    /* ---------- Template pesan WhatsApp ---------- */
+    WA_TPL, WA_VARS,
+    waTpl(key) { const t = (DB.settings().waTemplates || {})[key]; const d = WA_TPL.find((x) => x.key === key); return typeof t === 'string' && t.trim() ? t : d ? d.def : ''; },
+    waTplDefault: (key) => (WA_TPL.find((x) => x.key === key) || {}).def || '',
+    /* Isi template: {kode} diganti nilai; kode kosong dibuang, baris kosong berlebih dirapikan */
+    waFill(tpl, vars) {
+      const st = DB.settings();
+      const V = Object.assign({ nama_toko: st.storeName, alamat_toko: st.address, jam_buka: st.hours, wa_toko: st.phone }, vars || {});
+      const txt = String(tpl || '').replace(/\{([a-z_0-9]+)\}/g, (m, k) => (V[k] != null ? String(V[k]) : m));
+      return txt.split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    },
+    waText: (key, vars) => DB.waFill(DB.waTpl(key), vars),
     saveProduct(p) {
       const all = read('products', PRODUCTS); const i = all.findIndex((x) => x.id === p.id);
       const old = i >= 0 ? all[i] : null;
@@ -1282,6 +1384,37 @@
       const L = read('restocks', []); L.unshift(r); write('restocks', L);
       DB.audit({ type: 'stok', action: `Restock ${p.name}${size ? ' · ' + size : ''}: +${qty} unit @ ${rupiah(cost)}`, ref: productId,
         changes: [{ field: 'Stok', from: String(before), to: String(before + qty) }, ...(cost && cost !== oldCost ? [{ field: 'Harga beli', from: oldCost != null ? rupiah(oldCost) : '—', to: rupiah(cost) }] : []), { field: 'Belanja stok', from: '', to: rupiah(qty * cost) }] });
+      return { ok: true, restock: r };
+    },
+    /* ---------- Restock barang SEWA ----------
+       Unit fisik baru dibuat otomatis (kode unit lanjut dari unit terakhir), stok varian/total bertambah,
+       harga beli per unit dicatat (modal barang sewa) dan pengeluaran "Pembelian Barang" (lini Rental) tercatat di Keuangan. */
+    restockRent({ productId, size, qty, cost, date, supplier, note }) {
+      const all = read('products', PRODUCTS); const p = all.find((x) => x.id === productId); if (!p) return { ok: false, msg: 'Barang tidak ditemukan.' };
+      if (!tracked(p)) return { ok: false, msg: 'Barang ini bukan barang sewa.' };
+      qty = Math.max(0, parseInt(qty, 10) || 0); cost = Math.max(0, +cost || 0);
+      if (!qty) return { ok: false, msg: 'Isi jumlah unit yang ditambahkan.' };
+      if (qty > 200) return { ok: false, msg: 'Maksimal 200 unit sekali restock.' };
+      if (hasVariant(p) && !p.variant.options.some((o) => o.name === size)) return { ok: false, msg: `Pilih ${variantLabel(p).toLowerCase()} yang di-restock.` };
+      const me = DB.session() || { name: 'Sistem' }; const at = nowStamp(); const d = date || today();
+      const before = DB.sizeStock(p, size); const had = new Set((p.units || []).map((u) => u.code));
+      if (hasVariant(p)) { const o = p.variant.options.find((x) => x.name === size); o.stock = (+o.stock || 0) + qty; } else p.stock = (+p.stock || 0) + qty;
+      syncUnits(p);
+      const codes = (p.units || []).filter((u) => !had.has(u.code)).map((u) => u.code);
+      (p.units || []).forEach((u) => { if (!had.has(u.code)) { u.log = u.log || []; u.log.push({ at, text: `Unit baru dari restock${supplier ? ' (' + supplier.trim() + ')' : ''}${cost ? ' · harga beli ' + rupiah(cost) : ''}`, by: me.name }); if (cost) u.cost = cost; } });
+      if (cost) p.cost = cost;
+      write('products', all);
+      const id = DB.nextId('RST', read('restocks', []));
+      const label = size ? (isVar2(p) ? vParts(p, size).filter(Boolean).join(' / ') : size) : '';
+      const r = { id, kind: 'rent', productId, name: p.name, size: size || '', qty, cost, date: d, supplier: (supplier || '').trim(), note: (note || '').trim(), units: codes, by: me.name, at, expenseId: null };
+      if (qty * cost > 0) {
+        const eid = DB.nextId('EXP', DB.expenses());
+        DB.saveFinance('out', { id: eid, date: d, category: 'Pembelian Barang', desc: `Restock barang sewa ${p.name}${label ? ' · ' + label : ''} (${qty} × ${rupiah(cost)})${r.supplier ? ' · ' + r.supplier : ''}`, amount: qty * cost, line: 'rent', ref: id });
+        r.expenseId = eid;
+      }
+      const L = read('restocks', []); L.unshift(r); write('restocks', L);
+      DB.audit({ type: 'stok', action: `Restock barang sewa ${p.name}${label ? ' · ' + label : ''}: +${qty} unit${cost ? ' @ ' + rupiah(cost) : ''} (${codes.join(', ')})`, ref: productId,
+        changes: [{ field: 'Unit', from: String(before), to: String(before + qty) }, ...(cost ? [{ field: 'Harga beli / unit', from: '', to: rupiah(cost) }, { field: 'Belanja barang sewa', from: '', to: rupiah(qty * cost) }] : [])] });
       return { ok: true, restock: r };
     },
     incomes: () => read('incomes', []),
@@ -1892,7 +2025,7 @@
     const CA = read('customerArchive', {}); const key = (c) => String(c.email || c.phone || c.name).toLowerCase();
     const acc = (c) => (CA[key(c)] = CA[key(c)] || { name: c.name, email: c.email || '', phone: c.phone || '', rent: 0, sale: 0, total: 0, late: 0, cancel: 0, last: '' });
     rmB.forEach((b) => { const x = acc(b.customer); x.rent++; if (b.status === 'dibatalkan') x.cancel++; else x.total += Rules.paidTotal(b); if (b.ret && b.ret.lateDays) x.late++; if (String(b.createdAt) > x.last) x.last = b.createdAt; });
-    rmS.forEach((s) => { const x = acc(s.customer); x.sale++; if (s.status === 'dibatalkan') x.cancel++; else x.total += Rules.paidTotal(s); if (String(s.createdAt) > x.last) x.last = s.createdAt; });
+    rmS.filter((s) => !(s.customer && s.customer.walkIn)).forEach((s) => { const x = acc(s.customer); x.sale++; if (s.status === 'dibatalkan') x.cancel++; else x.total += Rules.paidTotal(s); if (String(s.createdAt) > x.last) x.last = s.createdAt; });
     write('customerArchive', CA);
     const keep = (L, rm) => { const set = new Set(rm); return L.filter((x) => !set.has(x)); };
     write('bookings', keep(B, rmB)); write('sales', keep(S, rmS)); write('audit', keep(A, rmA)); write('notifications', keep(N, rmN));
@@ -1944,6 +2077,20 @@
     st.svcV2 = true; write('settings', st);
     /* Data laundry contoh lama yang memakai "dijemput": jadikan diantar ke toko */
     const L = read('laundry', null); if (L) { let ch = false; L.forEach((o) => { if (o.id === 'DRY-1002' && o.pickup) { o.pickup = false; o.address = ''; o.ongkir = 0; (o.payments || []).forEach((p) => { p.amount = 50000; }); ch = true; } }); if (ch) write('laundry', L); }
+  })();
+
+  /* Revisi mitra 21 Okt 2026: foto barang keluar/kembali opsional, gambar item laundry, atribut Warna (varian ke-2) */
+  (function migrateRev2110() {
+    const st = read('settings', null); if (!st || st.rev2110) return;
+    const f = st.forms || {}; ['pickup', 'return'].forEach((k) => { if (f[k] && f[k].photo === 'wajib') f[k].photo = 'opsional'; }); st.forms = f;
+    const IMG = {}; SETTINGS.laundry.forEach((c) => c.items.forEach((i) => { IMG[i.id] = i.img; }));
+    (st.laundry || []).forEach((c) => (c.items || []).forEach((i) => { if (!i.img && IMG[i.id]) i.img = IMG[i.id]; }));
+    if (Array.isArray(st.attributes) && !st.attributes.some((a) => a.id === 'at-warna' || /^warna$/i.test(a.name))) {
+      const w = SETTINGS.attributes.find((a) => a.id === 'at-warna'); const gi = st.attributes.findIndex((a) => a.id === 'at-gender');
+      st.attributes.splice(gi >= 0 ? gi : st.attributes.length, 0, JSON.parse(JSON.stringify(w)));
+    }
+    (st.sops || []).forEach((s) => { if (s.id === 'sop-2') s.body = String(s.body || '').replace('wajib diperiksa kondisi fisiknya dan difoto sebelum', 'wajib diperiksa kondisi fisiknya (foto bila memungkinkan) sebelum'); });
+    st.rev2110 = true; write('settings', st);
   })();
 
   /* ---------- Layanan antar & jasa tenda (booking sewa) — ketentuan mitra ----------

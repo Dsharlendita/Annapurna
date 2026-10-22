@@ -432,6 +432,12 @@
     laundryOther: { enabled: true, name: 'Lain-lain', minPrice: 5000, img: '', note: 'Barang di luar daftar, mis. sarung tangan, topi, tas kecil. Harga ditentukan saat barang dicek di toko.' },
     /* Jenis kartu identitas jaminan sewa. "Lainnya" selalu tersedia: staff/customer mengetik sendiri jenisnya. */
     idTypes: ['KTP', 'KTM', 'SIM', 'Kartu Pelajar'],
+    /* Keuangan & ongkir (ketentuan mitra): ongkir penjualan = titipan untuk ekspedisi → TIDAK dicatat di keuangan.
+       Ongkir & jasa tenda untuk sewa = penghasilan toko → pemasukan lini Rental. */
+    finance: { saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' },
+    /* Aturan durasi sewa: 'aturan' = tabel durRules (ketentuan mitra), 'termurah' = kombinasi tarif termurah */
+    durMode: 'aturan',
+    durRules: null,
     /* Template pesan WhatsApp yang diubah Owner (kosong = pakai bawaan, lihat WA_TPL) */
     waTemplates: {},
     /* Section "Produk Rental Terlaris" di beranda: sumber data (otomatis | manual | gabungan), periode hitung (hari, 0 = semua), jumlah barang */
@@ -505,7 +511,7 @@
     ],
     financeCats: {
       in: ['Pendapatan Lainnya', 'Jasa Laundry', 'Jasa Tenda (Bongkar/Pasang)', 'Ongkir Antar Jemput', 'Jasa Cuci / Servis Alat', 'Sewa Lapak / Event'],
-      out: ['Pembelian Barang', 'Perawatan Alat', 'Perbaikan Barang', 'Operasional', 'Promosi', 'Keperluan Usaha Lainnya'],
+      out: ['Wifi / Internet', 'Listrik & Air', 'Gaji Staff', 'Sewa Tempat', 'Promosi', 'Operasional', 'Keperluan Usaha Lainnya', 'Deterjen & Kebutuhan Laundry', 'Bensin Antar-Jemput Sewa', 'Kebutuhan Rental Lainnya', 'Perawatan Alat', 'Perbaikan Barang', 'Kemasan Barang Jual', 'Pembelian Barang'],
     },
     forms: {
       pickup: { note: 'opsional', photo: 'opsional', idCard: 'wajib', custom: [{ id: 'f-kelengkapan', label: 'Kelengkapan sudah dicek bersama customer', type: 'centang', required: true }] },
@@ -603,12 +609,30 @@
 
   /* ---------- Tarif sewa (price list Annapurna Adventure) ----------
      Tiga tarif resmi: per malam (d1), perkegiatan 3 hari 3 malam (d3), ekspedisi 5 hari 5 malam (d5).
-     Lama sewa di luar 1 / 3 / 5 malam dihitung dari kombinasi tarif yang paling murah,
-     contoh: 4 malam = perkegiatan + 1 malam, 6 malam = ekspedisi + 1 malam. */
+     Lama sewa lain mengikuti aturan durasi (durRules, ketentuan mitra): 2 = paket 3, 4 = paket 5, 6 = 5+1, 7–8 = 5+3, …
+     Owner bisa mengganti ke mode 'termurah' (kombinasi tarif paling murah) di Konfigurasi → Aturan Rental. */
   const TIER_BLOCKS = [[5, 'd5', 'Ekspedisi (5 hari)'], [3, 'd3', 'Perkegiatan (3 hari)'], [1, 'd1', 'Per malam']];
   function productTiers(p) { return p ? { d1: +p.rent || 0, d3: +p.rent3 || 0, d5: +p.rent5 || 0 } : { d1: 0, d3: 0, d5: 0 }; }
+  /* Aturan durasi sewa (ketentuan mitra, bisa diubah Owner di Konfigurasi → Aturan Rental):
+     lama sewa → kombinasi paket. 2 hari = paket 3, 4 hari = paket 5, 6 = 5+1, 7–8 = 5+3, 9 = 5+3+1, 10 = 5+5.
+     Lebih dari 10 hari: paket 5 + aturan untuk sisa harinya (14 hari = 5 + aturan 9 hari = 5+5+3+1).
+     Batas pengembalian tetap sesuai tanggal yang dipilih; hanya harganya yang mengikuti paket. */
+  const DUR_DEFAULT = { 1: [1], 2: [3], 3: [3], 4: [5], 5: [5], 6: [5, 1], 7: [5, 3], 8: [5, 3], 9: [5, 3, 1], 10: [5, 5] };
+  let _durC = null; /* cache {rules, mode}; dikosongkan setiap settings disimpan */
+  const durCfg = () => { if (_durC) return _durC; let st = null; try { st = JSON.parse(localStorage.getItem(KEY('settings')) || 'null'); } catch (e) { /* abaikan */ }
+    _durC = { r: st && st.durRules, mode: (st && st.durMode) || 'aturan' }; return _durC; };
+  const durRules = () => { const r = durCfg().r; if (!r || typeof r !== 'object') return DUR_DEFAULT; const out = {}; for (let n = 1; n <= 10; n++) out[n] = Array.isArray(r[n]) && r[n].length ? r[n].map(Number).filter((x) => [1, 3, 5].includes(x)) : DUR_DEFAULT[n]; return out; };
+  const durMode = () => durCfg().mode;
+  function durBlocks(days, R) { R = R || durRules(); if (days <= 10) return (R[days] || DUR_DEFAULT[days]).slice(); return [5, ...durBlocks(days - 5, R)]; }
   function tierPlan(t, days) {
     days = Math.max(1, Math.round(+days || 1)); t = t || {};
+    if (durMode() === 'aturan') {
+      const B = durBlocks(days); const keyOf = { 1: 'd1', 3: 'd3', 5: 'd5' };
+      const okB = B.length && B.reduce((a, x) => a + x, 0) >= days && B.every((x) => +t[keyOf[x]] > 0);
+      if (okB) { const count = {}; B.forEach((x) => { count[x] = (count[x] || 0) + 1; });
+        const parts = TIER_BLOCKS.filter(([d]) => count[d]).map(([d, k, name]) => ({ days: d, key: k, name, n: count[d], price: +t[k] || 0 }));
+        return { total: parts.reduce((a, x) => a + x.price * x.n, 0), parts, rule: true }; }
+    }
     const best = [{ cost: 0, from: -1, b: 0 }];
     for (let n = 1; n <= days; n++) {
       let cur = null;
@@ -902,7 +926,7 @@
   }
 
   const read = (k, fb) => { try { const v = localStorage.getItem(KEY(k)); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } };
-  const write = (k, v) => { try { localStorage.setItem(KEY(k), JSON.stringify(v)); } catch (e) { console.warn('Penyimpanan penuh / tidak tersedia', e); } };
+  const write = (k, v) => { if (k === 'settings') _durC = null; try { localStorage.setItem(KEY(k), JSON.stringify(v)); } catch (e) { console.warn('Penyimpanan penuh / tidak tersedia', e); } };
   /* Kata sandi akun LOKAL (mode transisi) tidak pernah disimpan sebagai teks asli.
      Ini hanya penyamaran di browser; keamanan sebenarnya ada di server (bcrypt Laravel).
      Akun dari server (owner, admin, customer terdaftar) tidak punya kata sandi lokal sama sekali. */
@@ -1424,6 +1448,21 @@
         changes: [{ field: 'Unit', from: String(before), to: String(before + qty) }, ...(cost ? [{ field: 'Harga beli / unit', from: '', to: rupiah(cost) }, { field: 'Belanja barang sewa', from: '', to: rupiah(qty * cost) }] : [])] });
       return { ok: true, restock: r };
     },
+    /* Pembelian stok yang SUDAH masuk ke stok lewat form barang / stok awal (tanpa mengubah stok lagi):
+       catat riwayat restock + pengeluaran "Pembelian Barang" di lini yang sesuai (sewa → Rental, jual → Penjualan). */
+    recordPurchase({ productId, kind, lines, cost, date, supplier, note }) {
+      const p = DB.product(productId); if (!p) return { ok: false, msg: 'Barang tidak ditemukan.' };
+      cost = Math.max(0, +cost || 0); const L = (lines || []).filter((x) => x.qty > 0); const qty = L.reduce((a, x) => a + x.qty, 0);
+      if (!qty || !cost) return { ok: false, msg: 'Isi harga beli per unit.' };
+      const me = DB.session() || { name: 'Sistem' }; const d = date || today(); const rent = kind === 'rent';
+      const sizes = L.filter((x) => x.size).map((x) => `${x.size} ×${x.qty}`).join(', ');
+      const eid = DB.nextId('EXP', DB.expenses());
+      DB.saveFinance('out', { id: eid, date: d, category: 'Pembelian Barang', desc: `${rent ? 'Restock barang sewa' : 'Restock'} ${p.name}${sizes ? ' · ' + sizes : ''} (${qty} × ${rupiah(cost)})${supplier ? ' · ' + supplier : ''}${note ? ' · ' + note : ''}`, amount: qty * cost, line: rent ? 'rent' : 'sale' });
+      const R = read('restocks', []); R.unshift({ id: DB.nextId('RST', R), kind: rent ? 'rent' : 'sale', productId, name: p.name, size: sizes, qty, cost, date: d, supplier: supplier || '', note: note || 'Dicatat dari form barang', by: me.name, at: nowStamp(), expenseId: eid }); write('restocks', R);
+      if (cost) { const all = read('products', PRODUCTS); const x = all.find((y) => y.id === productId); if (x) { x.cost = cost; write('products', all); } }
+      DB.audit({ type: 'stok', action: `Mencatat pembelian ${qty} unit ${p.name} sebagai pengeluaran ${rupiah(qty * cost)} (lini ${rent ? 'Rental' : 'Penjualan'})`, ref: productId });
+      return { ok: true, amount: qty * cost };
+    },
     incomes: () => read('incomes', []),
     saveFinance(kind, obj) {
       const key = kind === 'in' ? 'incomes' : 'expenses'; const all = read(key, []); const i = all.findIndex((x) => x.id === obj.id);
@@ -1718,6 +1757,7 @@
     packageTiers: (pk) => packageTiers(typeof pk === 'string' ? DB.pkg(pk) : pk, (id) => DB.product(id)),
     tierPlan,
     tierLabel,
+    DUR_DEFAULT, durRules, durBlocks,
     /* Harga 1 unit untuk lama sewa tertentu. src: produk, paket, atau baris booking. */
     unitPrice(src, days) {
       if (!src) return 0;
@@ -2098,6 +2138,12 @@
     }
     (st.sops || []).forEach((s) => { if (s.id === 'sop-2') s.body = String(s.body || '').replace('wajib diperiksa kondisi fisiknya dan difoto sebelum', 'wajib diperiksa kondisi fisiknya (foto bila memungkinkan) sebelum'); });
     st.rev2110 = true; write('settings', st);
+  })();
+  /* Revisi keuangan 22 Okt 2026: jenis biaya baru (lini terisi otomatis di form Keuangan) */
+  (function migrateFinCats() {
+    const st = read('settings', null); if (!st || st.rev2210) return;
+    if (st.financeCats && Array.isArray(st.financeCats.out)) SETTINGS.financeCats.out.forEach((c) => { if (!st.financeCats.out.includes(c)) st.financeCats.out.push(c); });
+    st.rev2210 = true; write('settings', st);
   })();
 
   /* ---------- Layanan antar & jasa tenda (booking sewa) — ketentuan mitra ----------

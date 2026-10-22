@@ -73,17 +73,19 @@
         foot: ['Total', '', q, '', amt, '', ''] };
     },
     rental(f, t) {
-      /* Lini Rental = sewa + laundry + jasa tenda + ongkir (ketentuan mitra: satu lini, tanpa pengeluaran) */
+      /* Lini Rental = sewa + laundry + jasa tenda + ongkir sewa − pengeluaran rental (restock barang sewa, kebutuhan lain, perawatan) */
       const L = DB.staffBookings().filter((b) => inR(b.start, f, t)).sort((a, b) => b.start.localeCompare(a.start));
       const ok = L.filter((b) => b.status !== 'dibatalkan');
       const LD = DB.laundry().filter((o) => inR(o.createdAt, f, t)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const ldOk = LD.filter((o) => o.status !== 'dibatalkan');
       const LG = Admin.ledger(f, t); const cat = (re) => LG.income.filter((x) => x.line === 'rent' && re.test(x.cat)).reduce((a, x) => a + x.amount, 0);
       const svcPaid = (b) => (b.svc || []).reduce((a, x) => a + x.amount, 0);
-      return { title: 'Laporan Rental', note: 'Lini Rental mencakup sewa alat, laundry, jasa tenda & ongkir. Booking berdasarkan tanggal mulai sewa, laundry berdasarkan tanggal terima. Pendapatan berdasarkan uang yang diterima.',
+      const ob = LG.by.rent.outBy || { restock: 0, care: 0, ops: 0 };
+      return { title: 'Laporan Rental', note: 'Lini Rental mencakup sewa alat, laundry, jasa tenda & ongkir sewa. Laba rental = pendapatan rental − pengeluaran rental (restock barang rental, belanja kebutuhan lain, perawatan & perbaikan). Booking berdasarkan tanggal mulai sewa, laundry berdasarkan tanggal terima. Pendapatan & pengeluaran berdasarkan uang yang benar-benar masuk/keluar.',
         sum: [['Booking sewa', `${ok.length} (${L.length - ok.length} batal)`], ['Laundry', `${ldOk.length} nota`],
           ['Pendapatan sewa & denda', rupiah(cat(/^Rental$|^Denda$/))], ['Laundry (dibayar)', rupiah(cat(/laundry/i))], ['Jasa tenda & ongkir', rupiah(cat(/tenda|bongkar|ongkir/i))],
-          ...(cat(/refund/i) ? [['Refund DP (mengurangi)', '− ' + rupiah(Math.abs(cat(/refund/i)))]] : []), ['Total pendapatan Rental', rupiah(LG.by.rent.in)]],
+          ...(cat(/refund/i) ? [['Refund DP (mengurangi)', '− ' + rupiah(Math.abs(cat(/refund/i)))]] : []), ['Total pendapatan Rental', rupiah(LG.by.rent.in)],
+          ['Restock barang rental', '− ' + rupiah(ob.restock)], ['Belanja kebutuhan lain', '− ' + rupiah(ob.ops)], ['Perawatan & perbaikan', '− ' + rupiah(ob.care)], ['Total pengeluaran Rental', '− ' + rupiah(LG.by.rent.out)], ['Laba Rental', rupiah(LG.by.rent.profit)]],
         cols: ['No.', 'Jenis', 'Customer', 'Barang / layanan', 'Periode', 'Total', 'Dibayar', 'Status'], num: [5, 6], money: [5, 6],
         rows: [...L.map((b) => [NO(b), Ann.Svc && Ann.Svc.has(b) ? 'Sewa + ' + Ann.Svc.short(b).toLowerCase() : 'Sewa', b.customer.name, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.total + svcPaid(b), Rules.paidTotal(b) + svcPaid(b), STATUS.rental[b.status].label]),
           ...LD.map((o) => [o.no, 'Laundry', o.customer.name, Admin.ldItems(o), `${D.fmtDate(o.createdAt)} – ${D.fmtDate(Ann.Laundry.est(o))}`, Ann.Laundry.total(o), Ann.Laundry.paid(o), (STATUS.laundry[o.status] || {}).label || o.status])],
@@ -139,8 +141,14 @@
       const when = (x) => (String(x.date).length > 10 ? D.fmtDateTime(x.date) : D.fmtDate(x.date));
       const rows = [...L.income.map((x) => [x.date, when(x), 'Pemasukan', x.cat, x.ref, x.desc, x.amount, '']), ...L.expense.map((x) => [x.date, when(x), 'Pengeluaran', x.cat, x.ref, x.desc, '', x.amount])]
         .sort((a, b) => String(b[0]).localeCompare(String(a[0]))).map((r) => r.slice(1));
-      return { title: 'Laporan Keuangan', note: 'Rekap uang masuk & keluar. Laba: Rental = pendapatan rental (laundry & jasa tenda termasuk); Penjualan = jual − modal barang terjual; Umum = pemasukan lain − biaya operasional. Transaksi batal tidak dihitung.',
-        sum: [['Pemasukan (uang masuk)', rupiah(L.totalIn)], ['Pengeluaran (uang keluar)', rupiah(L.totalOut)], ['Laba Rental', rupiah(L.by.rent.profit)], ['Laba penjualan (jual − modal)', rupiah(L.by.sale.profit)], ['Selisih lini Umum', rupiah(L.by.umum.profit)], ['Laba bersih toko', rupiah(L.profit)]],
+      const sg = (v) => (v < 0 ? '− ' + rupiah(-v) : rupiah(v));
+      const uc = {}; L.expense.filter((x) => x.line === 'umum').forEach((x) => { const k = x.cat || 'Lainnya'; uc[k] = (uc[k] || 0) + x.amount; });
+      const ucRows = Object.entries(uc).sort((a, b) => b[1] - a[1]).map(([k, v]) => ['· ' + k, '− ' + rupiah(v)]);
+      return { title: 'Laporan Keuangan', note: 'Rekap bulanan uang masuk & keluar. Laba Rental = pendapatan rental (sewa, denda, laundry, jasa tenda, ongkir sewa) − pengeluaran rental (restock barang rental, kebutuhan lain, perawatan). Laba Penjualan = penjualan (tanpa ongkir, karena ongkir diteruskan ke ekspedisi) − modal barang terjual. Lini Umum = pemasukan lain − pengeluaran umum (wifi, gaji, sewa toko, dll.). Laba bersih toko = Laba Rental + Laba Penjualan + hasil lini Umum. Transaksi batal tidak dihitung.',
+        sum: [['Pemasukan (uang masuk)', rupiah(L.totalIn)], ['Pengeluaran (uang keluar)', rupiah(L.totalOut)],
+          ['Laba Rental', sg(L.by.rent.profit)], ['Laba Penjualan (jual − modal)', sg(L.by.sale.profit)],
+          ['Pemasukan lini Umum', rupiah(L.by.umum.in)], ['Pengeluaran lini Umum', '− ' + rupiah(L.by.umum.out)], ...ucRows, ['Hasil lini Umum', sg(L.by.umum.profit)],
+          ['Laba bersih toko', sg(L.profit)]],
         cols: ['Tanggal', 'Jenis', 'Kategori', 'Ref', 'Keterangan', 'Masuk', 'Keluar'], num: [5, 6],
         rows, foot: ['Total', '', '', '', '', L.totalIn, L.totalOut] };
     },

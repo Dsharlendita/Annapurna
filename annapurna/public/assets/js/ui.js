@@ -1410,7 +1410,7 @@
     const kv = (l, r, o = {}) => { txt(l, LX, y, { z: o.z || 14, w: o.w || 500, c: o.c || '#5d6b62' }); txt(r, RX, y, { z: o.z || 14, w: o.w || 600, c: o.rc || o.c || '#15311f', a: 'right' }); y += o.gap || 30; };
     kv('Subtotal', rupiah(s.subtotal != null ? s.subtotal : items.reduce((a, i) => a + i.price * i.qty, 0)));
     if (disc) kv(`Diskon${s.discount.code && s.discount.code !== 'KASIR' ? ' (' + s.discount.code + ')' : ''}`, '− ' + rupiah(disc), { rc: '#1f4d2f', w: 700 });
-    if (deliv) { kv('Total barang', rupiah(s.total)); kv('Ongkir antar', bl.ongkirSet ? rupiah(ongkir) : 'menunggu konfirmasi', { rc: bl.ongkirSet ? '#15311f' : '#9a6508' }); }
+    if (deliv) { kv('Total barang', rupiah(s.total)); kv('Ongkir (diteruskan ke ekspedisi)', bl.ongkirSet ? rupiah(ongkir) : 'menunggu konfirmasi', { rc: bl.ongkirSet ? '#15311f' : '#9a6508' }); }
     kv('Total tagihan', rupiah(grand), { w: 800, c: '#15311f', z: 15 });
     kv('Sudah dibayar', rupiah(paid), { rc: '#2f6b43', w: 700 });
     if (pendingPay(s)) kv('Menunggu verifikasi', rupiah(pendingPay(s)), { c: '#9aa39d', rc: '#9aa39d' });

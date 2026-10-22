@@ -655,3 +655,26 @@ Isi: pemasukan, pengeluaran, laba per lini (`rent`, `sale`, `umum`), rincian pen
 ## C.12 Restock kombinasi baru & daftar pilihan varian
 - `POST /api/admin/products/{id}/restock` menerima `new_combo: { value_1, value_2? }`. Server membuat baris `product_variants` baru (stok 0) lalu menambah unit, dan menambahkan nilai baru ke `attributes.values` bila belum ada.
 - Checkout dari halaman produk dapat berisi beberapa baris barang yang sama dengan `size` (kombinasi) berbeda dalam satu booking. Validasi ketersediaan dilakukan **per kombinasi** dan dikunci bersamaan (`lockForUpdate`) agar tidak ada stok ganda.
+
+## C.13 Semua penambahan stok wajib tercatat di keuangan
+- Penambahan unit dari menu **Unit fisik → Tambah unit** kini selalu lewat **Restock** (harga beli wajib) → pengeluaran lini Rental.
+- Stok yang bertambah lewat **form Edit barang** atau **stok awal barang baru**: staff memilih "pembelian baru" (dicatat) atau "koreksi / stok lama" (tidak dicatat). Endpoint `POST /api/admin/products/{id}/purchase` `{ kind, lines:[{size,qty}], cost, supplier? }` → buat `restocks` + `expenses` (`category = Pembelian Barang`, `line = rent|sale`) **tanpa** mengubah stok lagi.
+- Server wajib menolak perubahan stok naik lewat `PUT /products/{id}` tanpa salah satu pilihan di atas (`purchase` atau `correction: true` + alasan), agar tidak ada stok yang masuk tanpa jejak uang.
+
+## C.14 Pencatatan ongkir (Konfigurasi → Keuangan & Ongkir)
+- `settings.finance` = `{ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }` (bawaan = ketentuan mitra).
+- **Ongkir penjualan** = titipan untuk ekspedisi → **tidak** masuk pemasukan/laba (bawaan). Tetap disimpan di `sales.svc` untuk status bayar & invoice. Bila owner mengaktifkan `saleShipLedger`, ongkir masuk pemasukan lini `saleShipLine`.
+- **Ongkir & jasa tenda sewa** (`bookings.svc`) = pemasukan lini `rentShipLine` (bawaan Rental).
+- Endpoint ringkasan/laporan wajib memakai aturan ini agar angka sama dengan dashboard.
+
+## C.15 Aturan durasi sewa (Konfigurasi → Aturan Rental)
+- `settings.durMode` = `'aturan'` (bawaan) | `'termurah'`.
+- `settings.durRules` = `{ "1":[1], "2":[3], "3":[3], "4":[5], "5":[5], "6":[5,1], "7":[5,3], "8":[5,3], "9":[5,3,1], "10":[5,5] }` (angka = blok tarif: 1 = per malam, 3 = perkegiatan, 5 = ekspedisi). Total blok ≥ lama sewa.
+- Lebih dari 10 hari: `[5] + aturan(n − 5)` secara berulang (14 hari = 5+5+3+1).
+- Harga = jumlah tarif blok. Bila barang tidak punya salah satu tarif yang diperlukan, atau mode `termurah`, pakai kombinasi tarif termurah (perilaku lama).
+- **Server wajib menghitung ulang harga** dengan aturan yang sama saat booking dibuat (jangan percaya harga dari browser), dan menyimpan harga final di booking. Perubahan aturan hanya berlaku untuk booking baru.
+- Batas pengembalian tetap sesuai tanggal yang dipilih customer, bukan jumlah hari paket.
+
+## C.16 Jenis biaya → lini otomatis
+- Kategori pengeluaran bawaan baru: Wifi / Internet, Listrik & Air, Gaji Staff, Sewa Tempat (Umum); Deterjen & Kebutuhan Laundry, Bensin Antar-Jemput Sewa, Kebutuhan Rental Lainnya (Rental); Kemasan Barang Jual (Penjualan).
+- Lini dari kategori ditentukan `guessLine` (`admin/keuangan.js`); staff masih bisa mengubah lini manual. Server menyimpan `line` apa adanya dari form.

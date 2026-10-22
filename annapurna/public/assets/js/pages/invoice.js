@@ -75,7 +75,7 @@
     return `<div class="inv-foot inv-grand"><div class="box">
       <h5>Ringkasan pembayaran</h5>
       <div class="kv"><span>${saleDel ? 'Total belanja' : 'Total sewa'}${fine ? ' (termasuk denda)' : ''}</span><span>${rupiah(rentTot)}</span></div>
-      <div class="kv"><span>${saleDel ? 'Ongkir antar' : 'Total layanan'}</span><span>${rupiah(bl.total)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
+      <div class="kv"><span>${saleDel ? 'Ongkir (diteruskan ke pengirim)' : 'Total layanan'}</span><span>${rupiah(bl.total)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
       <div class="kv total"><span>TOTAL KESELURUHAN</span><span>${rupiah(all)}${bl.ongkirSet ? '' : ' + ongkir'}</span></div>
       <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(paid)}</span></div>
       <div class="kv grand-due"><span>SISA YANG HARUS DIBAYAR</span><span>${due ? rupiah(due) : 'LUNAS'}${bl.ongkirSet || !due ? '' : ' + ongkir'}</span></div>

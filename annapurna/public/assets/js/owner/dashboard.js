@@ -45,7 +45,7 @@
     /* Laba memakai logika bisnis: Rental = pemasukan; Penjualan = jual − modal barang terjual; Gabungan = laba bersih toko */
     const netV = LIN.profit;
     const nm = { all: '', rent: ' rental', sale: ' penjualan' }[V];
-    const strip = `<div class="lb-strip in-card"><span class="lb-i"><small>Rental</small><b>${short(L.by.rent.profit)}</b></span><span class="lb-op">+</span><span class="lb-i"><small>Penjualan</small><b>${short(L.by.sale.profit)}</b></span><span class="lb-op">${L.by.umum.profit < 0 ? '−' : '+'}</span><span class="lb-i"><small>${L.by.umum.profit < 0 ? 'Biaya operasional' : 'Umum'}</small><b>${short(L.by.umum.profit)}</b></span></div>`;
+    const strip = `<div class="lb-strip in-card"><span class="lb-i"><small>Rental</small><b>${short(L.by.rent.profit)}</b></span><span class="lb-op">+</span><span class="lb-i"><small>Penjualan</small><b>${short(L.by.sale.profit)}</b></span><span class="lb-op">${L.by.umum.profit < 0 ? '−' : '+'}</span><span class="lb-i" title="Pemasukan lain ${rupiah(L.by.umum.in)} − pengeluaran umum ${rupiah(L.by.umum.out)}"><small>Lini Umum</small><b>${short(L.by.umum.profit)}</b><em class="lb-sub">masuk ${short(L.by.umum.in)} · keluar ${short(L.by.umum.out)}</em></span></div>`;
     const ri = (re) => L.income.filter((x) => x.line === 'rent' && re.test(x.cat)).reduce((q, x) => q + x.amount, 0);
     const box = (l, v) => `<span class="lb-i"><small>${l}</small><b>${short(v)}</b></span>`;
     const stripSale = `<div class="lb-strip in-card">${box('Pemasukan', L.by.sale.in)}<span class="lb-op">−</span>${box('Modal barang terjual', L.by.sale.cogs)}</div>`;

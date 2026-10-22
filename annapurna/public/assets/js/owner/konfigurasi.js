@@ -8,7 +8,7 @@
     ['kategori', 'fa-folder-tree', 'Kategori Barang', 'Kelompok barang di katalog dan form barang.'],
     ['atribut', 'fa-ruler-combined', 'Atribut Barang', 'Ukuran, warna, kapasitas, dll. per kategori.'],
     ['status', 'fa-toggle-on', 'Kualitas Barang', 'Pilihan kualitas (Sangat Baik, Baik, …).'],
-    ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, lama sewa, jam batas pengembalian.'],
+    ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, aturan durasi & harga paket, jam batas pengembalian.'],
     ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
     ['pesan', 'fa-comment-dots', 'Template Pesan WhatsApp', 'Pesan otomatis ke customer: invoice, nota sewa, pengingat, laundry.'],
@@ -18,7 +18,7 @@
     ['batal', 'fa-rotate-left', 'Pembatalan & Refund', 'Batas H- dan persentase DP yang dikembalikan.'],
     ['denda', 'fa-gavel', 'Aturan Denda', 'Denda keterlambatan & kerusakan.'],
     ['stok', 'fa-soap', 'Perawatan & Stok', 'Wajib cuci, perawatan berkala, stok minimum.'],
-    ['keuangan', 'fa-wallet', 'Kategori Keuangan', 'Jenis pemasukan & pengeluaran manual.'],
+    ['keuangan', 'fa-wallet', 'Keuangan & Ongkir', 'Pencatatan ongkir & jenis pemasukan/pengeluaran manual.'],
     ['form', 'fa-list-check', 'Form & Field Staff', 'Isian wajib saat barang keluar & kembali.'],
     ['sop', 'fa-clipboard-list', 'SOP & Peraturan Staff', 'Standar kerja yang dibaca staff.'],
   ];
@@ -42,6 +42,43 @@
   }
   function go(k) { const mn = $('#cfgMain'); mn.onclick = mn.oninput = mn.onchange = null; cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
+  /* ---------- Aturan durasi sewa (ketentuan mitra, bisa diubah Owner) ---------- */
+  function drawDur() {
+    const box = $('#durPanel'); if (!box) return;
+    const Rr = Ann.Rules.durRules(); const mode = S().durMode || 'aturan';
+    const rentP = DB.products().filter((p) => (+p.rent || 0) > 0 && +p.rent3 > 0 && +p.rent5 > 0 && p.active !== false);
+    let pid = (rentP.find((p) => p.id === 'fw-low') || rentP[0] || {}).id;
+    const txt = (a) => a.join(' + ');
+    const parse = (v) => String(v).replace(/\s+/g, '').split('+').filter(Boolean).map(Number);
+    const name = { 1: '1 malam', 3: 'Paket 3 (Perkegiatan)', 5: 'Paket 5 (Ekspedisi)' };
+    box.innerHTML = `<div class="panel-h"><h3><i class="fa-solid fa-calendar-days"></i> Aturan durasi sewa &amp; harga paket</h3></div>
+      <p class="muted" style="font-size:13px;margin:-4px 0 12px">Menentukan paket yang dipakai untuk setiap lama sewa. Isi dengan angka paket: <b>1</b> = per malam, <b>3</b> = paket 3 hari, <b>5</b> = paket 5 hari, digabung dengan tanda <b>+</b> (mis. <code>5+3+1</code>). Batas pengembalian tetap sesuai tanggal yang dipilih customer. Perubahan berlaku untuk booking baru.</p>
+      <div class="grid-2" style="max-width:720px"><div class="field"><label>Cara menghitung</label><select class="select" id="durMode"><option value="aturan" ${mode === 'aturan' ? 'selected' : ''}>Ikuti tabel aturan di bawah (ketentuan mitra)</option><option value="termurah" ${mode === 'termurah' ? 'selected' : ''}>Kombinasi tarif termurah (otomatis)</option></select></div>
+      <div class="field"><label>Pratinjau harga dengan barang</label><select class="select" id="durP">${rentP.map((p) => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)} (${rupiah(p.rent)} / ${rupiah(p.rent3)} / ${rupiah(p.rent5)})</option>`).join('')}</select></div></div>
+      <div class="table-wrap" data-no-paginate><table class="table dur-tbl"><thead><tr><th>Lama sewa</th><th>Dihitung sebagai</th><th>Keterangan</th><th class="num">Harga contoh</th></tr></thead><tbody id="durRows"></tbody></table></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 12px" id="durMore"></p>
+      <div class="tpl-acts"><button type="button" class="btn btn-primary btn-sm" id="durSave"><i class="fa-solid fa-floppy-disk"></i> Simpan aturan durasi</button><button type="button" class="btn btn-light btn-sm" id="durReset"><i class="fa-solid fa-rotate-left"></i> Kembalikan ke aturan mitra</button></div>`;
+    const cur = {}; for (let n = 1; n <= 10; n++) cur[n] = Rr[n].slice();
+    const price = (B) => { const p = DB.product(pid); if (!p) return 0; const k = { 1: p.rent, 3: p.rent3, 5: p.rent5 }; return B.reduce((a, x) => a + (+k[x] || 0), 0); };
+    const rows = () => { $('#durRows').innerHTML = Array.from({ length: 10 }, (_, i) => i + 1).map((n) => { const B = cur[n]; const sum = B.reduce((a, x) => a + x, 0); const bad = !B.length || sum < n;
+      return `<tr class="${bad ? 'bad' : ''}"><td><b>${n} hari</b></td><td><input class="input sm" data-dur="${n}" value="${txt(B)}" style="max-width:130px" aria-label="Aturan ${n} hari"></td><td><small class="${bad ? 'err-t' : 'muted'}">${bad ? `Total paket (${sum} hari) kurang dari ${n} hari` : B.map((x) => name[x]).join(' + ')}${!bad && sum > n ? ` · dibulatkan ke ${sum} hari` : ''}</small></td><td class="num">${bad ? '—' : rupiah(price(B))}</td></tr>`; }).join('');
+      const ex = [11, 12, 14, 15].map((n) => `${n} hari = ${txt(Ann.Rules.durBlocks(n, cur))}`).join(' · ');
+      $('#durMore').innerHTML = `<i class="fa-solid fa-circle-info"></i> Lebih dari 10 hari: paket 5 + aturan sisa harinya. Contoh: ${ex}.`;
+      $('#durRows').closest('table').style.opacity = $('#durMode').value === 'aturan' ? 1 : 0.45; };
+    rows();
+    box.oninput = (e) => { const n = e.target.dataset.dur; if (!n) return; const B = parse(e.target.value); if (B.every((x) => [1, 3, 5].includes(x))) { cur[n] = B; const pos = e.target.selectionStart; rows(); const el = box.querySelector(`[data-dur="${n}"]`); el.focus(); el.setSelectionRange(pos, pos); } };
+    box.onchange = (e) => { if (e.target.id === 'durP') { pid = e.target.value; rows(); } if (e.target.id === 'durMode') rows(); };
+    $('#durReset').onclick = () => { for (let n = 1; n <= 10; n++) cur[n] = Ann.Rules.DUR_DEFAULT[n].slice(); $('#durMode').value = 'aturan'; rows(); toast('Aturan dikembalikan ke ketentuan mitra. Tekan Simpan untuk menerapkan.'); };
+    $('#durSave').onclick = () => {
+      for (let n = 1; n <= 10; n++) { const v = box.querySelector(`[data-dur="${n}"]`).value; const B = parse(v); if (!B.length || !B.every((x) => [1, 3, 5].includes(x)) || B.reduce((a, x) => a + x, 0) < n) { toast(`Aturan ${n} hari belum benar. Pakai angka 1, 3, 5 dengan tanda +, totalnya minimal ${n}.`, 'err'); box.querySelector(`[data-dur="${n}"]`).focus(); return; } cur[n] = B; }
+      const old = Ann.Rules.durRules(); const oldMode = S().durMode || 'aturan'; const mode2 = $('#durMode').value;
+      const ch = []; for (let n = 1; n <= 10; n++) if (txt(old[n]) !== txt(cur[n])) ch.push({ field: `${n} hari`, from: txt(old[n]), to: txt(cur[n]) });
+      if (oldMode !== mode2) ch.push({ field: 'Cara menghitung', from: oldMode, to: mode2 });
+      if (!ch.length) { toast('Tidak ada perubahan.'); return; }
+      const chR = ch.filter((c) => c.field !== 'Cara menghitung'); if (chR.length) DB.saveConfig('durRules', cur, 'Mengubah aturan durasi sewa', chR); if (oldMode !== mode2) DB.saveConfig('durMode', mode2, 'Mengubah cara menghitung durasi sewa', ch.filter((c) => c.field === 'Cara menghitung'));
+      toast('Aturan durasi disimpan. Berlaku untuk booking baru.'); drawDur();
+    };
+  }
   const R = {
     /* ---------- Template pesan WhatsApp ----------
        Owner mengatur kalimat pesan otomatis. Kode {nama}, {no_nota}, … diganti data asli saat dikirim.
@@ -386,7 +423,9 @@
         </div>
         <label class="chk-line" style="margin-top:0"><input type="checkbox" name="lateAfterReturnTime" ${st.lateAfterReturnTime ? 'checked' : ''}> Barang yang kembali di hari terakhir <b>setelah jam batas</b> dihitung terlambat 1 hari</label>
         <h4 class="cfg-sub">Ketentuan rental (tampil di website)</h4>${listEditor('terms', st.rentalTerms, 'Contoh: Penyewa wajib menyerahkan KTP asli')}
-      </form></div>${saveBar('saveRental')}`;
+      </form></div>${saveBar('saveRental')}
+      <div class="panel" style="margin-top:18px" id="durPanel"></div>`;
+      drawDur();
       $('#saveRental').addEventListener('click', () => {
         const F = $('#rf'), E = F.elements;
         if (!validate(F, { dpPercent: (v) => (!(+v >= 10 && +v <= 100) ? 'Isi 10–100.' : ''), payWindowHours: (v) => (!(+v >= 1 && +v <= 48) ? 'Isi 1–48 jam.' : ''), maxRentDays: (v) => (!(+v >= 1) ? 'Minimal 1.' : ''), returnTime: (v) => (!v ? 'Isi jam.' : '') })) return;
@@ -455,9 +494,30 @@
     },
     keuangan() {
       const fc = S().financeCats || { in: [], out: [] };
+      const FN = Object.assign({ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }, S().finance || {});
+      const LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
+      const finBlock = `<div class="panel" style="margin-bottom:18px"><div class="panel-h"><h3><i class="fa-solid fa-truck-fast"></i> Pencatatan ongkir</h3></div>
+        <div class="field"><label>Ongkir penjualan (barang yang dikirim ke customer)</label>
+          <label class="chk-line"><input type="radio" name="ssl" value="0" ${FN.saleShipLedger ? '' : 'checked'}> <span><b>Tidak dicatat di keuangan</b>: titipan customer yang diteruskan ke ekspedisi. <span class="pill green plain">Ketentuan mitra</span><br><small class="muted">Contoh: beli Rp155 rb + ongkir Rp20 rb → yang tercatat hanya Rp155 rb. Ongkir tetap tampil di invoice &amp; status bayar.</small></span></label>
+          <label class="chk-line"><input type="radio" name="ssl" value="1" ${FN.saleShipLedger ? 'checked' : ''}> <span><b>Dicatat sebagai pemasukan</b> lini <select class="select sm" id="sslLine" style="width:auto;display:inline-block">${['sale', 'umum', 'rent'].map((k) => `<option value="${k}" ${FN.saleShipLine === k ? 'selected' : ''}>${LBL[k]}</option>`).join('')}</select><br><small class="muted">Pilih ini bila ongkir menjadi penghasilan toko (mis. diantar staff sendiri).</small></span></label></div>
+        <div class="field" style="max-width:420px"><label>Ongkir antar-jemput &amp; jasa tenda untuk <b>sewa</b> masuk lini</label><select class="select" id="rslLine">${['rent', 'umum'].map((k) => `<option value="${k}" ${FN.rentShipLine === k ? 'selected' : ''}>${LBL[k]}${k === 'rent' ? ' (ketentuan mitra)' : ''}</option>`).join('')}</select><span class="hint">Staff toko yang mengantar / memasang tenda = penghasilan toko.</span></div>
+        <button type="button" class="btn btn-primary btn-sm" id="saveFin"><i class="fa-solid fa-floppy-disk"></i> Simpan pencatatan ongkir</button></div>
+        <div class="panel" style="margin-bottom:18px"><div class="panel-h"><h3><i class="fa-solid fa-sitemap"></i> Panduan lini (otomatis di form Keuangan)</h3></div>
+        <div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>Lini</th><th>Pemasukan</th><th>Pengeluaran</th></tr></thead><tbody>
+          <tr><td><b>Rental</b></td><td>Sewa, DP, denda, laundry, jasa tenda, ongkir sewa (otomatis)</td><td>Restock barang sewa (otomatis dari Data Barang), perawatan &amp; perbaikan (otomatis), deterjen &amp; kebutuhan laundry, bensin antar-jemput sewa, kebutuhan rental lainnya</td></tr>
+          <tr><td><b>Penjualan</b></td><td>Penjualan barang (otomatis, tanpa ongkir)</td><td>Restock barang jual (otomatis dari Data Barang; jadi modal saat terjual), kemasan barang jual</td></tr>
+          <tr><td><b>Umum</b></td><td>Pemasukan lain (opsional), mis. sewa lapak event</td><td>Wifi/internet, listrik &amp; air, gaji staff, sewa tempat, promosi, operasional lainnya (opsional)</td></tr>
+        </tbody></table></div><p class="muted" style="font-size:12.5px;margin:8px 0 0">Laba bersih toko = Laba Rental + Laba Penjualan + (pemasukan Umum − pengeluaran Umum).</p></div>`;
       const box = (k, t, arr) => `<div class="panel"><div class="panel-h"><h3>${t}</h3></div><p class="muted" style="font-size:13px;margin:-6px 0 12px">Satu kategori per baris.</p><textarea class="textarea" id="fc-${k}" rows="8">${esc(arr.join('\n'))}</textarea></div>`;
-      $('#cfgMain').innerHTML = head('Kategori Keuangan', 'Pilihan kategori saat staff mencatat pemasukan lain dan pengeluaran. Pemasukan dari rental, penjualan, denda, dan refund tetap tercatat otomatis.')
-        + `<div class="grid-dash" style="grid-template-columns:1fr 1fr">${box('in', 'Pemasukan lainnya', fc.in)}${box('out', 'Pengeluaran', fc.out)}</div>${saveBar('saveFc')}`;
+      $('#cfgMain').innerHTML = head('Keuangan & Ongkir', 'Pilihan kategori saat staff mencatat pemasukan lain dan pengeluaran. Pemasukan dari rental, penjualan, denda, dan refund tetap tercatat otomatis.')
+        + finBlock + `<div class="grid-dash" style="grid-template-columns:1fr 1fr">${box('in', 'Pemasukan lainnya', fc.in)}${box('out', 'Pengeluaran (jenis biaya)', fc.out)}</div>${saveBar('saveFc')}`;
+      $('#saveFin').addEventListener('click', () => {
+        const next = { saleShipLedger: $('[name=ssl]:checked').value === '1', saleShipLine: $('#sslLine').value, rentShipLine: $('#rslLine').value };
+        const old = Object.assign({ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }, S().finance || {});
+        if (JSON.stringify(old) === JSON.stringify(next)) { toast('Tidak ada perubahan.'); return; }
+        const desc = (v) => `ongkir penjualan ${v.saleShipLedger ? 'dicatat (lini ' + LBL[v.saleShipLine] + ')' : 'tidak dicatat'} · ongkir sewa lini ${LBL[v.rentShipLine]}`;
+        DB.saveConfig('finance', next, 'Mengubah pencatatan ongkir', [{ field: 'Pencatatan ongkir', from: desc(old), to: desc(next) }]); toast('Pencatatan ongkir disimpan. Berlaku untuk rekap keuangan & dashboard.'); R.keuangan();
+      });
       $('#saveFc').addEventListener('click', () => {
         const next = { in: [...new Set(lines($('#fc-in').value.replace(/,/g, '\n')))], out: [...new Set(lines($('#fc-out').value.replace(/,/g, '\n')))] };
         if (!next.in.length || !next.out.length) { toast('Masing-masing minimal satu kategori.', 'err'); return; }

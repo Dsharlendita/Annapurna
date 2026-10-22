@@ -1492,12 +1492,13 @@
   function ledger(from, to) {
     const inRange = (iso) => { const d = D.day(iso); return (!from || d >= from) && (!to || d <= to); };
     const income = [], expense = [];
+    const RSL = Object.assign({ rentShipLine: 'rent' }, DB.settings().finance || {}).rentShipLine || 'rent';
     DB.bookings().forEach((b) => {
       (b.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: b.id, cat: p.type === 'Denda' ? 'Denda' : 'Rental', desc: `${p.type}${p.via ? ' · ' + p.via : ''} · ${b.customer.name}`, amount: p.amount, offline: b.channel === 'offline' }); });
       /* Refund DP = uang customer yang dikembalikan → MENGURANGI pemasukan Rental (bukan pengeluaran) */
       (b.refunds || []).forEach((r) => { if (inRange(r.at)) income.push({ date: r.at, ref: b.id, cat: 'Refund DP', desc: `Refund DP (pengurang pemasukan) · ${b.customer.name}`, amount: -Math.abs(r.amount), ln: 'rent', auto: true, refund: true }); });
       /* Jasa bongkar pasang & ongkir antar/jemput: dicatat staff, masuk lini Rental */
-      (b.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: b.id, cat: x.kind === 'pasang' ? 'Jasa Tenda (Bongkar/Pasang)' : 'Ongkir Antar Jemput', desc: `${x.kind === 'pasang' ? 'Jasa tenda' + (x.note ? ' (' + x.note + ')' : '') : 'Ongkir antar/jemput'}${x.via ? ' · ' + x.via : ''} · ${b.customer.name}`, amount: x.amount, ln: 'rent', offline: true }); });
+      (b.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: b.id, cat: x.kind === 'pasang' ? 'Jasa Tenda (Bongkar/Pasang)' : 'Ongkir Antar Jemput', desc: `${x.kind === 'pasang' ? 'Jasa tenda' + (x.note ? ' (' + x.note + ')' : '') : 'Ongkir antar/jemput'}${x.via ? ' · ' + x.via : ''} · ${b.customer.name}`, amount: x.amount, ln: 'rent', lnFix: RSL, offline: true }); });
     });
     /* Laundry: dibayar di kasir, masuk lini Rental */
     DB.laundry().forEach((o) => (o.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: o.id, cat: 'Jasa Laundry', desc: `Laundry ${o.no}${p.via ? ' · ' + p.via : ''} · ${o.customer.name}`, amount: p.amount, ln: 'rent', offline: true }); }));
@@ -1505,7 +1506,9 @@
     const cogs = []; let missingCost = 0;
     DB.sales().forEach((s) => { if (s.status === 'dibatalkan') return; const tot = +s.total || 0; if (!tot) return;
       const c = Rules.saleCost(s); (s.payments || []).forEach((p) => { if (!inRange(p.at)) return; const part = Math.min(1, (+p.amount || 0) / tot); cogs.push({ date: p.at, ref: s.id, amount: Math.round(c.cost * part) }); if (c.missing) missingCost += 1; }); });
-    DB.sales().forEach((s) => (s.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: s.id, cat: 'Ongkir Antar Jemput', desc: `Ongkir antar penjualan${x.via ? ' · ' + x.via : ''} · ${s.customer.name}`, amount: x.amount }); }));
+    /* Ongkir penjualan: titipan untuk ekspedisi → bawaan TIDAK dicatat (Konfigurasi → Keuangan & Ongkir) */
+    const FIN = Object.assign({ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }, DB.settings().finance || {});
+    if (FIN.saleShipLedger) DB.sales().forEach((s) => (s.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: s.id, cat: 'Ongkir Penjualan', desc: `Ongkir penjualan${x.via ? ' · ' + x.via : ''} · ${s.customer.name}`, amount: x.amount, lnFix: FIN.saleShipLine }); }));
     DB.sales().forEach((s) => (s.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: s.id, cat: 'Penjualan', desc: `Penjualan${p.via ? ' · ' + p.via : ''} · ${s.customer.name}`, amount: p.amount, offline: s.channel === 'offline' }); }));
     const voided = [];
     DB.expenses().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'out', ln: e.line, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : expense).push(row); });
@@ -1519,6 +1522,7 @@
        sale = jual (pembayaran pesanan beli, pembelian/restock barang)
        umum = pemasukan/pengeluaran manual lainnya (operasional, promosi, dll.) */
     const lineOf0 = (x, kind) => {
+      if (x.lnFix) return x.lnFix; /* lini ongkir dari Konfigurasi → Keuangan & Ongkir */
       /* Laundry, jasa tenda (bongkar/pasang) & ongkir antar jemput SELALU masuk lini Rental (ketentuan mitra) */
       if (/^DRY/.test(String(x.ref)) || (kind === 'in' && /laundry|tenda|bongkar|pasang|ongkir/i.test(x.cat))) return 'rent';
       if (['rent', 'sale', 'umum'].includes(x.ln)) return x.ln; /* lini dipilih manual di form */

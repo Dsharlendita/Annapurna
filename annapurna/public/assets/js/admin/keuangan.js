@@ -29,8 +29,14 @@
   const LINE_LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
   const lini = (x) => `<span class="lini ${x.line}">${LINE_LBL[x.line] || ''}</span>`;
   /* Tebakan awal lini untuk transaksi manual (aturan sama dengan Admin.ledger); staff tetap bisa mengubahnya di form */
-  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund/i.test(cat) ? 'rent' : kind === 'out' && /pembelian barang|restock|stok/i.test(cat) ? 'sale' : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
-  const LINE_HINT = { rent: 'Mengurangi laba Rental: restock / beli barang sewa, perawatan & perbaikan alat sewa, kebutuhan operasional rental (deterjen laundry, bensin antar jemput, dll.).', sale: 'Untuk usaha jual, mis. kulakan / restock barang jual.', umum: 'Biaya toko secara umum yang tidak khusus satu lini, mis. listrik, gaji, internet, promosi.' };
+  /* Jenis biaya → lini otomatis (staff tidak perlu menebak lini):
+     Rental  : perawatan/perbaikan alat, deterjen & kebutuhan laundry, bensin antar-jemput sewa, kebutuhan rental
+     Penjualan: kemasan barang jual, pembelian barang (restock sebaiknya lewat Data Barang)
+     Umum    : wifi, listrik, gaji, sewa tempat, promosi, operasional & lainnya */
+  const guessLine = (kind, cat) => (kind === 'out' && /perawatan|perbaikan|refund|deterjen|laundry|bensin antar|antar-jemput|kebutuhan rental|tenda/i.test(cat) ? 'rent'
+    : kind === 'out' && /pembelian barang|restock|stok|kemasan|barang jual|kulak/i.test(cat) ? 'sale'
+    : kind === 'in' && /cuci|servis|laundry|tenda|bongkar|pasang|ongkir/i.test(cat) ? 'rent' : 'umum');
+  const LINE_HINT = { rent: 'Masuk lini Rental (mengurangi laba rental): kebutuhan laundry, bensin antar-jemput sewa, perawatan & perbaikan alat sewa.', sale: 'Masuk lini Penjualan: kemasan barang jual, dll. Restock barang jual pakai Data Barang → Restock.', umum: 'Masuk lini Umum (mengurangi laba bersih toko): wifi, listrik, gaji, sewa tempat, promosi & biaya toko lainnya.' };
   function led(f, t) {
     const L = Admin.ledger(f, t); if (LINE === 'all') return L;
     const income = L.income.filter((x) => x.line === LINE), expense = L.expense.filter((x) => x.line === LINE);
@@ -48,9 +54,9 @@
     const net = OWN ? L.profit : L.totalIn - L.totalOut;
     $('#sum').classList.toggle('cols-4', !!(OWN && LINE === 'sale'));
     $('#sum').innerHTML = `<div class="sum-card pos"><small>${OWN ? `Total pemasukan (${D.fmtDate(f)} – ${D.fmtDate(t)})` : `Uang masuk · ${D.fmtDate(f, true)}`}</small><strong>${rupiah(L.totalIn)}</strong></div>
-      <div class="sum-card neg"><small>${OWN ? (LINE === 'rent' ? 'Total pengeluaran rental' : LINE === 'sale' ? 'Belanja stok (uang keluar)' : 'Total pengeluaran') : 'Uang keluar'}</small><strong>${rupiah(L.totalOut)}</strong>${OWN && LINE === 'rent' ? '<small>Biaya operasional dicatat di lini Umum</small>' : ''}</div>
+      <div class="sum-card neg"><small>${OWN ? (LINE === 'rent' ? 'Total pengeluaran rental' : LINE === 'sale' ? 'Belanja stok (uang keluar)' : 'Total pengeluaran') : 'Uang keluar'}</small><strong>${rupiah(L.totalOut)}</strong>${OWN && LINE === 'rent' ? '<small>Restock barang sewa, kebutuhan lain &amp; perawatan</small>' : OWN && LINE === 'umum' ? '<small>Wifi, listrik, gaji, sewa tempat, dll.</small>' : ''}</div>
       ${OWN && LINE === 'sale' ? `<div class="sum-card neg"><small>Modal barang terjual (harga beli)</small><strong>${rupiah(L.cogs)}</strong>${L.by.sale.missingCost ? `<small style="color:var(--red)">${L.by.sale.missingCost} transaksi tanpa harga beli</small>` : ''}</div>` : ''}
-      <div class="sum-card ${net >= 0 ? 'pos' : 'neg'}"><small>${OWN ? (LINE === 'all' ? 'Laba bersih toko' : LINE === 'sale' ? 'Laba penjualan (jual − modal)' : LINE === 'rent' ? 'Laba rental' : 'Selisih lini Umum') : 'Saldo kas (masuk − keluar)'}</small><strong>${net < 0 ? '− ' : ''}${rupiah(Math.abs(net))}</strong>${OWN && LINE === 'all' && L.totalIn - L.totalOut !== net ? `<small>Arus kas (masuk − keluar): ${L.totalIn - L.totalOut < 0 ? '− ' : ''}${rupiah(Math.abs(L.totalIn - L.totalOut))}</small>` : ''}</div>${(() => { const held = DB.bookings().filter((b) => b.depositIn && !b.depositOut); const tot = held.reduce((x, b) => x + b.depositIn.amount, 0); return tot ? `<div class="sum-card"><small>Jaminan dipegang toko (bukan pemasukan)</small><strong>${rupiah(tot)}</strong><small>${held.length} booking · dikembalikan saat barang kembali</small></div>` : ''; })()}`;
+      <div class="sum-card ${net >= 0 ? 'pos' : 'neg'}"><small>${OWN ? (LINE === 'all' ? 'Laba bersih toko' : LINE === 'sale' ? 'Laba penjualan (jual − modal)' : LINE === 'rent' ? 'Laba rental' : 'Hasil lini Umum (pemasukan − pengeluaran)') : 'Saldo kas (masuk − keluar)'}</small><strong>${net < 0 ? '− ' : ''}${rupiah(Math.abs(net))}</strong>${OWN && LINE === 'all' && L.totalIn - L.totalOut !== net ? `<small>Arus kas (masuk − keluar): ${L.totalIn - L.totalOut < 0 ? '− ' : ''}${rupiah(Math.abs(L.totalIn - L.totalOut))}</small>` : ''}</div>${(() => { const held = DB.bookings().filter((b) => b.depositIn && !b.depositOut); const tot = held.reduce((x, b) => x + b.depositIn.amount, 0); return tot ? `<div class="sum-card"><small>Jaminan dipegang toko (bukan pemasukan)</small><strong>${rupiah(tot)}</strong><small>${held.length} booking · dikembalikan saat barang kembali</small></div>` : ''; })()}`;
     if ($('#compIn')) $('#compIn').innerHTML = bars(sumCat(L.income), 'var(--g600)');
     if ($('#compOut')) $('#compOut').innerHTML = bars(sumCat(L.expense), '#d9644f');
     $('#cIn').textContent = L.income.length; $('#cOut').textContent = L.expense.length;
@@ -89,7 +95,8 @@
     let ln = e.line || (isNew && LINE !== 'all' ? LINE : guessLine(kind, e.category));
     const m = modal({ title: `${isNew ? 'Catat' : 'Edit'} ${label}`, body: `<form id="ef" novalidate>
       <div class="grid-2"><div class="field"><label>Tanggal</label><input class="input" type="date" name="date" value="${e.date}" max="${T}"></div>
-      <div class="field"><label>Kategori</label><select class="select" name="category">${cats.map((c) => `<option ${c === e.category ? 'selected' : ''}>${c}</option>`).join('')}</select></div></div>
+      <div class="field"><label>${kind === 'out' ? 'Jenis biaya' : 'Jenis pemasukan'}</label><select class="select" name="category">${(kind === 'out' ? [['umum', 'Biaya toko (lini Umum)'], ['rent', 'Kebutuhan rental (lini Rental)'], ['sale', 'Kebutuhan penjualan (lini Penjualan)']].map(([g, gl]) => { const G = cats.filter((c) => guessLine('out', c) === g); return G.length ? `<optgroup label="${gl}">${G.map((c) => `<option ${c === e.category ? 'selected' : ''}>${c}</option>`).join('')}</optgroup>` : ''; }).join('') : cats.map((c) => `<option ${c === e.category ? 'selected' : ''}>${c}</option>`).join(''))}</select><small class="muted">Lini usaha terisi otomatis sesuai jenisnya.</small></div></div>
+      <div class="notice amber" id="rsWarn" hidden style="margin-bottom:12px"><i class="fa-solid fa-triangle-exclamation"></i><div><b>Mau mencatat restock / beli barang?</b> Pakai <a class="link" href="${url('admin/barang')}">Data Barang → Restock</a> supaya stok &amp; unit ikut bertambah dan pengeluaran tidak tercatat dua kali. Catat di sini hanya untuk pembelian di luar stok barang.</div></div>
       <div class="field"><label>Untuk lini usaha</label><select class="select" name="line">${['rent', 'sale', 'umum'].map((k) => `<option value="${k}" ${k === ln ? 'selected' : ''}>${LINE_LBL[k]}</option>`).join('')}</select><small class="muted lini-hint" id="lnHint">${LINE_HINT[ln]}</small></div>
       <div class="field"><label>Keterangan</label><input class="input" name="desc" value="${esc(e.desc)}" placeholder="${kind === 'in' ? 'Contoh: Jasa cuci tenda milik customer' : 'Contoh: Servis kompor portable'}"></div>
       <div class="field"><label>Jumlah (Rp)</label><input class="input" type="number" min="0" step="500" name="amount" value="${e.amount}"></div>
@@ -101,8 +108,12 @@
     /* Laundry, jasa tenda & ongkir antar jemput selalu masuk lini Rental: pilihan lini dikunci */
     const RENT_ONLY = /laundry|tenda|bongkar|pasang|ongkir/i;
     const lockLine = (cat) => { const lock = kind === 'in' && RENT_ONLY.test(cat); if (lock) { lnSel.value = 'rent'; m.$('#lnHint').textContent = 'Laundry, jasa tenda & ongkir antar jemput selalu masuk lini Rental.'; } else showHint(); lnSel.disabled = lock; };
-    m.$('#ef').elements.category.addEventListener('change', (ev) => { if (!lnTouched || (kind === 'in' && RENT_ONLY.test(ev.target.value))) lnSel.value = guessLine(kind, ev.target.value); lockLine(ev.target.value); });
-    lockLine(m.$('#ef').elements.category.value);
+    /* Ganti jenis biaya → lini ikut berubah otomatis (masih bisa diubah manual sesudahnya) */
+    const warn = () => { if (kind !== 'out') return; const E0 = m.$('#ef').elements; m.$('#rsWarn').hidden = !(/pembelian barang|restock/i.test(E0.category.value) || /restock|re-stock|kulak|beli (tenda|sepatu|carrier|sleeping|barang|stok)|tambah stok/i.test(E0.desc.value)); };
+    m.$('#ef').elements.category.addEventListener('change', (ev) => { lnSel.value = guessLine(kind, ev.target.value); lnTouched = false; lockLine(ev.target.value); warn(); });
+    m.$('#ef').elements.desc.addEventListener('input', warn);
+    if (isNew && LINE !== 'all') { const first = cats.find((c) => guessLine(kind, c) === LINE); if (first) { m.$('#ef').elements.category.value = first; lnSel.value = LINE; } }
+    lockLine(m.$('#ef').elements.category.value); warn();
     m.$('#eSave').addEventListener('click', () => {
       const F = m.$('#ef'), E = F.elements;
       if (!validate(F, { date: (v) => (!v ? 'Pilih tanggal.' : ''), desc: (v) => (v.length < 3 ? 'Isi keterangan.' : ''), amount: (v) => (!(+v > 0) ? 'Jumlah harus lebih dari 0.' : '') })) return;

@@ -341,12 +341,31 @@
         desc: t('desc'), specs: E.specs.value.split('\n').map((s) => s.trim()).filter(Boolean), featured: fk === 'rent' && E.featured.checked, active: E.active.value === '1', img });
       if (!variant) delete obj.variant;
       if (units) obj.units = units;
+      const before = stockMap0(isNew ? null : DB.product(obj.id));
       DB.saveProduct(obj); m.close(); toast(isNew ? 'Barang baru ditambahkan.' : 'Perubahan disimpan.'); draw();
+      /* Stok bertambah lewat form (bukan Restock): tanyakan apakah ini pembelian baru → catat ke pengeluaran */
+      const after = stockMap0(DB.product(obj.id)); const add = Object.keys(after).map((k) => ({ size: k === '_' ? '' : k, qty: after[k] - (before[k] || 0) })).filter((x) => x.qty > 0);
+      if (add.length) purchasePrompt(DB.product(obj.id), add, isNew, fk);
     });
+  }
+  const stockMap0 = (p) => { const M = {}; if (!p) return M; if (DB.hasVariant(p)) p.variant.options.forEach((o) => { M[o.name] = +o.stock || 0; }); else M._ = +p.stock || 0; return M; };
+  function purchasePrompt(p, add, isNew, fk) {
+    const qty = add.reduce((a, x) => a + x.qty, 0); const rent = fk === 'rent';
+    const m = modal({ title: isNew ? 'Stok awal: barang baru dibeli?' : `Stok ${esc(p.name)} bertambah ${qty} unit`, body: `
+      <p style="font-size:13.5px;margin:0 0 10px">${isNew ? `Barang ini dibuat dengan stok awal <b>${qty} unit</b>.` : `Stok bertambah <b>${qty} unit</b>${add.some((x) => x.size) ? ` (${esc(add.map((x) => `${x.size} +${x.qty}`).join(', '))})` : ''}.`} Apakah ini <b>pembelian baru</b>?</p>
+      <div class="notice" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div><b>Ya, pembelian baru</b> → dicatat sebagai pengeluaran <b>Pembelian Barang</b> lini <b>${rent ? 'Rental' : 'Penjualan'}</b>, supaya rekap keuangan benar.<br><b>Bukan</b> → hanya koreksi data / stok lama yang sudah dimiliki toko, tidak masuk keuangan.</div></div>
+      <div class="grid-2"><div class="field"><label>Harga beli per unit (Rp)</label><input class="input" type="number" min="0" id="ppCost" value="${p.cost || ''}" placeholder="Harga dari supplier"></div>
+      <div class="field"><label>Supplier <span class="opt">(opsional)</span></label><input class="input" id="ppSup"></div></div>
+      <div class="kv total" id="ppSum"></div>`,
+      foot: '<button class="btn btn-light" data-close>Bukan, hanya koreksi / stok lama</button><button class="btn btn-primary" id="ppOk"><i class="fa-solid fa-receipt"></i> Ya, catat sebagai pembelian</button>' });
+    const sum = () => { m.$('#ppSum').innerHTML = `<span>Total pengeluaran</span><span>${qty} × ${rupiah(+m.$('#ppCost').value || 0)} = <b>${rupiah(qty * (+m.$('#ppCost').value || 0))}</b></span>`; };
+    m.$('#ppCost').addEventListener('input', sum); sum(); setTimeout(() => m.$('#ppCost').focus(), 60);
+    m.$('#ppOk').addEventListener('click', () => { const r = DB.recordPurchase({ productId: p.id, kind: fk, lines: add, cost: +m.$('#ppCost').value, supplier: m.$('#ppSup').value.trim() });
+      if (!r.ok) { toast(r.msg, 'err'); m.$('#ppCost').focus(); return; } m.close(); draw(); toast(`Pembelian ${rupiah(r.amount)} tercatat di Keuangan (lini ${rent ? 'Rental' : 'Penjualan'}).`); });
   }
   /* ---------- Restock barang jual ----------
      Stok bertambah + harga beli diperbarui + pengeluaran "Pembelian Barang" (lini Penjualan) tercatat otomatis. */
-  function restockModal(pid) {
+  function restockModal(pid, opts = {}) {
     const p = DB.product(pid); if (!p) return; const sized = DB.hasVariant(p); const rent = kindOf(p) === 'rent';
     const vl = DB.variantLabel(p) || 'Ukuran';
     const optLabel = (o) => (DB.isVar2(p) ? DB.vParts(p, o.name).join(' / ') : o.name);
@@ -381,7 +400,8 @@
         <div class="kv"><span>${rent ? 'Unit' : 'Stok'}${sz ? ' ' + esc(sz) : ''} setelah restock</span><span>${cur == null ? 'pilih ' + esc(vl.toLowerCase()) + ' dulu' : `${cur} → <b>${cur + q}</b> unit`}</span></div>
         ${bep ? `<div class="kv"><span>Balik modal per unit</span><span style="color:var(--g700);font-weight:700">± ${bep} malam sewa</span></div>` : ''}
         ${mg != null ? `<div class="kv"><span>Margin dengan harga jual sekarang</span><span style="color:${mg < 0 ? 'var(--red)' : 'var(--g700)'};font-weight:700">${mg}%</span></div>` : ''}`; };
-    m.el.addEventListener('input', sum); m.el.addEventListener('change', sum); sum(); setTimeout(() => (sized ? m.$('#rsSize') : m.$('#rsQty')).focus(), 50);
+    if (opts.size && sized && m.$('#rsSize')) m.$('#rsSize').value = opts.size;
+    m.el.addEventListener('input', sum); m.el.addEventListener('change', sum); sum(); setTimeout(() => (sized && !opts.size ? m.$('#rsSize') : m.$('#rsQty')).focus(), 50);
     m.$('#rsOk').addEventListener('click', () => {
       if (sized && !m.$('#rsSize').value) { toast(`Pilih ${vl.toLowerCase()} yang di-restock.`, 'err'); m.$('#rsSize').focus(); return; }
       let newCombo = null;
@@ -395,7 +415,7 @@
       const args = { newCombo, productId: pid, size: sized && !newCombo ? m.$('#rsSize').value : '', qty: n('#rsQty'), cost: n('#rsCost'), date: m.$('#rsDate').value || T, supplier: m.$('#rsSup').value, note: m.$('#rsNote').value };
       const r = rent ? DB.restockRent(args) : DB.restock(args);
       if (!r.ok) { toast(r.msg, 'err'); return; }
-      m.close(); draw();
+      m.close(); draw(); opts.onDone && opts.onDone();
       if (rent) {
         modal({ title: 'Restock barang sewa tersimpan', body: `<div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div><b>+${r.restock.qty} unit ${esc(p.name)}${r.restock.size ? ' · ' + esc(r.restock.size) : ''}</b> siap disewakan. Pengeluaran ${rupiah(r.restock.qty * r.restock.cost)} tercatat di Keuangan (lini Rental).</div></div>
           <p style="font-size:13px;margin:0 0 4px"><b>Kode unit baru</b> <span class="muted">(tempel label pada barang)</span></p><div class="rs-units">${r.restock.units.map((c) => `<span>${esc(c)}</span>`).join('')}</div>`,
@@ -486,7 +506,7 @@
         <div class="table-wrap"><table class="table"><thead><tr><th>Kode</th>${sz ? `<th>${esc(DB.variantLabel(p))}</th>` : ''}<th>Status</th><th class="num">Disewa</th><th>Servis berkala</th><th class="num">Aksi</th></tr></thead><tbody>
         ${groups.map((g) => (sz ? grpHead(g) : '') + g.L.map(rowOf).join('')).join('') || `<tr><td colspan="${COLS}" class="muted" style="text-align:center;padding:18px">Tidak ada unit yang cocok dengan filter.</td></tr>`}
         </tbody></table></div>
-        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${sz ? `<select class="select sm" id="uSize" style="width:auto">${p.variant.options.map((o) => `<option>${esc(o.name)}</option>`).join('')}</select>` : ''}<button class="btn btn-light btn-sm" id="uAdd"><i class="fa-solid fa-plus"></i> Tambah unit baru</button><span class="muted" style="font-size:12.5px">Stok ikut bertambah otomatis.</span></div>`;
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${sz ? `<select class="select sm" id="uSize" style="width:auto">${p.variant.options.map((o) => `<option>${esc(o.name)}</option>`).join('')}</select>` : ''}<button type="button" class="btn btn-primary btn-sm" id="uAdd"><i class="fa-solid fa-truck-ramp-box"></i> Tambah unit (restock)</button><span class="muted" style="font-size:12.5px">Harga beli dicatat sebagai pengeluaran Rental.</span></div>`;
     };
     const p0 = DB.product(pid);
     const m = modal({ title: `Unit fisik · ${esc(p0.name)}`, size: 'xl', body: '<div></div>', foot: '<button class="btn btn-primary" data-close>Selesai</button>' });
@@ -499,10 +519,8 @@
       if (cln) { DB.finishCare(pid, cln.dataset.uclean); toast(`${cln.dataset.uclean} sudah bersih dan siap disewa.`); draw(); return; }
       if (brk) { const r = await confirmBox({ title: `Laporkan kerusakan ${brk.dataset.ubroke}`, text: 'Unit masuk daftar perbaikan dan tidak dihitung di stok sampai selesai diperbaiki.', ok: 'Masukkan ke perbaikan', input: { label: 'Kerusakan apa?', required: true, error: 'Jelaskan kerusakannya.', placeholder: 'Contoh: flysheet sobek 5 cm' } });
         if (r === false) return; DB.setCare(pid, brk.dataset.ubroke, 'perbaikan', { issue: r }); toast('Unit masuk daftar perbaikan.'); draw(); return; }
-      if (e.target.closest('#uAdd')) {
-        const all = DB.get('products'); const p = all.find((x) => x.id === pid);
-        if (DB.hasVariant(p)) { const o = p.variant.options.find((x) => x.name === m.$('#uSize').value); o.stock += 1; } else p.stock += 1;
-        DB.saveProduct(p); toast('Unit baru ditambahkan.'); draw(); return; }
+      /* Tambah unit = pembelian barang sewa → lewat Restock supaya harga beli tercatat di pengeluaran Rental */
+      if (e.target.closest('#uAdd')) { restockModal(pid, { size: m.$('#uSize') ? m.$('#uSize').value : '', onDone: draw }); return; }
       if (svc) {
         const code = svc.dataset.usvc;
         const mm = modal({ title: `Perawatan berkala · ${code}`, body: `<p class="muted" style="font-size:13px;margin-bottom:10px">Pengecekan rutin setiap ${p0.serviceEvery || DB.settings().serviceEvery || 10} kali sewa. Untuk kerusakan gunakan tombol <b>Rusak</b>.</p><div class="field"><label>Yang dicek / dikerjakan</label><textarea class="textarea" id="svN" placeholder="Contoh: cek frame & pasak, lapisi ulang anti air"></textarea></div>

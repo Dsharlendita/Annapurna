@@ -14,6 +14,7 @@ class PageController extends Controller
     public function paket(): View { return view('annapurna.pages.paket'); }
     public function laundry(): View { return view('annapurna.pages.laundry'); }
     public function tentang(): View { return view('annapurna.pages.tentang'); }
+    public function ketentuan(): View { return view('annapurna.pages.ketentuan'); }
     public function kontak(): View { return view('annapurna.pages.kontak'); }
 
     public function masuk(): View { return view('annapurna.pages.masuk'); }

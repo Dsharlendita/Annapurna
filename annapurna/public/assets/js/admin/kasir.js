@@ -186,9 +186,12 @@
       return { L, sub, disc, ong, svc: 0, total, payNow, change: S.method === 'Tunai' ? Math.max(0, (+S.received || 0) - payNow) : 0 }; }
     const total = sub - disc;
     const fee = S.mode === 'rent' && Svc.isTent(S.svcMode) ? Math.min(S.svcTents, tentMax()) * Svc.fee(S.svcMode) : 0; const ong = S.mode === 'rent' && S.svcMode ? +S.svcOngkir || 0 : 0;
-    const rentNow = S.mode === 'rent' && S.pickup === 'later' && S.payOpt === 'dp' ? Math.round(total * st.dpPercent / 100) : total;
+    /* DP bisa diedit staff: minimal sesuai aturan DP (mis. 50%), maksimal = total (lunas) */
+    const dpMin = Math.round(total * st.dpPercent / 100);
+    const dpVal = S.dpAmt != null && S.dpAmt !== '' ? Math.min(total, Math.max(0, +S.dpAmt || 0)) : dpMin;
+    const rentNow = S.mode === 'rent' && S.pickup === 'later' && S.payOpt === 'dp' ? dpVal : total;
     const payNow = rentNow + fee + ong;
-    return { L, sub, disc, total, fee, ong, svc: fee + ong, rentNow, payNow, change: S.method === 'Tunai' ? Math.max(0, (+S.received || 0) - payNow) : 0 }; };
+    return { L, sub, disc, total, fee, ong, svc: fee + ong, rentNow, dpMin, payNow, change: S.method === 'Tunai' ? Math.max(0, (+S.received || 0) - payNow) : 0 }; };
 
   /* Bagian tambahan di rincian: layanan sewa (antar / jasa tenda & ongkir) */
   function svcSec(t) {
@@ -233,7 +236,10 @@
         <div class="kv total"><span>${S.mode === 'rent' && t.svc ? 'Total sewa' : 'Total'}</span><span>${rupiah(t.total)}</span></div>
         ${S.mode === 'rent' && t.svc ? `${t.fee ? `<div class="kv"><span>Jasa ${Svc.spec(S.svcMode).short.toLowerCase()} (${Math.min(S.svcTents, tentMax())} tenda)</span><span>${rupiah(t.fee)}</span></div>` : ''}${t.ong ? `<div class="kv"><span>Ongkir antar / jemput</span><span>${rupiah(t.ong)}</span></div>` : ''}<small class="muted" style="display:block;font-size:12px;margin:-2px 0 6px">Layanan dibayar sekarang, dicatat terpisah dari total sewa (Keuangan lini Rental).</small>` : ''}
         ${isLd() ? `<div class="seg kb-opt"><button type="button" data-o="lunas" class="${S.payOpt !== 'nanti' ? 'active' : ''}">Bayar sekarang</button><button type="button" data-o="nanti" class="${S.payOpt === 'nanti' ? 'active' : ''}">Bayar saat diambil</button></div>` : ''}
-        ${S.mode === 'rent' && S.pickup === 'later' ? `<div class="seg kb-opt"><button type="button" data-o="dp" class="${S.payOpt === 'dp' ? 'active' : ''}">DP ${st.dpPercent}%</button><button type="button" data-o="lunas" class="${S.payOpt === 'lunas' ? 'active' : ''}">Lunas</button></div>` : ''}
+        ${S.mode === 'rent' && S.pickup === 'later' ? `<div class="seg kb-opt"><button type="button" data-o="dp" class="${S.payOpt === 'dp' ? 'active' : ''}">DP ${st.dpPercent}%</button><button type="button" data-o="lunas" class="${S.payOpt === 'lunas' ? 'active' : ''}">Lunas</button></div>
+          ${S.payOpt === 'dp' ? `<div class="field kb-dp"><label for="kDp">Nominal DP dibayar</label><input class="input" id="kDp" inputmode="numeric" value="${Number(t.rentNow).toLocaleString('id-ID')}">
+            <span class="hint ${t.rentNow < t.dpMin ? 'error' : ''}">${t.rentNow < t.dpMin ? `Minimal ${rupiah(t.dpMin)} (${st.dpPercent}%)` : `Minimal ${rupiah(t.dpMin)} (${st.dpPercent}%) · sisa <b>${rupiah(t.total - t.rentNow)}</b> dilunasi nanti`}</span>
+            <div class="kb-quick">${[t.dpMin, Math.round(t.total * 0.7 / 1000) * 1000, t.total].filter((v, i, a) => v >= t.dpMin && v <= t.total && a.indexOf(v) === i).map((v) => `<button type="button" class="chip" data-dpq="${v}">${v === t.total ? 'Lunas' : rupiah(v)}</button>`).join('')}</div></div>` : ''}` : ''}
         <div class="kv hl"><span>Dibayar sekarang</span><span>${rupiah(t.payNow)}</span></div>
         ${t.payNow ? `<div class="seg kb-opt" aria-label="Metode">${['Tunai', 'Transfer', 'QRIS'].map((x) => `<button type="button" data-m="${x}" class="${S.method === x ? 'active' : ''}">${x}</button>`).join('')}</div>
         ${S.method === 'Tunai' ? `<div class="field"><label>Uang diterima</label><input class="input" id="kRecv" inputmode="numeric" value="${S.received ? Number(S.received).toLocaleString('id-ID') : ''}" placeholder="0">
@@ -256,6 +262,7 @@
     if (optCust && S.name && S.name.length < 2) { toast('Nama terlalu pendek. Kosongkan saja bila pelanggan umum.', 'err'); $('#kName').focus(); return; }
     if ((!optCust || S.phone) && !UI.isPhone(S.phone)) { toast(optCust ? 'Nomor WhatsApp tidak valid. Kosongkan bila tidak ada. Contoh: 081234567890.' : `No. WhatsApp wajib diisi untuk ${isLd() ? 'laundry' : 'sewa'}. Contoh: 081234567890.`, 'err'); $('#kPhone').classList.add('err'); $('#kPhone').focus(); return; }
     if (S.items.some((it) => !fits(it))) { toast('Ada barang yang stoknya tidak cukup. Periksa lagi jumlahnya.', 'err'); drawGrid(); return; }
+    if (S.mode === 'rent' && S.pickup === 'later' && S.payOpt === 'dp' && t.rentNow < t.dpMin) { toast(`DP minimal ${rupiah(t.dpMin)} (${st.dpPercent}%).`, 'err'); const k = $('#kDp'); if (k) k.focus(); return; }
     if (t.payNow && S.method === 'Tunai' && num(S.received) < t.payNow) { toast(`Uang diterima kurang dari ${rupiah(t.payNow)}.`, 'err'); return; }
     const customer = optCust && !S.name ? { name: 'Pelanggan Umum', phone: S.phone, email: '', walkIn: true } : { name: S.name, phone: S.phone, email: '' };
     const via = `Kasir · ${S.method}`;
@@ -378,7 +385,7 @@
     sync(); toast(`Laundry ${o.no} tersimpan.`);
   }
   /* Kosongkan transaksi: barang, customer, diskon, pembayaran. Jenis (sewa/jual) & tanggal tetap. */
-  function reset() { Object.assign(S, { items: [], name: '', phone: '', idType: 'KTP', note: '', disc: 0, received: 0, payOpt: isLd() ? 'nanti' : 'lunas', method: 'Tunai', q: '', svcMode: '', svcTents: 1, svcOngkir: 0, svcAddr: '', ldEst: '' }); if ($('#kQ')) $('#kQ').value = ''; draw(); }
+  function reset() { Object.assign(S, { items: [], name: '', phone: '', idType: 'KTP', note: '', disc: 0, received: 0, dpAmt: null, payOpt: isLd() ? 'nanti' : 'lunas', method: 'Tunai', q: '', svcMode: '', svcTents: 1, svcOngkir: 0, svcAddr: '', ldEst: '' }); if ($('#kQ')) $('#kQ').value = ''; draw(); }
 
   /* ---------- Event ---------- */
   function draw() { drawCats(); drawDates(); drawGrid(); drawBill(); }
@@ -400,7 +407,8 @@
     const q = e.target.closest('[data-q]'); if (q) { const it = S.items[+q.dataset.i]; it.qty += +q.dataset.q; if (it.qty < 1) S.items.splice(+q.dataset.i, 1); else if (!fits(it)) { it.qty -= 1; toast('Stok tidak cukup.', 'err'); } drawBill(); return; }
     const le = e.target.closest('[data-ldedit]'); if (le) { ldOther(S.items[+le.dataset.ldedit]); return; }
     const d = e.target.closest('[data-del]'); if (d) { S.items.splice(+d.dataset.del, 1); drawBill(); return; }
-    const o = e.target.closest('[data-o]'); if (o) { S.payOpt = o.dataset.o; drawBill(); return; }
+    const o = e.target.closest('[data-o]'); if (o) { S.payOpt = o.dataset.o; S.dpAmt = null; drawBill(); return; }
+    const dq = e.target.closest('[data-dpq]'); if (dq) { S.dpAmt = +dq.dataset.dpq; if (+dq.dataset.dpq >= totals().total) { S.payOpt = 'lunas'; S.dpAmt = null; } drawBill(); return; }
     const svm = e.target.closest('[data-svm]'); if (svm) { S.svcMode = svm.dataset.svm; if (Svc.isTent(S.svcMode) && !S.svcTents) S.svcTents = 1; drawBill(); return; }
     const sv = e.target.closest('[data-sv]'); if (sv) { S.svcTents = Math.max(1, Math.min(tentMax(), S.svcTents + +sv.dataset.sv)); drawBill(); return; }
     const mm = e.target.closest('[data-m]'); if (mm) { S.method = mm.dataset.m; drawBill(); return; }
@@ -415,6 +423,7 @@
   $('#kBill').addEventListener('change', (e) => {
     if (e.target.id === 'kDisc') { S.disc = num(e.target.value); drawBill(); }
     if (e.target.id === 'kRecv') { S.received = num(e.target.value); drawBill(); }
+    if (e.target.id === 'kDp') { S.dpAmt = num(e.target.value); drawBill(); }
     if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); drawBill(); }
     if (e.target.id === 'kLdEst') S.ldEst = e.target.value >= T ? e.target.value : T;
     if (e.target.id === 'kSvcTime') S.svcTime = e.target.value; if (e.target.id === 'kSvcBack') S.svcBack = e.target.value;

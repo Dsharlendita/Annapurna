@@ -89,7 +89,7 @@
     if (!Svc.isSaleDeliv(s)) return '';
     const d = s.deliv || {}; const bl = Svc.bill(s); const live = !['selesai', 'dibatalkan'].includes(s.status);
     return `<div class="svc-box2">
-      <div class="sb-h"><i class="fa-solid fa-truck-fast"></i> <b>Diantar ke tempat</b>${live && s.status !== 'menunggu_pembayaran' ? `<a class="btn btn-wa btn-xs" href="${UI.waLink(Svc.waTextSale(s))}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> ${bl.ongkirSet ? 'Chat admin' : 'Hubungi admin (ongkir)'}</a>` : ''}</div>
+      <div class="sb-h"><i class="fa-solid fa-truck-fast"></i> <b>Dikirim ke alamat</b>${live && s.status !== 'menunggu_pembayaran' ? `<a class="btn btn-wa btn-xs" href="${UI.waLink(Svc.waTextSale(s))}" target="_blank" rel="noopener" data-direct="1"><i class="fa-brands fa-whatsapp"></i> ${bl.ongkirSet ? 'Chat admin' : 'Hubungi admin (ongkir)'}</a>` : ''}</div>
       <div class="sb-grid"><div class="sb-sched"><div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>${Svc.shipRows(s).filter((r) => !['Catatan kurir', 'Penerima', 'Kota / kode pos'].includes(r[1])).map(([ic, l, v]) => `<div class="r"><i class="fa-solid ${ic}"></i><span><span class="muted">${esc(l)}:</span> <b>${esc(v)}</b></span></div>`).join('')}</div>
       <div class="sb-cost"><div class="kv"><span>Ongkir antar</span><span>${bl.ongkirSet ? rupiah(bl.ongkir) : '<em>menunggu admin</em>'}</span></div>
         ${bl.paid ? `<div class="kv"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>` : ''}

@@ -116,7 +116,7 @@
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
         <li class="step"><a href="{{ route('keranjang') }}"><div class="blob"><span class="num">2</span><i class="fa-regular fa-clipboard"></i></div><h4>Isi Form Sewa</h4><p>Lengkapi data diri dan pilih tanggal ambil &amp; kembali.</p></a></li>
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
-        <li class="step"><a href="{{ route('tentang') }}#ketentuan"><div class="blob"><span class="num">3</span><i class="fa-regular fa-credit-card"></i></div><h4>Lakukan Pembayaran</h4><p>Transfer atau pembayaran online yang tersedia.</p></a></li>
+        <li class="step"><a href="{{ route('ketentuan') }}#bayar"><div class="blob"><span class="num">3</span><i class="fa-regular fa-credit-card"></i></div><h4>Lakukan Pembayaran</h4><p>Transfer atau pembayaran online yang tersedia.</p></a></li>
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
         <li class="step"><a href="{{ route('pesanan') }}"><div class="blob"><span class="num">4</span><i class="fa-solid fa-store"></i></div><h4>Ambil di Toko</h4><p>Tunjukkan nota digital &amp; kartu identitas, barang siap dipakai!</p></a></li>
       </ol>
@@ -125,7 +125,7 @@
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
         <li class="step"><a href="{{ route('keranjang') }}"><div class="blob"><span class="num">2</span><i class="fa-solid fa-cart-shopping"></i></div><h4>Checkout</h4><p>Masukkan ke keranjang, isi data diri, dan pilih metode pembayaran.</p></a></li>
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
-        <li class="step"><a href="{{ route('tentang') }}#ketentuan"><div class="blob"><span class="num">3</span><i class="fa-regular fa-credit-card"></i></div><h4>Bayar Penuh</h4><p>Transfer atau QRIS, lalu unggah bukti. Admin memverifikasi pembayaranmu.</p></a></li>
+        <li class="step"><a href="{{ route('ketentuan') }}#bayar"><div class="blob"><span class="num">3</span><i class="fa-regular fa-credit-card"></i></div><h4>Bayar Penuh</h4><p>Transfer atau QRIS, lalu unggah bukti. Admin memverifikasi pembayaranmu.</p></a></li>
         <li class="step-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></li>
         <li class="step"><a href="{{ route('pesanan') }}?tab=beli"><div class="blob"><span class="num">4</span><i class="fa-solid fa-store"></i></div><h4>Ambil di Toko</h4><p>Barang dikemas, kamu dapat notifikasi saat siap diambil.</p></a></li>
       </ol>

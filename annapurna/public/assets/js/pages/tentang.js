@@ -12,10 +12,11 @@
   ];
   const statHTML = stats.map((x) => `<div class="ab-num"><div class="ab-num-v"><strong data-count="${x.n}" data-dec="${x.dec || 0}" data-suffix="${x.suffix}">0</strong>${x.star ? '<i class="fa-solid fa-star"></i>' : ''}</div><h4>${x.label}</h4><p>${x.note}</p></div>`).join('');
   $('#abStats').innerHTML = statHTML;
-  $('#abDp').textContent = st.dpPercent; $('#abDp2').textContent = st.dpPercent;
-  $('#abExample').textContent = `Sewa mulai tanggal 30, batas pembatalan dengan DP kembali adalah tanggal ${30 - st.cancelDays}.`;
-  $('#terms').innerHTML = st.rentalTerms.map((t) => `<li>${esc(t)}</li>`).join('');
-  $('#policy').innerHTML = st.cancelPolicy.map((t) => `<li>${esc(t)}</li>`).join('');
+  /* Ketentuan sewa dipindah ke halaman Ketentuan (navbar). Elemen di bawah hanya diisi bila masih ada di halaman. */
+  if ($('#abDp')) $('#abDp').textContent = st.dpPercent; if ($('#abDp2')) $('#abDp2').textContent = st.dpPercent;
+  if ($('#abExample')) $('#abExample').textContent = `Sewa mulai tanggal 30, batas pembatalan dengan DP kembali adalah tanggal ${30 - st.cancelDays}.`;
+  if ($('#terms')) $('#terms').innerHTML = st.rentalTerms.map((t) => `<li>${esc(t)}</li>`).join('');
+  if ($('#policy')) $('#policy').innerHTML = st.cancelPolicy.map((t) => `<li>${esc(t)}</li>`).join('');
   const dr = $('#durRules'); if (dr) dr.innerHTML = (st.durations || []).map((d, i) => `<div class="dur-card"><h4>${i + 1}. ${esc(d.name)}</h4><p>${esc(d.note)}</p><div class="ex"><b>Contoh:</b> ${esc(d.example)}</div></div>`).join('');
   const tr = $('#tektokRules'); if (tr) tr.innerHTML = (st.tektokTerms || []).length ? `<b>Syarat &amp; ketentuan paket tektok:</b> ${st.tektokTerms.map(esc).join(' ')}` : '';
   $('#abWa').href = waLink('Halo Annapurna Adventure, saya ingin bertanya tentang sewa alat.');

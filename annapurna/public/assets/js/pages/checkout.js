@@ -33,7 +33,7 @@
         ${rent.length ? '<h4 style="margin:0 0 8px;font-size:14px"><i class="fa-solid fa-bag-shopping"></i> Barang beli</h4>' : ''}
         <div class="dl-opts" role="radiogroup" aria-label="Cara penerimaan barang beli">
           <label class="radio-card"><input type="radio" name="bpick" value="ambil" checked><span class="rc-ic"><i class="fa-solid fa-store"></i></span><span><strong>Ambil di toko</strong><small>${esc(st.address)}</small><small>${esc(st.hours || '')}</small></span></label>
-          <label class="radio-card"><input type="radio" name="bpick" value="antar"><span class="rc-ic"><i class="fa-solid fa-truck-fast"></i></span><span><strong>Diantar ke tempat</strong><small>Staff mengantar barang ke alamatmu. Hubungi admin untuk biaya ongkir.</small></span><span class="dl-price">+ ongkir</span></label>
+          <label class="radio-card"><input type="radio" name="bpick" value="antar"><span class="rc-ic"><i class="fa-solid fa-truck-fast"></i></span><span><strong>Dikirim ke alamat</strong><small>Dikirim via ekspedisi (J&amp;T, JNE, SPX, AnterAja, Grab, Gojek) ke alamatmu. Ongkir dikonfirmasi admin via WhatsApp.</small></span><span class="dl-price">+ ongkir</span></label>
         </div>
         <div id="dlBuyFields"></div>
       </div>` : '';
@@ -86,7 +86,7 @@
 
       ${rent.length ? `<div class="notice" style="margin-top:18px"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Kebijakan pembatalan sewa</strong><ul>${st.cancelPolicy.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
         <p style="margin-top:6px">Tanggal ambil paling awal: <strong>${D.fmtDate(earliest, true)}</strong>. Batas pembatalan dengan DP kembali: <strong>${D.fmtDate(D.addDays(earliest, -st.cancelDays), true)}</strong>.</p></div></div>
-        <div class="field" style="margin-top:14px"><label class="check"><input type="checkbox" name="agree" id="agree"> <span>Saya sudah membaca dan setuju dengan <a class="link" href="tentang#ketentuan" target="_blank" rel="noopener noreferrer">ketentuan sewa</a> dan kebijakan pembatalan.</span></label></div>` : ''}
+        <div class="field" style="margin-top:14px"><label class="check"><input type="checkbox" name="agree" id="agree"> <span>Saya sudah membaca dan setuju dengan <a class="link" href="ketentuan" target="_blank" rel="noopener noreferrer">ketentuan sewa</a> dan kebijakan pembatalan.</span></label></div>` : ''}
     </div>
 
     <aside class="card sticky-side">
@@ -130,8 +130,8 @@
     const box = $('#dlBuyFields'); if (!box) return;
     if (SB.pick !== 'antar') { box.innerHTML = ''; return; }
     box.innerHTML = `<div class="dl-fields">
-      <div class="field"><label for="dlAddrBuy">Alamat / lokasi antar</label><textarea class="textarea" id="dlAddrBuy" name="dlAddrBuy" rows="2" placeholder="Contoh: Jl. Raya Baturraden No. 12, Banyumas">${esc(SB.address)}</textarea></div>
-      <p class="dl-info"><i class="fa-brands fa-whatsapp"></i><span>Ongkir sesuai jarak dikonfirmasi admin via WhatsApp setelah kamu mengirim bukti pembayaran, <b>tidak masuk total belanja</b>, dan dibayar langsung ke admin.</span></p>
+      <div class="field"><label for="dlAddrBuy">Alamat lengkap <span class="req">*</span></label><textarea class="textarea" id="dlAddrBuy" name="dlAddrBuy" rows="2" placeholder="Nama jalan, no. rumah, RT/RW, desa/kelurahan, kecamatan, kota/kabupaten, kode pos">${esc(SB.address)}</textarea></div>
+      <p class="dl-info"><i class="fa-brands fa-whatsapp"></i><span>Ongkir dihitung sesuai ekspedisi &amp; berat paket, dikonfirmasi admin via WhatsApp setelah kamu mengirim bukti pembayaran, <b>tidak masuk total belanja</b>, dan dibayar langsung ke admin. Nomor resi dikirim lewat WhatsApp setelah paket diserahkan ke ekspedisi.</span></p>
     </div>`;
   }
   if (buy.length) {
@@ -166,7 +166,7 @@
       phone: (v) => (!isPhone(v) ? 'Nomor WhatsApp tidak valid. Contoh: 081234567890.' : ''),
       email: (v) => (!isEmail(v) ? 'Format email belum benar.' : ''),
       agree: (v, el) => (!el.checked ? 'Centang persetujuan untuk melanjutkan.' : ''),
-      dlAddrBuy: (v) => (SB.pick === 'antar' && v.length < 8 ? 'Isi alamat lengkap supaya admin bisa menghitung ongkir.' : ''),
+      dlAddrBuy: (v) => (SB.pick === 'antar' && v.length < 15 ? 'Isi alamat lengkap (jalan, no. rumah, kelurahan, kecamatan, kota) supaya paket tidak salah kirim.' : ''),
       dlAddr: (v) => (SV.mode !== 'ambil' && v.length < 8 ? 'Isi alamat / lokasi lengkap supaya admin bisa menghitung ongkir.' : ''),
     });
     if (!ok) return;

@@ -14,8 +14,6 @@
   const method = pending[0].method;
   const deadline = DB.payDeadline(pending[0]);
   const bank = st.banks.find((b) => method.includes(b.bank));
-  let qr = ''; let seed = total % 997 + 7;
-  for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++) { seed = (seed * 9301 + 49297) % 233280; const corner = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13); const on = corner ? (x % 6 === 0 || y % 6 === 0 || (x % 7 > 1 && x % 7 < 5 && y % 7 > 1 && y % 7 < 5)) : seed / 233280 > .5; if (on) qr += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }
 
   root.innerHTML = `<div class="layout-2">
     <div>
@@ -24,7 +22,7 @@
         <p class="muted">Kamu punya waktu <b>${+DB.settings().payWindowHours || 1} jam</b> sejak pesanan dibuat. Booking yang belum dibayar sampai batas waktu akan dibatalkan otomatis supaya alat bisa disewa orang lain.</p>
         <div style="margin-top:18px">
           ${bank ? `<div class="bank"><div><small class="muted">${esc(method)} · a.n. ${esc(bank.holder)}</small><br><strong id="accNo">${esc(bank.number)}</strong></div><button class="btn btn-light btn-sm" id="copyAcc"><i class="fa-regular fa-copy"></i> Salin</button></div>`
-            : `<div style="text-align:center"><svg class="qris" viewBox="-1 -1 23 23" role="img" aria-label="Kode QRIS pembayaran"><g fill="#15311f">${qr}</g></svg><p class="muted" style="font-size:13px">Scan QRIS dengan aplikasi e-wallet atau m-banking</p></div>`}
+            : `<div class="qris-box"><img src="${UI.asset(st.qrisImg || 'assets/img/qris-annapurna.png')}" alt="QRIS Annapurna Adventure Shop" class="qris-img"><p class="muted" style="font-size:13px;margin:10px 0 8px">Scan dengan aplikasi e-wallet / m-banking (GoPay, OVO, DANA, ShopeePay, dll.), lalu masukkan nominal <b>${rupiah(total)}</b>.</p><a class="btn btn-light btn-sm" href="${UI.asset(st.qrisImg || 'assets/img/qris-annapurna.png')}" download="QRIS-Annapurna-Adventure.png"><i class="fa-solid fa-download"></i> Unduh QRIS</a></div>`}
           <div class="bank" style="background:#fff"><div><small class="muted">Jumlah yang harus ditransfer</small><br><strong style="color:var(--g800);font-size:22px">${rupiah(total)}</strong></div><button class="btn btn-light btn-sm" id="copyAmt"><i class="fa-regular fa-copy"></i> Salin</button></div>
         </div>
       </div>

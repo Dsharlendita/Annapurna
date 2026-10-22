@@ -93,16 +93,19 @@
     return `<span class="stars" aria-label="Rating ${r} dari 5">${h}${count !== false ? `<span>(${r})</span>` : ''}</span>`;
   };
 
+  /* Paket tektok selalu 1 malam: tanggal kembali = tanggal ambil + 1 */
+  const tektokFix = (it) => { if (it && it.kind === 'package' && it.start) { const pk = DB.pkg(it.refId); if (pk && pk.tektok) it.end = D.addDays(it.start, 1); } return it; };
   const Cart = {
     all: () => DB.cart(),
     count: () => DB.cart().reduce((s, i) => s + 1, 0),
     add(item) {
+      tektokFix(item);
       const cart = DB.cart();
       const same = cart.find((c) => c.type === item.type && c.kind === item.kind && c.refId === item.refId && (c.size || '') === (item.size || '') && JSON.stringify(c.swaps || {}) === JSON.stringify(item.swaps || {}) && JSON.stringify(c.sizes || {}) === JSON.stringify(item.sizes || {}) && (item.type === 'buy' || (c.start === item.start && c.end === item.end)));
       if (same) same.qty += item.qty; else cart.push(Object.assign({ key: 'c' + Date.now() + Math.random().toString(16).slice(2, 5) }, item));
       DB.setCart(cart);
     },
-    update(key, patch) { const cart = DB.cart(); const it = cart.find((c) => c.key === key); if (it) Object.assign(it, patch); DB.setCart(cart); },
+    update(key, patch) { const cart = DB.cart(); const it = cart.find((c) => c.key === key); if (it) { Object.assign(it, patch); tektokFix(it); } DB.setCart(cart); },
     remove(key) { DB.setCart(DB.cart().filter((c) => c.key !== key)); },
     clear(type) { DB.setCart(type ? DB.cart().filter((c) => c.type !== type) : []); },
     resolve(it) {
@@ -231,9 +234,9 @@
       body: `<div class="mini-line" style="border:0;padding-top:0"><img src="${asset(item.img)}" alt=""><div class="nm"><strong>${esc(item.name)}</strong><small>${esc(tierText(tiers))}</small></div></div>
         <div class="grid-2" style="margin-top:12px">
           <div class="field"><label for="qrStart">Tanggal ambil</label><input type="date" id="qrStart" class="input" value="${(DB.trip() || {}).start || ''}"></div>
-          <div class="field"><label for="qrEnd">Tanggal kembali</label><input type="date" id="qrEnd" class="input" value="${(DB.trip() || {}).end || ''}"></div>
+          <div class="field"><label for="qrEnd">Tanggal kembali</label><input type="date" id="qrEnd" class="input" value="${(DB.trip() || {}).end || ''}" ${tektok ? 'readonly tabindex="-1" style="background:#f4f1ea"' : ''}>${tektok ? '<small class="muted">Otomatis H+1 · paket tektok 1 malam</small>' : ''}</div>
         </div>
-        <div id="qrDur"></div>
+        <div id="qrDur" ${tektok ? 'hidden' : ''}></div>
         ${tektok ? `<div class="tk-box"><div class="tk-h"><b><i class="fa-solid fa-arrows-rotate"></i> Sesuaikan isi paket</b><small>Tukar item dengan harga sama, atau upgrade dengan menambah selisih.</small></div>${item.items.map((it0, k) => { const p0 = DB.product(it0.productId); const opts = Rules.swapOptions(item, k); return `<div class="tk-row"><img src="${asset(p0.img)}" alt="" data-tkimg="${k}"><select class="select" data-tk="${k}" ${opts.length ? '' : 'disabled'}><option value="">${esc(p0.name)} (isi paket)</option>${opts.map((o) => `<option value="${o.id}">${esc(o.name)} · ${o.rent === p0.rent ? 'tukar, harga sama' : `upgrade +${rupiah((o.rent - p0.rent) * it0.qty)}`}</option>`).join('')}</select></div>`; }).join('')}<div class="tk-sum" id="tkSum"></div></div>` : ''}
         <div id="qrSize"></div>
         ${isPkg ? '<div id="qrPkSz"></div>' : ''}
@@ -246,6 +249,8 @@
       foot: `<a class="btn btn-ghost" href="${url(isPkg ? 'paket' : 'produk?id=' + id)}">${isPkg ? 'Lihat isi paket' : 'Lihat detail'}</a><button class="btn btn-outline" id="qrCart"><i class="fa-solid fa-cart-plus"></i> Tambah ke keranjang</button><button class="btn btn-primary" id="qrNow">Sewa sekarang</button>`,
     });
     const s = m.$('#qrStart'), e = m.$('#qrEnd'), q = m.$('#qrQty');
+    /* Paket tektok: naik-turun gunung tanpa menginap → durasi dikunci 1 malam (kembali H+1) */
+    if (tektok) { const lock = () => { if (s.value) e.value = D.addDays(s.value, 1); }; lock(); s.addEventListener('change', () => { lock(); e.dispatchEvent(new Event('change', { bubbles: true })); }); }
     dateGuard(s, e);
     m.$('#qrDur').appendChild(durationChips(s, e, () => calc()));
     const sized = !isPkg && DB.hasVariant(item); let size = null;
@@ -1235,6 +1240,7 @@
     y += 24; const LX = W / 2 + 40, RX = W - P;
     const kv = (l, r, o = {}) => { txt(l, LX, y, { z: o.z || 14, w: o.w || 500, c: o.c || '#5d6b62' }); txt(r, RX, y, { z: o.z || 14, w: o.w || 600, c: o.rc || o.c || '#15311f', a: 'right' }); y += o.gap || 30; };
     if (CI.ok.length) { kv('Total awal', rupiah(CI.base)); kv('Tambahan ganti barang', `${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}`, { rc: '#9a6508', w: 700 }); }
+    if (b.settleDisc && +b.settleDisc.amount) kv(`Diskon pelunasan (${String(b.settleDisc.reason || '').slice(0, 26)})`, '− ' + rupiah(b.settleDisc.amount), { rc: '#1f4d2f', w: 700 });
     kv(CI.ok.length ? 'Total sewa (baru)' : 'Total sewa', rupiah(b.total), { w: 700 });
     kv('Sudah dibayar', rupiah(bill.paid), { rc: '#2f6b43', w: 700 });
     if (pendingPay(b)) kv('Menunggu verifikasi', rupiah(pendingPay(b)), { c: '#9aa39d', rc: '#9aa39d' });
@@ -1272,7 +1278,7 @@
       ${row('No. nota', esc(NO(x)), 'b')}${row('Tanggal', D.fmtDateTime(x.createdAt))}${row('Kasir', esc(k.by || ((DB.session() || {}).name || '-')))}${row('Customer', esc(x.customer.name))}
       ${kind === 'rent' ? `${row('Sewa', D.fmtRange(x.start, x.end) + ' · ' + x.days + ' mlm')}${row('Kembali maks.', D.fmtDate(x.end) + ' 22.00')}` : ''}<hr>
       ${L.map(([n, q, tot]) => `<div class="it"><div>${esc(n)}</div>${row(q, tot)}</div>`).join('')}<hr>
-      ${row('Subtotal', rupiah(x.subtotal))}${x.discount ? row('Diskon', '- ' + rupiah(x.discount.amount || x.discount.fixed || 0)) : ''}${row('TOTAL', rupiah(x.total), 'big')}
+      ${row('Subtotal', rupiah(x.subtotal))}${x.discount ? row('Diskon', '- ' + rupiah(x.discount.amount || x.discount.fixed || 0)) : ''}${x.settleDisc && +x.settleDisc.amount ? row('Diskon pelunasan', '- ' + rupiah(x.settleDisc.amount)) : ''}${row('TOTAL', rupiah(x.total), 'big')}
       ${row('Dibayar (' + esc(k.method || x.method) + ')', rupiah(paid))}${k.method === 'Tunai' ? row('Tunai', rupiah(k.received || paid)) + row('Kembalian', rupiah(k.change || 0)) : ''}
       ${x.total - paid > 0 ? row('Sisa bayar saat ambil', rupiah(x.total - paid), 'b') : ''}
       ${(x.svc || []).length ? `<hr>${x.svc.map((v) => row(v.kind === 'pasang' ? 'Jasa tenda' + (v.note ? ' (' + esc(v.note) + ')' : '') : 'Ongkir antar/jemput', rupiah(v.amount))).join('')}${row('Layanan dibayar', rupiah(x.svc.reduce((a, v) => a + v.amount, 0)), 'b')}` : ''}<hr>
@@ -1389,7 +1395,7 @@
     txt(cu.name || 'Pelanggan Umum', P, y + 26, { w: 700, z: 15, c: '#15311f' }); if (cu.phone) txt(cu.phone, P, y + 48, { z: 13.5 }); if (cu.email) txt(fit(cu.email, 330, 500, 13.5), P, y + (cu.phone ? 68 : 48), { z: 13.5 });
     if (deliv && (s.deliv || {}).address) { const ad = fit('Alamat: ' + s.deliv.address, 330, 500, 12.5); txt(ad, P, y + 90, { z: 12.5, c: '#5d6b62' }); }
     txt(`Metode bayar: ${s.method || '-'}`, CX, y + 26, { z: 13.5 });
-    txt(`Pengambilan: ${deliv ? 'Diantar ke tempat' : 'Ambil di toko'}`, CX, y + 48, { z: 13.5 });
+    txt(`Pengambilan: ${deliv ? 'Dikirim ke alamat' : 'Ambil di toko'}`, CX, y + 48, { z: 13.5 });
     if (ship) txt(fit(ship, W - P - CX, 500, 12.5), CX, y + 68, { z: 12.5, c: '#5d6b62' });
     txt(`Status: ${stLabel('sale', s.status)} · ${stLabel('payment', s.paymentStatus)}`, CX, y + 90, { z: 13, c: '#2f6b43', w: 700 });
     /* tabel */
@@ -1410,7 +1416,7 @@
     const kv = (l, r, o = {}) => { txt(l, LX, y, { z: o.z || 14, w: o.w || 500, c: o.c || '#5d6b62' }); txt(r, RX, y, { z: o.z || 14, w: o.w || 600, c: o.rc || o.c || '#15311f', a: 'right' }); y += o.gap || 30; };
     kv('Subtotal', rupiah(s.subtotal != null ? s.subtotal : items.reduce((a, i) => a + i.price * i.qty, 0)));
     if (disc) kv(`Diskon${s.discount.code && s.discount.code !== 'KASIR' ? ' (' + s.discount.code + ')' : ''}`, '− ' + rupiah(disc), { rc: '#1f4d2f', w: 700 });
-    if (deliv) { kv('Total barang', rupiah(s.total)); kv('Ongkir (diteruskan ke ekspedisi)', bl.ongkirSet ? rupiah(ongkir) : 'menunggu konfirmasi', { rc: bl.ongkirSet ? '#15311f' : '#9a6508' }); }
+    if (deliv) { kv('Total barang', rupiah(s.total)); kv(Svc.shipMode(s) === 'kurir' ? 'Ongkir antar (staff toko)' : 'Ongkir (diteruskan ke ekspedisi)', bl.ongkirSet ? rupiah(ongkir) : 'menunggu konfirmasi', { rc: bl.ongkirSet ? '#15311f' : '#9a6508' }); }
     kv('Total tagihan', rupiah(grand), { w: 800, c: '#15311f', z: 15 });
     kv('Sudah dibayar', rupiah(paid), { rc: '#2f6b43', w: 700 });
     if (pendingPay(s)) kv('Menunggu verifikasi', rupiah(pendingPay(s)), { c: '#9aa39d', rc: '#9aa39d' });

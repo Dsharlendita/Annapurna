@@ -48,6 +48,8 @@
     B.filter((b) => b.status === 'disewa' && b.end < T).forEach((b) => { const bl = UI.billOf(b); todo.push({ tier: 'urgent', ic: 'fa-triangle-exclamation', t: `${NO(b)} terlambat ${bl.late || D.diffDays(b.end, T)} hari`, s: `${b.customer.name} · ${Admin.itemsText(b)}`, tag: bl.fine ? `Denda ${rupiah(bl.fine)}` : 'Terlambat', btns: remBtn(b, 'Tagih denda') + actBtn('return', b.id, 'Catat pengembalian') }); });
     B.filter((b) => b.status === 'menunggu_konfirmasi').forEach((b) => { const pv = (b.payments || []).slice(-1)[0] || {}; const h = pv.at ? hrs(pv.at) : 0; todo.push({ tier: h >= 1 ? 'urgent' : 'today', ic: 'fa-receipt', t: `Verifikasi DP ${NO(b)}`, s: `${b.customer.name} · ${rupiah(b.dp)}`, tag: h >= 1 ? `Menunggu ${h} jam` : 'Baru masuk', btns: actBtn('detail', b.id, 'Verifikasi') }); });
     LD.filter((o) => ['diterima', 'dicuci'].includes(o.status) && Laundry.est(o) < T).forEach((o) => todo.push({ tier: 'urgent', ic: 'fa-jug-detergent', t: `Laundry ${o.no} lewat estimasi`, s: `${o.customer.name} · estimasi ${D.fmtDate(Laundry.est(o))}`, tag: 'Lewat estimasi', btns: linkBtn(UI.url('admin/laundry?id=' + o.id), 'Buka', 'btn-primary') }));
+    /* Piutang: barang sudah kembali tapi sisa pembayaran belum diterima (identitas masih ditahan) */
+    B.filter((b) => b.status === 'selesai' && Admin.sisa(b) > 0).forEach((b) => todo.push({ tier: 'urgent', ic: 'fa-hand-holding-dollar', t: `Sisa pembayaran ${NO(b)} belum diterima`, s: `${b.customer.name} · ${rupiah(Admin.sisa(b))}${b.piutang && b.piutang.note ? ' · ' + b.piutang.note : ''} · identitas ditahan`, tag: 'Piutang', btns: `<button class="btn btn-wa btn-sm" data-due="${b.id}"><i class="fa-brands fa-whatsapp"></i> Tagih</button>${actBtn('settle', b.id, 'Terima pelunasan')}` }));
     // Hari ini
     B.filter((b) => b.status === 'dikonfirmasi' && b.start === T && !Svc.delivers(b)).forEach((b) => todo.push({ tier: 'today', ic: 'fa-hand-holding', t: `${NO(b)} diambil hari ini`, s: `${b.customer.name} · ${Admin.itemsText(b)}`, tag: 'Ambil', btns: actBtn('pickup', b.id, 'Catat barang keluar') }));
     svcToday.forEach((e) => todo.push({ tier: 'today', ic: e.ic, t: `${e.kind} ${e.time ? 'pukul ' + Svc.fmtT(e.time) : 'hari ini'} · ${NO(e.b)}`, s: `${e.b.customer.name} · ${(e.b.deliv || {}).address || '-'}`, tag: e.type === 'antar' ? 'Antar' : 'Jemput', btns: (e.type === 'antar' && e.b.status === 'dikonfirmasi' ? actBtn('pickup', e.b.id, 'Catat barang keluar') : '') + linkBtn(UI.url('admin/kalender'), 'Jadwal') }));
@@ -124,7 +126,7 @@
       scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: (v) => v >= 1e6 ? (v / 1e6).toLocaleString('id-ID') + ' jt' : v >= 1e3 ? v / 1e3 + ' rb' : v }, grid: { color: '#eeece4' } } } } });
   }
   document.addEventListener('click', (e) => { const r = e.target.closest('[data-remind]'); if (r) { Admin.remindWa(DB.booking(r.dataset.remind)); UI.toast('WhatsApp dibuka dengan pesan pengingat.'); draw(); } });
-  document.addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) Admin.runBooking(b.dataset.act, b.dataset.id, draw); });
+  document.addEventListener('click', (e) => { const du = e.target.closest('[data-due]'); if (du) { Admin.contactDue(DB.booking(du.dataset.due)); return; } const b = e.target.closest('[data-act]'); if (b) Admin.runBooking(b.dataset.act, b.dataset.id, draw); });
   draw();
 
   /* ---------- Tab Penjualan (dipisah dari operasional sewa) ---------- */

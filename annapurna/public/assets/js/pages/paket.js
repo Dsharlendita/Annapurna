@@ -43,7 +43,7 @@
           <p class="pk-tl">${esc(pk.tagline)}</p>
         </div>
       </div>
-      <div class="pk-prices">${pk.rows.map((r) => `<div class="pk-pr ${r.days === 1 ? 'main' : ''}"><small>${r.days === 1 ? 'Per malam' : r.days === 3 ? 'Kegiatan 3 hari' : 'Ekspedisi 5 hari'}</small><strong>${rupiah(r.price)}</strong>${pk.tektok && r.days > 1 ? '<em>harga satuan</em>' : r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : '<em>&nbsp;</em>'}</div>`).join('')}</div>
+      <div class="pk-prices">${(pk.tektok ? pk.rows.filter((r) => r.days === 1) : pk.rows).map((r) => `<div class="pk-pr ${r.days === 1 ? 'main' : ''}"><small>${r.days === 1 ? 'Per malam' : r.days === 3 ? 'Kegiatan 3 hari' : 'Ekspedisi 5 hari'}</small><strong>${rupiah(r.price)}</strong>${pk.tektok ? '<em>khusus 1 malam · tanpa menginap</em>' : r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : '<em>&nbsp;</em>'}</div>`).join('')}</div>
       <div class="pk-items">${preview.map((i) => `<span>${i.qty}× ${esc(i.p.name)}</span>`).join('')}${more > 0 ? `<button class="pk-more" data-toggle="${pk.id}">+${more} lainnya</button>` : ''}</div>
       <div class="pk-foot">
         <div class="pk-foot-l"><span class="pk-stock ${pk.avail ? '' : 'out'}"><i class="fa-solid ${pk.avail ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${pk.avail ? `${pk.avail} tersedia besok` : 'Penuh untuk besok'}</span>${pk.pct ? `<span class="pk-save">Hemat ${pk.pct}%</span>` : ''}</div>

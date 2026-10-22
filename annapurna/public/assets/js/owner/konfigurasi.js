@@ -419,18 +419,20 @@
           <div class="field"><label>Minimal DP (%)</label><input class="input" type="number" min="10" max="100" name="dpPercent" value="${st.dpPercent}"><span class="hint">Dibayar customer untuk mengunci booking.</span></div>
           <div class="field"><label>Batas waktu bayar DP (jam)</label><input class="input" type="number" min="1" max="48" name="payWindowHours" value="${st.payWindowHours || 1}"><span class="hint">Lewat batas ini, booking yang belum dibayar dibatalkan otomatis.</span></div>
           <div class="field"><label>Maksimal lama sewa (malam)</label><input class="input" type="number" min="1" max="60" name="maxRentDays" value="${st.maxRentDays || 14}"></div>
+          <div class="field"><label>Waktu pelunasan sisa sewa</label><select class="select" name="settleWhen"><option value="keduanya" ${(st.settleWhen || 'keduanya') === 'keduanya' ? 'selected' : ''}>Boleh saat ambil barang atau saat barang kembali</option><option value="ambil" ${st.settleWhen === 'ambil' ? 'selected' : ''}>Wajib lunas saat ambil barang</option></select><span class="hint">Barang yang sudah kembali tapi belum lunas tercatat sebagai piutang di Dashboard.</span></div>
           <div class="field"><label>Jam batas pengembalian</label><input class="input" type="time" name="returnTime" value="${st.returnTime || '22:00'}"><span class="hint">Sesuai price list: jam tutup toko 22.00 WIB.</span></div>
         </div>
         <label class="chk-line" style="margin-top:0"><input type="checkbox" name="lateAfterReturnTime" ${st.lateAfterReturnTime ? 'checked' : ''}> Barang yang kembali di hari terakhir <b>setelah jam batas</b> dihitung terlambat 1 hari</label>
-        <h4 class="cfg-sub">Ketentuan rental (tampil di website)</h4>${listEditor('terms', st.rentalTerms, 'Contoh: Penyewa wajib menyerahkan KTP asli')}
+        <h4 class="cfg-sub">Ketentuan rental (tampil di halaman Ketentuan)</h4>${listEditor('terms', st.rentalTerms, 'Contoh: Penyewa wajib menyerahkan KTP asli')}
+        <h4 class="cfg-sub">Ketentuan paket tektok (tampil di halaman Ketentuan &amp; Paket Sewa)</h4>${listEditor('tektokT', st.tektokTerms || [], 'Contoh: Paket tektok khusus sewa 1 malam')}
       </form></div>${saveBar('saveRental')}
       <div class="panel" style="margin-top:18px" id="durPanel"></div>`;
       drawDur();
       $('#saveRental').addEventListener('click', () => {
         const F = $('#rf'), E = F.elements;
         if (!validate(F, { dpPercent: (v) => (!(+v >= 10 && +v <= 100) ? 'Isi 10–100.' : ''), payWindowHours: (v) => (!(+v >= 1 && +v <= 48) ? 'Isi 1–48 jam.' : ''), maxRentDays: (v) => (!(+v >= 1) ? 'Minimal 1.' : ''), returnTime: (v) => (!v ? 'Isi jam.' : '') })) return;
-        const next = Object.assign({}, S(), { dpPercent: +E.dpPercent.value, payWindowHours: +E.payWindowHours.value, maxRentDays: +E.maxRentDays.value, returnTime: E.returnTime.value, lateAfterReturnTime: E.lateAfterReturnTime.checked, rentalTerms: readLines('terms') });
-        cfgSave(next, 'Mengubah aturan rental', [['dpPercent', 'Minimal DP (%)'], ['payWindowHours', 'Batas waktu bayar DP (jam)'], ['maxRentDays', 'Maksimal lama sewa (hari)'], ['returnTime', 'Jam batas pengembalian'], ['lateAfterReturnTime', 'Terlambat bila lewat jam batas', (v) => (v ? 'Ya' : 'Tidak')], ['rentalTerms', 'Ketentuan rental', (v) => `${v.length} poin`]]);
+        const next = Object.assign({}, S(), { dpPercent: +E.dpPercent.value, payWindowHours: +E.payWindowHours.value, maxRentDays: +E.maxRentDays.value, settleWhen: E.settleWhen.value, returnTime: E.returnTime.value, lateAfterReturnTime: E.lateAfterReturnTime.checked, rentalTerms: readLines('terms') , tektokTerms: readLines('tektokT')});
+        cfgSave(next, 'Mengubah aturan rental', [['settleWhen', 'Waktu pelunasan', (v) => (v === 'ambil' ? 'wajib saat ambil' : 'saat ambil / saat kembali')], ['tektokTerms', 'Ketentuan paket tektok', (v) => `${(v || []).length} poin`], ['dpPercent', 'Minimal DP (%)'], ['payWindowHours', 'Batas waktu bayar DP (jam)'], ['maxRentDays', 'Maksimal lama sewa (hari)'], ['returnTime', 'Jam batas pengembalian'], ['lateAfterReturnTime', 'Terlambat bila lewat jam batas', (v) => (v ? 'Ya' : 'Tidak')], ['rentalTerms', 'Ketentuan rental', (v) => `${v.length} poin`]]);
       });
     },
     batal() {
@@ -440,7 +442,7 @@
           <div class="field"><label>Batas pembatalan dengan refund (H-)</label><input class="input" type="number" min="0" max="30" name="cancelDays" value="${st.cancelDays}"><span class="hint">Batal paling lambat H-${st.cancelDays}: DP dikembalikan. Kurang dari itu: DP hangus.</span></div>
           <div class="field"><label>DP yang dikembalikan (%)</label><input class="input" type="number" min="0" max="100" name="refundPercent" value="${st.refundPercent ?? 100}"><span class="hint">100 = dikembalikan penuh.</span></div>
         </div>
-        <h4 class="cfg-sub">Kebijakan pembatalan (tampil di website)</h4>${listEditor('policy', st.cancelPolicy, 'Contoh: Pembatalan paling lambat H-2 …')}
+        <h4 class="cfg-sub">Kebijakan pembatalan (tampil di halaman Ketentuan)</h4>${listEditor('policy', st.cancelPolicy, 'Contoh: Pembatalan paling lambat H-2 …')}
       </form></div>${saveBar('saveBatal')}`;
       $('#saveBatal').addEventListener('click', () => {
         const F = $('#bf'), E = F.elements;
@@ -494,12 +496,14 @@
     },
     keuangan() {
       const fc = S().financeCats || { in: [], out: [] };
-      const FN = Object.assign({ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }, S().finance || {});
+      const FN = Object.assign({ saleShipLedger: false, saleShipKurir: true, saleShipLine: 'sale', rentShipLine: 'rent' }, S().finance || {});
       const LBL = { rent: 'Rental', sale: 'Penjualan', umum: 'Umum' };
       const finBlock = `<div class="panel" style="margin-bottom:18px"><div class="panel-h"><h3><i class="fa-solid fa-truck-fast"></i> Pencatatan ongkir</h3></div>
-        <div class="field"><label>Ongkir penjualan (barang yang dikirim ke customer)</label>
+        <div class="field"><label>Ongkir penjualan yang <b>dikirim langsung oleh staff toko</b></label>
+          <label class="chk-line"><input type="checkbox" id="sslKurir" ${FN.saleShipKurir !== false ? 'checked' : ''}> <span><b>Dicatat sebagai pemasukan lini Penjualan</b>, karena menjadi penghasilan toko <span class="pill green plain">Ketentuan mitra</span></span></label></div>
+        <div class="field"><label>Ongkir penjualan <b>via ekspedisi</b> (J&amp;T, JNE, SPX, AnterAja, Grab, Gojek)</label>
           <label class="chk-line"><input type="radio" name="ssl" value="0" ${FN.saleShipLedger ? '' : 'checked'}> <span><b>Tidak dicatat di keuangan</b>: titipan customer yang diteruskan ke ekspedisi. <span class="pill green plain">Ketentuan mitra</span><br><small class="muted">Contoh: beli Rp155 rb + ongkir Rp20 rb → yang tercatat hanya Rp155 rb. Ongkir tetap tampil di invoice &amp; status bayar.</small></span></label>
-          <label class="chk-line"><input type="radio" name="ssl" value="1" ${FN.saleShipLedger ? 'checked' : ''}> <span><b>Dicatat sebagai pemasukan</b> lini <select class="select sm" id="sslLine" style="width:auto;display:inline-block">${['sale', 'umum', 'rent'].map((k) => `<option value="${k}" ${FN.saleShipLine === k ? 'selected' : ''}>${LBL[k]}</option>`).join('')}</select><br><small class="muted">Pilih ini bila ongkir menjadi penghasilan toko (mis. diantar staff sendiri).</small></span></label></div>
+          <label class="chk-line"><input type="radio" name="ssl" value="1" ${FN.saleShipLedger ? 'checked' : ''}> <span><b>Dicatat sebagai pemasukan</b> lini <select class="select sm" id="sslLine" style="width:auto;display:inline-block">${['sale', 'umum', 'rent'].map((k) => `<option value="${k}" ${FN.saleShipLine === k ? 'selected' : ''}>${LBL[k]}</option>`).join('')}</select></span></label></div>
         <div class="field" style="max-width:420px"><label>Ongkir antar-jemput &amp; jasa tenda untuk <b>sewa</b> masuk lini</label><select class="select" id="rslLine">${['rent', 'umum'].map((k) => `<option value="${k}" ${FN.rentShipLine === k ? 'selected' : ''}>${LBL[k]}${k === 'rent' ? ' (ketentuan mitra)' : ''}</option>`).join('')}</select><span class="hint">Staff toko yang mengantar / memasang tenda = penghasilan toko.</span></div>
         <button type="button" class="btn btn-primary btn-sm" id="saveFin"><i class="fa-solid fa-floppy-disk"></i> Simpan pencatatan ongkir</button></div>
         <div class="panel" style="margin-bottom:18px"><div class="panel-h"><h3><i class="fa-solid fa-sitemap"></i> Panduan lini (otomatis di form Keuangan)</h3></div>
@@ -512,10 +516,10 @@
       $('#cfgMain').innerHTML = head('Keuangan & Ongkir', 'Pilihan kategori saat staff mencatat pemasukan lain dan pengeluaran. Pemasukan dari rental, penjualan, denda, dan refund tetap tercatat otomatis.')
         + finBlock + `<div class="grid-dash" style="grid-template-columns:1fr 1fr">${box('in', 'Pemasukan lainnya', fc.in)}${box('out', 'Pengeluaran (jenis biaya)', fc.out)}</div>${saveBar('saveFc')}`;
       $('#saveFin').addEventListener('click', () => {
-        const next = { saleShipLedger: $('[name=ssl]:checked').value === '1', saleShipLine: $('#sslLine').value, rentShipLine: $('#rslLine').value };
-        const old = Object.assign({ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }, S().finance || {});
+        const next = { saleShipLedger: $('[name=ssl]:checked').value === '1', saleShipKurir: $('#sslKurir').checked, saleShipLine: $('#sslLine').value, rentShipLine: $('#rslLine').value };
+        const old = Object.assign({ saleShipLedger: false, saleShipKurir: true, saleShipLine: 'sale', rentShipLine: 'rent' }, S().finance || {});
         if (JSON.stringify(old) === JSON.stringify(next)) { toast('Tidak ada perubahan.'); return; }
-        const desc = (v) => `ongkir penjualan ${v.saleShipLedger ? 'dicatat (lini ' + LBL[v.saleShipLine] + ')' : 'tidak dicatat'} · ongkir sewa lini ${LBL[v.rentShipLine]}`;
+        const desc = (v) => `ongkir staff toko ${v.saleShipKurir !== false ? 'dicatat' : 'tidak dicatat'} · ongkir ekspedisi ${v.saleShipLedger ? 'dicatat (lini ' + LBL[v.saleShipLine] + ')' : 'tidak dicatat'} · ongkir sewa lini ${LBL[v.rentShipLine]}`;
         DB.saveConfig('finance', next, 'Mengubah pencatatan ongkir', [{ field: 'Pencatatan ongkir', from: desc(old), to: desc(next) }]); toast('Pencatatan ongkir disimpan. Berlaku untuk rekap keuangan & dashboard.'); R.keuangan();
       });
       $('#saveFc').addEventListener('click', () => {

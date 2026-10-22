@@ -678,3 +678,25 @@ Isi: pemasukan, pengeluaran, laba per lini (`rent`, `sale`, `umum`), rincian pen
 ## C.16 Jenis biaya → lini otomatis
 - Kategori pengeluaran bawaan baru: Wifi / Internet, Listrik & Air, Gaji Staff, Sewa Tempat (Umum); Deterjen & Kebutuhan Laundry, Bensin Antar-Jemput Sewa, Kebutuhan Rental Lainnya (Rental); Kemasan Barang Jual (Penjualan).
 - Lini dari kategori ditentukan `guessLine` (`admin/keuangan.js`); staff masih bisa mengubah lini manual. Server menyimpan `line` apa adanya dari form.
+
+## C.17 Pelunasan sewa, diskon pelunasan & piutang (revisi mitra 23 Okt 2026)
+- Booking: `settle_disc` JSON `{ amount, reason, by, at, stage: keluar|kembali|detail }`, **sekali per booking**, maks. sebesar sisa sewa. Rumus: `total = subtotal − promo − settle_disc.amount + fine`.
+- Pembayaran (`booking_payments`): tambah `via` (Tunai/Transfer/QRIS + nama staff), `verified_by`, `proof_path NULL` (bukti transfer, opsional). Pelunasan masuk keuangan **saat dicatat staff** (sudah diverifikasi).
+- Booking: `settle_later BOOLEAN` (sisa dibayar saat kembali), `piutang` JSON `{ at, amount, note, by }` bila barang sudah kembali tapi belum lunas. Kartu identitas tetap ditahan; piutang dihapus saat lunas.
+- `settings.settleWhen` = `'keduanya'` (bawaan) | `'ambil'` (wajib lunas saat ambil). `settings.settleReasons` = daftar alasan diskon.
+- Endpoint: `POST /api/admin/bookings/{id}/settle` `{ disc?: {amount|percent, reason}, pay?: {amount, via, proof?}, later?: bool, note? }`. Server wajib menolak diskon kedua dan diskon > sisa.
+- Template WA baru `rent_due` (Tagih sisa pembayaran).
+
+## C.18 DP kasir bisa diedit
+- Kasir sewa (ambil nanti): nominal DP bebas antara `ceil(total × dpPercent%)` dan `total`. Server memvalidasi batas yang sama.
+
+## C.19 Pengiriman penjualan & ongkir
+- `sales.deliv`: `method` = `ekspedisi` | `kurir`. Ekspedisi: `exp` (J&T Express, JNE, SPX Express, AnterAja, GrabExpress, GoSend), `resi`. Kurir: `courier`, `courierPhone`. `recName`, `recPhone`, `address` diambil otomatis dari pesanan. `notifiedAt` = waktu customer dikabari via WA.
+- Keuangan: ongkir penjualan **kurir toko** = pemasukan lini Penjualan (`settings.finance.saleShipKurir`, bawaan `true`); ongkir **ekspedisi** tidak dicatat (bawaan).
+- Template WA baru `ship_exp` & `ship_kurir`.
+
+## C.20 Lain-lain
+- Paket tektok (`packages.tektok = true`) dikunci 1 malam: server memaksa `end = start + 1`.
+- Paket BBQ memakai `ck-grill-m` (Grillpan Sedang/Standar), bukan `ck-grill-s`.
+- Halaman publik baru `GET /ketentuan` (route `ketentuan`, `PageController@ketentuan`). Isi dari settings: `rentalTerms`, `cancelPolicy`, `tektokTerms`, `laundryTerms`, `durations`, `durRules`, `banks`, `dpPercent`.
+- Rekening toko (`settings.banks`): BCA 0462165976, Mandiri 900.001593.150.5, BNI 0396885037, BRI 3120 0103 4920 532, semua a.n. Muhamad Nasikun. QRIS: `settings.qrisImg` = `assets/img/qris-annapurna.png` (Annapurna Adventure Shop, NMID ID1023290695809; gambar digambar ulang resolusi tinggi, isi kode diverifikasi sama dengan aslinya).

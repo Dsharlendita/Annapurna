@@ -71,29 +71,8 @@
     </div>
   </section>
 
-  <section class="section ab-rules" id="ketentuan">
-    <div class="wrap">
-      <div class="ab-head" data-reveal>
-        <div class="eyebrow">Aturan main</div>
-        <h2 class="sec-title">Ketentuan sewa &amp; pembatalan</h2>
-      </div>
-      <div class="ab-rule-card" id="durasi" style="margin-bottom:18px" data-reveal>
-        <div class="ab-rule-h"><span class="ab-v-ic"><i class="fa-solid fa-calendar-days"></i></span><h3>Durasi peminjaman</h3></div>
-        <div class="dur-rules" id="durRules"></div>
-        <p class="muted" id="tektokRules" style="font-size:13px;margin-top:12px"></p>
-      </div>
-      <div class="ab-rules-grid" data-reveal-group>
-        <div class="ab-rule-card">
-          <div class="ab-rule-h"><span class="ab-v-ic"><i class="fa-solid fa-file-lines"></i></span><h3>Ketentuan sewa</h3></div>
-          <ol class="ab-list" id="terms"></ol>
-        </div>
-        <div class="ab-rule-card">
-          <div class="ab-rule-h"><span class="ab-v-ic gold"><i class="fa-solid fa-rotate-left"></i></span><h3>Kebijakan pembatalan</h3></div>
-          <ol class="ab-list" id="policy"></ol>
-          <div class="ab-example"><i class="fa-regular fa-lightbulb"></i><div><strong>Contoh</strong><span id="abExample">Sewa mulai tanggal 30, batas pembatalan dengan DP kembali adalah tanggal 28.</span></div></div>
-        </div>
-      </div>
-    </div>
+  <section class="section ab-rules-link" id="ketentuan">
+    <div class="wrap"><a class="ab-rules-cta" href="{{ route('ketentuan') }}" data-reveal><span class="ab-v-ic"><i class="fa-solid fa-file-contract"></i></span><span><b>Ketentuan sewa, durasi &amp; pembatalan</b><small>Semua aturan sewa, paket tektok, pembayaran, dan laundry ada di halaman Ketentuan.</small></span><i class="fa-solid fa-arrow-right"></i></a></div>
   </section>
 
   <section class="section ab-faq-sec" id="faq">
@@ -105,9 +84,9 @@
         <a class="btn btn-primary" id="abWa" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya lewat WhatsApp</a>
       </div>
       <div class="ab-faq" id="abFaq" data-reveal-group>
-        <details open><summary>Bagaimana cara menghitung lama sewa?</summary><div class="ab-faq-a"><p>Ada 3 pilihan: <b>Per malam</b> (kembali esok hari), <b>Kegiatan 3 hari 3 malam</b>, dan <b>Ekspedisi 5 hari 5 malam</b>. Contoh: ambil Kamis pukul 09.00 WIB, sewa per malam kembali Jumat, kegiatan kembali Minggu, ekspedisi kembali Selasa — maksimal pukul 22.00 WIB (jam tutup toko). Durasi lain dihitung dari kombinasi tarif paling hemat.</p></div></details>
+        <details open><summary>Bagaimana cara menghitung lama sewa?</summary><div class="ab-faq-a"><p>Ada 3 pilihan: <b>Per malam</b> (kembali esok hari), <b>Kegiatan 3 hari 3 malam</b>, dan <b>Ekspedisi 5 hari 5 malam</b>. Contoh: ambil Kamis pukul 09.00 WIB, sewa per malam kembali Jumat, kegiatan kembali Minggu, ekspedisi kembali Selasa — maksimal pukul 22.00 WIB (jam tutup toko). Durasi lain dihitung dengan paket, misalnya 2 hari = paket 3 hari dan 4 hari = paket 5 hari. Rincian lengkapnya ada di <a class="link" href="{{ route('ketentuan') }}#durasi">halaman Ketentuan</a>.</p></div></details>
         <details><summary>Apa saja yang perlu dibawa saat mengambil barang?</summary><div class="ab-faq-a"><p>Bawa kartu identitas asli (KTP/KTM/SIM) dan nota digital dari halaman Pesanan Saya. Sisa pembayaran dilunasi saat pengambilan.</p></div></details>
-        <details><summary>Apakah barang bisa diantar?</summary><div class="ab-faq-a"><p>Belum. Semua pengambilan dan pengembalian barang dilakukan langsung di toko agar kondisi alat bisa dicek bersama.</p></div></details>
+        <details><summary>Apakah barang bisa diantar?</summary><div class="ab-faq-a"><p>Bisa. Barang <b>sewa</b> bisa diantar-jemput staff toko ke lokasimu, termasuk jasa bongkar-pasang tenda (ongkir sesuai jarak). Barang <b>beli</b> bisa dikirim ke alamat via ekspedisi (J&amp;T, JNE, SPX, AnterAja, Grab, Gojek). Ongkir dikonfirmasi admin lewat WhatsApp.</p></div></details>
         <details><summary>Bagaimana kalau alat rusak saat dipakai?</summary><div class="ab-faq-a"><p>Laporkan ke admin saat pengembalian. Biaya perbaikan menyesuaikan tingkat kerusakan setelah pengecekan bersama.</p></div></details>
         <details><summary>Apakah barang harus dicuci sebelum dikembalikan?</summary><div class="ab-faq-a"><p>Tidak perlu. Sewa bersih, kembali kotor? Biar kami yang membersihkan — kamu cukup memakainya dengan happy tanpa harus mencuci.</p></div></details>
         <details><summary>Bagaimana kalau terlambat mengembalikan?</summary><div class="ab-faq-a"><p>Batas pengembalian adalah tanggal kembali pukul 22.00 WIB. Lewat dari itu dihitung terlambat dan dikenakan biaya sewa per malam untuk setiap barang, setiap malam keterlambatan.</p></div></details>

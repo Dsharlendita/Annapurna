@@ -122,6 +122,14 @@
     UI.waCompose({ title: `${bill.late ? 'Tagih denda' : 'Ingatkan pengembalian'} · ${NO(b)}`, blob, name, text, phone: b.customer.phone, waLabel: `Buka WhatsApp ${esc((b.customer.name || 'customer').split(' ')[0])}`,
       tplKey: bill.late ? 'rent_fine' : 'rent_reminder', onSent: (how) => log(how) });
   }
+  /* Tagih sisa pembayaran (piutang / pelunasan via transfer) */
+  async function contactDue(b) {
+    b = DB.booking(b.id) || b; await Ann.Share.ensure(b);
+    const cv = await UI.tagihanCanvas(b, { booking: true, title: 'NOTA TAGIHAN' }); const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+    const V = rentVars(b, false); V.sisa = rupiah(sisa(b));
+    UI.waCompose({ title: `Tagih sisa pembayaran · ${NO(b)}`, blob, name: `tagihan-${NO(b).replace(/\//g, '_')}.png`, text: DB.waText('rent_due', V), phone: b.customer.phone, waLabel: `Tagih ${esc((b.customer.name || 'customer').split(' ')[0])}`, tplKey: 'rent_due',
+      onSent: () => { const x = DB.booking(b.id); x.history.push({ at: D.nowStamp(), text: `Sisa pembayaran ${rupiah(sisa(x))} ditagih via WhatsApp (${me.name})` }); x.dueRemindedAt = D.nowStamp(); DB.saveBooking(x); } });
+  }
   /* Hubungi customer dari detail booking: gambar nota booking + pesan template (bisa diedit) */
   async function contactBooking(b) {
     b = DB.booking(b.id) || b; await Ann.Share.ensure(b);
@@ -430,6 +438,99 @@
   const chg = (field, from, to) => [{ field, from, to }];
   const rl = (k) => STATUS.rental[k].label, sl = (k) => STATUS.sale[k].label;
   const sisa = (b) => Math.max(0, b.total - Rules.paidTotal(b));
+  /* ===================== Pelunasan sewa (revisi mitra) =====================
+     Dipakai di Catat barang keluar, Catat barang kembali & Detail booking (diantar / bayar transfer).
+     - Diskon pelunasan (mis. rating Google Maps) SEKALI per booking, maks. sebesar sisa sewa → mengurangi total sewa (pemasukan), bukan pengeluaran
+     - Pelunasan baru tercatat di keuangan setelah staff MENERIMA / MEMVERIFIKASI uangnya (tunai / transfer / QRIS + bukti opsional)
+     - Boleh ditunda ke saat barang kembali (Konfigurasi → Aturan Rental), atau jadi piutang setelah barang kembali (identitas tetap ditahan) */
+  const PAYVIA = [['Tunai', 'fa-money-bill-wave'], ['Transfer', 'fa-building-columns'], ['QRIS', 'fa-qrcode']];
+  const shrinkImg = (file) => new Promise((res) => { const r = new FileReader(); r.onload = () => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1200 / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = im.width * k; c.height = im.height * k; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.72)); }; im.onerror = () => res(''); im.src = r.result; }; r.onerror = () => res(''); r.readAsDataURL(file); });
+  function settleBox(m, b, o = {}) {
+    const st = DB.settings(); const S = { extra: +o.extra || 0, discOpen: false, dtype: 'rp', mode: 'now', via: o.via || 'Tunai', proof: '' };
+    const box = m.$(o.sel || '#stl'); const had = b.settleDisc ? +b.settleDisc.amount || 0 : 0;
+    const sewaDue = () => sisa(b); /* sisa sewa sebelum diskon baru (diskon lama sudah ada di total) */
+    const discAmt = () => { if (had || !S.discOpen) return 0; const v = +String((box.querySelector('[data-sd=val]') || {}).value || '').replace(/[^\d.]/g, '') || 0; const a = S.dtype === 'pct' ? Math.round(sewaDue() * Math.min(100, v) / 100) : Math.round(v); return Math.max(0, Math.min(a, sewaDue())); };
+    const due = () => Math.max(0, sewaDue() - discAmt() + S.extra);
+    const reasons = st.settleReasons || [];
+    const laterOk = o.stage === 'keluar' ? (st.settleWhen || 'keduanya') !== 'ambil' : o.stage === 'kembali';
+    const render = () => {
+      const D0 = discAmt(); const dd = due(); const promo = b.discount ? +b.discount.amount || 0 : 0;
+      box.innerHTML = `<div class="stl">
+        <div class="stl-h"><i class="fa-solid fa-cash-register"></i> Pelunasan ${dd ? '' : '<span class="pill green plain">Lunas</span>'}</div>
+        <div class="kv"><span>Harga sewa${b.fine ? ' + denda sebelumnya' : ''}</span><span>${rupiah(b.subtotal + (b.fine || 0))}</span></div>
+        ${promo ? `<div class="kv"><span>Promo ${esc((b.discount && b.discount.code) || '')}</span><span>− ${rupiah(promo)}</span></div>` : ''}
+        ${had ? `<div class="kv stl-disc"><span>Diskon pelunasan · ${esc(b.settleDisc.reason || '')}<small>diberikan ${esc(b.settleDisc.by || '')}</small></span><span>− ${rupiah(had)}</span></div>` : ''}
+        <div class="kv"><span>Sudah dibayar (DP${Rules.paidTotal(b) > (b.dp || 0) ? ' & pembayaran lain' : ''})</span><span>− ${rupiah(Rules.paidTotal(b))}</span></div>
+        ${S.extra ? `<div class="kv"><span>${esc(o.extraLabel || 'Denda & biaya')}</span><span>+ ${rupiah(S.extra)}</span></div>` : ''}
+        ${!had && sewaDue() > 0 ? (S.discOpen ? `<div class="stl-dbox"><div class="stl-drow"><div class="seg sm" data-sd="type"><button type="button" data-t="rp" class="${S.dtype === 'rp' ? 'active' : ''}">Rp</button><button type="button" data-t="pct" class="${S.dtype === 'pct' ? 'active' : ''}">%</button></div>
+            <input class="input" data-sd="val" inputmode="numeric" placeholder="${S.dtype === 'pct' ? 'Contoh: 10' : 'Contoh: 10000'}" value="${esc(S.dval || '')}"><button type="button" class="icon-btn" data-sd="x" title="Batalkan diskon"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="stl-drow"><select class="select" data-sd="reason">${reasons.map((r) => `<option ${r === S.reason ? 'selected' : ''}>${esc(r)}</option>`).join('')}<option value="__lain" ${S.reason === '__lain' ? 'selected' : ''}>Lainnya…</option></select>
+            ${S.reason === '__lain' ? `<input class="input" data-sd="rtext" placeholder="Alasan diskon" value="${esc(S.rtext || '')}">` : ''}</div>
+            <div class="kv stl-disc"><span>Diskon pelunasan</span><span>− ${rupiah(D0)}</span></div><small class="muted">Maksimal ${rupiah(sewaDue())} (sisa sewa). Diskon hanya bisa diberikan sekali per booking.</small></div>`
+          : `<button type="button" class="link-btn stl-add" data-sd="open"><i class="fa-solid fa-tag"></i> + Diskon (mis. rating Google Maps)</button>`) : ''}
+        <div class="kv total"><span>Sisa yang harus dibayar</span><span>${rupiah(dd)}</span></div>
+        ${dd ? `<div class="stl-pay">
+          <label class="radio-line"><input type="radio" name="stlMode" value="now" ${S.mode === 'now' ? 'checked' : ''}> <span><b>${o.stage === 'detail' ? 'Pelunasan sudah diterima' : 'Terima pelunasan sekarang'}</b></span></label>
+          ${S.mode === 'now' ? `<div class="stl-via">${PAYVIA.map(([k, ic]) => `<button type="button" data-via="${k}" class="${S.via === k ? 'on' : ''}"><i class="fa-solid ${ic}"></i> ${k}${k === 'Tunai' && o.stage === 'detail' ? ' (di lokasi antar)' : ''}</button>`).join('')}</div>
+            ${S.via !== 'Tunai' ? `<label class="stl-proof"><input type="file" accept="image/*" hidden data-sd="proof"><span class="btn btn-light btn-sm"><i class="fa-solid fa-receipt"></i> ${S.proof ? 'Ganti bukti' : 'Lampirkan bukti transfer'}</span> <small class="muted">${S.proof ? '<i class="fa-solid fa-check" style="color:var(--g600)"></i> bukti terlampir' : 'opsional, dari chat WhatsApp customer'}</small></label>
+              <label class="chk-line"><input type="checkbox" data-sd="ver"> <span>Sudah dicek: dana <b>${rupiah(dd)}</b> masuk ke rekening / QRIS toko</span></label>` : ''}` : ''}
+          ${laterOk ? `<label class="radio-line"><input type="radio" name="stlMode" value="later" ${S.mode === 'later' ? 'checked' : ''}> <span><b>${o.stage === 'kembali' ? 'Belum bisa bayar (piutang)' : 'Bayar saat barang kembali'}</b><small>${o.stage === 'kembali' ? 'Kartu identitas tetap ditahan sampai lunas · muncul di Dashboard untuk ditagih' : 'Kartu identitas ditahan · sisa ditagih saat pengembalian'}</small></span></label>
+            ${S.mode === 'later' ? `<input class="input" data-sd="note" placeholder="${o.stage === 'kembali' ? 'Catatan: janji bayar kapan / via apa' : 'Catatan (opsional)'}" value="${esc(S.note || '')}">` : ''}` : ''}
+        </div>` : ''}</div>`;
+    };
+    const keep = () => { const g = (k) => box.querySelector(`[data-sd=${k}]`); if (g('val')) S.dval = g('val').value; if (g('reason')) S.reason = g('reason').value; if (g('rtext')) S.rtext = g('rtext').value; if (g('note')) S.note = g('note').value; if (g('ver')) S.ver = g('ver').checked; };
+    box.addEventListener('click', (e) => { const t = e.target.closest('[data-sd],[data-via],[data-t]'); if (!t) return;
+      if (t.dataset.sd === 'open') { S.discOpen = true; S.reason = S.reason || reasons[0] || '__lain'; render(); box.querySelector('[data-sd=val]').focus(); return; }
+      if (t.dataset.sd === 'x') { S.discOpen = false; S.dval = ''; render(); return; }
+      if (t.dataset.t) { keep(); S.dtype = t.dataset.t; S.dval = ''; render(); box.querySelector('[data-sd=val]').focus(); return; }
+      if (t.dataset.via) { keep(); S.via = t.dataset.via; render(); } });
+    box.addEventListener('input', (e) => { if (e.target.dataset.sd === 'val') { keep(); const pos = e.target.selectionStart; render(); const v = box.querySelector('[data-sd=val]'); v.focus(); v.setSelectionRange(pos, pos); } else keep(); });
+    box.addEventListener('change', async (e) => { const t = e.target;
+      if (t.name === 'stlMode') { keep(); S.mode = t.value; render(); return; }
+      if (t.dataset.sd === 'reason') { keep(); render(); if (S.reason === '__lain') box.querySelector('[data-sd=rtext]').focus(); return; }
+      if (t.dataset.sd === 'proof' && t.files[0]) { S.proof = await shrinkImg(t.files[0]); keep(); render(); } });
+    render();
+    return {
+      setExtra(v) { keep(); S.extra = Math.max(0, +v || 0); render(); },
+      due, discAmt,
+      read() {
+        keep(); const d = discAmt(); const dd = due();
+        if (S.discOpen && !had && !d) { toast('Isi nilai diskon, atau batalkan diskon.', 'err'); return null; }
+        const reason = S.reason === '__lain' ? String(S.rtext || '').trim() : S.reason;
+        if (d && !reason) { toast('Tulis alasan diskon.', 'err'); return null; }
+        if (dd && S.mode === 'now' && S.via !== 'Tunai' && !S.ver) { toast(`Centang "sudah dicek" setelah memastikan dana ${rupiah(dd)} masuk.`, 'err'); return null; }
+        if (dd && S.mode === 'later' && o.stage === 'kembali' && String(S.note || '').trim().length < 3) { toast('Tulis catatan piutang (mis. janji bayar kapan).', 'err'); return null; }
+        if (dd && !laterOk && S.mode !== 'now') return null;
+        return { disc: d ? { amount: d, reason, by: me.name, at: D.nowStamp(), stage: o.stage } : null, pay: dd && S.mode === 'now' ? { amount: dd, via: S.via, proof: S.proof } : null, later: !!(dd && S.mode === 'later'), note: String(S.note || '').trim(), due: dd };
+      },
+    };
+  }
+  /* Terapkan hasil settleBox ke booking (diskon → total turun; pelunasan → pembayaran tercatat & masuk keuangan) */
+  function settleApply(b, r, payType) {
+    if (!r) return [];
+    const ch = [];
+    if (r.disc) { b.settleDisc = r.disc; Rules.recalc(b); b.history = b.history || []; b.history.push({ at: r.disc.at, text: `Diskon pelunasan ${rupiah(r.disc.amount)} (${r.disc.reason}) oleh ${me.name}` }); ch.push({ field: 'Diskon pelunasan', from: '', to: `${rupiah(r.disc.amount)} · ${r.disc.reason}` }); }
+    if (r.pay && r.pay.amount > 0) {
+      b.payments.push(Object.assign({ at: D.nowStamp(), amount: r.pay.amount, type: payType || 'Pelunasan', via: `${r.pay.via} · ${me.name}`, by: me.name, verified: true }, r.pay.proof ? { proof: r.pay.proof } : {}));
+      b.history.push({ at: D.nowStamp(), text: `${payType || 'Pelunasan'} ${rupiah(r.pay.amount)} diterima via ${r.pay.via}${r.pay.proof ? ' (bukti terlampir)' : ''} · diverifikasi ${me.name}` });
+      ch.push({ field: payType || 'Pelunasan', from: '', to: `${rupiah(r.pay.amount)} via ${r.pay.via}` });
+    }
+    return ch;
+  }
+  /* Pelunasan dari Detail booking (diantar & bayar transfer / tunai di lokasi, atau menagih piutang) */
+  function settleModal(id, done) {
+    const b = DB.booking(id); if (!b) return;
+    const m = modal({ title: `Pelunasan · ${NO(b)}`, body: `<p class="muted" style="font-size:13px;margin:0 0 10px">${esc(b.customer.name)} · ${esc(itemsText(b))} · ${D.fmtRange(b.start, b.end)}${b.piutang ? ' · <b style="color:var(--red)">piutang setelah barang kembali</b>' : ''}</p><div id="stl"></div>`,
+      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="stlOk"><i class="fa-solid fa-check"></i> Simpan pelunasan</button>' });
+    const sb = settleBox(m, b, { stage: 'detail', via: 'Transfer' });
+    m.$('#stlOk').addEventListener('click', () => {
+      const r = sb.read(); if (!r) return; if (!r.pay && !r.disc) { toast('Belum ada pelunasan / diskon yang dicatat.', 'err'); return; }
+      const x = DB.booking(id); const ch = settleApply(x, r, x.piutang ? 'Pelunasan piutang' : 'Pelunasan');
+      if (!sisa(x)) { x.paymentStatus = 'lunas'; if (x.piutang) { x.piutang.paidAt = D.nowStamp(); x.history.push({ at: D.nowStamp(), text: 'Piutang lunas · kartu identitas boleh dikembalikan' }); delete x.piutang; } x.settleLater = false; }
+      log(x, `Pelunasan dicatat${r.pay ? ` ${rupiah(r.pay.amount)} via ${r.pay.via}` : ''}`, 'pembayaran', `Mencatat pelunasan ${NO(x)}`, ch);
+      DB.saveBooking(x); m.close(); toast(sisa(x) ? `Tersimpan. Sisa ${rupiah(sisa(x))}.` : 'Pelunasan tercatat. Booking lunas.'); done && done();
+    });
+  }
   const itemsText = (b) => b.items.map((i) => `${i.qty}× ${i.name}`).join(', ');
   const custLink = (c) => `https://wa.me/${String(c.phone).replace(/\D/g, '').replace(/^0/, '62')}`;
 
@@ -589,15 +690,14 @@
         ${fc.note === 'sembunyi' ? '' : `<div class="field"><label>Catatan${fc.note === 'wajib' ? ' <span class="req">*</span>' : ''}</label><textarea class="textarea" id="oNote" placeholder="Contoh: frame lengkap, pasak 12 pcs"></textarea></div>`}
         ${unitPicker(b)}
         ${extraFields('pickup')}${sopBox('pickup')}
-        <div class="kv"><span>Total sewa</span><span>${rupiah(b.total)}</span></div>
-        <div class="kv"><span>Sudah dibayar</span><span>${rupiah(Rules.paidTotal(b))}</span></div>
-        <div class="kv total"><span>Sisa yang dibayar sekarang</span><span>${rupiah(due)}</span></div>
+        <div id="stl"></div>
         ${b.deposit ? `<label class="chk-line dep-line"><input type="checkbox" id="oDep"> <span><b>Jaminan ${rupiah(b.deposit)} sudah diterima</b><small>Dikembalikan saat barang kembali, bisa dipotong denda.</small></span></label>` : ''}
-        ${due ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px"><input type="checkbox" id="oPaid" checked> Sisa pembayaran ${rupiah(due)} sudah diterima</label>` : ''}`,
+`,
         foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="oSave"><i class="fa-solid fa-check"></i> Simpan &amp; tandai disewa</button>` });
       bindExtras(m); UI.idBind(m.el, 'oId');
+      const sb = settleBox(m, b, { stage: 'keluar' });
       m.$('#oSave').addEventListener('click', () => {
-        if (due && !m.$('#oPaid').checked) { toast('Pelunasan wajib diterima sebelum barang keluar.', 'err'); return; }
+        const st0 = sb.read(); if (!st0) return;
         if (b.deposit && !m.$('#oDep').checked) { toast(`Terima jaminan ${rupiah(b.deposit)} dulu sebelum barang keluar.`, 'err'); return; }
         const note = m.$('#oNote') ? m.$('#oNote').value.trim() : '';
         if (fc.note === 'wajib' && !note) { m.$('#oNote').classList.add('err'); toast('Catatan wajib diisi.', 'err'); return; }
@@ -605,14 +705,15 @@
         const picks = readUnitPicks(m, b); if (!picks) return;
         const ex = readExtras(m, 'pickup'); if (!ex) return;
         DB.assignUnits(b, picks);
-        b.out = { at: D.nowStamp(), cond: m.$('#oCond').value, idCard: idc.value, by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: due || 0, checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
-        if (due) b.payments.push({ at: D.nowStamp(), amount: due, type: 'Pelunasan' });
+        const stCh = settleApply(b, st0, 'Pelunasan');
+        b.out = { at: D.nowStamp(), cond: m.$('#oCond').value, idCard: idc.value, by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: st0.pay ? st0.pay.amount : 0, payLater: st0.later, payLaterNote: st0.note || '', checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
         if (b.deposit) b.depositIn = { at: D.nowStamp(), amount: b.deposit, by: me.name };
-        b.paymentStatus = 'lunas'; b.status = 'disewa';
-        log(b, 'Barang keluar / diambil customer', 'barang_keluar', `Mencatat barang keluar ${NO(b)}: ${itemsText(b)}`, [{ field: 'Status booking', from: rl('dikonfirmasi'), to: rl('disewa') }, { field: 'Kondisi keluar', from: '', to: b.out.cond }, ...(due ? [{ field: 'Pelunasan diterima', from: '', to: rupiah(due) }] : [])]);
+        b.paymentStatus = sisa(b) ? 'dp_paid' : 'lunas'; b.settleLater = !!st0.later; b.status = 'disewa';
+        if (st0.later) b.history.push({ at: D.nowStamp(), text: `Sisa ${rupiah(sisa(b))} dibayar saat barang kembali${st0.note ? ' · ' + st0.note : ''} (${me.name})` });
+        log(b, 'Barang keluar / diambil customer', 'barang_keluar', `Mencatat barang keluar ${NO(b)}: ${itemsText(b)}`, [{ field: 'Status booking', from: rl('dikonfirmasi'), to: rl('disewa') }, { field: 'Kondisi keluar', from: '', to: b.out.cond }, ...stCh, ...(st0.later ? [{ field: 'Pelunasan', from: '', to: `ditunda ke saat kembali (${rupiah(sisa(b))})` }] : [])]);
         DB.saveBooking(b);
         DB.notify(b.customer.email, 'Selamat bertualang!', `Barang ${NO(b)} sudah diambil. Harap kembalikan paling lambat ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
-        m.close(); toast('Barang keluar tercatat. Status: Sedang disewa.'); done && done();
+        m.close(); toast(st0.later ? `Barang keluar tercatat. Sisa ${rupiah(sisa(b))} ditagih saat kembali.` : 'Barang keluar tercatat. Status: Sedang disewa.'); done && done();
       });
     },
     processReturn(b, done) {
@@ -633,10 +734,13 @@
         ${unitReturnRows(b)}
         ${sopBox('return')}
         <div id="rSum"></div>
-        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px" id="rPaidWrap"><input type="checkbox" id="rPaid" checked> Denda sudah dibayar customer</label>
-        ${b.depositIn ? `<div class="dep-box" id="rDepBox"></div>` : ''}`,
+        <span id="rPaidWrap" hidden></span>
+        ${b.depositIn ? `<div class="dep-box" id="rDepBox"></div>` : ''}
+        <div id="stl"></div>`,
         foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="rSave"><i class="fa-solid fa-check"></i> Selesaikan rental</button>` });
-      const calc = () => {
+      let sb = null;
+      const calc = () => { const r = calc0(); if (sb) sb.setExtra(r.rest != null ? r.rest : r.fine); return r; };
+      const calc0 = () => {
         const date = m.$('#rDate').value || D.today();
         const late = Rules.lateDays(b, date, m.$('#rTime').value); const lf = Rules.lateFee(b, late);
         const dmg = Math.max(0, +m.$('#rDmg').value || 0);
@@ -655,9 +759,10 @@
         return { date, late, lf, dmg, fine: lf + dmg };
       };
       ['#rDate', '#rTime', '#rCond', '#rDmg'].forEach((s) => { m.$(s).addEventListener('input', calc); m.$(s).addEventListener('change', calc); });
+      sb = settleBox(m, b, { stage: 'kembali', extraLabel: 'Denda & biaya kerusakan' });
       calc(); bindExtras(m); bindUnitResults(m);
       m.$('#rSave').addEventListener('click', () => {
-        const r = calc();
+        const r = calc(); const st0 = sb.read(); if (!st0) return;
         const note = m.$('#rNote') ? m.$('#rNote').value.trim() : '';
         if (fc.note === 'wajib' && !note) { m.$('#rNote').classList.add('err'); toast('Catatan pemeriksaan wajib diisi.', 'err'); return; }
         const ex = readExtras(m, 'return'); if (!ex) return;
@@ -668,16 +773,17 @@
         b.ret = { at: new Date(`${r.date}T${t}:00`).toISOString(), cond: m.$('#rCond').value, lateDays: r.late, lateFee: r.lf, damageFee: r.dmg, fine: r.fine, by: me.name, note, photo: ex.photo, extra: ex.extra, units: uc || null };
         b.fine = (b.fine || 0) + r.fine; Rules.recalc(b);
         if (r.ded) b.payments.push({ at: D.nowStamp(), amount: r.ded, type: 'Denda', note: 'dipotong dari jaminan' });
-        const restFine = r.fine - (r.ded || 0);
-        if (restFine && m.$('#rPaid').checked) b.payments.push({ at: D.nowStamp(), amount: restFine, type: 'Denda' });
+        const stCh = settleApply(b, st0, r.fine - (r.ded || 0) ? 'Pelunasan & denda' : 'Pelunasan');
         if (b.depositIn) b.depositOut = { at: D.nowStamp(), amount: r.depBack, deducted: r.ded || 0, by: me.name };
-        b.paymentStatus = sisa(b) ? 'dp_paid' : 'lunas';
+        b.paymentStatus = sisa(b) ? 'dp_paid' : 'lunas'; b.settleLater = false;
+        /* Belum bisa bayar → piutang: identitas tetap ditahan, muncul di Dashboard untuk ditagih */
+        if (sisa(b)) { b.piutang = { at: D.nowStamp(), amount: sisa(b), note: st0.note || '', by: me.name }; b.history.push({ at: D.nowStamp(), text: `Barang kembali, sisa ${rupiah(sisa(b))} belum dibayar (piutang)${st0.note ? ' · ' + st0.note : ''}. Kartu identitas ditahan.` }); }
         b.status = 'selesai';
         log(b, `Barang kembali (${b.ret.cond})${r.late ? `, terlambat ${r.late} hari` : ''}${r.fine ? `, denda ${rupiah(r.fine)}` : ''}`, 'pengembalian', `Mencatat barang kembali ${NO(b)} (kondisi ${b.ret.cond}${r.late ? `, terlambat ${r.late} hari` : ''})`,
-          [{ field: 'Status booking', from: rl('disewa'), to: rl('selesai') }, { field: 'Kondisi kembali', from: b.out ? b.out.cond : '', to: b.ret.cond }, ...(r.fine ? [{ field: 'Denda', from: '', to: rupiah(r.fine) }] : [])]);
+          [{ field: 'Status booking', from: rl('disewa'), to: rl('selesai') }, { field: 'Kondisi kembali', from: b.out ? b.out.cond : '', to: b.ret.cond }, ...(r.fine ? [{ field: 'Denda', from: '', to: rupiah(r.fine) }] : []), ...stCh, ...(b.piutang ? [{ field: 'Piutang', from: '', to: rupiah(b.piutang.amount) }] : [])]);
         DB.saveBooking(b);
         DB.notify(b.customer.email, 'Rental selesai — beri ulasan yuk!', `Terima kasih! ${NO(b)} sudah dikembalikan${r.fine ? ` dengan denda ${rupiah(r.fine)}` : ''}. Bagikan pengalamanmu dengan memberi bintang & ulasan.`, `pesanan?tab=riwayat&review=${b.id}`);
-        m.close(); toast('Pengembalian tercatat.'); done && done();
+        m.close(); toast(b.piutang ? `Pengembalian tercatat. Piutang ${rupiah(b.piutang.amount)} muncul di Dashboard.` : 'Pengembalian tercatat. Booking lunas.'); done && done();
         if (hasUnits) setTimeout(() => afterReturnPopup(b, uc), 250);
       });
     },
@@ -1172,6 +1278,7 @@
     if (act === 'wa') window.open(custLink(b.customer), '_blank');
     if (act === 'swap') BK.storeChange(b, fin);
     if (act === 'extend') BK.extend(b, fin);
+    if (act === 'settle') { settleModal(id, fin); return; }
     if (act === 'remind') { remindWa(b); fin(); }
   }
 
@@ -1234,9 +1341,11 @@
       ${b.ret ? outRetHtml(b, 'ret') : ''}
       ${reqSection(b)}
       <details class="mini-sec hist-fold"><summary><h4>Riwayat booking (${(b.history || []).length})</h4></summary><ul class="timeline">${(b.history || []).slice().reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul></details>`,
-      foot: `<a class="btn btn-light" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a><button type="button" class="btn btn-light" data-bprint title="Struk thermal ${UI.receiptPaper()} mm"><i class="fa-solid fa-print"></i> Struk</button><button type="button" class="btn btn-wa" data-bcontact><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic}"></i> ${l}</button>`).join('')}` });
+      foot: `<a class="btn btn-light" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a>${sisa(b) && ['dikonfirmasi', 'disewa', 'selesai'].includes(b.status) ? `<button type="button" class="btn btn-primary" data-bsettle><i class="fa-solid fa-cash-register"></i> Pelunasan ${rupiah(sisa(b))}</button><button type="button" class="btn btn-light" data-bdue><i class="fa-brands fa-whatsapp"></i> Tagih sisa</button>` : ''}<button type="button" class="btn btn-light" data-bprint title="Struk thermal ${UI.receiptPaper()} mm"><i class="fa-solid fa-print"></i> Struk</button><button type="button" class="btn btn-wa" data-bcontact><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic}"></i> ${l}</button>`).join('')}` });
     m.$$('[data-bact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); runBooking(btn.dataset.bact, id, done); }));
     m.$('[data-bprint]').addEventListener('click', () => UI.printStruk(DB.booking(id), 'rent'));
+    if (m.$('[data-bsettle]')) m.$('[data-bsettle]').addEventListener('click', () => { m.close(); settleModal(id, done); });
+    if (m.$('[data-bdue]')) m.$('[data-bdue]').addEventListener('click', () => contactDue(DB.booking(id)));
     m.$('[data-bcontact]').addEventListener('click', async (e) => { const bt = e.currentTarget; bt.disabled = true; try { await contactBooking(DB.booking(id)); } finally { bt.disabled = false; } });
     m.$$('[data-svcact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); (btn.dataset.svcact === 'edit' ? svcEdit : svcPay)(DB.booking(id), () => { refreshShell(); done && done(); bookingModal(id, done); }); }));
     const fin2 = () => { refreshShell(); done && done(); };
@@ -1339,59 +1448,57 @@
     </div></div>`;
   }
   /* Atur pengiriman: kurir toko (siapa yang antar) atau ekspedisi (nama, layanan, resi, berat, estimasi tiba, asuransi, penerima) */
+  /* Atur pengiriman (revisi mitra): cukup 2 cara.
+     - Via ekspedisi: pilih ekspedisi + No. resi
+     - Dikirim langsung: nama staff + No. HP staff (ongkirnya pemasukan Penjualan)
+     Penerima & tujuan terisi otomatis dari pesanan. Setelah disimpan, jendela WhatsApp ke customer langsung terbuka. */
   function saleShip(s, done) {
     const d = s.deliv || {}; const S = Svc; const H = S.SHIP;
-    const opt = (L, v) => L.map((x) => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('');
-    const staffNames = DB.staff().filter((u) => u.status !== 'nonaktif').map((u) => u.name);
-    let mode = S.shipMode(s) || 'kurir', stat = S.shipStatus(s) || 'disiapkan';
-    const m = modal({ title: `Atur pengiriman · ${NO(s)}`, size: 'lg', body: `
-      <p class="muted" style="font-size:13px;margin-bottom:10px">Tujuan: <b>${esc(d.address || '-')}</b></p>
-      <div class="field"><label>Cara pengiriman</label><div class="seg" id="shMode"><button type="button" data-m="kurir" class="${mode === 'kurir' ? 'active' : ''}"><i class="fa-solid fa-motorcycle"></i> Kurir toko (antar langsung)</button><button type="button" data-m="ekspedisi" class="${mode === 'ekspedisi' ? 'active' : ''}"><i class="fa-solid fa-truck-field"></i> Ekspedisi</button></div></div>
-      <div id="shKurir"><div class="ship-sec"><i class="fa-solid fa-motorcycle"></i> Pengantar &amp; jadwal</div>
-        <div class="ship-grid"><div class="field"><label>Siapa yang mengantar</label><input class="input" id="shCourier" list="shStaff" value="${esc(d.courier || '')}" placeholder="Nama staff / kurir"><datalist id="shStaff">${staffNames.map((n) => `<option value="${esc(n)}">`).join('')}</datalist></div>
-        <div class="field"><label>No. HP pengantar</label><input class="input" id="shCPhone" inputmode="tel" value="${esc(d.courierPhone || '')}" placeholder="08xxxxxxxxxx"></div>
-        <div class="field"><label>Kendaraan</label><select class="select" id="shVeh"><option value="">Pilih</option>${opt(H.KENDARAAN, d.vehicle)}</select></div>
-        <div class="field"><label>Tanggal antar</label><input class="input" type="date" id="shDate" value="${esc(d.date || '')}"></div>
-        <div class="field"><label>Jam antar</label><select class="select" id="shTime"><option value="">Pilih jam</option>${S.hours().map((h) => `<option value="${h}" ${h === d.time ? 'selected' : ''}>${S.fmtT(h)}</option>`).join('')}</select></div></div></div>
-      <div id="shExp"><div class="ship-sec"><i class="fa-solid fa-truck-field"></i> Data ekspedisi</div>
-        <div class="ship-grid"><div class="field"><label>Ekspedisi</label><select class="select" id="shExpName"><option value="">Pilih ekspedisi</option>${opt(H.EXPEDISI, d.exp)}</select></div>
-        <div class="field"><label>Layanan</label><select class="select" id="shExpSvc"><option value="">Pilih layanan</option>${opt(H.LAYANAN, d.expSvc)}</select></div>
-        <div class="field"><label>No. resi</label><input class="input" id="shResi" value="${esc(d.resi || '')}" placeholder="Diisi setelah barang diserahkan ke ekspedisi"></div>
-        <div class="field"><label>Berat total (kg)</label><input class="input" type="number" id="shWeight" min="0" step="0.1" value="${esc(d.weight || '')}"></div>
-        <div class="field"><label>Jumlah koli / paket</label><input class="input" type="number" id="shKoli" min="1" value="${esc(d.koli || '')}"></div>
-        <div class="field"><label>Packing tambahan</label><select class="select" id="shPack"><option value="">Standar (kardus)</option>${opt(['Bubble wrap', 'Kardus tebal / double box', 'Plastik wrap + lakban', 'Kayu / crating (barang besar)'], d.packing)}</select></div>
-        <div class="field"><label>Tanggal kirim</label><input class="input" type="date" id="shShipDate" value="${esc(d.shipDate || '')}"></div>
-        <div class="field"><label>Estimasi tiba</label><input class="input" type="date" id="shEta" value="${esc(d.eta || '')}"></div>
-        <div class="field"><label class="chk"><input type="checkbox" id="shIns" ${d.insured ? 'checked' : ''}> Pakai asuransi pengiriman</label><input class="input" type="number" id="shInsVal" min="0" placeholder="Nilai barang dipertanggungkan (Rp)" value="${esc(d.insVal || '')}" ${d.insured ? '' : 'hidden'} style="margin-top:6px"></div></div></div>
-      <div class="ship-sec"><i class="fa-solid fa-id-card"></i> Penerima &amp; tujuan</div>
-      <div class="ship-grid"><div class="field"><label>Nama penerima</label><input class="input" id="shRecName" value="${esc(d.recName || s.customer.name || '')}"></div>
-        <div class="field"><label>No. HP penerima</label><input class="input" id="shRecPhone" inputmode="tel" value="${esc(d.recPhone || s.customer.phone || '')}"></div>
-        <div class="field"><label>Kota / kecamatan</label><input class="input" id="shCity" value="${esc(d.city || '')}" placeholder="Contoh: Baturraden, Banyumas"></div>
-        <div class="field"><label>Kode pos</label><input class="input" id="shPost" inputmode="numeric" maxlength="5" value="${esc(d.postcode || '')}"></div></div>
-      <div class="field"><label>Catatan untuk kurir <span class="opt">(opsional)</span></label><input class="input" id="shNote" value="${esc(d.shipNote || '')}" placeholder="Contoh: titip ke satpam, rumah pagar hijau, telepon dulu"></div>
-      <div class="field"><label>Status pengiriman</label><div class="seg" id="shStat">${Object.entries(H.STATUS).map(([k, v]) => `<button type="button" data-st="${k}" class="${k === stat ? 'active' : ''}">${v[0]}</button>`).join('')}</div></div>`,
-      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="shOk"><i class="fa-solid fa-check"></i> Simpan pengiriman</button>' });
+    const staff = DB.staff().filter((u) => u.status !== 'nonaktif');
+    let mode = S.shipMode(s) || 'ekspedisi', exp = H.EXPEDISI.includes(d.exp) ? d.exp : '';
+    const rec = { name: d.recName || s.customer.name || '', phone: d.recPhone || s.customer.phone || '', addr: d.address || '-' };
+    const m = modal({ title: `Atur pengiriman · ${NO(s)}`, body: `
+      <div class="field"><label>Cara pengiriman</label><div class="seg seg-2" id="shMode"><button type="button" data-m="ekspedisi"><i class="fa-solid fa-truck-fast"></i> Via ekspedisi</button><button type="button" data-m="kurir"><i class="fa-solid fa-motorcycle"></i> Dikirim langsung (staff toko)</button></div></div>
+      <div id="shExp"><div class="field"><label>Ekspedisi <span class="req">*</span></label><div class="exp-pick" id="shExpPick">${H.EXPEDISI.map((x) => `<button type="button" data-exp="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
+        <div class="field"><label for="shResi">No. resi <span class="req">*</span></label><input class="input" id="shResi" value="${esc(d.resi || '')}" placeholder="Contoh: JP1234567890" autocomplete="off" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.03em"></div></div>
+      <div id="shKurir" class="grid-2"><div class="field"><label for="shCourier">Nama staff pengantar <span class="req">*</span></label><input class="input" id="shCourier" list="shStaff" value="${esc(d.courier || '')}" placeholder="Pilih / ketik nama staff"><datalist id="shStaff">${staff.map((u) => `<option value="${esc(u.name)}">`).join('')}</datalist></div>
+        <div class="field"><label for="shCPhone">No. HP staff <span class="req">*</span></label><input class="input" id="shCPhone" inputmode="tel" value="${esc(d.courierPhone || '')}" placeholder="08xxxxxxxxxx"></div></div>
+      <div class="ship-auto"><div class="ship-sec"><i class="fa-solid fa-id-card"></i> Penerima &amp; tujuan <small>terisi otomatis dari pesanan</small></div>
+        <div class="kv"><span>Penerima</span><strong>${esc(rec.name)}${rec.phone ? ' · ' + esc(rec.phone) : ''}</strong></div>
+        <div class="kv"><span>Alamat lengkap</span><strong style="text-align:right">${esc(rec.addr)}</strong></div></div>
+      <p class="muted" style="font-size:12.5px;margin:10px 0 0"><i class="fa-brands fa-whatsapp" style="color:#25a35a"></i> Setelah disimpan, pesan WhatsApp ke customer langsung disiapkan (bisa diedit sebelum dikirim).</p>`,
+      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="shOk"><i class="fa-solid fa-paper-plane"></i> Simpan &amp; kabari customer</button>' });
     const v = (id) => String((m.$(id) || {}).value || '').trim();
-    const sync = () => { m.$('#shKurir').hidden = mode !== 'kurir'; m.$('#shExp').hidden = mode !== 'ekspedisi'; m.$$('#shMode [data-m]').forEach((b) => b.classList.toggle('active', b.dataset.m === mode)); m.$$('#shStat [data-st]').forEach((b) => b.classList.toggle('active', b.dataset.st === stat)); m.$('#shInsVal').hidden = !m.$('#shIns').checked; };
-    m.$('#shMode').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) { mode = b.dataset.m; sync(); } });
-    m.$('#shStat').addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (b) { stat = b.dataset.st; sync(); } });
-    m.$('#shIns').addEventListener('change', sync); sync();
-    m.$('#shOk').addEventListener('click', () => {
-      if (mode === 'kurir' && !v('#shCourier')) { toast('Isi siapa yang mengantar.', 'err'); m.$('#shCourier').focus(); return; }
-      if (mode === 'ekspedisi' && !v('#shExpName')) { toast('Pilih ekspedisi yang dipakai.', 'err'); m.$('#shExpName').focus(); return; }
-      if (mode === 'ekspedisi' && stat !== 'disiapkan' && !v('#shResi')) { toast('Isi nomor resi untuk pengiriman yang sudah dikirim.', 'err'); m.$('#shResi').focus(); return; }
-      if (v('#shPost') && !/^\d{5}$/.test(v('#shPost'))) { toast('Kode pos harus 5 angka.', 'err'); m.$('#shPost').focus(); return; }
+    const sync = () => { m.$('#shKurir').hidden = mode !== 'kurir'; m.$('#shExp').hidden = mode !== 'ekspedisi';
+      m.$$('#shMode [data-m]').forEach((b) => b.classList.toggle('active', b.dataset.m === mode)); m.$$('#shExpPick [data-exp]').forEach((b) => b.classList.toggle('on', b.dataset.exp === exp)); };
+    m.$('#shMode').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) { mode = b.dataset.m; sync(); (mode === 'kurir' ? m.$('#shCourier') : m.$('#shResi')).focus(); } });
+    m.$('#shExpPick').addEventListener('click', (e) => { const b = e.target.closest('[data-exp]'); if (b) { exp = b.dataset.exp; sync(); m.$('#shResi').focus(); } });
+    /* pilih nama staff → No. HP terisi dari data staff */
+    m.$('#shCourier').addEventListener('change', () => { const u = staff.find((x) => x.name.toLowerCase() === v('#shCourier').toLowerCase()); if (u && u.phone && !v('#shCPhone')) m.$('#shCPhone').value = u.phone; });
+    sync();
+    m.$('#shOk').addEventListener('click', async () => {
+      if (mode === 'ekspedisi' && !exp) { toast('Pilih ekspedisi yang dipakai.', 'err'); return; }
+      if (mode === 'ekspedisi' && v('#shResi').length < 6) { toast('Isi nomor resi dari ekspedisi.', 'err'); m.$('#shResi').focus(); return; }
+      if (mode === 'kurir' && v('#shCourier').length < 2) { toast('Isi nama staff yang mengantar.', 'err'); m.$('#shCourier').focus(); return; }
+      if (mode === 'kurir' && !UI.isPhone(v('#shCPhone'))) { toast('No. HP staff tidak valid. Contoh: 081234567890.', 'err'); m.$('#shCPhone').focus(); return; }
       const before = Svc.shipBrief(s); const at = D.nowStamp();
-      const nd = { method: mode, ship: stat, recName: v('#shRecName'), recPhone: v('#shRecPhone'), city: v('#shCity'), postcode: v('#shPost'), shipNote: v('#shNote'), shipAt: at, shipBy: me.name };
-      if (mode === 'kurir') Object.assign(nd, { courier: v('#shCourier'), courierPhone: v('#shCPhone'), vehicle: v('#shVeh'), date: v('#shDate'), time: v('#shTime') });
-      else Object.assign(nd, { exp: v('#shExpName'), expSvc: v('#shExpSvc'), resi: v('#shResi'), weight: v('#shWeight'), koli: v('#shKoli'), packing: v('#shPack'), shipDate: v('#shShipDate'), eta: v('#shEta'), insured: m.$('#shIns').checked, insVal: m.$('#shIns').checked ? v('#shInsVal') : '' });
+      const nd = { method: mode, ship: 'dikirim', recName: rec.name, recPhone: rec.phone, shipAt: at, shipBy: me.name };
+      if (mode === 'kurir') Object.assign(nd, { courier: v('#shCourier'), courierPhone: v('#shCPhone'), exp: '', resi: '' });
+      else Object.assign(nd, { exp, resi: v('#shResi').toUpperCase(), courier: '', courierPhone: '' });
       s.deliv = Object.assign({}, s.deliv || {}, nd);
       const brief = Svc.shipBrief(s);
-      s.history = s.history || []; s.history.push({ at, text: `Pengiriman diperbarui oleh ${me.name}: ${brief} · ${Svc.SHIP.STATUS[stat][0]}` });
+      s.history = s.history || []; s.history.push({ at, text: `Pengiriman diatur oleh ${me.name}: ${brief}` });
       DB.saveSale(s);
-      DB.audit({ type: 'layanan', action: `Memperbarui pengiriman ${NO(s)} (${s.customer.name}): ${brief}`, ref: s.id, changes: [{ field: 'Pengiriman', from: before || '—', to: brief }] });
-      DB.notify(s.customer.email, stat === 'tiba' ? 'Pesanan sudah tiba' : stat === 'dikirim' ? 'Pesananmu sedang dikirim' : 'Pengiriman pesanan diatur', `${NO(s)}: ${brief}.`, 'pesanan?tab=beli');
-      m.close(); refreshShell(); toast('Data pengiriman disimpan.'); done && done();
+      DB.audit({ type: 'layanan', action: `Mengatur pengiriman ${NO(s)} (${s.customer.name}): ${brief}`, ref: s.id, changes: [{ field: 'Pengiriman', from: before || '—', to: brief }] });
+      DB.notify(s.customer.email, 'Pesananmu sedang dikirim', `${NO(s)}: ${brief}.`, 'pesanan?tab=beli');
+      m.close(); refreshShell(); done && done();
+      /* Kabari customer: jendela kirim WhatsApp langsung terbuka dengan template pengiriman */
+      const x = DB.sale(s.id); await Ann.Share.ensure(x);
+      const key = mode === 'kurir' ? 'ship_kurir' : 'ship_exp';
+      const text = DB.waText(key, Object.assign(saleVars(x), { ekspedisi: exp, resi: nd.resi || '', pengantar: nd.courier || '', hp_pengantar: nd.courierPhone || '', penerima: [rec.name, rec.phone].filter(Boolean).join(' · '), alamat: rec.addr }));
+      UI.waCompose({ title: `Kabari customer · ${NO(x)} dikirim`, text, phone: x.customer.phone, waLabel: `Kabari ${esc((x.customer.name || 'customer').split(' ')[0])}`, tplKey: key,
+        note: `<b>Pengiriman tersimpan.</b> ${esc(brief)}`,
+        onSent: () => { const y = DB.sale(s.id); y.history.push({ at: D.nowStamp(), text: `Customer dikabari info pengiriman via WhatsApp oleh ${me.name}` }); y.deliv.notifiedAt = D.nowStamp(); DB.saveSale(y); } });
     });
   }
   /* Isi ongkir hasil kesepakatan WhatsApp + catat pembayaran ongkir. Nota customer ikut berubah. */
@@ -1507,8 +1614,9 @@
     DB.sales().forEach((s) => { if (s.status === 'dibatalkan') return; const tot = +s.total || 0; if (!tot) return;
       const c = Rules.saleCost(s); (s.payments || []).forEach((p) => { if (!inRange(p.at)) return; const part = Math.min(1, (+p.amount || 0) / tot); cogs.push({ date: p.at, ref: s.id, amount: Math.round(c.cost * part) }); if (c.missing) missingCost += 1; }); });
     /* Ongkir penjualan: titipan untuk ekspedisi → bawaan TIDAK dicatat (Konfigurasi → Keuangan & Ongkir) */
-    const FIN = Object.assign({ saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' }, DB.settings().finance || {});
-    if (FIN.saleShipLedger) DB.sales().forEach((s) => (s.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: s.id, cat: 'Ongkir Penjualan', desc: `Ongkir penjualan${x.via ? ' · ' + x.via : ''} · ${s.customer.name}`, amount: x.amount, lnFix: FIN.saleShipLine }); }));
+    const FIN = Object.assign({ saleShipLedger: false, saleShipKurir: true, saleShipLine: 'sale', rentShipLine: 'rent' }, DB.settings().finance || {});
+    /* Ongkir penjualan dikirim LANGSUNG oleh staff toko = penghasilan toko → pemasukan Penjualan (ketentuan mitra) */
+    DB.sales().filter((s) => (FIN.saleShipLedger || (FIN.saleShipKurir !== false && Svc.shipMode(s) === 'kurir'))).forEach((s) => (s.svc || []).forEach((x) => { if (inRange(x.at)) income.push({ date: x.at, ref: s.id, cat: 'Ongkir Penjualan', desc: `Ongkir penjualan${x.via ? ' · ' + x.via : ''} · ${s.customer.name}`, amount: x.amount, lnFix: FIN.saleShipLine }); }));
     DB.sales().forEach((s) => (s.payments || []).forEach((p) => { if (inRange(p.at)) income.push({ date: p.at, ref: s.id, cat: 'Penjualan', desc: `Penjualan${p.via ? ' · ' + p.via : ''} · ${s.customer.name}`, amount: p.amount, offline: s.channel === 'offline' }); }));
     const voided = [];
     DB.expenses().forEach((e) => { if (!inRange(e.date)) return; const row = { date: e.date, ref: e.id, cat: e.category, desc: e.desc, amount: e.amount, id: e.id, kind: 'out', ln: e.line, voidReason: e.voidReason, voidBy: e.voidBy }; (e.status === 'dibatalkan' ? voided : expense).push(row); });
@@ -1586,5 +1694,5 @@
     e.preventDefault(); e.stopPropagation();
     UI.waCompose({ title: 'Kirim pesan WhatsApp', text: t, phone: u.pathname.replace(/\D/g, ''), waLabel: 'Buka WhatsApp' });
   }, true);
-  window.Admin = { contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
+  window.Admin = { settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
 })();

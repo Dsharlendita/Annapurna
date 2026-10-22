@@ -299,18 +299,18 @@
     { id: 'pk-6p', name: 'Paket 6P', tagline: 'Tenda kapasitas 6, 6 matras, 6 sleeping bag, dan 1 lampu tenda.', img: IMG('wa/pk-6p.jpg'), price: 150000, price3: 290000, price5: 400000, people: '6 orang', pMin: 6, pMax: 6, type: 'tenda',
       items: [{ productId: 'tnd-6', qty: 1 }, { productId: 'oe-matras', qty: 6 }, { productId: 'oe-sb', qty: 6 }, { productId: 'oe-lampu', qty: 1 }] },
     { id: 'pk-bbq1', name: 'Paket BBQ 1', tagline: 'Kompor BBQ dan grill pan. BBQ seru, momen berkesan!', img: IMG('wa/pk-bbq1.jpg'), price: 35000, price3: 60000, price5: 100000, people: 'Bebas', pMin: 1, pMax: 20, type: 'bbq',
-      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-s', qty: 1 }] },
+      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-m', qty: 1 }] },
     { id: 'pk-bbq2', name: 'Paket BBQ 2', tagline: 'Kompor BBQ, grill pan, dan gas kaleng.', img: IMG('wa/pk-bbq2.jpg'), price: 45000, price3: 80000, price5: 120000, people: 'Bebas', pMin: 1, pMax: 20, type: 'bbq', popular: true,
-      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-s', qty: 1 }, { productId: 'gas-sewa', qty: 1 }] },
+      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-m', qty: 1 }, { productId: 'gas-sewa', qty: 1 }] },
     { id: 'pk-bbq3', name: 'Paket BBQ 3', tagline: 'Kompor BBQ, grill pan, gas kaleng, dan jepitan daging.', img: IMG('wa/pk-bbq3.jpg'), price: 50000, price3: 90000, price5: 130000, people: 'Bebas', pMin: 1, pMax: 20, type: 'bbq',
-      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-s', qty: 1 }, { productId: 'gas-sewa', qty: 1 }, { productId: 'ck-capit', qty: 1 }] },
+      items: [{ productId: 'ck-koper', qty: 1 }, { productId: 'ck-grill-m', qty: 1 }, { productId: 'gas-sewa', qty: 1 }, { productId: 'ck-capit', qty: 1 }] },
     { id: 'pk-tektok', name: 'Paket Tektok Standar', tagline: 'Perlengkapan lengkap naik-turun gunung tanpa menginap. Hemat Rp15.000.', img: IMG('wa/pk-tektok.jpg'), price: 60000, people: '1 orang', pMin: 1, pMax: 1, type: 'tektok', tektok: true,
       items: [{ productId: 'fw-std', qty: 1 }, { productId: 'tas-hydro', qty: 1 }, { productId: 'fs-jkt', qty: 1 }, { productId: 'oe-tp', qty: 1 }, { productId: 'oe-headlamp', qty: 1 }, { productId: 'fs-kcm', qty: 1 }] },
     { id: 'pk-tektok-prem', name: 'Paket Tektok Premium', tagline: 'Sepatu Salomon / Hoka, jaket gorpcore, trekking pole Z ultralight, dan lainnya. Hemat Rp15.000.', img: IMG('wa/pk-tektok-prem.jpg'), price: 110000, people: '1 orang', pMin: 1, pMax: 1, type: 'tektok', tektok: true,
       items: [{ productId: 'fw-trail', qty: 1 }, { productId: 'tas-hydro', qty: 1 }, { productId: 'fs-gorpcore', qty: 1 }, { productId: 'oe-tpz', qty: 1 }, { productId: 'oe-headlamp', qty: 1 }, { productId: 'fs-kcm-gorp', qty: 1 }] },
   ];
   const TEKTOK_TERMS = [
-    'Harga paket tektok khusus untuk harga 1 malam. Jika mau harga kegiatan / ekspedisi, ambil harga satuan.',
+    'Paket tektok khusus sewa 1 malam (naik-turun gunung tanpa menginap). Tanggal kembali otomatis H+1.',
     'Paket tektok bisa di-upgrade produknya dengan menambah harga sesuai selisih.',
     'Item dalam paket tektok bisa ditukar dengan item lain dengan harga yang sama.',
   ];
@@ -434,10 +434,13 @@
     idTypes: ['KTP', 'KTM', 'SIM', 'Kartu Pelajar'],
     /* Keuangan & ongkir (ketentuan mitra): ongkir penjualan = titipan untuk ekspedisi → TIDAK dicatat di keuangan.
        Ongkir & jasa tenda untuk sewa = penghasilan toko → pemasukan lini Rental. */
-    finance: { saleShipLedger: false, saleShipLine: 'sale', rentShipLine: 'rent' },
+    finance: { saleShipLedger: false, saleShipKurir: true, saleShipLine: 'sale', rentShipLine: 'rent' },
     /* Aturan durasi sewa: 'aturan' = tabel durRules (ketentuan mitra), 'termurah' = kombinasi tarif termurah */
     durMode: 'aturan',
     durRules: null,
+    /* Pelunasan sewa: 'keduanya' = boleh saat ambil / saat kembali · 'ambil' = wajib lunas saat ambil barang */
+    settleWhen: 'keduanya',
+    settleReasons: ['Rating / ulasan Google Maps', 'Promo toko', 'Pelanggan setia', 'Kompensasi kendala barang'],
     /* Template pesan WhatsApp yang diubah Owner (kosong = pakai bawaan, lihat WA_TPL) */
     waTemplates: {},
     /* Section "Produk Rental Terlaris" di beranda: sumber data (otomatis | manual | gabungan), periode hitung (hari, 0 = semua), jumlah barang */
@@ -467,9 +470,13 @@
       ccEmails: '',
     },
     banks: [
-      { bank: 'BCA', number: '1234567890', holder: 'Annapurna Adventure' },
-      { bank: 'BRI', number: '0987 6543 2100 123', holder: 'Annapurna Adventure' },
+      { bank: 'BCA', number: '0462165976', holder: 'Muhamad Nasikun' },
+      { bank: 'Mandiri', number: '900.001593.150.5', holder: 'Muhamad Nasikun' },
+      { bank: 'BNI', number: '0396885037', holder: 'Muhamad Nasikun' },
+      { bank: 'BRI', number: '3120 0103 4920 532', holder: 'Muhamad Nasikun' },
     ],
+    /* QRIS asli toko (Annapurna Adventure Shop · NMID ID1023290695809), digambar ulang resolusi tinggi */
+    qrisImg: 'assets/img/qris-annapurna.png',
     /* Durasi peminjaman sesuai syarat & ketentuan Annapurna Adventure */
     durations: [
       { days: 1, name: 'Per malam', note: 'Pengembalian esok hari', example: 'Ambil Kamis 01/08 pukul 09.00 WIB, kembali Jumat 02/08 maksimal pukul 22.00 WIB.' },
@@ -533,6 +540,7 @@
     total: 'Total', dibayar: 'Sudah dibayar', sisa: 'Sisa bayar', metode: 'Metode bayar', link_nota: 'Link nota digital', pengiriman: 'Info pengiriman (bila diantar)',
     tgl_sewa: 'Periode sewa', tgl_ambil: 'Tanggal ambil', tgl_kembali: 'Tanggal kembali', jam_kembali: 'Jam batas kembali', lama: 'Lama sewa', status: 'Status pesanan',
     terlambat: 'Jumlah malam terlambat', denda: 'Total denda', total_bayar: 'Total dibayar saat kembali', estimasi: 'Estimasi selesai laundry',
+    ekspedisi: 'Nama ekspedisi', resi: 'Nomor resi', pengantar: 'Nama staff pengantar', hp_pengantar: 'No. HP pengantar', penerima: 'Nama & HP penerima', alamat: 'Alamat tujuan',
     nama_toko: 'Nama toko', alamat_toko: 'Alamat toko', jam_buka: 'Jam buka', wa_toko: 'Nomor WhatsApp toko',
   };
   const T_TAIL = '\n\nNota digital: {link_nota}\nAlamat toko: {alamat_toko} ({jam_buka}). Terima kasih!';
@@ -544,6 +552,15 @@
     { key: 'kasir_sale', group: 'Penjualan', title: 'Setelah transaksi jual di kasir', when: 'Kasir → Jual → Transaksi tersimpan',
       vars: ['nama', 'no_nota', 'total', 'dibayar', 'metode', 'rincian', 'link_nota'],
       def: 'Halo {nama}, terima kasih sudah berbelanja di {nama_toko}.\nNo. invoice: {no_nota}\n{rincian}\nDibayar {dibayar} ({metode})\n\nInvoice digital: {link_nota}' },
+    { key: 'ship_exp', group: 'Penjualan', title: 'Pesanan dikirim via ekspedisi', when: 'Penjualan → Atur pengiriman (ekspedisi) → Simpan',
+      vars: ['nama', 'no_nota', 'ekspedisi', 'resi', 'penerima', 'alamat', 'link_nota'],
+      def: 'Halo {nama}, pesanan *{no_nota}* dari {nama_toko} sudah dikirim via *{ekspedisi}*.\nNo. resi: *{resi}*\nPenerima: {penerima}\nAlamat: {alamat}\n\nStatus pengiriman bisa dicek di aplikasi / website {ekspedisi} memakai nomor resi di atas.\nInvoice: {link_nota}\nTerima kasih!' },
+    { key: 'ship_kurir', group: 'Penjualan', title: 'Pesanan diantar langsung staff toko', when: 'Penjualan → Atur pengiriman (dikirim langsung) → Simpan',
+      vars: ['nama', 'no_nota', 'pengantar', 'hp_pengantar', 'penerima', 'alamat', 'link_nota'],
+      def: 'Halo {nama}, pesanan *{no_nota}* dari {nama_toko} sedang diantar langsung oleh staff kami.\nPengantar: *{pengantar}* ({hp_pengantar})\nPenerima: {penerima}\nAlamat: {alamat}\n\nMohon pastikan ada yang menerima di alamat ya. Invoice: {link_nota}\nTerima kasih!' },
+    { key: 'rent_due', group: 'Rental', title: 'Tagih sisa pembayaran sewa', when: 'Booking → Tagih sisa / Dashboard → Sisa pembayaran belum diterima',
+      vars: ['nama_depan', 'no_nota', 'sisa', 'rincian', 'link_nota'],
+      def: 'Halo Kak {nama_depan}, kami dari {nama_toko} mengingatkan sisa pembayaran sewa *{no_nota}* sebesar *{sisa}* belum kami terima.\n\n{rincian}\n\nPembayaran bisa transfer ke rekening toko / QRIS, lalu kirim bukti transfer di chat ini ya.\nNota digital: {link_nota}\nTerima kasih!' },
     { key: 'kasir_rent', group: 'Rental', title: 'Setelah transaksi sewa di kasir', when: 'Kasir → Sewa → Transaksi tersimpan',
       vars: ['nama', 'no_nota', 'total', 'dibayar', 'metode', 'tgl_sewa', 'tgl_kembali', 'jam_kembali', 'link_nota'],
       def: 'Halo {nama}, terima kasih sudah menyewa di {nama_toko}.\nNo. nota: {no_nota}\nTotal: {total} · dibayar {dibayar} ({metode})\nSewa: {tgl_sewa}, kembali paling lambat {tgl_kembali} pukul {jam_kembali} WIB\n\nNota digital: {link_nota}' },
@@ -1864,8 +1881,8 @@
       b.days = Math.max(1, diffDays(b.start, b.end));
       b.subtotal = itemsSubtotal(b.items, b.days);
       if (b.discount) b.discount.amount = b.discount.type === 'persen' ? Math.round(b.subtotal * b.discount.value / 100) : Math.min(b.discount.fixed || b.discount.amount, b.subtotal);
-      b.total = b.subtotal - (b.discount ? b.discount.amount : 0) + (b.fine || 0);
-      if (!Rules.paidTotal(b)) b.dp = Math.round((b.total - (b.fine || 0)) * DB.settings().dpPercent / 100);
+      b.total = b.subtotal - (b.discount ? b.discount.amount : 0) - (b.settleDisc ? +b.settleDisc.amount || 0 : 0) + (b.fine || 0);
+      if (!Rules.paidTotal(b)) b.dp = Math.round((b.total - (b.fine || 0) + (b.settleDisc ? +b.settleDisc.amount || 0 : 0)) * DB.settings().dpPercent / 100);
       return b;
     },
     /* Cek perpanjangan sampai newEnd → { ok, extraDays, cost, short: [nama] } */
@@ -2139,6 +2156,15 @@
     (st.sops || []).forEach((s) => { if (s.id === 'sop-2') s.body = String(s.body || '').replace('wajib diperiksa kondisi fisiknya dan difoto sebelum', 'wajib diperiksa kondisi fisiknya (foto bila memungkinkan) sebelum'); });
     st.rev2110 = true; write('settings', st);
   })();
+  /* Revisi mitra 23 Okt 2026: semua paket BBQ memakai grill pan Standar (Medium); syarat tektok 1 malam */
+  (function migrateRev2310() {
+    const st = read('settings', null); if (st && st.rev2310) return;
+    const P = read('packages', null);
+    if (Array.isArray(P)) { P.forEach((p) => (p.items || []).forEach((i) => { if (i.productId === 'ck-grill-s') i.productId = 'ck-grill-m'; })); write('packages', P); }
+    if (st && (!Array.isArray(st.banks) || st.banks.some((b) => /1234567890|0987 6543/.test(b.number)))) st.banks = JSON.parse(JSON.stringify(SETTINGS.banks));
+    if (st && !st.qrisImg) st.qrisImg = SETTINGS.qrisImg;
+    if (st) { if (Array.isArray(st.tektokTerms)) st.tektokTerms = st.tektokTerms.map((t) => (/khusus untuk harga 1 malam/i.test(t) ? 'Paket tektok khusus sewa 1 malam (naik-turun gunung tanpa menginap). Tanggal kembali otomatis H+1.' : t)); st.rev2310 = true; write('settings', st); }
+  })();
   /* Revisi keuangan 22 Okt 2026: jenis biaya baru (lini terisi otomatis di form Keuangan) */
   (function migrateFinCats() {
     const st = read('settings', null); if (!st || st.rev2210) return;
@@ -2249,7 +2275,7 @@
        Disimpan di s.deliv: method ('kurir'|'ekspedisi'), courier/courierPhone/vehicle, date/time (jadwal antar kurir toko),
        exp/expSvc/resi/weight/koli/shipDate/eta/insured/insVal/packing (ekspedisi), recName/recPhone/city/postcode/shipNote, ship (status). */
     SHIP: {
-      EXPEDISI: ['JNE', 'J&T Express', 'SiCepat', 'AnterAja', 'Ninja Xpress', 'ID Express', 'Lion Parcel', 'Pos Indonesia', 'SAP Express', 'Indah Cargo', 'Gojek (GoSend)', 'Grab (GrabExpress)', 'Lalamove', 'Lainnya'],
+      EXPEDISI: ['J&T Express', 'JNE', 'SPX Express', 'AnterAja', 'GrabExpress', 'GoSend (Gojek)'],
       LAYANAN: ['Reguler', 'Ekonomis', 'Express / Next Day', 'Same Day / Instant', 'Kargo (barang besar)'],
       KENDARAAN: ['Motor', 'Mobil', 'Pick-up / Box'],
       STATUS: { disiapkan: ['Disiapkan', 'warn', 'fa-box'], dikirim: ['Dalam pengiriman', 'info', 'fa-truck-fast'], tiba: ['Sudah tiba', 'ok', 'fa-circle-check'] },

@@ -8,7 +8,6 @@
   <div class="wrap">
     <div class="ab-ph-text">
       <div class="crumbs ha" style="--d:.05s"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Ketentuan</span></div>
-      <div class="ab-kicker ha" style="--d:.12s"><i class="fa-solid fa-file-contract"></i> Aturan main</div>
       <h1 class="ha" style="--d:.2s">Ketentuan sewa &amp; layanan</h1>
       <p class="ha" style="--d:.3s">Baca sebentar sebelum memesan supaya sewa, pembayaran, dan pengembalian berjalan lancar.</p>
     </div>

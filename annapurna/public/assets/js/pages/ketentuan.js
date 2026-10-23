@@ -4,7 +4,7 @@
    - Kebijakan pembatalan    → Konfigurasi → Pembatalan & Refund
    - Paket tektok            → Konfigurasi → Aturan Rental (Ketentuan paket tektok)
    - Laundry                 → Konfigurasi → Laundry & Jasa Tenda
-   - Pembayaran              → DP & rekening dari Pengaturan toko */
+   - Pembayaran, Antar & kirim → Konfigurasi → Halaman Ketentuan (semua isi bisa diubah di sana) */
 (function () {
   const { DB, Rules, rupiah } = Ann; const { $, esc } = UI;
   const st = DB.settings();
@@ -28,18 +28,10 @@
   if ($('#abExample')) $('#abExample').textContent = `Sewa mulai tanggal 30: batal paling lambat tanggal ${30 - (st.cancelDays ?? 2)} → DP dikembalikan ${st.refundPercent ?? 100}%. Batal sesudahnya (H-1 / hari H) → DP tidak dikembalikan.`;
   if ($('#ktTektok')) $('#ktTektok').innerHTML = li(st.tektokTerms);
   if ($('#ktLaundry')) $('#ktLaundry').innerHTML = li(st.laundryTerms);
-  if ($('#ktPay')) $('#ktPay').innerHTML = `<ol class="ab-list">
-      <li>Booking sewa online cukup bayar <b>DP ${esc(st.dpPercent)}%</b>. Sisanya dilunasi saat mengambil barang, saat barang diantar, atau saat barang dikembalikan.</li>
-      <li>Pembelian barang dibayar penuh saat checkout. Ongkir kirim dikonfirmasi admin dan dibayar terpisah.</li>
-      <li>Batas waktu membayar DP ${esc(+st.payWindowHours || 1)} jam sejak pesanan dibuat. Lewat dari itu booking dibatalkan otomatis.</li>
-      <li>Promo / diskon (mis. untuk yang memberi ulasan di Google Maps) dipotong dari sisa pelunasan setelah dicek admin.</li></ol>
+  const fillT = (L) => (L || []).map((t) => String(t).replace(/\{dp\}/g, st.dpPercent).replace(/\{jam_bayar\}/g, +st.payWindowHours || 1));
+  if ($('#ktPay')) $('#ktPay').innerHTML = `<ol class="ab-list">${li(fillT(st.payTerms))}</ol>
     <div class="kt-banks">${(st.banks || []).map((b) => `<div><small>${esc(b.bank)}</small><b>${esc(b.number)}</b><span>a.n. ${esc(b.holder)}</span></div>`).join('')}${st.qrisImg ? '<div><small>QRIS</small><b>Semua e-wallet &amp; m-banking</b><span>Scan saat pembayaran</span></div>' : ''}</div>`;
-  if ($('#ktShip')) $('#ktShip').innerHTML = li([
-    'Barang sewa bisa diantar-jemput staff toko ke lokasimu. Ongkir sesuai jarak dan dikonfirmasi admin via WhatsApp.',
-    'Jasa bongkar-pasang tenda tersedia untuk barang sewa (biaya jasa per tenda + ongkir).',
-    'Barang beli bisa dikirim ke alamat via ekspedisi (J&T, JNE, SPX, AnterAja, Grab, Gojek). Nomor resi dikirim lewat WhatsApp.',
-    'Ongkir tidak termasuk total belanja / DP dan dibayar langsung ke admin.',
-  ]);
+  if ($('#ktShip')) $('#ktShip').innerHTML = li(st.shipTerms);
   if ($('#ktUpd')) $('#ktUpd').innerHTML = `<i class="fa-solid fa-circle-info"></i> Ketentuan dapat berubah sewaktu-waktu. Ada pertanyaan? <a class="link" href="${UI.waLink('Halo Annapurna Adventure, saya mau bertanya tentang ketentuan sewa.')}" target="_blank" rel="noopener">Tanya lewat WhatsApp</a>.`;
   /* lompat ke bagian dari tautan (#durasi, #batal, dll.) setelah konten terisi */
   if (location.hash) setTimeout(() => { const t = document.querySelector(location.hash); if (t) t.scrollIntoView({ block: 'start' }); }, 120);

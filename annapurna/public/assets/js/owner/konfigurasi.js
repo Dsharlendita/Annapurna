@@ -11,6 +11,7 @@
     ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, aturan durasi & harga paket, jam batas pengembalian.'],
     ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
+    ['ketentuan', 'fa-file-contract', 'Halaman Ketentuan', 'Semua isi halaman Ketentuan di website: sewa, pembayaran, pembatalan, tektok, laundry, antar & kirim.'],
     ['pesan', 'fa-comment-dots', 'Template Pesan WhatsApp', 'Pesan otomatis ke customer: invoice, nota sewa, pengingat, laundry.'],
     ['asisten', 'fa-comments', 'Asisten Trip (Tanya jawab)', 'Aturan JIKA–MAKA chatbot, kata kunci & jawaban, pertanyaan belum terjawab.'],
     ['layanan', 'fa-jug-detergent', 'Laundry & Jasa Tenda', 'Harga laundry, estimasi selesai, ketentuan struk, tarif jasa tenda.'],
@@ -42,6 +43,30 @@
   }
   function go(k) { const mn = $('#cfgMain'); mn.onclick = mn.oninput = mn.onchange = null; cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
+  /* ---------- Alasan & besaran diskon (Kasir, Catat barang keluar/kembali, Detail booking) ---------- */
+  function drawDisc() {
+    const box = $('#discPanel'); if (!box) return;
+    const L = DB.discReasons().map((r) => Object.assign({}, r));
+    const row = (r, i) => `<div class="disc-row"><input class="input" data-dn="${i}" value="${esc(r.name)}" placeholder="Alasan, mis. Promo akhir pekan" maxlength="60" aria-label="Alasan diskon"><div class="disc-pct"><input class="input" data-dp="${i}" inputmode="numeric" value="${r.pct === '' ? '' : r.pct}" placeholder="—" aria-label="Besaran bawaan (%)"><span>%</span></div><button type="button" class="btn btn-light btn-xs" data-drm="${i}" title="Hapus alasan"><i class="fa-solid fa-xmark"></i></button></div>`;
+    const draw = () => { box.innerHTML = `<div class="panel-h"><h3><i class="fa-solid fa-tags"></i> Alasan &amp; besaran diskon</h3></div>
+      <p class="muted" style="font-size:13px;margin:-4px 0 12px">Pilihan alasan saat staff memberi diskon di <b>Kasir</b>, <b>Catat barang keluar / kembali</b>, dan <b>Detail booking</b>. Besaran bawaan langsung terisi saat alasan dipilih, tapi staff tetap bisa mengubahnya (Rp atau %). Kosongkan besaran bila diisi staff sendiri. Pilihan <b>Lainnya…</b> (ketik alasan) selalu tersedia.</p>
+      <div class="disc-head"><span>Alasan</span><span>Besaran bawaan</span><span></span></div><div id="discRows">${L.map(row).join('')}</div>
+      <div class="tpl-acts" style="margin-top:10px"><button type="button" class="btn btn-light btn-sm" id="discAdd"><i class="fa-solid fa-plus"></i> Tambah alasan</button><button type="button" class="btn btn-primary btn-sm" id="discSave"><i class="fa-solid fa-floppy-disk"></i> Simpan alasan diskon</button></div>`; };
+    draw();
+    box.oninput = (e) => { const n = e.target.dataset.dn, p = e.target.dataset.dp; if (n != null) L[n].name = e.target.value; if (p != null) L[p].pct = e.target.value.replace(/[^\d]/g, ''); };
+    box.onclick = (e) => {
+      const rm = e.target.closest('[data-drm]'); if (rm) { L.splice(+rm.dataset.drm, 1); draw(); return; }
+      if (e.target.closest('#discAdd')) { L.push({ name: '', pct: '' }); draw(); box.querySelector(`[data-dn="${L.length - 1}"]`).focus(); return; }
+      if (e.target.closest('#discSave')) {
+        const next = L.map((r) => ({ name: String(r.name || '').trim().replace(/\s+/g, ' '), pct: r.pct === '' || r.pct == null ? '' : Math.min(100, Math.max(0, +r.pct || 0)) })).filter((r) => r.name);
+        if (!next.length) { toast('Isi minimal satu alasan diskon.', 'err'); return; }
+        const dup = next.find((r, i) => next.findIndex((x) => x.name.toLowerCase() === r.name.toLowerCase()) !== i); if (dup) { toast(`Alasan "${dup.name}" tertulis dua kali.`, 'err'); return; }
+        const old = DB.discReasons(); const txt = (A) => A.map((r) => `${r.name}${r.pct !== '' ? ' ' + r.pct + '%' : ''}`).join(', ');
+        if (txt(old) === txt(next)) { toast('Tidak ada perubahan.'); return; }
+        DB.saveConfig('discReasons', next, 'Mengubah alasan & besaran diskon', [{ field: 'Alasan diskon', from: txt(old), to: txt(next) }]); toast('Alasan diskon disimpan. Langsung berlaku di kasir & pelunasan.'); drawDisc();
+      }
+    };
+  }
   /* ---------- Aturan durasi sewa (ketentuan mitra, bisa diubah Owner) ---------- */
   function drawDur() {
     const box = $('#durPanel'); if (!box) return;
@@ -80,6 +105,19 @@
     };
   }
   const R = {
+    /* ---------- Halaman Ketentuan (navbar website): semua isi diatur di sini ---------- */
+    ketentuan() {
+      const st = S();
+      const BL = [['rentalTerms', 'Ketentuan sewa', 'fa-file-lines', 'Contoh: Penyewa wajib menyerahkan KTP asli'], ['payTerms', 'Pembayaran', 'fa-wallet', 'Kode {dp} = persen DP, {jam_bayar} = batas jam bayar'], ['cancelPolicy', 'Kebijakan pembatalan', 'fa-rotate-left', 'Contoh: Pembatalan paling lambat H-2 …'],
+        ['tektokTerms', 'Paket tektok', 'fa-person-hiking', 'Contoh: Paket tektok khusus sewa 1 malam'], ['laundryTerms', 'Laundry (juga dicetak di struk laundry)', 'fa-jug-detergent', 'Contoh: Pengambilan wajib menunjukkan nota'], ['shipTerms', 'Antar & kirim barang', 'fa-truck-fast', 'Contoh: Barang beli dikirim via ekspedisi']];
+      $('#cfgMain').innerHTML = head('Halaman Ketentuan', `Isi halaman <a class="link" href="${UI.url('ketentuan')}" target="_blank" rel="noopener">Ketentuan</a> di website. Tabel durasi & paket mengikuti <b>Aturan Rental</b>, rekening & QRIS mengikuti pengaturan toko.`)
+        + BL.map(([k, t, ic, ph]) => `<div class="cfg-block"><h3><i class="fa-solid ${ic}"></i> ${t}</h3>${listEditor('kt_' + k, st[k] || [], ph)}</div>`).join('') + saveBar('saveKt');
+      $('#saveKt').addEventListener('click', () => {
+        const next = Object.assign({}, S()); BL.forEach(([k]) => { next[k] = readLines('kt_' + k); });
+        const empty = BL.find(([k]) => !next[k].length); if (empty) { toast(`Bagian "${empty[1]}" minimal berisi 1 poin.`, 'err'); return; }
+        cfgSave(next, 'Mengubah isi halaman Ketentuan', BL.map(([k, t]) => [k, t, (v) => `${(v || []).length} poin`]));
+      });
+    },
     /* ---------- Template pesan WhatsApp ----------
        Owner mengatur kalimat pesan otomatis. Kode {nama}, {no_nota}, … diganti data asli saat dikirim.
        Staff tetap bisa mengedit isi pesan di jendela kirim sebelum WhatsApp dibuka. */
@@ -426,8 +464,9 @@
         <h4 class="cfg-sub">Ketentuan rental (tampil di halaman Ketentuan)</h4>${listEditor('terms', st.rentalTerms, 'Contoh: Penyewa wajib menyerahkan KTP asli')}
         <h4 class="cfg-sub">Ketentuan paket tektok (tampil di halaman Ketentuan &amp; Paket Sewa)</h4>${listEditor('tektokT', st.tektokTerms || [], 'Contoh: Paket tektok khusus sewa 1 malam')}
       </form></div>${saveBar('saveRental')}
-      <div class="panel" style="margin-top:18px" id="durPanel"></div>`;
-      drawDur();
+      <div class="panel" style="margin-top:18px" id="durPanel"></div>
+      <div class="panel" style="margin-top:18px" id="discPanel"></div>`;
+      drawDur(); drawDisc();
       $('#saveRental').addEventListener('click', () => {
         const F = $('#rf'), E = F.elements;
         if (!validate(F, { dpPercent: (v) => (!(+v >= 10 && +v <= 100) ? 'Isi 10–100.' : ''), payWindowHours: (v) => (!(+v >= 1 && +v <= 48) ? 'Isi 1–48 jam.' : ''), maxRentDays: (v) => (!(+v >= 1) ? 'Minimal 1.' : ''), returnTime: (v) => (!v ? 'Isi jam.' : '') })) return;

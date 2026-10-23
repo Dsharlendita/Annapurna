@@ -116,7 +116,9 @@
         <div id="dSize"></div>
         <div class="field"><label>Jumlah</label><div class="qty"><button type="button" data-q="-1" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input id="dQty" type="number" min="1" value="1" aria-label="Jumlah"><button type="button" data-q="1" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div></div>
         <div class="avail-msg" id="dAvail"></div>
-        ${DB.hasVariant(p) ? '<div class="pick-add"><button type="button" class="btn btn-light btn-sm" id="dPickAdd"><i class="fa-solid fa-plus"></i> Tambahkan ke pilihan</button><small class="muted">Butuh beberapa ukuran/warna? Tambahkan satu per satu, lalu sewa sekaligus.</small></div><div id="dPicks"></div>' : ''}
+        ${DB.hasVariant(p) ? `<div class="pick-box" id="dPickBox"><div class="pick-box-h"><span class="ic"><i class="fa-solid fa-layer-group"></i></span><div><b>Butuh lebih dari 1 ${esc(DB.variantLabel(p).toLowerCase())}?</b><small id="dPickSub">Contoh: 2 pasang ukuran 42 Hitam + 1 pasang ukuran 40 Merah, sekali booking.</small></div></div>
+          <ol class="pick-steps" id="dPickSteps"><li>Pilih ${esc(DB.variantLabel(p).toLowerCase())} di atas, serta jumlahnya</li><li>Tekan tombol <b>Tambahkan ke daftar sewa</b></li><li>Ulangi untuk pilihan lain, lalu tekan <b>Sewa sekarang</b></li></ol>
+          <button type="button" class="btn btn-outline btn-block" id="dPickAdd"><i class="fa-solid fa-plus"></i> <span>Tambahkan ke daftar sewa</span></button><div id="dPicks"></div></div>` : ''}
         <div class="card" style="padding:16px;margin-top:14px">
           <div class="kv"><span>Harga sewa</span><span id="dLine"></span></div>
           <div class="kv total"><span>Total sewa</span><span id="dTotal"></span></div>
@@ -161,11 +163,13 @@
         $('#dDp').textContent = rupiah(Math.round(unitTotal * qty * st.dpPercent / 100));
         $('#dCart').disabled = $('#dNow').disabled = !ok;
         const sb = $('#stickyBuy'); if (sb) { sb.querySelector('b').textContent = rupiah(unitTotal * qty); sb.querySelector('small').textContent = `${qty} unit · ${days} malam${selSize ? ' · ' + selSize.replace(/\s*\(.*\)/, '') : ''}`; sb.querySelector('button').disabled = !ok; }
-        if ($('#dPickAdd')) $('#dPickAdd').disabled = !ok;
+        if ($('#dPickAdd')) { $('#dPickAdd').disabled = !ok || !selSize;
+          $('#dPickAdd').querySelector('span').innerHTML = selSize ? `Tambahkan <b>${esc(String(selSize).replace(/\s*\(.*\)/, ''))} × ${qty}</b> ke daftar sewa` : `Pilih ${esc(DB.variantLabel(p).toLowerCase())} dulu`;
+          $('#dPickSteps').hidden = picks.length > 0; $('#dPickBox').classList.toggle('has', picks.length > 0); }
         /* Daftar pilihan (beberapa ukuran/warna sekaligus): total & tombol mengikuti daftar */
         if (sized && picks.length) {
           let allOk = days >= minD && days <= maxD; const N = picks.reduce((a, x) => a + x.qty, 0);
-          $('#dPicks').innerHTML = `<div class="picks"><div class="picks-h"><b><i class="fa-solid fa-list-check"></i> Pilihanmu</b><span class="muted">${N} unit · ${days} malam</span></div>${picks.map((x, i) => { const av = Rules.available(p.id, s.value, e.value, null, x.size); const bad = x.qty > av; if (bad) allOk = false;
+          $('#dPicks').innerHTML = `<div class="picks"><div class="picks-h"><b><i class="fa-solid fa-list-check"></i> Daftar sewa (${picks.length} pilihan)</b><span class="muted">${N} unit · ${days} malam</span></div>${picks.map((x, i) => { const av = Rules.available(p.id, s.value, e.value, null, x.size); const bad = x.qty > av; if (bad) allOk = false;
             return `<div class="pick-row ${bad ? 'bad' : ''}"><span class="nm"><b>${esc(String(x.size).replace(/\s*\(.*\)/, ''))}</b><small>${bad ? `stok hanya ${av} di tanggal ini` : `${av} tersedia`}</small></span>
               <span class="qty sm"><button type="button" data-pq="-1" data-pi="${i}" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input value="${x.qty}" readonly aria-label="Jumlah"><button type="button" data-pq="1" data-pi="${i}" aria-label="Tambah" ${x.qty >= av ? 'disabled' : ''}><i class="fa-solid fa-plus"></i></button></span>
               <span class="pr">${rupiah(unitTotal * x.qty)}</span><button type="button" class="icon-btn sm" data-pdel="${i}" aria-label="Hapus ${esc(x.size)}"><i class="fa-solid fa-xmark"></i></button></div>`; }).join('')}</div>`;
@@ -190,7 +194,7 @@
       if ($('#dPickAdd')) {
         $('#dPickAdd').addEventListener('click', () => { if (!calc() || !selSize) return; const n = Math.max(1, +q.value || 1); const ex = picks.find((x) => x.size === selSize); const av = Rules.available(p.id, s.value, e.value, null, selSize);
           if (ex) ex.qty = Math.min(av, ex.qty + n); else picks.push({ size: selSize, qty: Math.min(av, n) });
-          q.value = 1; toast(`${esc(String(selSize).replace(/\s*\(.*\)/, ''))} ditambahkan ke pilihan. Pilih ukuran/warna lain bila perlu.`); calc(); });
+          q.value = 1; toast(`${esc(String(selSize).replace(/\s*\(.*\)/, ''))} masuk daftar sewa. Pilih ${esc(DB.variantLabel(p).toLowerCase())} lain, atau tekan Sewa sekarang.`); calc(); });
         $('#dPicks').addEventListener('click', (ev) => { const pq = ev.target.closest('[data-pq]'); if (pq) { const x = picks[+pq.dataset.pi]; x.qty += +pq.dataset.pq; if (x.qty < 1) picks.splice(+pq.dataset.pi, 1); calc(); return; }
           const d = ev.target.closest('[data-pdel]'); if (d) { picks.splice(+d.dataset.pdel, 1); calc(); } });
       }

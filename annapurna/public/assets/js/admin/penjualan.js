@@ -22,7 +22,9 @@
     $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${k === tab ? 'active' : ''}" data-tab="${k}">${l} <span class="cnt">${S.filter((s) => match(s, k)).length}</span></button>`).join('');
     const L = list();
     $('#rows').innerHTML = L.length ? L.map((s) => { const a = Admin.saleActions(s)[0]; const dl = Ann.Svc.isSaleDeliv(s);
-      const stp = dl && s.status === 'siap_diambil' ? '<span class="pill green">Siap Diantar</span>' : pill('sale', s.status);
+      /* Status seragam dengan pengiriman: sudah dikirim → "Dalam Pengiriman" (tidak lagi "Siap Diantar" + "Dalam pengiriman" sekaligus) */
+      const shp = dl ? Ann.Svc.shipStatus(s) : '';
+      const stp = dl && s.status === 'siap_diambil' ? (shp === 'dikirim' ? '<span class="pill blue">Dalam Pengiriman</span>' : shp === 'tiba' ? '<span class="pill green">Sudah Tiba</span>' : '<span class="pill green">Siap Dikirim</span>') : pill('sale', s.status);
       return `<tr>
       <td class="bk-who"><strong>${NO(s)}</strong><span>${esc(s.customer.name)}</span><small>${esc(s.customer.phone)}<br>dibuat ${D.fmtDate(s.createdAt)}</small></td>
       <td style="min-width:220px;max-width:280px"><span class="bk-items">${esc(txt(s))}</span>${Admin.saleShipCell(s)}</td>

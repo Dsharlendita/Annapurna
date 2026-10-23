@@ -1219,6 +1219,7 @@
     let y = 226; const CX = W / 2 + 10;
     txt('DITAGIHKAN KEPADA', P, y, { w: 700, z: 11.5, c: '#6b7a70' }); txt('DETAIL SEWA', CX, y, { w: 700, z: 11.5, c: '#6b7a70' });
     txt(b.customer.name, P, y + 26, { w: 700, z: 15, c: '#15311f' }); txt(b.customer.phone || '', P, y + 48, { z: 13.5 }); txt(b.customer.email || '', P, y + 68, { z: 13.5 });
+    if ((b.deliv || {}).courier) txt(fit(`Pengantar: ${b.deliv.courier}${b.deliv.courierPhone ? ' · ' + b.deliv.courierPhone : ''}`, CX - P - 16, 600, 12.5), P, y + 90, { z: 12.5, w: 600, c: '#1f4d2f' });
     txt(`Periode: ${D.fmtRange(b.start, b.end)} (${b.days} malam)`, CX, y + 26, { w: 600, z: 13.5 });
     txt(`Ambil: ${D.fmtDate(b.start, true)}`, CX, y + 48, { z: 13.5 });
     txt(`Kembali: ${D.fmtDate(b.end, true)}, maks. pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB`, CX, y + 68, { z: 13.5, w: 700, c: bill.late ? '#b42318' : '#2a3a2f' });
@@ -1260,6 +1261,7 @@
     y += 24; const LX = W / 2 + 40, RX = W - P;
     const kv = (l, r, o = {}) => { txt(l, LX, y, { z: o.z || 14, w: o.w || 500, c: o.c || '#5d6b62' }); txt(r, RX, y, { z: o.z || 14, w: o.w || 600, c: o.rc || o.c || '#15311f', a: 'right' }); y += o.gap || 30; };
     if (CI.ok.length) { kv('Total awal', rupiah(CI.base)); kv('Tambahan ganti barang', `${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}`, { rc: '#9a6508', w: 700 }); }
+    if (b.discount && +b.discount.amount) kv(DB.discLabel(b.discount).slice(0, 44), '− ' + rupiah(b.discount.amount), { rc: '#1f4d2f', w: 700 });
     if (b.settleDisc && +b.settleDisc.amount) kv(`Diskon pelunasan (${String(b.settleDisc.reason || '').slice(0, 26)})`, '− ' + rupiah(b.settleDisc.amount), { rc: '#1f4d2f', w: 700 });
     kv(CI.ok.length ? 'Total sewa (baru)' : 'Total sewa', rupiah(b.total), { w: 700 });
     kv('Sudah dibayar', rupiah(bill.paid), { rc: '#2f6b43', w: 700 });
@@ -1298,7 +1300,7 @@
       ${row('No. nota', esc(NO(x)), 'b')}${row('Tanggal', D.fmtDateTime(x.createdAt))}${row('Kasir', esc(k.by || ((DB.session() || {}).name || '-')))}${row('Customer', esc(x.customer.name))}
       ${kind === 'rent' ? `${row('Sewa', D.fmtRange(x.start, x.end) + ' · ' + x.days + ' mlm')}${row('Kembali maks.', D.fmtDate(x.end) + ' 22.00')}` : ''}<hr>
       ${L.map(([n, q, tot]) => `<div class="it"><div>${esc(n)}</div>${row(q, tot)}</div>`).join('')}<hr>
-      ${row('Subtotal', rupiah(x.subtotal))}${x.discount ? row('Diskon', '- ' + rupiah(x.discount.amount || x.discount.fixed || 0)) : ''}${x.settleDisc && +x.settleDisc.amount ? row('Diskon pelunasan', '- ' + rupiah(x.settleDisc.amount)) : ''}${row('TOTAL', rupiah(x.total), 'big')}
+      ${row('Subtotal', rupiah(x.subtotal))}${x.discount ? row(DB.discLabel(x.discount), '- ' + rupiah(x.discount.amount || x.discount.fixed || 0)) : ''}${x.settleDisc && +x.settleDisc.amount ? row('Diskon pelunasan', '- ' + rupiah(x.settleDisc.amount)) : ''}${row('TOTAL', rupiah(x.total), 'big')}
       ${row('Dibayar (' + esc(k.method || x.method) + ')', rupiah(paid))}${k.method === 'Tunai' ? row('Tunai', rupiah(k.received || paid)) + row('Kembalian', rupiah(k.change || 0)) : ''}
       ${x.total - paid > 0 ? row('Sisa bayar saat ambil', rupiah(x.total - paid), 'b') : ''}
       ${(x.svc || []).length ? `<hr>${x.svc.map((v) => row(v.kind === 'pasang' ? 'Jasa tenda' + (v.note ? ' (' + esc(v.note) + ')' : '') : 'Ongkir antar/jemput', rupiah(v.amount))).join('')}${row('Layanan dibayar', rupiah(x.svc.reduce((a, v) => a + v.amount, 0)), 'b')}` : ''}<hr>
@@ -1336,7 +1338,7 @@
     T.push(pad2('Jumlah barang', `${Laundry.qty(o)} pcs`));
     T.push(pad2('Subtotal', num(sub)));
     if (o.ongkir) T.push(pad2('Ongkir', num(o.ongkir)));
-    if (o.discount) T.push(pad2('Diskon', '-' + num(o.discount)));
+    if (o.discount) T.push(pad2(o.discountReason ? 'Diskon ' + o.discountReason : 'Diskon', '-' + num(o.discount)));
     const P = []; /* baris pembayaran, dicetak setelah TOTAL */
     if (paid) { P.push(pad2(`Dibayar${last ? ' (' + String(last.via || '').replace('Kasir · ', '') + ')' : ''}`, num(paid))); if (k.method === 'Tunai' && k.received && k.received > paid) { P.push(pad2('Tunai', num(k.received))); P.push(pad2('Kembali', num(k.change || 0))); } }
     else P.push(pad2('Dibayar', '0'));
@@ -1435,7 +1437,7 @@
     const LX = W / 2 + 40, RX = W - P;
     const kv = (l, r, o = {}) => { txt(l, LX, y, { z: o.z || 14, w: o.w || 500, c: o.c || '#5d6b62' }); txt(r, RX, y, { z: o.z || 14, w: o.w || 600, c: o.rc || o.c || '#15311f', a: 'right' }); y += o.gap || 30; };
     kv('Subtotal', rupiah(s.subtotal != null ? s.subtotal : items.reduce((a, i) => a + i.price * i.qty, 0)));
-    if (disc) kv(`Diskon${s.discount.code && s.discount.code !== 'KASIR' ? ' (' + s.discount.code + ')' : ''}`, '− ' + rupiah(disc), { rc: '#1f4d2f', w: 700 });
+    if (disc) kv(DB.discLabel(s.discount).slice(0, 44), '− ' + rupiah(disc), { rc: '#1f4d2f', w: 700 });
     if (deliv) { kv('Total barang', rupiah(s.total)); kv(Svc.shipMode(s) === 'kurir' ? 'Ongkir antar (staff toko)' : 'Ongkir (diteruskan ke ekspedisi)', bl.ongkirSet ? rupiah(ongkir) : 'menunggu konfirmasi', { rc: bl.ongkirSet ? '#15311f' : '#9a6508' }); }
     kv('Total tagihan', rupiah(grand), { w: 800, c: '#15311f', z: 15 });
     kv('Sudah dibayar', rupiah(paid), { rc: '#2f6b43', w: 700 });
@@ -1706,5 +1708,33 @@
     let h = 0; for (const ch of String(name || '').toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return `<span class="rv-av av-c${h % AV_COLORS}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
+  /* ===== Keterangan angka: saat mengisi kolom nominal, muncul "= Rp 10.000" (atau "= 10%") di bawah kolom =====
+     Dikenali otomatis dari label / placeholder (Rp, harga, ongkir, diskon, DP, biaya, tarif, …). Kolom jumlah unit / hari tidak diberi keterangan.
+     Paksa dengan data-rp (Rupiah) / data-pct (persen) / data-nohint (tanpa keterangan). */
+  (function numHint() {
+    let tip = null, cur = null;
+    const MONEY = /rp\b|rupiah|harga|ongkir|diskon|potongan|\bdp\b|uang|biaya|tarif|nominal|bayar|modal|jasa|denda|deposit|total|belanja|minimal|pemasukan|pengeluaran|jumlah \(rp\)/i;
+    const NOTM = /jumlah unit|qty|kuantitas|malam|hari\b|tenda|tahun|stok|unit|menit|jam\b|kg|berat|no\.|nomor|hp|telepon/i;
+    const ctx = (el) => { const f = el.closest('.field, .kv, .kdisc, .stl-dbox, .disc-row, .grid-2'); const lb = el.id ? document.querySelector(`label[for="${el.id}"]`) : null;
+      return [lb && lb.textContent, f && (f.querySelector('label') || {}).textContent, el.placeholder, el.getAttribute('aria-label'), el.closest('.kv') && el.closest('.kv').textContent].filter(Boolean).join(' ').slice(0, 200); };
+    const pctMode = (el) => { if (el.dataset.pct != null) return true; const box = el.closest('.kdisc-row, .stl-drow, .disc-pct, .field'); const seg = box && box.querySelector('.seg .active, .seg button.active'); return !!(seg && /%/.test(seg.textContent)) || !!el.closest('.disc-pct'); };
+    const kind = (el) => { if (!(el instanceof HTMLInputElement) || el.dataset.nohint != null || el.readOnly || el.dataset.money) return ''; /* kolom berlabel Rp sudah punya pratinjau statis */
+      if (!(el.type === 'number' || el.inputMode === 'numeric' || el.dataset.rp != null)) return '';
+      if (el.closest('.qty')) return ''; if (pctMode(el)) return 'pct'; if (el.dataset.rp != null) return 'rp';
+      const c = ctx(el); if (MONEY.test(c) && !(NOTM.test(c) && !/rp|harga|ongkir|biaya|diskon|bayar|uang/i.test(c))) return 'rp'; return ''; };
+    const hide = () => { if (tip) tip.hidden = true; cur = null; };
+    const show = (el) => { const k = kind(el); const v = +String(el.value || '').replace(/[^\d]/g, '') || 0;
+      if (!k || !String(el.value).trim()) { hide(); return; }
+      const txt = k === 'pct' ? `= ${v}%` : `= ${rupiah(v)}`;
+      if (k === 'rp' && v < 1000 && !/[.,]/.test(el.value)) { if (v === 0) { hide(); return; } }
+      if (!tip) { tip = document.createElement('div'); tip.className = 'num-hint'; tip.setAttribute('aria-hidden', 'true'); document.body.appendChild(tip); }
+      tip.textContent = txt; tip.hidden = false; cur = el; place(); };
+    const place = () => { if (!tip || !cur || tip.hidden) return; const r = cur.getBoundingClientRect(); if (!r.width) { hide(); return; }
+      tip.style.left = `${Math.round(r.left + window.scrollX)}px`; tip.style.top = `${Math.round(r.bottom + window.scrollY + 3)}px`; tip.style.maxWidth = `${Math.max(120, Math.round(r.width))}px`; };
+    document.addEventListener('focusin', (e) => show(e.target));
+    document.addEventListener('input', (e) => { if (e.target === document.activeElement) show(e.target); });
+    document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement !== cur) hide(); }, 80));
+    window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
+  })();
   window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

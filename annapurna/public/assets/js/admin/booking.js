@@ -23,11 +23,13 @@
     const S = Ann.Svc, d = b.deliv || {}, bl = S.bill(b);
     const out = S.delivers(b) ? `${S.outLabel(b) === 'Antar' ? 'Antar' : 'Pasang'} ${sd(d.date || b.start)}${d.time ? ' ' + S.fmtT(d.time) : ''}` : '';
     const back = S.returnMode(b) === 'jemput' ? `${S.isTent(b) ? 'Bongkar' : 'Jemput'} ${sd(d.backDate || b.end)}${d.backTime ? ' ' + S.fmtT(d.backTime) : ''}` : '';
-    const st = b.status === 'dibatalkan' ? '' : !bl.ongkirSet ? '<span class="sv-b warn"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati</span>'
+    const live = !['selesai', 'dibatalkan'].includes(b.status);
+    const st = b.status === 'dibatalkan' ? '' : !bl.ongkirSet ? (live ? `<button type="button" class="sv-b warn sv-click" data-act="svcpay" data-id="${b.id}" title="Isi ongkir"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati · isi</button>` : '<span class="sv-b warn"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati</span>')
       : bl.due > 0 ? `<span class="sv-b bad"><i class="fa-solid fa-circle-exclamation"></i> Belum dibayar ${rupiah(bl.due)}</span>`
       : '<span class="sv-b ok"><i class="fa-solid fa-circle-check"></i> Layanan lunas</span>';
     return `<div class="sv-cell"><div class="sv-top"><span class="sv-k"><i class="fa-solid ${S.icon(b)}"></i> ${esc(S.short(b))}${S.isTent(b) && d.tents ? ' · ' + d.tents + ' tenda' : ''}</span>${bl.ongkirSet ? `<span class="sv-o">ongkir ${rupiah(bl.ongkir)}</span>` : ''}</div>
-      ${out || back ? `<small class="sv-when">${[out, back].filter(Boolean).join(' → ')}</small>` : ''}${st}</div>`;
+      ${out || back ? `<small class="sv-when">${[out, back].filter(Boolean).join(' → ')}</small>` : ''}${d.courier ? `<small class="sv-who">Pengantar: <b>${esc(d.courier)}</b></small>` : ''}${st}
+      ${live ? `<button type="button" class="btn btn-light btn-xs" data-act="svcpay" data-id="${b.id}" style="justify-self:start"><i class="fa-solid fa-motorcycle"></i> Atur pengantaran &amp; ongkir</button>` : ''}</div>`;
   }
   /* Kolom pembayaran: sewa (total, DP, sisa) + layanan bila ada */
   function payCell(b) {

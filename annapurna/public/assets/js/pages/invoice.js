@@ -98,7 +98,7 @@
       <div><h5>${isRent ? 'Detail sewa' : isLd ? 'Detail laundry' : 'Detail pesanan'}</h5>
         ${isLd ? `<div>Diterima: ${D.fmtDateTime(x.createdAt)}</div><div>Estimasi selesai: <strong>${D.fmtDate(Laundry.est(x), true)}</strong></div><div>Pengambilan: Antar &amp; ambil sendiri di toko</div>` : ''}
         ${isRent ? `<div>Periode: <strong>${D.fmtRange(x.start, x.end)}</strong> (${x.days} malam · kembali maks. pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB)</div><div>Ambil: ${D.fmtDate(x.start, true)} · Kembali: ${D.fmtDate(x.end, true)}</div>` : ''}
-        ${isLd ? '' : `<div>Pengambilan: ${isRent ? esc(Ann.Svc.label(x)) : saleDel ? 'Dikirim ke alamat' : 'Ambil di toko'}</div>`}${isRent && Ann.Svc.has(x) ? `<div>Layanan: ${esc(Ann.Svc.brief(x))}</div>` : ''}${saleDel ? `<div>Alamat antar: ${esc((x.deliv || {}).address || '-')}</div>${Ann.Svc.shipRows(x).map(([, l, v]) => `<div>${esc(l)}: <strong>${esc(v)}</strong></div>`).join('')}` : ''}
+        ${isLd ? '' : `<div>Pengambilan: ${isRent ? esc(Ann.Svc.label(x)) : saleDel ? 'Dikirim ke alamat' : 'Ambil di toko'}</div>`}${isRent && Ann.Svc.has(x) ? `<div>Layanan: ${esc(Ann.Svc.brief(x))}</div>${(x.deliv || {}).courier ? `<div>Pengantar: <strong>${esc(x.deliv.courier)}${x.deliv.courierPhone ? ' · ' + esc(x.deliv.courierPhone) : ''}</strong></div>` : ''}` : ''}${saleDel ? `<div>Alamat antar: ${esc((x.deliv || {}).address || '-')}</div>${Ann.Svc.shipRows(x).map(([, l, v]) => `<div>${esc(l)}: <strong>${esc(v)}</strong></div>`).join('')}` : ''}
         <div>Pembayaran: ${esc(isLd ? ((x.payments || []).slice(-1)[0] || {}).via || '-' : x.method || '-')}</div>
         <div style="margin-top:6px">${saleDel ? '<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Diantar</span> ' : ''}${isRent ? pill('rental', x.status) : isLd ? pill('laundry', x.status) : pill('sale', x.status)} ${pill('payment', isLd ? (paid >= total ? 'paid' : 'unpaid') : x.paymentStatus)}</div>
       </div>
@@ -115,8 +115,8 @@
       ${isRent && CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
       <div class="kv"><span>Subtotal${isRent && CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(isLd ? (x.items || []).reduce((a, i) => a + i.price * i.qty, 0) : x.subtotal)}</span></div>
       ${isLd && x.ongkir ? `<div class="kv"><span>Ongkir</span><span>${rupiah(x.ongkir)}</span></div>` : ''}
-      ${isLd && x.discount ? `<div class="kv"><span>Diskon</span><span style="color:var(--g700)">− ${rupiah(x.discount)}</span></div>` : ''}
-      ${!isLd && x.discount ? `<div class="kv"><span>Promo ${esc(x.discount.code)}</span><span style="color:var(--g700)">− ${rupiah(x.discount.amount)}</span></div>` : ''}
+      ${isLd && x.discount ? `<div class="kv"><span>${esc(x.discountReason ? 'Diskon · ' + x.discountReason : 'Diskon')}</span><span style="color:var(--g700)">− ${rupiah(x.discount)}</span></div>` : ''}
+      ${!isLd && x.discount ? `<div class="kv"><span>${esc(Ann.DB.discLabel(x.discount))}</span><span style="color:var(--g700)">− ${rupiah(x.discount.amount)}</span></div>` : ''}
       ${!isLd && x.settleDisc && +x.settleDisc.amount ? `<div class="kv"><span>Diskon pelunasan · ${esc(x.settleDisc.reason || '')}</span><span style="color:var(--g700)">− ${rupiah(x.settleDisc.amount)}</span></div>` : ''}
       ${isRent && x.fine ? `<div class="kv"><span>Denda / biaya tambahan</span><span>${rupiah(x.fine)}</span></div>` : ''}
       <div class="kv total"><span>${isRent && CI.ok.length ? 'Total baru' : 'Total'}</span><span>${rupiah(total)}</span></div>

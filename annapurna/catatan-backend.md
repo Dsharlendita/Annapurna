@@ -700,3 +700,15 @@ Isi: pemasukan, pengeluaran, laba per lini (`rent`, `sale`, `umum`), rincian pen
 - Paket BBQ memakai `ck-grill-m` (Grillpan Sedang/Standar), bukan `ck-grill-s`.
 - Halaman publik baru `GET /ketentuan` (route `ketentuan`, `PageController@ketentuan`). Isi dari settings: `rentalTerms`, `cancelPolicy`, `tektokTerms`, `laundryTerms`, `durations`, `durRules`, `banks`, `dpPercent`.
 - Rekening toko (`settings.banks`): BCA 0462165976, Mandiri 900.001593.150.5, BNI 0396885037, BRI 3120 0103 4920 532, semua a.n. Muhamad Nasikun. QRIS: `settings.qrisImg` = `assets/img/qris-annapurna.png` (Annapurna Adventure Shop, NMID ID1023290695809; gambar digambar ulang resolusi tinggi, isi kode diverifikasi sama dengan aslinya).
+
+## C.21 Alasan & besaran diskon (Konfigurasi → Aturan Rental)
+- `settings.discReasons` = `[{ name, pct }]` (pct kosong = diisi staff). Bawaan: Rating / ulasan Google Maps 10%, Promo toko, Pelanggan setia 5%, Kompensasi kendala barang. Pilihan "Lainnya…" (teks bebas) selalu ada.
+- Dipakai di Kasir (jual / sewa / laundry), Catat barang keluar / kembali, dan Detail booking.
+- Kasir menyimpan `discount: { code: <alasan>, reason, type: nominal|persen, value, amount }` (laundry: `discount` angka + `discountReason`). Diskon persen dihitung dari subtotal (kasir) atau harga sewa (pelunasan). Alasan wajib bila ada diskon.
+
+## C.22 Pengiriman / pengantaran & ongkir dalam satu jendela (revisi 23 Okt)
+- **Penjualan** (`Atur pengiriman & ongkir`): `sales.deliv` menyimpan `method`, `exp`/`resi` atau `courier`/`courierPhone`, `ongkir`, `shipDate`, `date`. Pembayaran ongkir disimpan di `sales.svc[]` (`kind: 'ongkir'`, `via`). Pencatatan ke keuangan mengikuti `settings.finance` (C.14/C.19).
+- **Sewa** (`Atur pengantaran & ongkir`): `bookings.deliv.courier` & `courierPhone` (staff pengantar) + ongkir/jasa seperti sebelumnya. Ditampilkan di nota, invoice A4, struk, dan pesan WA.
+- Nota publik: nomor HP **customer** disamarkan, nomor HP **staff pengantar** tidak (customer perlu menghubunginya).
+- Label diskon di semua dokumen: `DB.discLabel(discount)` → "Diskon · <alasan> <n>%" atau "Promo <kode>". Laundry: `discountReason`.
+- Status pesanan penjualan diantar: tampil "Siap Dikirim" → "Dalam Pengiriman" → "Sudah Tiba" (dari `deliv.ship`), tidak lagi bertabrakan.

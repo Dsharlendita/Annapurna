@@ -440,7 +440,29 @@
     durRules: null,
     /* Pelunasan sewa: 'keduanya' = boleh saat ambil / saat kembali · 'ambil' = wajib lunas saat ambil barang */
     settleWhen: 'keduanya',
+    /* Isi halaman Ketentuan (Konfigurasi → Halaman Ketentuan). Kode {dp} & {jam_bayar} diganti otomatis. */
+    payTerms: [
+      'Booking sewa online cukup bayar DP {dp}%. Sisanya dilunasi saat mengambil barang, saat barang diantar, atau saat barang dikembalikan.',
+      'Pembelian barang dibayar penuh saat checkout. Ongkir kirim dikonfirmasi admin dan dibayar terpisah.',
+      'Batas waktu membayar DP {jam_bayar} jam sejak pesanan dibuat. Lewat dari itu booking dibatalkan otomatis.',
+      'Promo / diskon (mis. diskon 10% untuk yang memberi ulasan di Google Maps) dipotong dari sisa pelunasan setelah dicek admin.',
+    ],
+    shipTerms: [
+      'Barang sewa bisa diantar-jemput staff toko ke lokasimu. Ongkir sesuai jarak dan dikonfirmasi admin via WhatsApp.',
+      'Jasa bongkar-pasang tenda tersedia untuk barang sewa (biaya jasa per tenda + ongkir).',
+      'Barang beli bisa dikirim ke alamat via ekspedisi (J&T, JNE, SPX, AnterAja, Grab, Gojek). Nomor resi dikirim lewat WhatsApp.',
+      'Ongkir tidak termasuk total belanja / DP dan dibayar langsung ke admin.',
+    ],
     settleReasons: ['Rating / ulasan Google Maps', 'Promo toko', 'Pelanggan setia', 'Kompensasi kendala barang'],
+    /* Alasan & besaran bawaan diskon (Konfigurasi → Aturan Rental). Dipakai di Kasir, Catat barang keluar/kembali & Detail booking.
+       pct kosong = besaran diisi staff. Staff tetap bisa mengubah besaran (Rp / %). */
+    discReasons: [
+      { name: 'Rating / ulasan Google Maps', pct: 10 },
+      { name: 'Promo toko', pct: '' },
+      { name: 'Pelanggan setia', pct: 5 },
+      { name: 'Kompensasi kendala barang', pct: '' },
+    ],
+    reviewDiscPct: 10,
     /* Template pesan WhatsApp yang diubah Owner (kosong = pakai bawaan, lihat WA_TPL) */
     waTemplates: {},
     /* Section "Produk Rental Terlaris" di beranda: sumber data (otomatis | manual | gabungan), periode hitung (hari, 0 = semua), jumlah barang */
@@ -1359,6 +1381,13 @@
       return true;
     },
     /* Kartu identitas jaminan: daftar Owner + "Lainnya" (diketik manual) */
+    /* Label diskon untuk nota / invoice / struk: "Diskon · Pelanggan setia 10%" atau "Promo WEEKDAY15" */
+    discLabel(dis, reason) {
+      if (!dis) return 'Diskon'; const r = reason || dis.reason; const pct = dis.type === 'persen' && +dis.value ? ` ${+dis.value}%` : '';
+      if (r) return `Diskon · ${r}${pct}`; if (dis.code && dis.code !== 'KASIR') return `Promo ${dis.code}`; return 'Diskon';
+    },
+    discReasons: () => { const st = DB.settings(); const L = Array.isArray(st.discReasons) && st.discReasons.length ? st.discReasons : (st.settleReasons || []).map((n) => ({ name: n, pct: /ulasan|google/i.test(n) ? (+st.reviewDiscPct || 10) : '' }));
+      return L.filter((r) => r && String(r.name || '').trim()).map((r) => ({ name: String(r.name).trim(), pct: r.pct === '' || r.pct == null ? '' : Math.min(100, Math.max(0, +r.pct || 0)) })); },
     idTypes: () => { const L = DB.settings().idTypes; return (Array.isArray(L) && L.length ? L : SETTINGS.idTypes).filter(Boolean); },
     /* ---------- Template pesan WhatsApp ---------- */
     WA_TPL, WA_VARS,
@@ -2308,7 +2337,7 @@
     /* Ringkasan satu baris untuk pesan WhatsApp / daftar */
     shipBrief(s) {
       const d = (s && s.deliv) || {}; const m = Svc.shipMode(s); if (!m) return '';
-      if (m === 'kurir') return ['Diantar kurir toko' + (d.courier ? ' (' + d.courier + ')' : ''), d.date ? fmtDate(d.date) + (d.time ? ' ' + Svc.fmtT(d.time) : '') : ''].filter(Boolean).join(' · ');
+      if (m === 'kurir') return ['Diantar kurir toko' + (d.courier ? ' (' + d.courier + (d.courierPhone ? ' · ' + d.courierPhone : '') + ')' : ''), d.date ? fmtDate(d.date) + (d.time ? ' ' + Svc.fmtT(d.time) : '') : ''].filter(Boolean).join(' · ');
       return ['Ekspedisi ' + (d.exp || '-') + (d.expSvc ? ' ' + d.expSvc : ''), d.resi ? 'resi ' + d.resi : '', d.eta ? 'estimasi tiba ' + fmtDate(d.eta) : ''].filter(Boolean).join(' · ');
     },
     /* Jam pilihan antar/jemput mengikuti jam operasional toko (s.d. 22.00) */
@@ -2372,7 +2401,7 @@
       const rec = JSON.parse(JSON.stringify(x, (k, v) => (Share.DROP.includes(k) || (typeof v === 'string' && (v.startsWith('data:') || v.length > 400)) ? undefined : v)));
       if (rec.customer) rec.customer.phone = Share.mask(rec.customer.phone);
       if (rec.deliv && rec.deliv.recPhone) rec.deliv.recPhone = Share.mask(rec.deliv.recPhone);
-      if (rec.deliv && rec.deliv.courierPhone) rec.deliv.courierPhone = Share.mask(rec.deliv.courierPhone);
+      /* No. HP staff pengantar TIDAK disamarkan: customer perlu menghubungi pengantar */
       rec.no = NO(x);
       return { v: 2, k: Share.kind(x), at: nowStamp(), t, r: rec };
     },

@@ -449,24 +449,24 @@
     const st = DB.settings(); const S = { extra: +o.extra || 0, discOpen: false, dtype: 'rp', mode: 'now', via: o.via || 'Tunai', proof: '' };
     const box = m.$(o.sel || '#stl'); const had = b.settleDisc ? +b.settleDisc.amount || 0 : 0;
     const sewaDue = () => sisa(b); /* sisa sewa sebelum diskon baru (diskon lama sudah ada di total) */
-    const discAmt = () => { if (had || !S.discOpen) return 0; const v = +String((box.querySelector('[data-sd=val]') || {}).value || '').replace(/[^\d.]/g, '') || 0; const a = S.dtype === 'pct' ? Math.round(sewaDue() * Math.min(100, v) / 100) : Math.round(v); return Math.max(0, Math.min(a, sewaDue())); };
+    const discAmt = () => { if (had || !S.discOpen) return 0; const v = +String(S.dval || '').replace(/[^\d.]/g, '') || 0; /* S.dval selalu disinkronkan lewat keep() */ const base = Math.max(0, (b.subtotal || 0) - (b.discount ? +b.discount.amount || 0 : 0)); /* % dihitung dari HARGA SEWA (ketentuan mitra: harga sewa − diskon − DP) */ const a = S.dtype === 'pct' ? Math.round(base * Math.min(100, v) / 100) : Math.round(v); return Math.max(0, Math.min(a, sewaDue())); };
     const due = () => Math.max(0, sewaDue() - discAmt() + S.extra);
-    const reasons = st.settleReasons || [];
+    const RS = DB.discReasons(); const reasons = RS.map((r) => r.name); const pctOf = (n) => { const r = RS.find((x) => x.name === n); return r && r.pct !== '' ? r.pct : null; };
     const laterOk = o.stage === 'keluar' ? (st.settleWhen || 'keduanya') !== 'ambil' : o.stage === 'kembali';
     const render = () => {
       const D0 = discAmt(); const dd = due(); const promo = b.discount ? +b.discount.amount || 0 : 0;
       box.innerHTML = `<div class="stl">
         <div class="stl-h"><i class="fa-solid fa-cash-register"></i> Pelunasan ${dd ? '' : '<span class="pill green plain">Lunas</span>'}</div>
         <div class="kv"><span>Harga sewa${b.fine ? ' + denda sebelumnya' : ''}</span><span>${rupiah(b.subtotal + (b.fine || 0))}</span></div>
-        ${promo ? `<div class="kv"><span>Promo ${esc((b.discount && b.discount.code) || '')}</span><span>− ${rupiah(promo)}</span></div>` : ''}
+        ${promo ? `<div class="kv"><span>${esc(DB.discLabel(b.discount))}</span><span>− ${rupiah(promo)}</span></div>` : ''}
         ${had ? `<div class="kv stl-disc"><span>Diskon pelunasan · ${esc(b.settleDisc.reason || '')}<small>diberikan ${esc(b.settleDisc.by || '')}</small></span><span>− ${rupiah(had)}</span></div>` : ''}
         <div class="kv"><span>Sudah dibayar (DP${Rules.paidTotal(b) > (b.dp || 0) ? ' & pembayaran lain' : ''})</span><span>− ${rupiah(Rules.paidTotal(b))}</span></div>
         ${S.extra ? `<div class="kv"><span>${esc(o.extraLabel || 'Denda & biaya')}</span><span>+ ${rupiah(S.extra)}</span></div>` : ''}
         ${!had && sewaDue() > 0 ? (S.discOpen ? `<div class="stl-dbox"><div class="stl-drow"><div class="seg sm" data-sd="type"><button type="button" data-t="rp" class="${S.dtype === 'rp' ? 'active' : ''}">Rp</button><button type="button" data-t="pct" class="${S.dtype === 'pct' ? 'active' : ''}">%</button></div>
-            <input class="input" data-sd="val" inputmode="numeric" placeholder="${S.dtype === 'pct' ? 'Contoh: 10' : 'Contoh: 10000'}" value="${esc(S.dval || '')}"><button type="button" class="icon-btn" data-sd="x" title="Batalkan diskon"><i class="fa-solid fa-xmark"></i></button></div>
-            <div class="stl-drow"><select class="select" data-sd="reason">${reasons.map((r) => `<option ${r === S.reason ? 'selected' : ''}>${esc(r)}</option>`).join('')}<option value="__lain" ${S.reason === '__lain' ? 'selected' : ''}>Lainnya…</option></select>
+            <input class="input" data-sd="val" inputmode="numeric" ${S.dtype === 'pct' ? 'data-pct' : 'data-rp'} placeholder="${S.dtype === 'pct' ? 'Contoh: 10' : 'Contoh: 10000'}" value="${esc(S.dval || '')}"><button type="button" class="icon-btn" data-sd="x" title="Batalkan diskon"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="stl-drow"><select class="select" data-sd="reason">${RS.map((r) => `<option value="${esc(r.name)}" ${r.name === S.reason ? 'selected' : ''}>${esc(r.name)}${r.pct !== '' ? ` · ${r.pct}%` : ''}</option>`).join('')}<option value="__lain" ${S.reason === '__lain' ? 'selected' : ''}>Lainnya…</option></select>
             ${S.reason === '__lain' ? `<input class="input" data-sd="rtext" placeholder="Alasan diskon" value="${esc(S.rtext || '')}">` : ''}</div>
-            <div class="kv stl-disc"><span>Diskon pelunasan</span><span>− ${rupiah(D0)}</span></div><small class="muted">Maksimal ${rupiah(sewaDue())} (sisa sewa). Diskon hanya bisa diberikan sekali per booking.</small></div>`
+            <div class="kv stl-disc"><span>Diskon pelunasan</span><span>− ${rupiah(D0)}</span></div><small class="muted">${S.dtype === 'pct' ? `Persen dihitung dari harga sewa ${rupiah(Math.max(0, (b.subtotal || 0) - (b.discount ? +b.discount.amount || 0 : 0)))}. ` : ''}Maksimal ${rupiah(sewaDue())} (sisa sewa). Diskon hanya bisa diberikan sekali per booking.</small></div>`
           : `<button type="button" class="link-btn stl-add" data-sd="open"><i class="fa-solid fa-tag"></i> + Diskon (mis. rating Google Maps)</button>`) : ''}
         <div class="kv total"><span>Sisa yang harus dibayar</span><span>${rupiah(dd)}</span></div>
         ${dd ? `<div class="stl-pay">
@@ -480,14 +480,14 @@
     };
     const keep = () => { const g = (k) => box.querySelector(`[data-sd=${k}]`); if (g('val')) S.dval = g('val').value; if (g('reason')) S.reason = g('reason').value; if (g('rtext')) S.rtext = g('rtext').value; if (g('note')) S.note = g('note').value; if (g('ver')) S.ver = g('ver').checked; };
     box.addEventListener('click', (e) => { const t = e.target.closest('[data-sd],[data-via],[data-t]'); if (!t) return;
-      if (t.dataset.sd === 'open') { S.discOpen = true; S.reason = S.reason || reasons[0] || '__lain'; render(); box.querySelector('[data-sd=val]').focus(); return; }
+      if (t.dataset.sd === 'open') { S.discOpen = true; S.reason = S.reason || reasons[0] || '__lain'; if (pctOf(S.reason) != null && !S.dval) { S.dtype = 'pct'; S.dval = String(pctOf(S.reason)); } render(); box.querySelector('[data-sd=val]').focus(); return; }
       if (t.dataset.sd === 'x') { S.discOpen = false; S.dval = ''; render(); return; }
       if (t.dataset.t) { keep(); S.dtype = t.dataset.t; S.dval = ''; render(); box.querySelector('[data-sd=val]').focus(); return; }
       if (t.dataset.via) { keep(); S.via = t.dataset.via; render(); } });
     box.addEventListener('input', (e) => { if (e.target.dataset.sd === 'val') { keep(); const pos = e.target.selectionStart; render(); const v = box.querySelector('[data-sd=val]'); v.focus(); v.setSelectionRange(pos, pos); } else keep(); });
     box.addEventListener('change', async (e) => { const t = e.target;
       if (t.name === 'stlMode') { keep(); S.mode = t.value; render(); return; }
-      if (t.dataset.sd === 'reason') { keep(); render(); if (S.reason === '__lain') box.querySelector('[data-sd=rtext]').focus(); return; }
+      if (t.dataset.sd === 'reason') { keep(); if (pctOf(S.reason) != null) { S.dtype = 'pct'; S.dval = String(pctOf(S.reason)); } render(); if (S.reason === '__lain') box.querySelector('[data-sd=rtext]').focus(); return; }
       if (t.dataset.sd === 'proof' && t.files[0]) { S.proof = await shrinkImg(t.files[0]); keep(); render(); } });
     render();
     return {
@@ -914,6 +914,7 @@
       ${Svc.delivers(b) ? `<div class="r"><i class="fa-solid fa-truck-fast"></i><span>${Svc.outLabel(b)}: <b>${D.fmtDate(d.date || b.start, true)} pukul ${esc(Svc.fmtT(d.time) || '-')}</b></span></div>` : `<div class="r"><i class="fa-solid fa-store"></i><span>Customer ambil barang di toko ${D.fmtDate(b.start, true)}</span></div>`}
       <div class="r"><i class="fa-solid fa-rotate-left"></i><span>Pengembalian: ${rm === 'jemput' ? `<b>${tent ? 'dibongkar &amp; dijemput tim' : 'dijemput staff'} ${D.fmtDate(d.backDate || b.end, true)}${d.backTime ? ' pukul ' + esc(Svc.fmtT(d.backTime)) : ''}</b>` : rm === 'toko' ? (tent ? 'customer bongkar sendiri &amp; antar ke toko' : 'diantar customer ke toko') : '<b style="color:#9a6508">belum disepakati</b> — isi setelah chat dengan customer'}</span></div>
       ${tent ? `<div class="r"><i class="fa-solid ${Svc.icon(b)}"></i><span>${esc(Svc.short(b))}: ${d.tents || 1} tenda × ${rupiah(Svc.fee(md))} = <b>${rupiah(Svc.setupTotal(b))}</b> + ${Svc.ongkirText(b)}</span></div>` : ''}
+      ${d.courier ? `<div class="r"><i class="fa-solid fa-motorcycle"></i><span>Pengantar: <b>${esc(d.courier)}</b>${d.courierPhone ? ' · ' + esc(d.courierPhone) : ''}</span></div>` : ''}
       <div class="r"><i class="fa-brands fa-whatsapp"></i><span>${d.waAt ? `Customer mengirim konfirmasi ${D.fmtDateTime(d.waAt)}` : 'Customer belum mengirim konfirmasi via WhatsApp'}</span></div>
       ${(() => { const bl = Svc.bill(b); return `<div class="svc-bill">
         ${tent ? `<div class="kv"><span>Jasa ${esc(Svc.short(b).toLowerCase())}</span><span>${rupiah(bl.jasa)}</span></div>` : ''}
@@ -922,7 +923,7 @@
         <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>
         ${bl.ongkirSet || bl.due ? `<div class="kv"><span>Sisa layanan</span><strong style="color:${bl.due ? 'var(--orange)' : 'var(--g700)'}">${bl.due ? rupiah(bl.due) : 'Lunas'}</strong></div>` : ''}
       </div>`; })()}
-      ${live ? `<div class="acts"><button type="button" class="btn btn-light btn-xs" data-svcact="edit"><i class="fa-solid fa-pen"></i> Ubah layanan</button><button type="button" class="btn btn-primary btn-xs" data-svcact="pay"><i class="fa-solid fa-file-invoice-dollar"></i> Perbarui nota (ongkir &amp; bayar)</button><a class="btn btn-wa btn-xs" href="${custLink(b.customer)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Chat customer</a></div>` : ''}
+      ${live ? `<div class="acts"><button type="button" class="btn btn-light btn-xs" data-svcact="edit"><i class="fa-solid fa-pen"></i> Ubah layanan</button><button type="button" class="btn btn-primary btn-xs" data-svcact="pay"><i class="fa-solid fa-motorcycle"></i> Atur pengantaran &amp; ongkir</button><a class="btn btn-wa btn-xs" href="${custLink(b.customer)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Chat customer</a></div>` : ''}
     </div></div>`;
   }
   /* Ubah / atur layanan (dipakai juga untuk booking kasir & hasil kesepakatan WhatsApp) */
@@ -973,8 +974,14 @@
      Nota customer langsung ikut berubah. Pembayaran masuk Keuangan lini Rental. */
   function svcPay(b, done) {
     const tent = Svc.isTent(b); const d = b.deliv || {}; const bl0 = Svc.bill(b);
-    const m = modal({ title: `Perbarui nota layanan · ${NO(b)}`, body: `
+    const staff = DB.staff().filter((u) => u.status !== 'nonaktif'); const goes = Svc.delivers(b) || Svc.returnMode(b) === 'jemput';
+    const m = modal({ title: `Atur pengantaran & ongkir · ${NO(b)}`, body: `
       <p class="muted" style="font-size:13px;margin-bottom:12px">Isi sesuai kesepakatan dengan customer via WhatsApp. Nota customer langsung diperbarui. Pembayaran masuk Keuangan lini <b>Rental</b>.</p>
+      ${goes ? `<div class="ship-sec"><i class="fa-solid fa-motorcycle"></i> Staff pengantar <small>tampil di nota customer</small></div>
+      <div class="grid-2"><div class="field"><label for="spCour">Nama staff</label><input class="input" id="spCour" list="spStaff" value="${esc(d.courier || '')}" placeholder="Pilih / ketik nama staff"><datalist id="spStaff">${staff.map((u) => `<option value="${esc(u.name)}">`).join('')}</datalist></div>
+        <div class="field"><label for="spCPh">No. HP staff</label><input class="input" id="spCPh" inputmode="tel" value="${esc(d.courierPhone || '')}" placeholder="08xxxxxxxxxx"></div></div>
+      <div class="ship-auto" style="margin-bottom:12px"><div class="kv"><span>Penerima</span><strong>${esc(b.customer.name)} · ${esc(b.customer.phone || '-')}</strong></div><div class="kv"><span>Alamat</span><strong style="text-align:right">${esc(d.address || '-')}</strong></div></div>` : ''}
+      <div class="ship-sec"><i class="fa-solid fa-money-bill-wave"></i> Ongkir${tent ? ' &amp; jasa' : ''}</div>
       <div class="grid-2">
         ${tent ? `<div class="field"><label>Jasa ${esc(Svc.short(b).toLowerCase())} (Rp)</label><input class="input" type="number" id="spFee" min="0" value="${bl0.jasa}"><small class="muted">${d.tents || 1} tenda × ${rupiah(Svc.fee(Svc.mode(b)))}</small></div>` : ''}
         <div class="field"><label>${Svc.ongkirText(b).replace(/^o/, 'O')} disepakati (Rp)</label><input class="input" type="number" id="spOng" min="0" value="${bl0.ongkirSet ? bl0.ongkir : ''}" placeholder="Hasil chat WhatsApp"></div>
@@ -993,14 +1000,17 @@
     const sum = () => { const c = calc(); m.$('#spSum').innerHTML = `<div class="kv total"><span>Total layanan</span><span>${rupiah(c.total)}</span></div><div class="kv"><span>Sudah dibayar</span><span>${rupiah(Svc.paid(b))}</span></div><div class="kv"><span>Sisa layanan</span><strong>${rupiah(c.due)}</strong></div>`; if (when === 'now' && !m.$('#spAmt').dataset.touched) m.$('#spAmt').value = c.due; };
     m.el.addEventListener('input', (e) => { if (e.target.id === 'spAmt') e.target.dataset.touched = '1'; sum(); });
     m.$('#spWhen').addEventListener('click', (e) => { const x = e.target.closest('[data-w]'); if (!x) return; when = x.dataset.w; m.$$('#spWhen [data-w]').forEach((y) => y.classList.toggle('active', y === x)); m.$('#spPayBox').hidden = when !== 'now'; sum(); });
+    if (m.$('#spCour')) m.$('#spCour').addEventListener('change', () => { const u = staff.find((x) => x.name.toLowerCase() === m.$('#spCour').value.trim().toLowerCase()); if (u && u.phone && !m.$('#spCPh').value) m.$('#spCPh').value = u.phone; });
     sum();
     m.$('#spOk').addEventListener('click', () => {
       if (!has('#spOng')) { toast('Isi ongkir yang sudah disepakati (isi 0 bila gratis).', 'err'); m.$('#spOng').focus(); return; }
+      if (m.$('#spCPh') && m.$('#spCPh').value.trim() && !UI.isPhone(m.$('#spCPh').value.trim())) { toast('No. HP staff tidak valid.', 'err'); m.$('#spCPh').focus(); return; }
       const c = calc(); const amt = when === 'now' ? n('#spAmt') : 0;
       if (when === 'now' && !amt) { toast('Isi jumlah yang dibayar.', 'err'); return; }
       const at = D.nowStamp(); const note = m.$('#spNote').value.trim(); const via = 'Kasir · ' + m.$('#spVia').value;
       const before = Svc.bill(b);
-      b.deliv = Object.assign({}, b.deliv || {}, { ongkir: c.ong, notaAt: at, notaBy: me.name }, tent && c.jasa !== Svc.setupTotal(b) ? { jasa: c.jasa } : { jasa: null });
+      b.deliv = Object.assign({}, b.deliv || {}, { ongkir: c.ong, notaAt: at, notaBy: me.name }, tent && c.jasa !== Svc.setupTotal(b) ? { jasa: c.jasa } : { jasa: null },
+        m.$('#spCour') ? { courier: m.$('#spCour').value.trim(), courierPhone: m.$('#spCPh').value.trim() } : {});
       const changes = [];
       if (!before.ongkirSet || before.ongkir !== c.ong) changes.push({ field: Svc.ongkirText(b), from: before.ongkirSet ? rupiah(before.ongkir) : '—', to: rupiah(c.ong) });
       if (tent && before.jasa !== c.jasa) changes.push({ field: 'Jasa tenda', from: rupiah(before.jasa), to: rupiah(c.jasa) });
@@ -1047,7 +1057,7 @@
   function ldNotaText(o) {
     const total = Laundry.total(o), paid = Laundry.paid(o);
     return [`*NOTA LAUNDRY ${o.no}*`, `Tanggal terima: ${D.fmtDate(o.createdAt, true)}`, `Estimasi selesai: ${hariTgl(Laundry.est(o))}`,
-      ...o.items.map((i) => `• ${i.qty}× ${i.name} = ${rupiah(i.qty * i.price)}`), ...(o.discount ? [`Diskon: −${rupiah(o.discount)}`] : []),
+      ...o.items.map((i) => `• ${i.qty}× ${i.name} = ${rupiah(i.qty * i.price)}`), ...(o.discount ? [`${o.discountReason ? 'Diskon ' + o.discountReason : 'Diskon'}: −${rupiah(o.discount)}`] : []),
       `*Total: ${rupiah(total)}*`, paid >= total ? 'Status bayar: LUNAS' : paid ? `Dibayar ${rupiah(paid)} · sisa ${rupiah(total - paid)} (dibayar saat ambil)` : `Dibayar saat pengambilan: ${rupiah(total)}`].join('\n');
   }
   /* Pesan laundry dari template per status (Konfigurasi → Template Pesan WhatsApp) */
@@ -1186,7 +1196,7 @@
     const kv = (l, r, op = {}) => { txt(l, LX, y, { z: op.z || 14, w: op.w || 500, c: op.c || '#5d6b62' }); txt(r, RX, y, { z: op.z || 14, w: op.w || 600, c: op.rc || op.c || '#15311f', a: 'right' }); y += op.gap || 30; };
     kv('Subtotal', rupiah(items.reduce((a, i) => a + i.price * i.qty, 0)));
     if (o.ongkir) kv('Ongkir', rupiah(o.ongkir));
-    if (o.discount) kv('Diskon', '− ' + rupiah(o.discount), { rc: '#1f4d2f', w: 700 });
+    if (o.discount) kv((o.discountReason ? 'Diskon · ' + o.discountReason : 'Diskon').slice(0, 44), '− ' + rupiah(o.discount), { rc: '#1f4d2f', w: 700 });
     kv('Total laundry', rupiah(total), { w: 800, c: '#15311f', z: 15 });
     kv('Sudah dibayar', rupiah(paid), { rc: '#2f6b43', w: 700 });
     line(LX, y - 12, RX, y - 12, '#d8d2c4', 1, [4, 4]); y += 10;
@@ -1228,7 +1238,7 @@
       ${o.notes ? `<p style="font-size:13.5px"><span class="muted">Catatan:</span> ${esc(o.notes)}</p>` : ''}
       <div class="mini-sec"><h4>Barang</h4>${o.items.map((i) => `<div class="kv"><span>${i.qty}× ${esc(i.name)} <small class="muted">(${esc(i.cat || '')})</small></span><span>${rupiah(i.qty * i.price)}</span></div>`).join('')}
         ${o.ongkir ? `<div class="kv"><span>Ongkir</span><span>${rupiah(o.ongkir)}</span></div>` : ''}
-        ${o.discount ? `<div class="kv"><span>Diskon</span><span style="color:var(--g700)">− ${rupiah(o.discount)}</span></div>` : ''}
+        ${o.discount ? `<div class="kv"><span>${esc(o.discountReason ? 'Diskon · ' + o.discountReason : 'Diskon')}</span><span style="color:var(--g700)">− ${rupiah(o.discount)}</span></div>` : ''}
         <div class="kv total"><span>Total</span><span>${rupiah(total)}</span></div>
         <div class="kv hl"><span>Dibayar</span><span>${rupiah(paid)}</span></div>
         ${total - paid > 0 ? `<div class="kv"><span>Sisa</span><strong style="color:var(--orange)">${rupiah(total - paid)}</strong></div>` : ''}</div>
@@ -1278,6 +1288,7 @@
     if (act === 'wa') window.open(custLink(b.customer), '_blank');
     if (act === 'swap') BK.storeChange(b, fin);
     if (act === 'extend') BK.extend(b, fin);
+    if (act === 'svcpay') { svcPay(b, fin); return; }
     if (act === 'settle') { settleModal(id, fin); return; }
     if (act === 'remind') { remindWa(b); fin(); }
   }
@@ -1325,7 +1336,7 @@
       <div class="mini-sec" style="max-width:360px;margin-left:auto">
         ${CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
         <div class="kv"><span>Subtotal${CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(b.subtotal)}</span></div>
-        ${b.discount ? `<div class="kv"><span>Promo ${esc(b.discount.code)}</span><span style="color:var(--g700)">− ${rupiah(b.discount.amount)}</span></div>` : ''}
+        ${b.discount ? `<div class="kv"><span>${esc(DB.discLabel(b.discount))}</span><span style="color:var(--g700)">− ${rupiah(b.discount.amount)}</span></div>` : ''}
         ${b.fine ? `<div class="kv"><span>Denda</span><span>${rupiah(b.fine)}</span></div>` : ''}
         <div class="kv total"><span>${CI.ok.length ? 'Total baru' : 'Total'}</span><span>${rupiah(b.total)}</span></div>
         ${dpPaid ? `<div class="kv"><span>DP sudah dibayar</span><span>${rupiah(dpPaid)}</span></div>` : `<div class="kv"><span>DP ${DB.settings().dpPercent}% yang harus dibayar</span><span>${rupiah(b.dp)}</span></div>`}
@@ -1417,12 +1428,13 @@
     const who = m === 'kurir' ? (d.courier ? `<small class="sv-who">Pengantar: <b>${esc(d.courier)}</b>${d.vehicle ? ' · ' + esc(d.vehicle) : ''}</small>` : '<small class="sv-who">Pengantar: <b>belum dipilih</b></small>')
       : m === 'ekspedisi' ? `<small class="sv-who">Resi: <b>${d.resi ? esc(d.resi) : 'belum ada'}</b></small>` : '';
     const sh = m ? S.SHIP.STATUS[S.shipStatus(s)] : null;
-    const pay = s.status === 'dibatalkan' ? '' : !bl.ongkirSet ? '<span class="sv-b warn"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati</span>'
+    const live0 = !['selesai', 'dibatalkan'].includes(s.status) && s.paymentStatus === 'paid';
+    const pay = s.status === 'dibatalkan' ? '' : !bl.ongkirSet ? (live0 ? `<button type="button" class="sv-b warn sv-click" data-act="sship" data-id="${s.id}" title="Isi ongkir"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati · isi</button>` : '<span class="sv-b warn"><i class="fa-solid fa-hourglass-half"></i> Ongkir belum disepakati</span>')
       : bl.due > 0 ? `<span class="sv-b bad"><i class="fa-solid fa-circle-exclamation"></i> Belum dibayar ${rupiah(bl.due)}</span>` : '<span class="sv-b ok"><i class="fa-solid fa-circle-check"></i> Ongkir lunas</span>';
     return `<div class="sv-cell"><div class="sv-top"><span class="sv-k"><i class="fa-solid ${ic}"></i> ${top}</span>${bl.ongkirSet ? `<span class="sv-o">ongkir ${rupiah(bl.ongkir)}</span>` : ''}</div>
       <small class="sv-when">${when}</small>${who}
-      ${sh && s.status !== 'dibatalkan' ? `<span class="sv-b ${sh[1]}"><i class="fa-solid ${sh[2]}"></i> ${sh[0]}</span>` : ''}${pay}
-      ${live && s.paymentStatus === 'paid' ? `<button type="button" class="btn btn-light btn-xs" data-act="sship" data-id="${s.id}" style="justify-self:start"><i class="fa-solid fa-truck-ramp-box"></i> ${m ? 'Ubah pengiriman' : 'Atur pengiriman'}</button>` : ''}</div>`;
+${pay}
+      ${live && s.paymentStatus === 'paid' ? `<button type="button" class="btn btn-light btn-xs" data-act="sship" data-id="${s.id}" style="justify-self:start"><i class="fa-solid fa-truck-ramp-box"></i> ${m ? 'Ubah pengiriman & ongkir' : 'Atur pengiriman & ongkir'}</button>` : ''}</div>`;
   }
   /* Kolom pembayaran penjualan: belanja (total, dibayar, sisa) + ongkir bila diantar */
   function salePayCell(s) {
@@ -1444,7 +1456,7 @@
         <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>
         ${bl.ongkirSet ? `<div class="kv"><span>Sisa ongkir</span><strong style="color:${bl.due ? 'var(--orange)' : 'var(--g700)'}">${bl.due ? rupiah(bl.due) : 'Lunas'}</strong></div>` : ''}
       </div>
-      ${live ? `<div class="acts"><button type="button" class="btn btn-primary btn-xs" data-ssvc="pay"><i class="fa-solid fa-file-invoice-dollar"></i> Perbarui nota (ongkir &amp; bayar)</button><button type="button" class="btn btn-light btn-xs" data-ssvc="ship"><i class="fa-solid fa-truck-ramp-box"></i> ${Svc.shipMode(s) ? 'Ubah pengiriman' : 'Atur pengiriman'}</button></div>` : ''}
+      ${live ? `<div class="acts"><button type="button" class="btn btn-primary btn-xs" data-ssvc="ship"><i class="fa-solid fa-truck-ramp-box"></i> ${Svc.shipMode(s) ? 'Ubah pengiriman' : 'Atur pengiriman'}</button></div>` : ''}
     </div></div>`;
   }
   /* Atur pengiriman: kurir toko (siapa yang antar) atau ekspedisi (nama, layanan, resi, berat, estimasi tiba, asuransi, penerima) */
@@ -1463,12 +1475,21 @@
         <div class="field"><label for="shResi">No. resi <span class="req">*</span></label><input class="input" id="shResi" value="${esc(d.resi || '')}" placeholder="Contoh: JP1234567890" autocomplete="off" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.03em"></div></div>
       <div id="shKurir" class="grid-2"><div class="field"><label for="shCourier">Nama staff pengantar <span class="req">*</span></label><input class="input" id="shCourier" list="shStaff" value="${esc(d.courier || '')}" placeholder="Pilih / ketik nama staff"><datalist id="shStaff">${staff.map((u) => `<option value="${esc(u.name)}">`).join('')}</datalist></div>
         <div class="field"><label for="shCPhone">No. HP staff <span class="req">*</span></label><input class="input" id="shCPhone" inputmode="tel" value="${esc(d.courierPhone || '')}" placeholder="08xxxxxxxxxx"></div></div>
+      <div class="ship-ong"><div class="ship-sec"><i class="fa-solid fa-money-bill-wave"></i> Ongkir <small>hasil kesepakatan dengan customer</small></div>
+        <div class="grid-2"><div class="field"><label for="shOng">Ongkir (Rp)</label><input class="input" id="shOng" inputmode="numeric" data-rp value="${Svc.bill(s).ongkirSet ? Svc.bill(s).ongkir : ''}" placeholder="Kosongkan bila belum disepakati"></div>
+        <div class="field"><label>Pembayaran ongkir</label><div class="seg" id="shPaid"><button type="button" data-p="0" class="${Svc.bill(s).due > 0 || !Svc.bill(s).ongkirSet ? 'active' : ''}">Belum dibayar</button><button type="button" data-p="1" class="${Svc.bill(s).ongkirSet && !Svc.bill(s).due ? 'active' : ''}">Sudah dibayar</button></div></div></div>
+        <div id="shViaRow" class="stl-via" hidden style="margin:0 0 10px">${['Tunai', 'Transfer', 'QRIS'].map((k, i) => `<button type="button" data-shvia="${k}" class="${i === 1 ? 'on' : ''}">${k}</button>`).join('')}</div></div>
       <div class="ship-auto"><div class="ship-sec"><i class="fa-solid fa-id-card"></i> Penerima &amp; tujuan <small>terisi otomatis dari pesanan</small></div>
         <div class="kv"><span>Penerima</span><strong>${esc(rec.name)}${rec.phone ? ' · ' + esc(rec.phone) : ''}</strong></div>
         <div class="kv"><span>Alamat lengkap</span><strong style="text-align:right">${esc(rec.addr)}</strong></div></div>
       <p class="muted" style="font-size:12.5px;margin:10px 0 0"><i class="fa-brands fa-whatsapp" style="color:#25a35a"></i> Setelah disimpan, pesan WhatsApp ke customer langsung disiapkan (bisa diedit sebelum dikirim).</p>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="shOk"><i class="fa-solid fa-paper-plane"></i> Simpan &amp; kabari customer</button>' });
     const v = (id) => String((m.$(id) || {}).value || '').trim();
+    let ongPaid = Svc.bill(s).ongkirSet && !Svc.bill(s).due, ongVia = 'Transfer';
+    const syncPay = () => { m.$$('#shPaid [data-p]').forEach((b) => b.classList.toggle('active', (b.dataset.p === '1') === ongPaid)); const due = Math.max(0, (+String(m.$('#shOng').value).replace(/[^\d]/g, '') || 0) - Svc.paid(s)); m.$('#shViaRow').hidden = !ongPaid || !due; };
+    m.$('#shPaid').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) { ongPaid = b.dataset.p === '1'; syncPay(); } });
+    m.$('#shViaRow').addEventListener('click', (e) => { const b = e.target.closest('[data-shvia]'); if (b) { ongVia = b.dataset.shvia; m.$$('#shViaRow [data-shvia]').forEach((x) => x.classList.toggle('on', x === b)); } });
+    m.$('#shOng').addEventListener('input', syncPay); syncPay();
     const sync = () => { m.$('#shKurir').hidden = mode !== 'kurir'; m.$('#shExp').hidden = mode !== 'ekspedisi';
       m.$$('#shMode [data-m]').forEach((b) => b.classList.toggle('active', b.dataset.m === mode)); m.$$('#shExpPick [data-exp]').forEach((b) => b.classList.toggle('on', b.dataset.exp === exp)); };
     m.$('#shMode').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) { mode = b.dataset.m; sync(); (mode === 'kurir' ? m.$('#shCourier') : m.$('#shResi')).focus(); } });
@@ -1482,12 +1503,18 @@
       if (mode === 'kurir' && v('#shCourier').length < 2) { toast('Isi nama staff yang mengantar.', 'err'); m.$('#shCourier').focus(); return; }
       if (mode === 'kurir' && !UI.isPhone(v('#shCPhone'))) { toast('No. HP staff tidak valid. Contoh: 081234567890.', 'err'); m.$('#shCPhone').focus(); return; }
       const before = Svc.shipBrief(s); const at = D.nowStamp();
-      const nd = { method: mode, ship: 'dikirim', recName: rec.name, recPhone: rec.phone, shipAt: at, shipBy: me.name };
+      const nd = { method: mode, ship: 'dikirim', recName: rec.name, recPhone: rec.phone, shipAt: at, shipBy: me.name, shipDate: D.today(), date: D.today(), time: '' };
+      /* Ongkir & pembayarannya (satu jendela dengan pengiriman) */
+      const ongRaw = String(m.$('#shOng').value).replace(/[^\d]/g, ''); const before0 = Svc.bill(s);
+      if (ongRaw !== '') { nd.ongkir = +ongRaw; nd.notaAt = at; nd.notaBy = me.name; }
+      const ongDue = ongRaw !== '' ? Math.max(0, +ongRaw - Svc.paid(s)) : 0;
+      if (ongPaid && ongDue > 0) { s.svc = s.svc || []; s.svc.push({ id: 'SVC-' + Date.now().toString(36).toUpperCase() + 'O' + s.svc.length, kind: 'ongkir', amount: ongDue, at, by: me.name, via: 'Kasir · ' + ongVia, note: 'Ongkir ' + (mode === 'kurir' ? 'kurir toko' : 'ekspedisi') }); }
+      const ongLog = ongRaw !== '' && (!before0.ongkirSet || before0.ongkir !== +ongRaw) ? ` · ongkir ${rupiah(+ongRaw)}` : '';
       if (mode === 'kurir') Object.assign(nd, { courier: v('#shCourier'), courierPhone: v('#shCPhone'), exp: '', resi: '' });
       else Object.assign(nd, { exp, resi: v('#shResi').toUpperCase(), courier: '', courierPhone: '' });
       s.deliv = Object.assign({}, s.deliv || {}, nd);
       const brief = Svc.shipBrief(s);
-      s.history = s.history || []; s.history.push({ at, text: `Pengiriman diatur oleh ${me.name}: ${brief}` });
+      s.history = s.history || []; s.history.push({ at, text: `Pengiriman diatur oleh ${me.name}: ${brief}${ongLog}${ongPaid && ongDue > 0 ? ` · ongkir dibayar ${rupiah(ongDue)} (${ongVia})` : ''}` });
       DB.saveSale(s);
       DB.audit({ type: 'layanan', action: `Mengatur pengiriman ${NO(s)} (${s.customer.name}): ${brief}`, ref: s.id, changes: [{ field: 'Pengiriman', from: before || '—', to: brief }] });
       DB.notify(s.customer.email, 'Pesananmu sedang dikirim', `${NO(s)}: ${brief}.`, 'pesanan?tab=beli');

@@ -32,8 +32,8 @@
         <span class="error hidden" id="proofErr">Unggah foto bukti pembayaran dulu.</span>
         <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
           <button class="btn btn-primary" id="confirmPay" style="flex:1"><i class="fa-solid fa-paper-plane"></i> Kirim bukti pembayaran</button>
-          <a class="btn btn-light" href="pesanan">Bayar nanti</a>
         </div>
+        <p class="muted" style="font-size:12.5px;margin:10px 0 0"><i class="fa-regular fa-clock"></i> Pesanan baru diproses admin setelah bukti pembayaran dikirim. Belum sempat bayar? Pesanan tetap tersimpan di <a class="link" href="pesanan">Pesanan Saya</a> sampai batas waktu, lalu dibatalkan otomatis.</p>
       </div>
     </div>
     <aside class="card sticky-side">

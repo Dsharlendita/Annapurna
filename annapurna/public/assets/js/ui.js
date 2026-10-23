@@ -157,10 +157,27 @@
   }
   /* Pilihan durasi sesuai syarat & ketentuan: Per malam (1), Kegiatan 3 hari 3 malam, Ekspedisi 5 hari 5 malam.
      Mengisi tanggal kembali otomatis dari tanggal ambil. */
+  /* Tanggal sewa bawaan bila customer belum memilih: ambil hari ini (atau besok bila sudah lewat 20.00), kembali H+1 */
+  function defaultTrip() { const T0 = D.today(); const late = new Date().getHours() >= 20; const start = late ? D.addDays(T0, 1) : T0; return { start, end: D.addDays(start, 1) }; }
+  function fillTrip(startEl, endEl) { if (startEl && !startEl.value) { const t = DB.trip() || defaultTrip(); startEl.value = t.start; if (endEl && !endEl.value) endEl.value = t.end || D.addDays(t.start, 1); } }
+  /* Penjelasan perhitungan paket untuk lama sewa di luar 1 / 3 / 5 hari (aturan durasi di Konfigurasi).
+     Bila dibulatkan ke atas (mis. 2 hari = paket 3 hari), tawarkan "Jadikan 3 hari" karena harganya sama. */
+  function durHint(tiers, days) {
+    if (!days || [1, 3, 5].includes(days)) return '';
+    const plan = Rules.tierPlan(tiers, days); const name = { 1: '1 malam', 3: 'paket 3 hari', 5: 'paket 5 hari' };
+    if (!plan.rule) return `<div class="dur-hint"><i class="fa-solid fa-calculator"></i><div><b>${days} hari</b> dihitung dari kombinasi tarif termurah: ${esc(Rules.tierLabel(tiers, days))}.</div></div>`;
+    const B = Rules.durBlocks(days); const cover = B.reduce((a, x) => a + x, 0);
+    const perNight = (+tiers.d1 || 0) * days; const save = perNight - plan.total;
+    const why = save > 0 ? `lebih hemat ${rupiah(save)} dibanding ${days} × per malam` : 'sesuai ketentuan durasi toko';
+    return `<div class="dur-hint ${cover > days ? 'up' : ''}"><i class="fa-solid fa-circle-info"></i><div><b>Sewa ${days} hari</b> dihitung <b>${B.map((x) => name[x]).join(' + ')}</b> = ${rupiah(plan.total)} (${why}).
+      ${cover > days ? `<br>Harga ${days} hari sama dengan ${cover} hari, jadi kamu bisa sekalian sewa <b>${cover} hari</b> tanpa biaya tambahan. <button type="button" class="link-btn" data-extend="${cover}">Jadikan ${cover} hari</button>` : ''}
+      <a class="link" href="${url('ketentuan')}#durasi" target="_blank" rel="noopener">Lihat aturan durasi</a></div></div>`;
+  }
   function durationChips(startEl, endEl, onPick) {
     const wrap = document.createElement('div'); wrap.className = 'dur-chips';
     const draw = () => { const n = Rules.rentalDays(startEl.value, endEl.value);
-      wrap.innerHTML = `<span class="dur-lbl">Durasi:</span>${Rules.TIERS.map((t) => `<button type="button" class="chip ${n === t.days ? 'active' : ''}" data-dur="${t.days}">${t.days === 1 ? 'Per malam' : t.days === 3 ? 'Kegiatan · 3H3M' : 'Ekspedisi · 5H5M'}</button>`).join('')}`; };
+      const custom = n > 0 && !Rules.TIERS.some((t) => t.days === n);
+      wrap.innerHTML = `<span class="dur-lbl">Durasi:</span>${Rules.TIERS.map((t) => `<button type="button" class="chip ${n === t.days ? 'active' : ''}" data-dur="${t.days}">${t.days === 1 ? 'Per malam' : t.days === 3 ? 'Kegiatan · 3H3M' : 'Ekspedisi · 5H5M'}</button>`).join('')}${custom ? `<span class="chip active dur-custom" title="Lama sewa pilihanmu"><i class="fa-regular fa-calendar-check"></i> ${n} hari</span>` : ''}`; };
     wrap.addEventListener('click', (e) => { const b = e.target.closest('[data-dur]'); if (!b) return; if (!startEl.value) { toast('Pilih tanggal ambil dulu.', 'err'); try { startEl.focus(); if (startEl.showPicker) startEl.showPicker(); } catch (er) { /* abaikan */ } return; } endEl.value = D.addDays(startEl.value || D.today(), +b.dataset.dur); endEl.dispatchEvent(new Event('change')); draw(); onPick && onPick(); });
     [startEl, endEl].forEach((el) => el.addEventListener('change', draw));
     draw(); return wrap;
@@ -236,7 +253,7 @@
           <div class="field"><label for="qrStart">Tanggal ambil</label><input type="date" id="qrStart" class="input" value="${(DB.trip() || {}).start || ''}"></div>
           <div class="field"><label for="qrEnd">Tanggal kembali</label><input type="date" id="qrEnd" class="input" value="${(DB.trip() || {}).end || ''}" ${tektok ? 'readonly tabindex="-1" style="background:#f4f1ea"' : ''}>${tektok ? '<small class="muted">Otomatis H+1 · paket tektok 1 malam</small>' : ''}</div>
         </div>
-        <div id="qrDur" ${tektok ? 'hidden' : ''}></div>
+        <div id="qrDur" ${tektok ? 'hidden' : ''}></div><div id="qrHint"></div>
         ${tektok ? `<div class="tk-box"><div class="tk-h"><b><i class="fa-solid fa-arrows-rotate"></i> Sesuaikan isi paket</b><small>Tukar item dengan harga sama, atau upgrade dengan menambah selisih.</small></div>${item.items.map((it0, k) => { const p0 = DB.product(it0.productId); const opts = Rules.swapOptions(item, k); return `<div class="tk-row"><img src="${asset(p0.img)}" alt="" data-tkimg="${k}"><select class="select" data-tk="${k}" ${opts.length ? '' : 'disabled'}><option value="">${esc(p0.name)} (isi paket)</option>${opts.map((o) => `<option value="${o.id}">${esc(o.name)} · ${o.rent === p0.rent ? 'tukar, harga sama' : `upgrade +${rupiah((o.rent - p0.rent) * it0.qty)}`}</option>`).join('')}</select></div>`; }).join('')}<div class="tk-sum" id="tkSum"></div></div>` : ''}
         <div id="qrSize"></div>
         ${isPkg ? '<div id="qrPkSz"></div>' : ''}
@@ -249,10 +266,12 @@
       foot: `<a class="btn btn-ghost" href="${url(isPkg ? 'paket' : 'produk?id=' + id)}">${isPkg ? 'Lihat isi paket' : 'Lihat detail'}</a><button class="btn btn-outline" id="qrCart"><i class="fa-solid fa-cart-plus"></i> Tambah ke keranjang</button><button class="btn btn-primary" id="qrNow">Sewa sekarang</button>`,
     });
     const s = m.$('#qrStart'), e = m.$('#qrEnd'), q = m.$('#qrQty');
+    fillTrip(s, e); /* tanggal langsung terisi (hari ini → besok) supaya harga & stok langsung terlihat */
     /* Paket tektok: naik-turun gunung tanpa menginap → durasi dikunci 1 malam (kembali H+1) */
     if (tektok) { const lock = () => { if (s.value) e.value = D.addDays(s.value, 1); }; lock(); s.addEventListener('change', () => { lock(); e.dispatchEvent(new Event('change', { bubbles: true })); }); }
     dateGuard(s, e);
     m.$('#qrDur').appendChild(durationChips(s, e, () => calc()));
+    m.$('#qrHint').addEventListener('click', (ev) => { const b = ev.target.closest('[data-extend]'); if (!b) return; e.value = D.addDays(s.value, +b.dataset.extend); e.dispatchEvent(new Event('change', { bubbles: true })); calc(); toast(`Lama sewa jadi ${b.dataset.extend} hari, harga tetap sama.`); });
     const sized = !isPkg && DB.hasVariant(item); let size = null;
     const calc = () => {
       /* Tanggal wajib dipilih customer sebelum harga & stok dihitung */
@@ -263,6 +282,7 @@
         m.$('#qrCart').disabled = m.$('#qrNow').disabled = true; return false;
       }
       const days = Rules.rentalDays(s.value, e.value);
+      m.$('#qrHint').innerHTML = tektok ? '' : durHint(tiers, days);
       if (sized) { const list = Rules.sizeAvailability(id, s.value, e.value); size = firstAvailSize(list, size); m.$('#qrSize').innerHTML = sizePicker(item, list, size); }
       if (tektok) { const cp = Rules.customPackage(item, swaps); tiers = cp.tiers; m.$('#tkSum').innerHTML = cp.changed.length ? `Harga paket 1 malam: <b>${rupiah(cp.tiers.d1)}</b>${cp.upgrade ? ` (termasuk upgrade +${rupiah(cp.upgrade)})` : ' (tukar dengan harga sama)'}` : ''; }
       const avail = isPkg ? Rules.packageAvailable(id, s.value, e.value, tektok ? swaps : null, psizes) : sized ? (size ? Rules.available(id, s.value, e.value, null, size) : 0) : Rules.available(id, s.value, e.value);
@@ -1686,5 +1706,5 @@
     let h = 0; for (const ch of String(name || '').toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return `<span class="rv-av av-c${h % AV_COLORS}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
-  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

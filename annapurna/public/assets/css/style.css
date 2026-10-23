@@ -3679,3 +3679,41 @@ tr.u-grp em.green { background: #e3f3e8; color: #1f6b3a; } tr.u-grp em.blue { ba
 .kb-dp .kb-quick { margin-top: 6px; }
 @media (max-width: 520px) { .stl-via { grid-template-columns: 1fr; } }
 .dur-rules .kt-dur { grid-column: 1 / -1; }
+/* Navbar (revisi 23 Okt): logo TIDAK boleh tertekan/gepeng; 8 menu dirapatkan bertahap,
+   lalu pindah ke menu hamburger sebelum ada yang terpotong (berlaku juga saat browser di-zoom). */
+.brand { flex: none; display: inline-flex; align-items: center; }
+.brand img { flex: none; max-width: none; width: auto; object-fit: contain; }
+.nav-actions { flex: none; }
+.nav-links { min-width: 0; }
+@media (max-width: 1500px) and (min-width: 1241px) {
+  .nav-inner { gap: 14px; }
+  .nav-links a { padding: 10px 10px; font-size: 13.5px; }
+  .nav-links a.active::after { left: 10px; right: 10px; }
+  .trip-chip span { display: none; }
+  .trip-chip { width: 38px; padding: 0; justify-content: center; }
+}
+@media (max-width: 1360px) and (min-width: 1241px) {
+  .brand img { height: 44px; }
+  .nav-links a { padding: 10px 8px; font-size: 13px; }
+  .nav-links a.active::after { left: 8px; right: 8px; }
+  .user-chip .nm { display: none; }
+  .user-chip { padding-right: 8px; }
+}
+@media (max-width: 1240px) {
+  .nav-links { display: none; }
+  .nav-toggle { display: inline-grid; }
+  .nav-actions { margin-left: auto; }
+  .brand img { height: 44px; }
+}
+/* Sewa: chip lama sewa custom & penjelasan paket */
+.dur-chips .dur-custom { cursor: default; display: inline-flex; align-items: center; gap: 6px; }
+.dur-hint { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 2px; padding: 10px 12px; border-radius: 12px; background: var(--g50); border: 1px solid var(--g200); font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+.dur-hint > i { color: var(--g600); margin-top: 3px; }
+.dur-hint.up { background: #fff8e6; border-color: #f1dca8; }
+.dur-hint.up > i { color: #b7791f; }
+.dur-hint .link-btn { font-weight: 700; color: var(--g700); text-decoration: underline; padding: 0; margin-left: 2px; }
+.dur-hint .link { font-size: 12px; display: inline-block; margin-top: 2px; }
+/* Pembayaran: QRIS di tengah */
+.qris-box { display: flex; flex-direction: column; align-items: center; }
+.qris-box p { max-width: 460px; }
+.dur-hint .link { margin-left: 8px; }

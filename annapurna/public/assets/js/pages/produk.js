@@ -112,7 +112,7 @@
           <div class="field"><label for="dStart">Tanggal ambil</label><input type="date" class="input" id="dStart" value="${sel.start}"></div>
           <div class="field"><label for="dEnd">Tanggal kembali</label><input type="date" class="input" id="dEnd" value="${sel.end}"></div>
         </div>
-        <div id="dDur"></div>
+        <div id="dDur"></div><div id="dHint"></div>
         <div id="dSize"></div>
         <div class="field"><label>Jumlah</label><div class="qty"><button type="button" data-q="-1" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input id="dQty" type="number" min="1" value="1" aria-label="Jumlah"><button type="button" data-q="1" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div></div>
         <div class="avail-msg" id="dAvail"></div>
@@ -128,11 +128,14 @@
         </div>
         <a class="btn btn-ghost btn-sm" style="margin-top:8px" href="${waLink('Halo Annapurna, saya mau tanya ketersediaan ' + p.name)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Tanya lewat WhatsApp</a>`;
       const s = $('#dStart'), e = $('#dEnd'), q = $('#dQty'); const picks = []; /* [{ size, qty }] */
+      UI.fillTrip(s, e); /* tanggal langsung terisi (hari ini → besok, atau tanggal trip yang dipilih) */
       dateGuard(s, e);
       $('#dDur').appendChild(UI.durationChips(s, e));
+      $('#dHint').addEventListener('click', (ev) => { const b = ev.target.closest('[data-extend]'); if (!b) return; e.value = D.addDays(s.value, +b.dataset.extend); e.dispatchEvent(new Event('change', { bubbles: true })); toast(`Lama sewa jadi ${b.dataset.extend} hari, harga tetap sama.`); });
       const calc = () => {
         sel.start = s.value; sel.end = e.value;
-        /* Tanggal wajib dipilih customer (tidak diisi otomatis) */
+        /* Tanggal terisi otomatis (hari ini → besok); customer bisa mengubahnya */
+        $('#dHint').innerHTML = '';
         if (!s.value || !e.value || e.value <= s.value) {
           if (DB.hasVariant(p)) $('#dSize').innerHTML = '';
           $('#dAvail').className = 'avail-msg no'; $('#dAvail').innerHTML = `<i class="fa-regular fa-calendar"></i> ${!s.value ? 'Pilih tanggal ambil' : 'Pilih tanggal kembali'} dulu untuk melihat stok &amp; harga.`;
@@ -152,6 +155,7 @@
         $('#dAvail').className = 'avail-msg ' + (ok ? 'ok' : 'no');
         $('#dAvail').innerHTML = !DB.condRentable(p.cond) ? `<i class="fa-solid fa-circle-xmark"></i> Barang sedang <b>${esc(p.cond.toLowerCase())}</b> dan belum bisa disewa. Coba lagi nanti atau tanya admin via WhatsApp.` : days > maxD ? `<i class="fa-solid fa-circle-xmark"></i> Maksimal lama sewa ${maxD} malam.` : days < minD ? `<i class="fa-solid fa-circle-xmark"></i> Minimal sewa ${minD} malam.` : ok ? `<i class="fa-solid fa-circle-check"></i> ${avail} unit${szTxt} tersedia untuk ${D.fmtRange(s.value, e.value)}` : sized && !selSize ? '<i class="fa-solid fa-circle-xmark"></i> Semua ukuran habis di tanggal ini. Pilih tanggal lain di kalender.' : `<i class="fa-solid fa-circle-xmark"></i> ${Rules.availMsg(p, qty, s.value, e.value, selSize, avail)}`;
         const tiers = Rules.productTiers(p); const unitTotal = Rules.tierPlan(tiers, days).total;
+        $('#dHint').innerHTML = UI.durHint(tiers, days);
         $('#dLine').textContent = `${Rules.tierLabel(tiers, days)} · ${rupiah(unitTotal)} × ${qty}`;
         $('#dTotal').textContent = rupiah(unitTotal * qty);
         $('#dDp').textContent = rupiah(Math.round(unitTotal * qty * st.dpPercent / 100));

@@ -12,7 +12,8 @@ Aplikasi **Annapurna Adventure** saat ini telah memiliki antarmuka (UI/UX) berba
 Namun, arsitektur backend Laravel saat ini masih bersifat **fondasi / hybrid**:
 - Sebagian besar data operasional masih disimpan di state klien (`data.js` / localStorage).
 - Backend Laravel baru memuat migrasi 15 tabel dasar dari total 32 tabel di dokumen teknis.
-- Lapisan `app/Services/` dan integrasi SDK Midtrans belum diimplementasikan di server.
+- Lapisan `app/Services/` belum diimplementasikan di server.
+- **Tidak memakai payment gateway (Midtrans dibatalkan atas permintaan mitra, 23 Okt 2026).** Pembayaran dikonfirmasi manual oleh staff (lihat bagian 3.3).
 
 File catatan ini merangkum perbandingan detail komponen per komponen serta peta jalan (*roadmap*) pengembangan backend agar sistem **100% sesuai dengan Dokumen Teknis**.
 
@@ -22,7 +23,7 @@ File catatan ini merangkum perbandingan detail komponen per komponen serta peta 
 
 | Bab Dokumen | Deskripsi Komponen | Status Saat Ini | Keterangan |
 | :--- | :--- | :---: | :--- |
-| **Bab 1 & 2** | Stack Teknologi (PHP 8.2, Laravel 12, MySQL 8, Dompdf, Excel) | ⚠️ **Sebagian** | Core Laravel 12, Dompdf, Excel sudah terpasang di `composer.json`. Paket `midtrans/midtrans-php` belum diinstal. |
+| **Bab 1 & 2** | Stack Teknologi (PHP 8.2, Laravel 12, MySQL 8, Dompdf, Excel) | ⚠️ **Sebagian** | Core Laravel 12, Dompdf, Excel sudah terpasang di `composer.json`. Tidak perlu paket payment gateway (pembayaran manual). |
 | **Bab 2.4** | Autentikasi & Otorisasi (`EnsureRole`, Session, Bcrypt) | ✅ **Sesuai** | Guard web, proteksi role `admin` & `owner`, auto-logout saat staff dinonaktifkan sudah berjalan di [EnsureRole.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/app/Http/Middleware/EnsureRole.php). |
 | **Bab 2.7** | Scheduler & Queue Jobs (`bookings:expire-unpaid`, dsb.) | ❌ **Belum Ada** | Belum ada scheduled commands di `app/Console/Commands` atau [console.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/routes/console.php). |
 | **Bab 3 & 4** | Kebutuhan Sistem & 22 Use Case (UC-01 s/d UC-22) | ⚠️ **Sebagian** | UI dan simulasi lengkap; integrasi penuh database di backend masih perlu disambungkan. |
@@ -33,7 +34,7 @@ File catatan ini merangkum perbandingan detail komponen per komponen serta peta 
 | **Bab 9** | Route & Endpoint API | ⚠️ **Sebagian** | Route halaman web lengkap. Endpoint backend untuk panel Admin & Owner (`/api/admin/*`, `/api/owner/*`) belum dibuat. |
 | **Bab 10** | Desain UI/UX & CSS Design Tokens | ✅ **100% Sesuai** | Seluruh variabel warna (`--g950`, `--g700`, `--gold`, `--cream`, dll.), font `Figtree`, dan `Kaushan Script` presisi di [style.css](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/public/assets/css/style.css). |
 | **Bab 11** | Asisten Trip AI (NLP & Forward-Chaining) | ⚠️ **Jalan di Klien** | 100% sesuai aturan dokumen di [ai.js](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/public/assets/js/ai.js). Belum memiliki endpoint backend `POST /api/ai/plan` dan `POST /api/chat`. |
-| **Bab 12** | Integrasi Midtrans Snap & Webhook | ❌ **Belum Ada** | Belum ada pembuatan Snap token, webhook endpoint, dan verifikasi SHA-512 signature di server. |
+| **Bab 11/12** | Pembayaran | ✅ **Manual (keputusan mitra)** | Tidak memakai Midtrans. Customer mengunggah bukti transfer/QRIS, staff memverifikasi. Backend cukup menyimpan bukti & status verifikasi (bagian 3.3). |
 | **Bab 13** | Database Seeder & Akun Bawaan | ✅ **100% Sesuai** | Akun default (owner, dita, customer) persis sesuai di [DatabaseSeeder.php](file:///d:/KULIAH%20SEMESTER%207/IUM%20COMPRO%20PROECT/Annapurna/annapurna/database/seeders/DatabaseSeeder.php). |
 | **Bab 14** | Skenario Pengujian Black Box | ⚠️ **Belum Otomatis** | Belum ada berkas automated test di `tests/Feature/` dan `tests/Unit/`. |
 
@@ -58,7 +59,6 @@ Total tabel pada dokumen teknis adalah **32 tabel** (+1 `payment_logs` = 33 tabe
 11. `sops`: Standar Operasional Prosedur staff toko.
 12. `login_codes`: Kode OTP login sekali pakai (masa berlaku 10 menit).
 13. `monthly_archives`: Rekap bulanan periode YYYY-MM untuk Google Drive.
-14. `payment_logs`: Penyimpanan mentah payload webhook Midtrans dan hasil verifikasi signature.
 15. Pemisahan `expenses` dan `incomes` (saat ini digabung dalam tabel `finances`).
 
 #### Penyesuaian Kolom pada Tabel yang Sudah Ada:
@@ -70,7 +70,7 @@ Total tabel pada dokumen teknis adalah **32 tabel** (+1 `payment_logs` = 33 tabe
   - Kolom `service_every` (siklus servis per n kali sewa) perlu ditambahkan.
 * **`payments`**:
   - Dokumen menggunakan relasi polimorfik (`payable_type`, `payable_id`) untuk menghubungkan rental atau penjualan.
-  - Penambahan kolom gateway Midtrans: `gateway`, `gateway_order_id`, `snap_token`, `snap_redirect_url`, `gateway_transaction_id`, `payment_type`, `va_number`, `gateway_status`, `fraud_status`, `expired_at`.
+  - Penambahan kolom verifikasi manual: `method` (transfer/QRIS/tunai), `proof_path`, `verified_by`, `verified_at`, `reject_reason`. **Tidak ada kolom gateway** (Midtrans tidak dipakai).
 
 ---
 
@@ -96,25 +96,13 @@ Dokumen merinci 17 kelas Service yang perlu diimplementasikan:
 
 ---
 
-### 3.3. Integrasi Midtrans Payment Gateway (Bab 12)
-Fitur yang harus disiapkan:
-1. **Instalasi:** `composer require midtrans/midtrans-php`.
-2. **Konfigurasi (.env & config/midtrans.php):**
-   - `MIDTRANS_MERCHANT_ID`
-   - `MIDTRANS_SERVER_KEY`
-   - `MIDTRANS_CLIENT_KEY`
-   - `MIDTRANS_IS_PRODUCTION` (default `false`)
-   - `MIDTRANS_DP_EXPIRY_MINUTES` (default `60`)
-3. **`MidtransService`:**
-   - Pembuatan Snap Token (`createSnap()`).
-   - Cek status transaksi Midtrans (`status()`).
-   - Pembatalan transaksi belum bayar (`cancel()`).
-   - Verifikasi Signature SHA-512: `hash('sha512', $order_id . $status_code . $gross_amount . $server_key)`.
-4. **Endpoint & Webhook:**
-   - `POST /api/bookings/{id}/pay` (membuat Snap token untuk pop-up checkout).
-   - `POST /api/payments/midtrans/notification` (webhook penerima notifikasi otomatis, bebas CSRF).
-   - Penanganan idempoten dengan `lockForUpdate`.
-   - Update otomatis status booking ke `dikonfirmasi` saat status Midtrans `settlement` / `capture accept`.
+### 3.3. Pembayaran Manual (keputusan mitra, 23 Okt 2026)
+Mitra memutuskan **tidak memakai Midtrans / payment gateway**. Semua pembayaran dikonfirmasi manual oleh staff:
+1. **Online (DP sewa / pembelian):** customer membayar ke rekening (BCA, Mandiri, BNI, BRI a.n. Muhamad Nasikun) atau QRIS toko, lalu mengunggah foto bukti di halaman Pembayaran (`POST /api/payments/{id}/proof`, simpan file di `storage/app/proofs`, maks. 5 MB).
+2. **Verifikasi staff:** `POST /api/admin/payments/{id}/verify` (setujui) atau `/reject` (tolak + alasan). Setujui → booking `dikonfirmasi` / penjualan `diproses`, pembayaran masuk keuangan. Tolak → customer dinotifikasi dan bisa mengunggah ulang.
+3. **Di toko / saat pelunasan:** staff mencatat metode (tunai/transfer/QRIS) dan mencentang verifikasi dana (bukti opsional) — lihat C.17.
+4. Pesanan yang belum mengunggah bukti sampai batas waktu dibatalkan otomatis (`bookings:expire-unpaid`).
+5. Tidak ada `MidtransService`, Snap token, webhook, maupun variabel `.env` MIDTRANS_*.
 
 ---
 
@@ -134,19 +122,19 @@ Tahapan pengerjaan yang disarankan saat melanjutkan pengembangan:
 ```mermaid
 graph TD
     A[Tahap 1: Sinkronisasi Database Migrations] --> B[Tahap 2: Pembentukan Service Layer]
-    B --> C[Tahap 3: Integrasi Midtrans Payment Gateway]
+    B --> C[Tahap 3: Upload bukti & verifikasi pembayaran manual]
     C --> D[Tahap 4: Endpoint API Admin & Owner]
     D --> E[Tahap 5: Porting Asisten Trip AI ke Backend]
     E --> F[Tahap 6: Console Commands & Automated Tests]
 ```
 
 1. **Tahap 1: Sinkronisasi Database Migrations**
-   - Buat migrasi untuk sisa tabel (variants, units pivot, changes, extensions, refunds, payment_logs, dll.).
+   - Buat migrasi untuk sisa tabel (variants, units pivot, changes, extensions, refunds, dll.).
    - Perbarui model Eloquent dengan relasi yang sesuai Dokumen Teknis Bab 6.1.
 2. **Tahap 2: Pembentukan Service Layer**
    - Buat folder `app/Services/` dan implementasikan service utama: `AvailabilityService`, `PricingService`, `BookingService`, `PaymentService`, `RentalService`.
-3. **Tahap 3: Integrasi Midtrans Payment Gateway**
-   - Install SDK Midtrans, buat `MidtransService`, dan webhook notification handler dengan validasi signature SHA-512.
+3. **Tahap 3: Upload bukti & verifikasi pembayaran manual**
+   - Endpoint unggah bukti, verifikasi/tolak oleh staff, penyimpanan file bukti, dan pencatatan ke keuangan (tanpa payment gateway).
 4. **Tahap 4: Endpoint API Admin & Owner**
    - Buat controller untuk route `/api/admin/*` dan `/api/owner/*`.
    - Hubungkan tombol aksi pada modal di `admin.js` agar memanggil backend endpoint via `fetch()`.

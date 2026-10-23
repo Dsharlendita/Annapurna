@@ -182,7 +182,8 @@
   /* Jumlah tenda di transaksi sewa (batas jasa tenda) */
   const tentMax = () => (S.mode === 'rent' ? Svc.tentCount(lines().map((x) => ({ kind: x.it.kind, refId: x.it.refId, qty: x.it.qty, components: x.r && x.r.components }))) : 0);
   /* Diskon kasir: alasan (daftar dari Konfigurasi) + besaran Rp / %, bisa diubah staff */
-  const discAmt = (sub) => { if (!S.dOpen) return 0; const v = +S.dVal || 0; return S.dType === 'pct' ? Math.round(sub * Math.min(100, v) / 100) : Math.round(v); };
+  const discBad = () => S.dOpen && S.dType === 'pct' && (+S.dVal || 0) > 100;
+  const discAmt = (sub) => { if (!S.dOpen || discBad()) return 0; const v = +S.dVal || 0; return S.dType === 'pct' ? Math.round(sub * v / 100) : Math.round(v); };
   const discReason = () => (S.dReason === '__lain' ? String(S.dText || '').trim() : S.dReason || '');
   const totals = () => { const L = lines(); const sub = L.reduce((a, x) => a + x.total, 0); const disc = Math.min(sub, Math.max(0, discAmt(sub)));
     if (isLd()) { const ong = 0; const total = sub - disc; const payNow = S.payOpt === 'nanti' ? 0 : total;
@@ -238,7 +239,7 @@
           <select class="select" id="kdReason" aria-label="Alasan diskon">${DB.discReasons().map((r) => `<option value="${esc(r.name)}" ${r.name === S.dReason ? 'selected' : ''}>${esc(r.name)}${r.pct !== '' ? ` · ${r.pct}%` : ''}</option>`).join('')}<option value="__lain" ${S.dReason === '__lain' ? 'selected' : ''}>Lainnya… (ketik alasan)</option></select>
           ${S.dReason === '__lain' ? `<input class="input" id="kdText" value="${esc(S.dText || '')}" placeholder="Alasan diskon, mis. promo akhir pekan" maxlength="60">` : ''}
           <div class="kdisc-row"><div class="seg sm"><button type="button" data-kdt="rp" class="${S.dType !== 'pct' ? 'active' : ''}">Rp</button><button type="button" data-kdt="pct" class="${S.dType === 'pct' ? 'active' : ''}">%</button></div>
-            <input class="input" id="kdVal" inputmode="numeric" ${S.dType === 'pct' ? 'data-pct' : 'data-rp'} value="${S.dVal || ''}" placeholder="${S.dType === 'pct' ? 'Contoh: 10' : 'Contoh: 5000'}"><span class="kdisc-amt">− ${rupiah(t.disc)}</span></div></div>`
+            <input class="input" id="kdVal" inputmode="numeric" ${S.dType === 'pct' ? 'data-pct' : 'data-rp'} value="${S.dVal || ''}" placeholder="${S.dType === 'pct' ? 'Contoh: 10' : 'Contoh: 5000'}"><span class="kdisc-amt">− ${rupiah(t.disc)}</span></div>${discBad() ? '<small class="err-t" style="color:var(--red);font-weight:600">Persen maksimal 100%. Mau memotong nominal? Pilih <b>Rp</b>.</small>' : t.disc >= t.sub && t.sub ? '<small style="color:var(--red);font-weight:600">Diskon menghabiskan seluruh total. Pastikan memang gratis.</small>' : ''}</div>`
           : `<button type="button" class="link-btn kdisc-add" data-kd="open"><i class="fa-solid fa-tag"></i> + Diskon</button>`) : ''}
         ${isLd() && t.ong ? `<div class="kv"><span>Ongkir jemput / antar</span><span>${rupiah(t.ong)}</span></div>` : ''}
         <div class="kv total"><span>${S.mode === 'rent' && t.svc ? 'Total sewa' : 'Total'}</span><span>${rupiah(t.total)}</span></div>
@@ -270,6 +271,7 @@
     if (optCust && S.name && S.name.length < 2) { toast('Nama terlalu pendek. Kosongkan saja bila pelanggan umum.', 'err'); $('#kName').focus(); return; }
     if ((!optCust || S.phone) && !UI.isPhone(S.phone)) { toast(optCust ? 'Nomor WhatsApp tidak valid. Kosongkan bila tidak ada. Contoh: 081234567890.' : `No. WhatsApp wajib diisi untuk ${isLd() ? 'laundry' : 'sewa'}. Contoh: 081234567890.`, 'err'); $('#kPhone').classList.add('err'); $('#kPhone').focus(); return; }
     if (S.items.some((it) => !fits(it))) { toast('Ada barang yang stoknya tidak cukup. Periksa lagi jumlahnya.', 'err'); drawGrid(); return; }
+    if (discBad()) { toast('Diskon persen maksimal 100%. Pilih Rp untuk potongan nominal.', 'err'); $('#kdVal').focus(); return; }
     if (S.dOpen && t.disc > 0 && discReason().length < 2) { toast('Pilih / tulis alasan diskon.', 'err'); const x = $('#kdText') || $('#kdReason'); if (x) x.focus(); return; }
     if (S.mode === 'rent' && S.pickup === 'later' && S.payOpt === 'dp' && t.rentNow < t.dpMin) { toast(`DP minimal ${rupiah(t.dpMin)} (${st.dpPercent}%).`, 'err'); const k = $('#kDp'); if (k) k.focus(); return; }
     if (t.payNow && S.method === 'Tunai' && num(S.received) < t.payNow) { toast(`Uang diterima kurang dari ${rupiah(t.payNow)}.`, 'err'); return; }
@@ -292,7 +294,7 @@
     if (S.mode === 'buy') {
       const items = S.items.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
       const o = { id: DB.nextId('ORD', DB.sales()), customer, userEmail: '', method: S.method, delivery: 'ambil', notes: S.note, channel: 'offline', kasir, createdAt: D.nowStamp(), items, subtotal: t.sub, total: t.total,
-        ...(t.disc ? { discount: { code: discReason() || 'KASIR', reason: discReason(), amount: t.disc } } : {}), status: 'selesai', paymentStatus: 'paid', payments: [{ at: D.nowStamp(), amount: t.total, type: 'Pembayaran', via }],
+        ...(t.disc ? { discount: { code: discReason() || 'KASIR', reason: discReason(), type: S.dType === 'pct' ? 'persen' : 'nominal', value: +S.dVal || 0, amount: t.disc } } : {}), status: 'selesai', paymentStatus: 'paid', payments: [{ at: D.nowStamp(), amount: t.total, type: 'Pembayaran', via }],
         history: [{ at: D.nowStamp(), text: `Penjualan offline di kasir oleh ${me.name} (${S.method})` }] };
       DB.sellStock(o.items, 1);
       DB.saveSale(o);
@@ -432,7 +434,8 @@
     if (e.target.id === 'kSvcAddr') S.svcAddr = e.target.value;
   });
   $('#kBill').addEventListener('change', (e) => {
-    if (e.target.id === 'kdReason') { S.dReason = e.target.value; const r = DB.discReasons().find((x) => x.name === S.dReason); if (r && r.pct !== '') { S.dType = 'pct'; S.dVal = String(r.pct); } drawBill(); if (S.dReason === '__lain') $('#kdText').focus(); }
+    /* Ganti alasan: punya besaran bawaan → mode % terisi; tidak punya → mode Rp dikosongkan (mencegah salah ketik 3000 di mode %) */
+    if (e.target.id === 'kdReason') { S.dReason = e.target.value; const r = DB.discReasons().find((x) => x.name === S.dReason); if (r && r.pct !== '') { S.dType = 'pct'; S.dVal = String(r.pct); } else { S.dType = 'rp'; S.dVal = ''; } drawBill(); if (S.dReason === '__lain') $('#kdText').focus(); else if (S.dType === 'rp' && $('#kdVal')) $('#kdVal').focus(); }
     if (e.target.id === 'kdVal') { S.dVal = String(num(e.target.value) || ''); drawBill(); }
     if (e.target.id === 'kdText') { S.dText = e.target.value; }
     if (e.target.id === 'kRecv') { S.received = num(e.target.value); drawBill(); }

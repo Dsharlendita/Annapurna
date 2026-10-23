@@ -4,7 +4,7 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
     
-    'asset_version' => env('ASSET_VERSION', '20261023.5'),
+    'asset_version' => env('ASSET_VERSION', '20261023.6'),
 
     'env' => env('APP_ENV', 'production'),
 

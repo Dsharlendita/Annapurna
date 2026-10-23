@@ -449,7 +449,7 @@
     const st = DB.settings(); const S = { extra: +o.extra || 0, discOpen: false, dtype: 'rp', mode: 'now', via: o.via || 'Tunai', proof: '' };
     const box = m.$(o.sel || '#stl'); const had = b.settleDisc ? +b.settleDisc.amount || 0 : 0;
     const sewaDue = () => sisa(b); /* sisa sewa sebelum diskon baru (diskon lama sudah ada di total) */
-    const discAmt = () => { if (had || !S.discOpen) return 0; const v = +String(S.dval || '').replace(/[^\d.]/g, '') || 0; /* S.dval selalu disinkronkan lewat keep() */ const base = Math.max(0, (b.subtotal || 0) - (b.discount ? +b.discount.amount || 0 : 0)); /* % dihitung dari HARGA SEWA (ketentuan mitra: harga sewa − diskon − DP) */ const a = S.dtype === 'pct' ? Math.round(base * Math.min(100, v) / 100) : Math.round(v); return Math.max(0, Math.min(a, sewaDue())); };
+    const discAmt = () => { if (had || !S.discOpen) return 0; const v = +String(S.dval || '').replace(/[^\d.]/g, '') || 0; /* S.dval selalu disinkronkan lewat keep() */ const base = Math.max(0, (b.subtotal || 0) - (b.discount ? +b.discount.amount || 0 : 0)); /* % dihitung dari HARGA SEWA (ketentuan mitra: harga sewa − diskon − DP) */ const a = S.dtype === 'pct' ? (v > 100 ? 0 : Math.round(base * v / 100)) : Math.round(v); return Math.max(0, Math.min(a, sewaDue())); };
     const due = () => Math.max(0, sewaDue() - discAmt() + S.extra);
     const RS = DB.discReasons(); const reasons = RS.map((r) => r.name); const pctOf = (n) => { const r = RS.find((x) => x.name === n); return r && r.pct !== '' ? r.pct : null; };
     const laterOk = o.stage === 'keluar' ? (st.settleWhen || 'keduanya') !== 'ambil' : o.stage === 'kembali';
@@ -487,7 +487,7 @@
     box.addEventListener('input', (e) => { if (e.target.dataset.sd === 'val') { keep(); const pos = e.target.selectionStart; render(); const v = box.querySelector('[data-sd=val]'); v.focus(); v.setSelectionRange(pos, pos); } else keep(); });
     box.addEventListener('change', async (e) => { const t = e.target;
       if (t.name === 'stlMode') { keep(); S.mode = t.value; render(); return; }
-      if (t.dataset.sd === 'reason') { keep(); if (pctOf(S.reason) != null) { S.dtype = 'pct'; S.dval = String(pctOf(S.reason)); } render(); if (S.reason === '__lain') box.querySelector('[data-sd=rtext]').focus(); return; }
+      if (t.dataset.sd === 'reason') { keep(); if (pctOf(S.reason) != null) { S.dtype = 'pct'; S.dval = String(pctOf(S.reason)); } else { S.dtype = 'rp'; S.dval = ''; } render(); if (S.reason === '__lain') box.querySelector('[data-sd=rtext]').focus(); return; }
       if (t.dataset.sd === 'proof' && t.files[0]) { S.proof = await shrinkImg(t.files[0]); keep(); render(); } });
     render();
     return {
@@ -495,6 +495,7 @@
       due, discAmt,
       read() {
         keep(); const d = discAmt(); const dd = due();
+        if (S.discOpen && S.dtype === 'pct' && (+S.dval || 0) > 100) { toast('Diskon persen maksimal 100%. Pilih Rp untuk potongan nominal.', 'err'); return null; }
         if (S.discOpen && !had && !d) { toast('Isi nilai diskon, atau batalkan diskon.', 'err'); return null; }
         const reason = S.reason === '__lain' ? String(S.rtext || '').trim() : S.reason;
         if (d && !reason) { toast('Tulis alasan diskon.', 'err'); return null; }

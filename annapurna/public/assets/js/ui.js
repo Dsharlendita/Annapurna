@@ -887,7 +887,8 @@
   function orderTracker(x, opts) {
     opts = opts || {}; const st = DB.settings(); const rent = !!x.start;
     const SV = Ann.Svc; const dlv = rent && SV.delivers(x); const pick = rent && SV.has(x) && SV.returnMode(x) === 'jemput'; const dd = x.deliv || {};
-    const steps = rent ? ['Booking dibuat', 'DP diverifikasi', dlv ? 'Siap diantar' : 'Siap diambil', 'Sedang disewa', 'Selesai'] : ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Dikemas', 'Siap diambil', 'Selesai'];
+    const sdl = !rent && SV.isSaleDeliv(x);
+    const steps = rent ? ['Booking dibuat', 'DP diverifikasi', dlv ? 'Siap diantar' : 'Siap diambil', 'Sedang disewa', 'Selesai'] : ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Dikemas', sdl ? 'Dikirim' : 'Siap diambil', 'Selesai'];
     const idx = rent ? { menunggu_pembayaran: 0, menunggu_konfirmasi: 1, dikonfirmasi: 2, disewa: 3, selesai: 5 }[x.status] : (x.paymentStatus === 'verifying' && ['menunggu_pembayaran', 'diproses'].includes(x.status) ? 1 : { menunggu_pembayaran: 0, diproses: 2, dikemas: 2, siap_diambil: 3, selesai: 5 }[x.status]);
     const late = rent && x.status === 'disewa' && D.today() > x.end;
     const sisa = rent ? Math.max(0, x.total - Rules.paidTotal(x)) : 0;
@@ -905,7 +906,9 @@
       menunggu_pembayaran: `<i class="fa-solid fa-wallet"></i> <b>Yang perlu kamu lakukan:</b> bayar ${rupiah(x.total)} dalam ${cdSpan(DB.payDeadline(x).toISOString(), 'pay')} lalu unggah bukti.${link('pembayaran?ids=' + x.id, 'Bayar sekarang')}`,
       diproses: x.paymentStatus === 'verifying' ? '<i class="fa-solid fa-hourglass-half"></i> Bukti pembayaranmu sedang dicek admin. Kamu akan dapat notifikasi setelah diverifikasi.' : '<i class="fa-solid fa-box"></i> Pembayaran diterima, pesananmu sedang disiapkan.',
       dikemas: '<i class="fa-solid fa-box"></i> Pesananmu sedang dikemas.',
-      siap_diambil: `<i class="fa-solid fa-store"></i> <b>Pesanan siap diambil</b> di toko (${esc(st.hours)}). Tunjukkan nota digital.`,
+      /* Pesanan dikirim ke alamat: jangan tampilkan "siap diambil di toko" */
+      siap_diambil: sdl ? (SV.shipStatus(x) === 'dikirim' ? `<i class="fa-solid fa-truck-fast"></i> <b>Pesananmu sedang dikirim</b>${SV.shipBrief(x) ? ' · ' + esc(SV.shipBrief(x)) : ''}. Tekan <b>Pesanan sudah saya terima</b> setelah paket sampai.` : SV.shipStatus(x) === 'tiba' ? '<i class="fa-solid fa-circle-check"></i> <b>Paket sudah tiba</b>. Tekan <b>Pesanan sudah saya terima</b> untuk menyelesaikan pesanan.' : '<i class="fa-solid fa-box"></i> <b>Pesanan siap dikirim</b>. Admin akan menghubungimu soal ongkir &amp; pengiriman.')
+        : `<i class="fa-solid fa-store"></i> <b>Pesanan siap diambil</b> di toko (${esc(st.hours)}). Tunjukkan nota digital.`,
       selesai: '<i class="fa-solid fa-circle-check"></i> Pesanan selesai. Terima kasih sudah berbelanja!',
     }[x.status] || '';
     const cancelled = x.status === 'dibatalkan';

@@ -93,12 +93,12 @@
   }
   $('#inv').innerHTML = `<div class="invoice">
     <div class="inv-head">
-      <div><img src="assets/img/logo.png" alt="Annapurna Adventure"><p class="muted" style="font-size:13px;margin-top:8px;max-width:34ch">${esc(st.address)}<br>${esc(st.phone)} · ${esc(st.email)}</p></div>
-      <div style="text-align:right">
+      <div class="inv-brand"><img src="assets/img/logo.png" alt="Annapurna Adventure"><p class="muted" style="font-size:13px;margin-top:8px;max-width:34ch">${esc(st.address)}<br>${esc(st.phone)} · ${esc(st.email)}</p></div>
+      <div class="inv-title" style="text-align:right">
         <h2>${isRent ? 'NOTA BOOKING' : isLd ? 'NOTA LAUNDRY' : 'INVOICE'}</h2>
-        <p style="font-weight:700;font-size:16px">#${esc(NUM)}</p>
-        <p class="muted" style="font-size:13px">Tanggal: ${D.fmtDate(x.createdAt, true)}</p>
-        <div style="margin-top:10px;color:${stampColor}"><span class="stamp">${stamp}</span></div>
+        <p class="inv-no" style="font-weight:700;font-size:16px">#${esc(NUM)}</p>
+        <p class="muted inv-date" style="font-size:13px">Tanggal: ${D.fmtDate(x.createdAt, true)}</p>
+        <div class="inv-stamp" style="margin-top:10px;color:${stampColor}"><span class="stamp">${stamp}</span></div>
       </div>
       <div class="inv-qr"><div id="invQr"></div><small>Tunjukkan QR ini ke staff</small></div>
     </div>

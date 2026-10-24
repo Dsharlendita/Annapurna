@@ -186,10 +186,10 @@
   function bottomNav(s) {
     if (document.getElementById('bnav')) return;
     const cart = DB.cart().reduce((a, c) => a + c.qty, 0);
-    const items = [['./', 'Beranda', 'fa-house', 'home'], ['katalog', 'Sewa', 'fa-campground', 'katalog'], ['belanja', 'Beli', 'fa-bag-shopping', 'belanja'], ['keranjang', 'Keranjang', 'fa-cart-shopping', 'keranjang'], ['pesanan', 'Pesanan', 'fa-receipt', 'pesanan'], [s ? 'profil' : 'masuk', s ? 'Akun' : 'Masuk', s ? 'fa-user' : 'fa-right-to-bracket', s ? 'profil' : 'masuk']];
-    document.body.insertAdjacentHTML('beforeend', `<nav class="bnav" id="bnav" aria-label="Menu bawah">${items.map(([h, l, ic, k]) => `<a href="${url(h)}" class="${page === k || (k === 'katalog' && page === 'produk') ? 'on' : ''}"><i class="fa-solid ${ic}"></i>${k === 'keranjang' && cart ? `<b>${cart}</b>` : ''}<span>${l}</span></a>`).join('')}</nav>`);
+    /* Menu bawah HP: Beranda · Sewa · Beli · Laundry · Pesanan · Akun. Keranjang ada di navbar atas (ikon + jumlah). */
+    const items = [['./', 'Beranda', 'fa-house', 'home'], ['katalog', 'Sewa', 'fa-campground', 'katalog'], ['belanja', 'Beli', 'fa-bag-shopping', 'belanja'], ['laundry', 'Laundry', 'fa-jug-detergent', 'laundry'], ['pesanan', 'Pesanan', 'fa-receipt', 'pesanan'], [s ? 'profil' : 'masuk', s ? 'Akun' : 'Masuk', s ? 'fa-user' : 'fa-right-to-bracket', s ? 'profil' : 'masuk']];
+    document.body.insertAdjacentHTML('beforeend', `<nav class="bnav" id="bnav" aria-label="Menu bawah">${items.map(([h, l, ic, k]) => `<a href="${url(h)}" class="${page === k || (k === 'katalog' && (page === 'produk' || page === 'paket')) ? 'on' : ''}"${page === k ? ' aria-current="page"' : ''}><i class="fa-solid ${ic}"></i><span>${l}</span></a>`).join('')}</nav>`);
     document.body.classList.add('has-bnav');
-    document.addEventListener('cart:change', () => { const n = DB.cart().reduce((a, c) => a + c.qty, 0); const a = document.querySelector('#bnav a:nth-child(4)'); if (!a) return; const b = a.querySelector('b'); if (n) { if (b) b.textContent = n; else a.insertAdjacentHTML('beforeend', `<b>${n}</b>`); } else if (b) b.remove(); });
   }
   /* Pengingat otomatis untuk customer: H-1 & hari-H ambil, H-1 & hari-H kembali, terlambat */
   function remindCustomer(s) {

@@ -776,6 +776,104 @@
     doc.save(spec.filename + '.pdf');
   }
 
+  /* ===== Nota laundry sebagai gambar (dipakai WhatsApp & Unduh PDF) — dipindah dari admin.js ===== */
+  async function ldNotaCanvas(o) {
+    const Laundry = window.Ann.Laundry;
+    const st = DB.settings(), total = Laundry.total(o), paid = Laundry.paid(o), sisa = Math.max(0, total - paid);
+    const W = 820, S = 2, P = 44, F = '"Plus Jakarta Sans", "Figtree", "Segoe UI", Arial, sans-serif', rowH = 46;
+    const items = o.items || [], pays = o.payments || [], terms = Laundry.terms() || [];
+    const cv0 = document.createElement('canvas'); cv0.width = W * S; cv0.height = 10;
+    const m = cv0.getContext('2d'); const f = (w, z) => `${w} ${z}px ${F}`;
+    const wrap = (t, max, w, z) => { m.font = f(w, z); const out = []; let cur = ''; String(t).split(/\s+/).forEach((wd) => { const tt = cur ? cur + ' ' + wd : wd; if (m.measureText(tt).width > max && cur) { out.push(cur); cur = wd; } else cur = tt; }); if (cur) out.push(cur); return out; };
+    const termLines = terms.map((t) => wrap(t, W - P * 2 - 62, 500, 12.5));
+    const termH = terms.length ? 54 + termLines.reduce((a, l) => a + l.length * 19 + 5, 0) : 0;
+    const H = 420 + items.length * rowH + 40 + (6 + (o.ongkir ? 1 : 0) + (o.discount ? 1 : 0)) * 30 + 60 + (pays.length ? 40 + pays.length * 28 : 0) + termH + 120;
+    const cv = document.createElement('canvas'); cv.width = W * S; cv.height = H * S;
+    const c = cv.getContext('2d'); c.scale(S, S);
+    const txt = (t, x, y, op = {}) => { c.font = f(op.w || 500, op.z || 13); c.fillStyle = op.c || '#2a3a2f'; c.textAlign = op.a || 'left'; c.fillText(String(t), x, y); c.textAlign = 'left'; };
+    const fit = (t, max, w, z) => { c.font = f(w, z); t = String(t); if (c.measureText(t).width <= max) return t; while (t.length > 3 && c.measureText(t + '…').width > max) t = t.slice(0, -1); return t + '…'; };
+    const line = (x1, y1, x2, y2, col, lw = 1, dash) => { c.save(); c.strokeStyle = col; c.lineWidth = lw; if (dash) c.setLineDash(dash); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.restore(); };
+    const rrect = (x, y, w, h, r, fill, stroke) => { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.stroke(); } };
+    const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+    c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+    /* kepala nota */
+    const logo = await loadImg(UI.asset('assets/img/logo.png'));
+    if (logo) c.drawImage(logo, P, 30, 136, 64); else txt(st.storeName || 'Annapurna Adventure', P, 70, { w: 800, z: 22, c: '#1f4d2f' });
+    const addr = String(st.address || ''); const cut = addr.lastIndexOf(',', 46) > 0 ? addr.lastIndexOf(',', 46) + 1 : 46;
+    txt(addr.slice(0, cut).trim(), P, 118, { c: '#6b7a70', z: 12.5 }); txt(addr.slice(cut).trim(), P, 136, { c: '#6b7a70', z: 12.5 });
+    txt(`${st.phone || ''} · ${st.email || ''}`, P, 154, { c: '#6b7a70', z: 12.5 });
+    const QX = W - P - 132, TX = QX - 24;
+    txt('NOTA LAUNDRY', TX, 56, { w: 800, z: 26, c: '#1f4d2f', a: 'right' });
+    txt(`#${o.no}`, TX, 82, { w: 800, z: 16, c: '#15311f', a: 'right' });
+    txt(`Tanggal: ${D.fmtDate(o.createdAt, true)}`, TX, 102, { c: '#6b7a70', z: 13, a: 'right' });
+    const stamp = o.status === 'dibatalkan' ? ['DIBATALKAN', '#b23a2a'] : sisa <= 0 ? ['LUNAS', '#1f4d2f'] : paid > 0 ? ['DP DIBAYAR', '#b7791f'] : ['BELUM DIBAYAR', '#b7791f'];
+    c.save(); c.translate(TX - 100, 152); c.rotate(-0.1); c.font = f(800, 14); const sw = c.measureText(stamp[0]).width + 30;
+    c.strokeStyle = stamp[1]; c.lineWidth = 3; rrect(-sw / 2, -18, sw, 34, 7, null, stamp[1]); c.fillStyle = stamp[1]; c.textAlign = 'center'; c.fillText(stamp[0], 0, 5); c.restore();
+    rrect(QX, 28, 132, 146, 12, '#fff', '#e6e1d6');
+    try {
+      await UI.loadScript(UI.asset('assets/vendor/qr/qrcode-generator.js'));
+      const q = window.qrcode(0, 'M'); q.addData(new URL(url('admin/laundry?id=' + encodeURIComponent(o.id)), location.href).href); q.make();
+      const n = q.getModuleCount(), cs = 108 / n; c.fillStyle = '#111';
+      for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) c.fillRect(QX + 12 + k * cs, 38 + r * cs, cs + 0.3, cs + 0.3);
+    } catch (e) { /* QR opsional */ }
+    txt('Tunjukkan QR ini ke staff', QX + 66, 164, { z: 10.5, c: '#6b7a70', a: 'center' });
+    line(P, 194, W - P, 194, '#1f4d2f', 2.5);
+    /* ditagihkan & detail laundry */
+    let y = 226; const CX = W / 2 + 10;
+    txt('DITAGIHKAN KEPADA', P, y, { w: 700, z: 11.5, c: '#6b7a70' }); txt('DETAIL LAUNDRY', CX, y, { w: 700, z: 11.5, c: '#6b7a70' });
+    txt(o.customer?.name || '-', P, y + 26, { w: 700, z: 15, c: '#15311f' }); txt(o.customer?.phone || '', P, y + 48, { z: 13.5 }); if (o.customer?.email) txt(o.customer.email, P, y + 68, { z: 13.5 });
+    txt(`Diterima: ${D.fmtDateTime(o.createdAt)}`, CX, y + 26, { w: 600, z: 13.5 });
+    txt(`Estimasi selesai: ${D.fmtDate(Laundry.est(o), true)}`, CX, y + 48, { w: 700, z: 13.5 });
+    txt('Pengambilan: antar & ambil sendiri di toko', CX, y + 68, { z: 13.5 });
+    txt(`Status: ${(STATUS.laundry[o.status] || {}).label || o.status} · ${sisa <= 0 ? 'Lunas' : 'Belum lunas'}`, CX, y + 90, { z: 13, c: '#2f6b43', w: 700 });
+    /* tabel barang */
+    y = 340; const col = { q: 470, h: 620, j: W - P - 14 };
+    rrect(P, y, W - P * 2, 40, 0, '#f8f6f1'); [['Barang / layanan', P + 14], ['Qty', col.q, 'right'], ['Harga/unit', col.h, 'right'], ['Jumlah', col.j, 'right']].forEach(([t, x, a]) => txt(t, x, y + 25, { w: 700, z: 12, c: '#5d6b62', a }));
+    line(P, y + 40, W - P, y + 40, '#e6e1d6'); y += 40;
+    items.forEach((it, i) => { const yy = y + i * rowH;
+      txt(fit(it.name, 300, 700, 13.5), P + 14, yy + (it.cat ? 21 : 28), { w: 700, z: 13.5, c: '#15311f' }); if (it.cat) txt(it.cat, P + 14, yy + 37, { z: 11.5, c: '#6b7a70' });
+      txt(it.qty, col.q, yy + 28, { z: 13.5, a: 'right' }); txt(rupiah(it.price), col.h, yy + 28, { z: 13.5, a: 'right' }); txt(rupiah(it.price * it.qty), col.j, yy + 28, { z: 13.5, a: 'right', w: 600 });
+      line(P, yy + rowH, W - P, yy + rowH, '#efebe2'); });
+    y += items.length * rowH + 34;
+    /* ringkasan */
+    const LX = W / 2 + 40, RX = W - P;
+    const kv = (l, r, op = {}) => { txt(l, LX, y, { z: op.z || 14, w: op.w || 500, c: op.c || '#5d6b62' }); txt(r, RX, y, { z: op.z || 14, w: op.w || 600, c: op.rc || op.c || '#15311f', a: 'right' }); y += op.gap || 30; };
+    kv('Subtotal', rupiah(items.reduce((a, i) => a + i.price * i.qty, 0)));
+    if (o.ongkir) kv('Ongkir', rupiah(o.ongkir));
+    if (o.discount) kv((o.discountReason ? 'Diskon · ' + o.discountReason : 'Diskon').slice(0, 44), '− ' + rupiah(o.discount), { rc: '#1f4d2f', w: 700 });
+    kv('Total laundry', rupiah(total), { w: 800, c: '#15311f', z: 15 });
+    kv('Sudah dibayar', rupiah(paid), { rc: '#2f6b43', w: 700 });
+    line(LX, y - 12, RX, y - 12, '#d8d2c4', 1, [4, 4]); y += 10;
+    kv('Sisa pembayaran', sisa ? rupiah(sisa) : 'LUNAS', { z: 17, w: 800, c: sisa ? '#b4561c' : '#1f4d2f', gap: 34 });
+    /* riwayat pembayaran */
+    if (pays.length) {
+      y += 6; txt('RIWAYAT PEMBAYARAN', P, y, { w: 700, z: 11.5, c: '#6b7a70' }); y += 14;
+      pays.forEach((p) => { y += 24; txt(`${D.fmtDateTime(p.at)} · ${p.via || p.type || 'Pembayaran'}`, P, y, { z: 13 }); txt(rupiah(p.amount), W - P, y, { z: 13, w: 600, a: 'right' }); line(P, y + 8, W - P, y + 8, '#efebe2', 1, [3, 3]); y += 4; });
+      y += 14;
+    }
+    /* ketentuan laundry */
+    if (terms.length) {
+      y += 10; const bh = termH - 10; rrect(P, y, W - P * 2, bh, 10, '#f1f7f2', '#d4e6d8');
+      txt('Ketentuan laundry', P + 18, y + 28, { w: 800, z: 13.5, c: '#1f4d2f' }); let ty = y + 54;
+      termLines.forEach((ls) => { c.fillStyle = '#2f6b43'; c.beginPath(); c.arc(P + 22, ty - 4, 2.4, 0, 7); c.fill(); ls.forEach((l, i) => { txt(l, P + 34, ty + i * 19, { z: 12.5 }); }); ty += ls.length * 19 + 5; });
+      y += bh;
+    }
+    y += 34; txt('Simpan nota ini sebagai bukti transaksi digital. Tunjukkan nota saat mengambil barang di toko.', W / 2, y, { z: 12, c: '#6b7a70', a: 'center' });
+    y += 22; txt('Terima kasih telah menggunakan layanan Annapurna Adventure.', W / 2, y, { z: 12.5, w: 700, c: '#1f4d2f', a: 'center' });
+    /* potong tinggi kanvas pas dengan isi */
+    const endH = Math.min(H, Math.ceil(y + 28)); const out = document.createElement('canvas'); out.width = W * S; out.height = endH * S;
+    out.getContext('2d').drawImage(cv, 0, 0); return out;
+  }
+  /* Gambar nota (canvas) → PDF A4 satu halaman. Dipakai tombol Unduh PDF agar hasilnya sama persis dengan nota gambar
+     (html2canvas tidak bisa memusatkan teks di label/tabel sehingga tulisan turun & keluar dari kotak). */
+  async function canvasToPDF(cv, filename) {
+    await loadScript(vendor('jspdf.umd.min.js'));
+    const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), m = 10;
+    let w = W - m * 2, h = w * cv.height / cv.width; if (h > H - m * 2) { h = H - m * 2; w = h * cv.width / cv.height; }
+    doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', (W - w) / 2, m, w, h);
+    doc.save(filename.endsWith('.pdf') ? filename : filename + '.pdf');
+  }
   /* opts.onePage (default true): seluruh isi dimuat dalam SATU halaman A4 (diperkecil proporsional bila terlalu panjang),
      supaya nota tidak terpotong ke beberapa halaman dan tidak perlu digulir. */
   async function elementToPDF(el, filename, opts = {}) {
@@ -1739,5 +1837,5 @@
     document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement !== cur) hide(); }, 80));
     window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
   })();
-  window.UI = { avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

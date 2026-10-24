@@ -14,9 +14,18 @@
   const x = isLd ? ((staff ? local || snap : snap || local)) : mine ? local : pubSnap && pubSnap.id === id ? pubSnap : (hasS ? null : local);
   const st = x && x._snap ? Object.assign({}, DB.settings(), x._snap.store, { laundryTerms: x._snap.terms || DB.settings().laundryTerms }) : DB.settings();
   const NUM = x ? (isLd ? x.no : NO(x)) : id;
-  if (staff) $('#back').href = isRent ? 'admin/booking?id=' + id : isLd ? 'admin/laundry?id=' + id : 'admin/penjualan?id=' + id;
+  /* Tombol Kembali mengikuti asal halaman: dibuka dari website customer → kembali ke website customer,
+     dibuka dari panel admin/owner → kembali ke panel. Owner/staff yang sedang di website customer tidak dilempar ke panel. */
+  const ref = (() => { try { const u = new URL(document.referrer); return u.origin === location.origin && !/\/invoice\b/.test(u.pathname) ? u.pathname + u.search + u.hash : ''; } catch (e) { return ''; } })();
+  const fromPanel = /^\/?(?:[^/]+\/)*(admin|owner)(\/|$)/.test(ref.replace(/^\/+/, '/'));
+  const custBack = isRent ? 'pesanan?id=' + id : isLd ? 'pesanan' : 'pesanan?tab=beli';
+  const panelBack = isRent ? 'admin/booking?id=' + id : isLd ? 'admin/laundry?id=' + id : 'admin/penjualan?id=' + id;
+  const ownOrder = !!(local && user && local.customer && local.customer.email && local.customer.email === user.email);
+  if (ref) $('#back').href = ref;
+  else if (staff && !ownOrder) $('#back').href = panelBack;
   else if (!user) $('#back').remove(); /* pengunjung tanpa akun: tidak ada halaman "Kembali" yang relevan */
-  else $('#back').href = isRent ? 'pesanan?id=' + id : isLd ? 'pesanan' : 'pesanan?tab=beli';
+  else $('#back').href = custBack;
+  if ($('#back')) $('#back').title = fromPanel ? 'Kembali ke panel' : 'Kembali';
 
   if (isLd && !x) {
     $('#inv').innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-regular fa-file-lines"></i></div><h3>Nota laundry tidak ditemukan</h3><p>Link nota tidak lengkap atau sudah rusak. Minta admin ${esc(st.storeName || 'Annapurna')} mengirim ulang link notanya.</p><a class="btn btn-primary" href="./">Ke Beranda</a></div>`;
@@ -147,8 +156,11 @@
   if ($('#prStruk')) $('#prStruk').addEventListener('click', () => UI.printAny(Object.assign({}, x, { no: x.no || NUM })));
   $('#dlPdf').addEventListener('click', async () => {
     const btn = $('#dlPdf'), h = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan…';
-    try { await UI.elementToPDF($('#inv .invoice'), `${isRent ? 'Nota-Booking' : isLd ? 'Nota-Laundry' : 'Invoice'}-${NUM.replace(/\//g, '-')}`); UI.toast('Nota PDF berhasil diunduh.'); }
-    catch (e) { console.error(e); UI.toast('Gagal membuat PDF. Gunakan tombol Cetak.', 'err'); }
+    const fname = `${isRent ? 'Nota-Booking' : isLd ? 'Nota-Laundry' : 'Invoice'}-${NUM.replace(/\//g, '-')}`;
+    /* PDF dari gambar nota yang digambar sistem (sama dengan nota WhatsApp): teks label & tabel selalu rapi di dalam kotaknya */
+    try { const nx = Object.assign({}, x, { no: x.no || NUM }); const cv = isRent ? await UI.tagihanCanvas(nx, { booking: true, title: 'NOTA BOOKING' }) : isLd ? await UI.ldNotaCanvas(nx) : await UI.saleCanvas(nx);
+      await UI.canvasToPDF(cv, fname); UI.toast('Nota PDF berhasil diunduh.'); }
+    catch (e0) { console.error(e0); try { await UI.elementToPDF($('#inv .invoice'), fname); UI.toast('Nota PDF berhasil diunduh.'); } catch (e) { console.error(e); UI.toast('Gagal membuat PDF. Gunakan tombol Cetak.', 'err'); } }
     btn.disabled = false; btn.innerHTML = h;
   });
 })();

@@ -1169,8 +1169,12 @@
       const L = read('chatMiss', []); const x = L.find((m) => m.key === k);
       if (x) { x.count += 1; x.last = nowStamp(); } else L.unshift({ key: k, text: String(text).slice(0, 200), count: 1, first: nowStamp(), last: nowStamp() });
       write('chatMiss', L.slice(0, 200));
+      try { fetch('/api/chat/miss', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ question: text }) }).catch(() => {}); } catch (e) {}
     },
-    dismissChatMiss(key) { write('chatMiss', read('chatMiss', []).filter((m) => m.key !== key)); },
+    dismissChatMiss(key) {
+      write('chatMiss', read('chatMiss', []).filter((m) => m.key !== key));
+      try { fetch('/api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }).catch(() => {}); } catch (e) {}
+    },
     lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per malam keterlambatan` : st.lateFeePercent === 100 ? 'sebesar harga sewa per malam untuk setiap barang, setiap malam keterlambatan' : `${st.lateFeePercent}% harga sewa per malam untuk setiap barang, setiap malam keterlambatan`; },
     /* Simpan satu bagian konfigurasi + catat di histori */
     saveConfig(key, value, action, changes) {

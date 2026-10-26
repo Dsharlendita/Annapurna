@@ -516,6 +516,22 @@
       b.history.push({ at: D.nowStamp(), text: `${payType || 'Pelunasan'} ${rupiah(r.pay.amount)} diterima via ${r.pay.via}${r.pay.proof ? ' (bukti terlampir)' : ''} · diverifikasi ${me.name}` });
       ch.push({ field: payType || 'Pelunasan', from: '', to: `${rupiah(r.pay.amount)} via ${r.pay.via}` });
     }
+    try {
+      const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+      fetch(`/api/admin/booking/${b.id}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        body: JSON.stringify({
+          settle_disc_amount: b.settleDisc ? b.settleDisc.amount : 0,
+          settle_disc_reason: b.settleDisc ? b.settleDisc.reason : '',
+          settle_later: !!(r.later || b.settleLater),
+          piutang_amount: (r.later || b.settleLater) ? (r.due || 0) : 0,
+          piutang_note: r.note || '',
+          payment_amount: r.pay ? r.pay.amount : 0,
+          payment_method: r.pay ? r.pay.via : 'Kasir · Tunai'
+        })
+      }).catch(() => {});
+    } catch (e) {}
     return ch;
   }
   /* Pelunasan dari Detail booking (diantar & bayar transfer / tunai di lokasi, atau menagih piutang) */
@@ -847,6 +863,14 @@
       b.paymentStatus = 'refunded'; if (b.cancel) b.cancel.refundStatus = 'selesai';
       log(b, `DP ${rupiah(amt)} dikembalikan`, 'refund', `Memproses refund DP ${NO(b)} sebesar ${rupiah(amt)}${val(r) ? ` (ref. ${val(r)})` : ''}`, chg('Status pembayaran', STATUS.payment.refund_pending.label, STATUS.payment.refunded.label));
       DB.saveBooking(b);
+      try {
+        const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+        fetch(`/api/admin/permintaan/refund/${b.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+          body: JSON.stringify({ amount: amt, reason: val(r) || '', status: 'selesai' })
+        }).catch(() => {});
+      } catch (e) {}
       DB.notify(b.customer.email, 'DP sudah dikembalikan', `Refund ${rupiah(amt)} untuk ${NO(b)} sudah ditransfer.`, `pesanan?tab=riwayat`);
       toast('Refund tercatat.'); return true;
     },
@@ -857,6 +881,14 @@
       ch.status = 'disetujui'; ch.decidedAt = D.nowStamp();
       log(b, `Ganti barang disetujui: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menyetujui pergantian barang ${NO(b)}: ${ch.fromName} → ${ch.toName}`, [{ field: 'Barang', from: `${ch.qty}× ${ch.fromName}`, to: `${ch.qty}× ${ch.toName}` }, { field: 'Total booking', from: rupiah(oldTotal), to: rupiah(b.total) }]);
       DB.saveBooking(b);
+      try {
+        const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+        fetch(`/api/admin/permintaan/change/${ch.id}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+          body: JSON.stringify({ action: 'setujui' })
+        }).catch(() => {});
+      } catch (e) {}
       DB.notify(b.customer.email, 'Ganti barang disetujui', `${ch.fromName} diganti ${ch.toName} (${NO(b)}). ${ch.diff > 0 ? `Tambahan ${rupiah(ch.diff)} dibayar saat pengambilan.` : ch.diff < 0 ? `Sisa bayar berkurang ${rupiah(-ch.diff)}.` : ''}`, `pesanan?id=${b.id}`);
       toast('Permintaan ganti barang disetujui.'); return true;
     },
@@ -884,6 +916,16 @@
         else b.extensions.push({ id: 'EXT-' + Date.now(), at: D.nowStamp(), from: oldEnd, to, days: r.extraDays, cost: r.cost, status: 'disetujui', source: 'toko', by: me.name });
         log(b, `Sewa diperpanjang sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari)`, 'perpanjangan', `${req ? 'Menyetujui' : 'Mencatat'} perpanjangan ${NO(b)} sampai ${D.fmtDate(to, true)}`, [{ field: 'Tanggal kembali', from: D.fmtDate(oldEnd, true), to: D.fmtDate(to, true) }, { field: 'Total sewa', from: rupiah(oldTotal), to: rupiah(b.total) }]);
         DB.saveBooking(b);
+        if (req && req.id) {
+          try {
+            const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+            fetch(`/api/admin/permintaan/extend/${req.id}/action`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+              body: JSON.stringify({ action: 'setujui', is_paid: m.$('#exPaid').checked })
+            }).catch(() => {});
+          } catch (e) {}
+        }
         DB.notify(b.customer.email, 'Sewa diperpanjang', `${NO(b)} diperpanjang sampai ${D.fmtDate(to, true)}. Tambahan biaya ${rupiah(r.cost)}${m.$('#exPaid').checked ? ' (sudah dibayar)' : ', dibayar saat pengembalian'}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Perpanjangan disimpan.'); done && done();
       });
@@ -891,6 +933,16 @@
         const r = await confirmBox({ title: 'Tolak perpanjangan?', text: 'Customer akan diberi tahu.', ok: 'Tolak', danger: true, input: { label: 'Alasan (opsional)' } }); if (r === false) return;
         Object.assign(b.extensions.find((x) => x.id === req.id), { status: 'ditolak', decidedAt: D.nowStamp(), by: me.name, note: val(r) });
         log(b, 'Perpanjangan ditolak', 'perpanjangan', `Menolak perpanjangan ${NO(b)}${val(r) ? `: ${val(r)}` : ''}`); DB.saveBooking(b);
+        if (req && req.id) {
+          try {
+            const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+            fetch(`/api/admin/permintaan/extend/${req.id}/action`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+              body: JSON.stringify({ action: 'tolak', reason: val(r) || '' })
+            }).catch(() => {});
+          } catch (e) {}
+        }
         DB.notify(b.customer.email, 'Perpanjangan ditolak', `Permintaan perpanjangan ${NO(b)} ditolak${val(r) ? `: ${val(r)}` : ''}. Barang tetap dikembalikan ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Perpanjangan ditolak.'); done && done();
       });
@@ -1476,6 +1528,23 @@ ${pay}
       const brief = Svc.shipBrief(s);
       s.history = s.history || []; s.history.push({ at, text: `Pengiriman diatur oleh ${me.name}: ${brief}${ongLog}${ongPaid && ongDue > 0 ? ` · ongkir dibayar ${rupiah(ongDue)} (${ongVia})` : ''}` });
       DB.saveSale(s);
+      try {
+        const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+        fetch(`/api/admin/sales/${s.id}/delivery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+          body: JSON.stringify({
+            method: mode,
+            expedition: exp,
+            tracking_no: nd.resi || '',
+            courier_name: nd.courier || '',
+            courier_phone: nd.courierPhone || '',
+            ongkir: nd.ongkir || 0,
+            address: rec.addr || '',
+            ship_status: 'dikirim'
+          })
+        }).catch(() => {});
+      } catch (e) {}
       DB.audit({ type: 'layanan', action: `Mengatur pengiriman ${NO(s)} (${s.customer.name}): ${brief}`, ref: s.id, changes: [{ field: 'Pengiriman', from: before || '—', to: brief }] });
       DB.notify(s.customer.email, 'Pesananmu sedang dikirim', `${NO(s)}: ${brief}.`, 'pesanan?tab=beli');
       m.close(); refreshShell(); done && done();

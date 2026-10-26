@@ -4,11 +4,14 @@ use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
 use App\Http\Controllers\Annapurna\BookingServiceController;
+use App\Http\Controllers\Annapurna\ChatMissController;
 use App\Http\Controllers\Annapurna\ConfigController;
 use App\Http\Controllers\Annapurna\FinanceController;
 use App\Http\Controllers\Annapurna\LaundryController;
+use App\Http\Controllers\Annapurna\NotaLinkController;
 use App\Http\Controllers\Annapurna\OwnerController;
 use App\Http\Controllers\Annapurna\PageController;
+use App\Http\Controllers\Annapurna\PermintaanController;
 use App\Http\Controllers\Annapurna\PromoController;
 use App\Http\Controllers\Annapurna\ReturnController;
 use App\Http\Controllers\Annapurna\ReviewController;
@@ -37,6 +40,7 @@ Route::controller(PageController::class)->group(function () {
     Route::get('/pembayaran', 'pembayaran')->name('pembayaran');
     Route::get('/pesanan', 'pesanan')->name('pesanan');
     Route::get('/invoice', 'invoice')->name('invoice');
+    Route::get('/n/{token}', [NotaLinkController::class, 'show'])->name('nota.short');
     Route::get('/profil', 'profil')->name('profil');
 });
 
@@ -66,6 +70,9 @@ Route::prefix('api')->name('api.')->group(function () {
         Route::post('/promo/check', [PromoController::class, 'check'])->name('promo.check');
         Route::post('/ulasan', [ReviewController::class, 'store'])->name('ulasan.store');
     });
+
+    Route::post('/nota-link', [NotaLinkController::class, 'store'])->name('nota.store');
+    Route::post('/chat/miss', [ChatMissController::class, 'store'])->name('chat.miss');
 });
 
 // Panel Admin (Role: Admin & Owner)
@@ -154,6 +161,18 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
         Route::post('/ulasan/{id}/reply', 'reply')->name('ulasan.reply');
         Route::post('/ulasan/reorder', 'reorder')->name('ulasan.reorder');
     });
+
+    // Modul Permintaan Admin (Ganti Barang, Perpanjangan, Refund)
+    Route::controller(PermintaanController::class)->group(function () {
+        Route::get('/permintaan', 'index')->name('permintaan.index');
+        Route::post('/permintaan/change/{id}/action', 'actionChange')->name('permintaan.change.action');
+        Route::post('/permintaan/extend/{id}/action', 'actionExtend')->name('permintaan.extend.action');
+        Route::post('/permintaan/refund/{bookingId}', 'actionRefund')->name('permintaan.refund.action');
+    });
+
+    // Pengiriman Penjualan Belanja & Pelunasan Kasir
+    Route::post('/sales/{id}/delivery', [ApiController::class, 'saveSaleDelivery'])->name('sales.delivery');
+    Route::post('/booking/{id}/settle', [ApiController::class, 'settleBooking'])->name('booking.settle');
 });
 
 // API Manajemen Staff, Promo & Konfigurasi (Khusus Role: Owner)
@@ -186,6 +205,12 @@ Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'
     Route::controller(ConfigController::class)->group(function () {
         Route::get('/konfigurasi', 'index')->name('konfigurasi.index');
         Route::post('/konfigurasi', 'store')->name('konfigurasi.store');
+    });
+
+    // Kotak Rekam Pertanyaan Chatbot yang Belum Terjawab
+    Route::controller(ChatMissController::class)->group(function () {
+        Route::get('/chat/misses', 'index')->name('chat.misses');
+        Route::post('/chat/misses/{id}/abaikan', 'dismiss')->name('chat.dismiss');
     });
 });
 

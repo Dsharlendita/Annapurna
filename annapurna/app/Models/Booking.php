@@ -22,6 +22,9 @@ class Booking extends Model
         'days',
         'subtotal',
         'discount_amount',
+        'discount_reason',
+        'settle_disc_amount',
+        'settle_disc_reason',
         'fine_amount',
         'total_amount',
         'dp_amount',
@@ -33,6 +36,9 @@ class Booking extends Model
         'cancel_reason',
         'cancel_auto',
         'payment_status',
+        'settle_later',
+        'piutang_amount',
+        'piutang_note',
         'delivery_mode',
         'notes',
         'expired_at',
@@ -48,9 +54,12 @@ class Booking extends Model
             'days' => 'integer',
             'subtotal' => 'integer',
             'discount_amount' => 'integer',
+            'settle_disc_amount' => 'integer',
             'fine_amount' => 'integer',
             'total_amount' => 'integer',
             'dp_amount' => 'integer',
+            'settle_later' => 'boolean',
+            'piutang_amount' => 'integer',
             'is_walk_in' => 'boolean',
             'cancel_auto' => 'boolean',
             'cancel_at' => 'datetime',
@@ -101,5 +110,20 @@ class Booking extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
+    }
+
+    public function changes(): HasMany
+    {
+        return $this->hasMany(BookingChange::class);
+    }
+
+    public function extensions(): HasMany
+    {
+        return $this->hasMany(BookingExtension::class);
+    }
+
+    public function refund(): HasOne
+    {
+        return $this->hasOne(Refund::class);
     }
 }

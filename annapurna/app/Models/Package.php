@@ -16,6 +16,8 @@ class Package extends Model
         'tagline',
         'img',
         'price_per_day',
+        'price_3',
+        'price_5',
         'people',
         'people_min',
         'people_max',
@@ -27,6 +29,8 @@ class Package extends Model
     {
         return [
             'price_per_day' => 'integer',
+            'price_3' => 'integer',
+            'price_5' => 'integer',
             'people_min' => 'integer',
             'people_max' => 'integer',
             'is_active' => 'boolean',

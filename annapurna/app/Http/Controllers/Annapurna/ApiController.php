@@ -14,8 +14,10 @@ use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Promo;
 use App\Models\Sale;
+use App\Models\SaleDelivery;
 use App\Models\SaleItem;
 use App\Models\Setting;
+use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -292,6 +294,7 @@ class ApiController extends Controller
                 'days' => $days,
                 'subtotal' => $subtotal,
                 'discount_amount' => $discount,
+                'discount_reason' => $request->input('discount_reason'),
                 'total_amount' => $total,
                 'dp_amount' => $dpAmount,
                 'payment_method' => $validated['payment_method'] ?? 'Transfer Bank',
@@ -366,6 +369,8 @@ class ApiController extends Controller
             $payWindowHours = (int) Setting::get('pay_window_hours', 2);
 
             $isWalkIn = $request->boolean('is_walk_in');
+            $discount = (int) $request->input('discount_amount', 0);
+            $total = max(0, $subtotal - $discount);
 
             $sale = Sale::create([
                 'sale_code' => $code,
@@ -375,7 +380,9 @@ class ApiController extends Controller
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'customer_email' => $validated['customer_email'] ?? null,
                 'subtotal' => $subtotal,
-                'total_amount' => $subtotal,
+                'discount_amount' => $discount,
+                'discount_reason' => $request->input('discount_reason'),
+                'total_amount' => $total,
                 'payment_method' => $validated['payment_method'] ?? 'Transfer Bank',
                 'status' => $isWalkIn ? 'selesai' : 'menunggu_pembayaran',
                 'payment_status' => $isWalkIn ? 'paid' : 'unpaid',
@@ -390,10 +397,18 @@ class ApiController extends Controller
                 $sale->items()->create($item);
             }
 
+            if (($validated['delivery_mode'] ?? 'ambil') === 'antar') {
+                $sale->delivery()->create([
+                    'method' => 'ekspedisi',
+                    'address' => $request->input('address') ?: ($validated['notes'] ?? null),
+                    'ship_status' => 'siap_dikirim',
+                ]);
+            }
+
             return response()->json([
                 'ok' => true,
                 'msg' => 'Pesanan pembelian berhasil dibuat!',
-                'sale' => $sale->load('items'),
+                'sale' => $sale->load(['items', 'delivery']),
                 'redirect' => route('pembayaran', ['ids' => $sale->sale_code]),
             ]);
         });
@@ -459,5 +474,123 @@ class ApiController extends Controller
             'msg' => 'Bukti pembayaran berhasil diunggah dan sedang diverifikasi oleh admin.',
             'payment' => $payment,
         ]);
+    }
+
+    /**
+     * Menyimpan rincian pengiriman penjualan (Kurir toko / Ekspedisi).
+     */
+    public function saveSaleDelivery(Request $request, string $id): JsonResponse
+    {
+        $sale = is_numeric($id) ? Sale::find($id) : Sale::where('sale_code', $id)->orWhere('nota_no', $id)->firstOrFail();
+
+        $validated = $request->validate([
+            'method' => 'required|in:kurir,ekspedisi',
+            'expedition' => 'nullable|string|max:50',
+            'tracking_no' => 'nullable|string|max:100',
+            'courier_name' => 'nullable|string|max:100',
+            'courier_phone' => 'nullable|string|max:30',
+            'ongkir' => 'nullable|integer|min:0',
+            'address' => 'nullable|string',
+            'ship_status' => 'nullable|in:siap_dikirim,dikirim,tiba',
+            'ship_date' => 'nullable|date',
+        ]);
+
+        $delivery = SaleDelivery::updateOrCreate(
+            ['sale_id' => $sale->id],
+            [
+                'method' => $validated['method'],
+                'expedition' => $validated['expedition'] ?? null,
+                'tracking_no' => $validated['tracking_no'] ?? null,
+                'courier_name' => $validated['courier_name'] ?? null,
+                'courier_phone' => $validated['courier_phone'] ?? null,
+                'ongkir' => (int)($validated['ongkir'] ?? 0),
+                'address' => $validated['address'] ?? null,
+                'ship_status' => $validated['ship_status'] ?? 'dikirim',
+                'ship_date' => $validated['ship_date'] ?? now()->toDateString(),
+            ]
+        );
+
+        Audit::log(
+            'layanan',
+            "Mengatur pengiriman penjualan {$sale->nota_no} via " . ($delivery->method === 'ekspedisi' ? $delivery->expedition . ' (Resi: ' . $delivery->tracking_no . ')' : 'Kurir Toko (' . $delivery->courier_name . ')'),
+            $sale
+        );
+
+        return response()->json([
+            'ok' => true,
+            'msg' => 'Rincian pengiriman berhasil disimpan.',
+            'data' => $delivery,
+        ]);
+    }
+
+    /**
+     * Pelunasan kasir atau pencatatan piutang sewa.
+     */
+    public function settleBooking(Request $request, string $id): JsonResponse
+    {
+        $booking = is_numeric($id) ? Booking::find($id) : Booking::where('booking_code', $id)->orWhere('nota_no', $id)->firstOrFail();
+
+        $validated = $request->validate([
+            'settle_disc_amount' => 'nullable|integer|min:0',
+            'settle_disc_reason' => 'nullable|string|max:150',
+            'settle_later' => 'nullable|boolean',
+            'piutang_amount' => 'nullable|integer|min:0',
+            'piutang_note' => 'nullable|string',
+            'payment_amount' => 'nullable|integer|min:0',
+            'payment_method' => 'nullable|string',
+        ]);
+
+        return DB::transaction(function () use ($booking, $validated) {
+            $settleDisc = (int)($validated['settle_disc_amount'] ?? 0);
+            $settleLater = !empty($validated['settle_later']);
+            $piutangAmt = (int)($validated['piutang_amount'] ?? 0);
+            $payAmt = (int)($validated['payment_amount'] ?? 0);
+
+            // Update field diskon pelunasan & piutang
+            $booking->update([
+                'settle_disc_amount' => $settleDisc,
+                'settle_disc_reason' => $validated['settle_disc_reason'] ?? null,
+                'settle_later' => $settleLater,
+                'piutang_amount' => $settleLater ? $piutangAmt : 0,
+                'piutang_note' => $settleLater ? ($validated['piutang_note'] ?? null) : null,
+            ]);
+
+            // Jika ada pembayaran yang diterima saat pelunasan
+            if ($payAmt > 0) {
+                Payment::create([
+                    'booking_id' => $booking->id,
+                    'payment_type' => 'Pelunasan',
+                    'amount' => $payAmt,
+                    'bank_name' => $validated['payment_method'] ?? 'Kasir · Tunai',
+                    'status' => 'verified',
+                    'paid_at' => now(),
+                    'verified_by' => Auth::id(),
+                    'verified_at' => now(),
+                    'notes' => 'Pelunasan di kasir',
+                ]);
+            }
+
+            // Hitung total terbayar
+            $totalPaid = $booking->payments()->where('status', 'verified')->sum('amount');
+            $netTotal = max(0, $booking->total_amount - $settleDisc);
+
+            if ($totalPaid >= $netTotal && !$settleLater) {
+                $booking->update(['payment_status' => 'lunas']);
+            } elseif ($settleLater) {
+                $booking->update(['payment_status' => 'dp_paid']);
+            }
+
+            Audit::log(
+                'keuangan',
+                "Memproses pelunasan kasir booking {$booking->nota_no}" . ($settleDisc > 0 ? " (Diskon: Rp " . number_format($settleDisc, 0, ',', '.') . ")" : "") . ($settleLater ? " (Sisa piutang: Rp " . number_format($piutangAmt, 0, ',', '.') . ")" : ""),
+                $booking
+            );
+
+            return response()->json([
+                'ok' => true,
+                'msg' => 'Pelunasan booking berhasil diproses.',
+                'booking' => $booking->fresh()->load('payments'),
+            ]);
+        });
     }
 }

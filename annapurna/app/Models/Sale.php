@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Sale extends Model
 {
@@ -16,6 +17,8 @@ class Sale extends Model
         'customer_phone',
         'customer_email',
         'subtotal',
+        'discount_amount',
+        'discount_reason',
         'total_amount',
         'payment_method',
         'status',
@@ -34,6 +37,7 @@ class Sale extends Model
     {
         return [
             'subtotal' => 'integer',
+            'discount_amount' => 'integer',
             'total_amount' => 'integer',
             'is_walk_in' => 'boolean',
             'cancel_auto' => 'boolean',
@@ -79,5 +83,10 @@ class Sale extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
+    }
+
+    public function delivery(): HasOne
+    {
+        return $this->hasOne(SaleDelivery::class);
     }
 }

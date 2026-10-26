@@ -19,6 +19,8 @@ class Product extends Model
         'sku',
         'img',
         'rent_price',
+        'rent_price_3',
+        'rent_price_5',
         'sale_price',
         'cost_price',
         'stock',
@@ -45,6 +47,8 @@ class Product extends Model
     {
         return [
             'rent_price' => 'integer',
+            'rent_price_3' => 'integer',
+            'rent_price_5' => 'integer',
             'sale_price' => 'integer',
             'stock' => 'integer',
             'rating' => 'float',

@@ -3,8 +3,15 @@
 use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
+use App\Http\Controllers\Annapurna\BookingServiceController;
+use App\Http\Controllers\Annapurna\ConfigController;
+use App\Http\Controllers\Annapurna\FinanceController;
+use App\Http\Controllers\Annapurna\LaundryController;
 use App\Http\Controllers\Annapurna\OwnerController;
 use App\Http\Controllers\Annapurna\PageController;
+use App\Http\Controllers\Annapurna\PromoController;
+use App\Http\Controllers\Annapurna\ReturnController;
+use App\Http\Controllers\Annapurna\ReviewController;
 use App\Http\Controllers\Annapurna\StaffController;
 use App\Models\EmailLog;
 use Illuminate\Http\Request;
@@ -54,7 +61,10 @@ Route::prefix('api')->name('api.')->group(function () {
         Route::get('/paket', 'packages')->name('packages');
         Route::post('/cek-stok', 'checkAvailability')->name('check.availability');
         Route::post('/booking', 'storeBooking')->name('booking.store');
+        Route::post('/sale', 'storeSale')->name('sale.store');
         Route::post('/pembayaran/upload', 'uploadPayment')->name('payment.upload');
+        Route::post('/promo/check', [PromoController::class, 'check'])->name('promo.check');
+        Route::post('/ulasan', [ReviewController::class, 'store'])->name('ulasan.store');
     });
 });
 
@@ -90,13 +100,63 @@ Route::prefix('owner')->name('owner.')->middleware(['auth', 'role:owner', 'passw
     Route::get('/promo', 'promo')->name('promo');
 });
 
-// Endpoint Ganti Sandi (Bisa diakses user login yang wajib ganti sandi)
+// Endpoint Akun & Profil Pengguna Login
 Route::middleware('auth')->group(function () {
+    Route::post('/api/akun/profil', [AdminController::class, 'updateProfile'])->name('api.akun.profil');
     Route::post('/api/akun/ganti-sandi', [StaffController::class, 'changePassword'])->name('api.akun.ganti-sandi');
     Route::post('/akun/kata-sandi', [StaffController::class, 'changePassword'])->name('akun.kata-sandi');
 });
 
-// API Manajemen Staff & Outbox Email (Khusus Role: Owner)
+// API Admin (Pengaturan Toko, Keuangan, & Restock)
+Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,owner'])->group(function () {
+    Route::get('/pengaturan', [AdminController::class, 'getSettings'])->name('pengaturan.get');
+    Route::post('/pengaturan', [AdminController::class, 'updateSettings'])->middleware('role:owner')->name('pengaturan.update');
+
+    Route::controller(FinanceController::class)->group(function () {
+        Route::get('/keuangan/ringkasan', 'summary')->name('keuangan.ringkasan');
+        Route::get('/keuangan/transaksi', 'transactions')->name('keuangan.transaksi');
+        Route::post('/keuangan', 'store')->name('keuangan.store');
+        Route::post('/keuangan/{id}/batal', 'voidTransaction')->name('keuangan.void');
+        Route::post('/products/{id}/restock', 'restock')->name('products.restock');
+        Route::post('/produk/{id}/restock', 'restock')->name('produk.restock');
+        Route::post('/pembayaran/{id}/verifikasi', 'verifyPayment')->name('pembayaran.verifikasi');
+    });
+
+    // Manajemen Laundry
+    Route::controller(LaundryController::class)->group(function () {
+        Route::get('/laundry', 'index')->name('laundry.index');
+        Route::get('/laundry/prices', 'getPrices')->name('laundry.prices');
+        Route::post('/laundry', 'store')->name('laundry.store');
+        Route::get('/laundry/{id}', 'show')->name('laundry.show');
+        Route::post('/laundry/{id}/status', 'updateStatus')->name('laundry.status');
+        Route::post('/laundry/{id}/bayar', 'addPayment')->name('laundry.bayar');
+        Route::post('/laundry/{id}/notify', 'notifyReady')->name('laundry.notify');
+    });
+
+    // Layanan Tambahan Sewa (Antar/Jemput & Pasang Tenda)
+    Route::controller(BookingServiceController::class)->group(function () {
+        Route::post('/booking/{bookingId}/service', 'store')->name('booking.service.store');
+        Route::post('/service/{serviceId}/bayar', 'addPayment')->name('booking.service.pay');
+    });
+
+    // Pengembalian Barang & Denda Rental
+    Route::controller(ReturnController::class)->group(function () {
+        Route::get('/pengembalian', 'index')->name('pengembalian.index');
+        Route::post('/booking/{id}/pickup', 'pickup')->name('booking.pickup');
+        Route::post('/booking/{id}/return', 'processReturn')->name('booking.return');
+    });
+
+    // Ulasan & Moderasi Testimoni
+    Route::controller(ReviewController::class)->group(function () {
+        Route::get('/ulasan', 'index')->name('ulasan.index');
+        Route::post('/ulasan/{id}/toggle-feature', 'toggleFeature')->name('ulasan.toggle-feature');
+        Route::post('/ulasan/{id}/toggle-visibility', 'toggleVisibility')->name('ulasan.toggle-visibility');
+        Route::post('/ulasan/{id}/reply', 'reply')->name('ulasan.reply');
+        Route::post('/ulasan/reorder', 'reorder')->name('ulasan.reorder');
+    });
+});
+
+// API Manajemen Staff, Promo & Konfigurasi (Khusus Role: Owner)
 Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'])->group(function () {
     Route::prefix('staff')->name('staff.')->controller(StaffController::class)->group(function () {
         Route::get('/', 'index')->name('index');
@@ -110,6 +170,23 @@ Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'
         $logs = EmailLog::latest('id')->paginate(10);
         return response()->json($logs);
     })->name('email-logs');
+
+    Route::get('/keuangan/ringkasan', [FinanceController::class, 'summary'])->name('keuangan.ringkasan');
+
+    // Manajemen Promo & Kupon Diskon
+    Route::controller(PromoController::class)->group(function () {
+        Route::get('/promos', 'index')->name('promos.index');
+        Route::post('/promos', 'store')->name('promos.store');
+        Route::put('/promos/{id}', 'update')->name('promos.update');
+        Route::post('/promos/{id}/toggle', 'toggle')->name('promos.toggle');
+        Route::delete('/promos/{id}', 'destroy')->name('promos.destroy');
+    });
+
+    // Konfigurasi Sistem Toko
+    Route::controller(ConfigController::class)->group(function () {
+        Route::get('/konfigurasi', 'index')->name('konfigurasi.index');
+        Route::post('/konfigurasi', 'store')->name('konfigurasi.store');
+    });
 });
 
 Route::redirect('/login', '/masuk')->name('login');

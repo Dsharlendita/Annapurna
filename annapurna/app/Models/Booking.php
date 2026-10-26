@@ -11,6 +11,7 @@ class Booking extends Model
 {
     protected $fillable = [
         'booking_code',
+        'nota_no',
         'user_id',
         'customer_name',
         'customer_phone',
@@ -26,9 +27,15 @@ class Booking extends Model
         'dp_amount',
         'payment_method',
         'status',
+        'channel',
+        'is_walk_in',
+        'cancel_at',
+        'cancel_reason',
+        'cancel_auto',
         'payment_status',
         'delivery_mode',
         'notes',
+        'expired_at',
         'guarantee_type',
         'guarantee_file',
     ];
@@ -44,7 +51,31 @@ class Booking extends Model
             'fine_amount' => 'integer',
             'total_amount' => 'integer',
             'dp_amount' => 'integer',
+            'is_walk_in' => 'boolean',
+            'cancel_auto' => 'boolean',
+            'cancel_at' => 'datetime',
+            'expired_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Scope untuk menyaring booking yang layak tampil di panel staf/admin.
+     * Menyembunyikan booking online yang belum bayar DP dan belum pernah mengunggah bukti bayar.
+     */
+    public function scopeVisibleToStaff($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('channel', 'offline')
+                ->orWhere('is_walk_in', true)
+                ->orWhere(function ($sub) {
+                    $sub->where('channel', 'online')
+                        ->where(function ($inner) {
+                            $inner->whereNotIn('status', ['menunggu_pembayaran', 'dibatalkan'])
+                                ->orWhere('payment_status', '!=', 'unpaid')
+                                ->orWhereHas('payments');
+                        });
+                });
+        });
     }
 
     public function user(): BelongsTo
@@ -65,5 +96,10 @@ class Booking extends Model
     public function returnLog(): HasOne
     {
         return $this->hasOne(BookingReturn::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 }

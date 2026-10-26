@@ -6,25 +6,50 @@
   const T = D.today(); const monthFrom = T.slice(0, 8) + '01';
   const me = Admin.me;
   const ROLES = [['admin', 'Admin / Staff', 'Mengelola operasional: rental, penjualan, stok, keuangan. Tidak bisa menghapus data dan tidak melihat histori.'], ['owner', 'Owner', 'Akses penuh: dashboard bisnis, histori sistem, manajemen staff, integrasi & pengaturan toko.']];
-  const activeOwners = () => DB.staff().filter((u) => u.role === 'owner' && u.status === 'aktif');
+  
+  let staffList = [];
+  const getStaff = (id) => staffList.find((u) => u.id === id || String(u.userId) === String(id) || 'u' + u.userId === id) || DB.user(id);
+  const activeOwners = () => (staffList.length ? staffList : DB.staff()).filter((u) => u.role === 'owner' && u.status === 'aktif');
+
+  async function fetchStaff() {
+    const q = $('#q').value.trim();
+    const st = $('#fStatus').value;
+    const rl = $('#fRole').value;
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (st) params.set('status', st);
+    if (rl) params.set('role', rl);
+
+    const r = await Api.try('GET', 'api/owner/staff' + (params.toString() ? '?' + params.toString() : ''), null, () => ({ ok: true, data: DB.staff() }));
+    if (r && r.ok && Array.isArray(r.data)) {
+      staffList = r.data;
+      draw();
+    }
+  }
 
   function list() {
     const q = $('#q').value.trim().toLowerCase(), st = $('#fStatus').value, rl = $('#fRole').value;
-    return DB.staff().filter((u) => (!q || `${u.name} ${u.email}`.toLowerCase().includes(q)) && (!st || u.status === st) && (!rl || u.role === rl))
+    const pool = staffList.length ? staffList : DB.staff();
+    return pool.filter((u) => (!q || `${u.name} ${u.email}`.toLowerCase().includes(q)) && (!st || u.status === st) && (!rl || u.role === rl))
       .sort((a, b) => (a.status === 'nonaktif') - (b.status === 'nonaktif') || (a.role === 'owner' ? -1 : 1) - (b.role === 'owner' ? -1 : 1) || a.name.localeCompare(b.name));
   }
+
   function draw() {
-    const S = DB.staff(); const acts = DB.audits().filter((a) => a.type !== 'akses' && D.day(a.at) >= monthFrom);
+    const S = staffList.length ? staffList : DB.staff();
+    const acts = DB.audits().filter((a) => a.type !== 'akses' && D.day(a.at) >= monthFrom);
     const st = (ic, tone, l, v, d) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong>${d ? `<span class="d">${d}</span>` : ''}</div></div>`;
     $('#stats').innerHTML = st('fa-users', '', 'Total staff', S.length, `${S.filter((u) => u.role === 'owner').length} owner`) + st('fa-user-check', '', 'Aktif', S.filter((u) => u.status === 'aktif').length)
       + st('fa-user-slash', 'red', 'Nonaktif', S.filter((u) => u.status === 'nonaktif').length) + st('fa-signal', 'blue', 'Sedang login', S.filter((u) => Admin.presence(u).key === 'on').length, 'berdasarkan sesi terakhir');
     const L = list();
     $('#rows').innerHTML = L.length ? L.map((u) => {
-      const p = Admin.presence(u); const n = acts.filter((a) => a.userId === u.id).length; const self = u.id === me.id; const off = u.status === 'nonaktif';
-      const creator = u.createdBy ? DB.user(u.createdBy) : null;
+      const p = Admin.presence(u);
+      const n = u.activity_count !== undefined ? u.activity_count : acts.filter((a) => a.userId === u.id || a.userId === u.userId).length;
+      const self = u.id === me.id || String(u.userId) === String(me.id);
+      const off = u.status === 'nonaktif';
+      const creator = u.createdBy ? getStaff(u.createdBy) : null;
       return `<tr class="${off ? 'row-off' : ''}">
         <td><div class="prod"><span class="av-dot ${p.key}">${esc(u.name.charAt(0))}</span><div><strong>${esc(u.name)}${self ? ' <span class="pill green plain">Kamu</span>' : ''}</strong><small>${esc(u.email)}${u.phone ? ` · ${esc(u.phone)}` : ''}</small>${u.createdAt ? `<small>Dibuat ${D.fmtDate(u.createdAt)}${creator ? ` oleh ${esc(creator.name)}` : ''}</small>` : ''}</div></div></td>
-        <td><span class="pill ${u.role === 'owner' ? 'amber' : 'blue'}">${u.role === 'owner' ? '<i class="fa-solid fa-crown"></i> ' : ''}${esc(DB.ROLE_LABEL[u.role])}</span></td>
+        <td><span class="pill ${u.role === 'owner' ? 'amber' : 'blue'}">${u.role === 'owner' ? '<i class="fa-solid fa-crown"></i> ' : ''}${esc(DB.ROLE_LABEL[u.role] || u.role)}</span></td>
         <td>${off ? '<span class="pill gray">Nonaktif</span>' : '<span class="pill green">Aktif</span>'}${u.mustChangePw && !off ? '<small style="color:#9a6508"><i class="fa-solid fa-key"></i> Belum ganti sandi sementara</small>' : ''}<small>${p.label}</small></td>
         <td>${u.lastLogin ? `${D.fmtDateTime(u.lastLogin)}<small>${Admin.relTime(u.lastLogin)}${u.lastLogout && u.lastLogout > u.lastLogin ? ` · logout ${D.fmtDateTime(u.lastLogout).split(', ')[1]}` : ''}</small>` : '<span class="muted">Belum pernah login</span>'}</td>
         <td class="num">${n}</td>
@@ -38,19 +63,20 @@
   }
 
   function sentModal(title, u, res) {
+    const tempPw = res.temp || res.temp_password || '';
     const m = modal({ title, body: `
-      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-envelope-circle-check"></i><div>${res.mail ? `Email informasi akun dikirim ke <strong>${esc(u.email)}</strong>.` : 'Email tidak dikirim (opsi pengiriman dimatikan).'} Staff wajib mengganti kata sandi saat pertama login.</div></div>
+      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-envelope-circle-check"></i><div>${res.mail && res.mail.status !== 'gagal' && res.mail.status !== 'lewati' ? `Email informasi akun dikirim ke <strong>${esc(u.email)}</strong>.` : 'Akun staf berhasil dibuat.'} Staff wajib mengganti kata sandi saat pertama login.</div></div>
       <div class="kv"><span>Email akun</span><strong>${esc(u.email)}</strong></div>
-      <div class="kv"><span>Kata sandi sementara</span><span><code class="temp-pw">${esc(res.temp)}</code> <button class="btn btn-light btn-xs" id="cp"><i class="fa-regular fa-copy"></i> Salin</button></span></div>
+      <div class="kv"><span>Kata sandi sementara</span><span><code class="temp-pw">${esc(tempPw)}</code> <button class="btn btn-light btn-xs" id="cp"><i class="fa-regular fa-copy"></i> Salin</button></span></div>
       <p class="muted" style="font-size:12.5px;margin-top:10px">Kata sandi sementara hanya ditampilkan sekali di sini. Sistem tidak menyimpan kata sandi dalam bentuk yang bisa dibaca saat backend sudah aktif.</p>`,
-      foot: `${res.mail ? '<button class="btn btn-light" id="pv"><i class="fa-regular fa-eye"></i> Lihat email</button>' : ''}<button class="btn btn-primary" data-close>Selesai</button>` });
-    m.$('#cp').addEventListener('click', () => { navigator.clipboard && navigator.clipboard.writeText(res.temp); toast('Kata sandi sementara disalin.'); });
+      foot: `${res.mail && res.mail.status === 'terkirim' ? '<button class="btn btn-light" id="pv"><i class="fa-regular fa-eye"></i> Lihat email</button>' : ''}<button class="btn btn-primary" data-close>Selesai</button>` });
+    m.$('#cp').addEventListener('click', () => { navigator.clipboard && navigator.clipboard.writeText(tempPw); toast('Kata sandi sementara disalin.'); });
     const pv = m.$('#pv'); if (pv) pv.addEventListener('click', () => Reports.mailModal(res.mail));
   }
 
   function form(u) {
     const isNew = !u; u = u || { name: '', email: '', phone: '', role: 'admin', status: 'aktif' };
-    const self = u.id === me.id;
+    const self = u.id === me.id || String(u.userId) === String(me.id);
     const m = modal({ title: isNew ? 'Tambah staff' : `Edit staff · ${esc(u.name)}`, size: 'lg', body: `<form id="sf" novalidate>
       <div class="grid-2">
         <div class="field"><label>Nama lengkap</label><input class="input" name="sname" value="${esc(u.name)}" placeholder="Contoh: Dita Lestari"></div>
@@ -70,38 +96,80 @@
       const status = self ? u.status : E.sstatus.value;
       if (!isNew && u.role === 'owner' && u.status === 'aktif' && (role !== 'owner' || status !== 'aktif') && activeOwners().length <= 1) { toast('Minimal harus ada satu Owner aktif.', 'err'); return; }
       if (role === 'owner' && u.role !== 'owner' && !(await confirmBox({ title: 'Jadikan Owner?', text: `${esc(E.sname.value)} akan mendapat akses penuh, termasuk histori sistem dan manajemen staff.`, ok: 'Ya, jadikan Owner' }))) return;
+
       if (isNew) {
-        const r = DB.addStaff({ name: E.sname.value, email: E.semail.value, phone: E.sphone.value.trim(), role, status, sendEmail: E.smail.checked });
-        if (!r.ok) { validate(F, { [r.field === 'email' ? 'semail' : 'sname']: () => r.msg }); return; }
-        m.close(); draw(); sentModal('Staff ditambahkan', r.user, r);
+        const payload = {
+          name: E.sname.value.trim(),
+          email: E.semail.value.trim().toLowerCase(),
+          phone: E.sphone.value.trim(),
+          role,
+          status,
+          sendEmail: E.smail.checked
+        };
+        const r = await Api.busy(m.$('#sSave'), () => Api.try('POST', 'api/owner/staff', payload, () => DB.addStaff(payload)), 'Menyimpan…');
+        if (!r || !r.ok) {
+          if (r && r.errors) Api.showErrors(F, r);
+          else toast((r && r.msg) || 'Gagal menambahkan staff.', 'err');
+          return;
+        }
+        m.close();
+        await fetchStaff();
+        sentModal('Staff ditambahkan', r.user || r.data, r);
       } else {
-        const r = DB.updateStaff(u.id, { name: E.sname.value.trim(), email: E.semail.value.trim().toLowerCase(), phone: E.sphone.value.trim(), role, status });
-        if (!r.ok) { validate(F, { semail: () => r.msg }); return; }
-        if (self) DB.set('session', Object.assign(DB.session(), { name: r.user.name, email: r.user.email, phone: r.user.phone }));
-        m.close(); toast(r.changes.length ? 'Data staff diperbarui.' : 'Tidak ada perubahan.'); draw();
-        if (self && r.changes.length) setTimeout(() => location.reload(), 600);
+        const payload = {
+          name: E.sname.value.trim(),
+          email: E.semail.value.trim().toLowerCase(),
+          phone: E.sphone.value.trim(),
+          role,
+          status
+        };
+        const r = await Api.busy(m.$('#sSave'), () => Api.try('PATCH', 'api/owner/staff/' + u.id, payload, () => DB.updateStaff(u.id, payload)), 'Menyimpan…');
+        if (!r || !r.ok) {
+          if (r && r.errors) Api.showErrors(F, r);
+          else toast((r && r.msg) || 'Gagal memperbarui staff.', 'err');
+          return;
+        }
+        m.close();
+        toast((r.changes && r.changes.length) ? 'Data staff diperbarui.' : 'Data staff disimpan.');
+        await fetchStaff();
+        if (self && r.changes && r.changes.length) setTimeout(() => location.reload(), 600);
       }
     });
   }
 
   $('#add').addEventListener('click', () => form());
-  ['#q', '#fStatus', '#fRole'].forEach((s) => $(s).addEventListener('input', draw));
+  ['#q', '#fStatus', '#fRole'].forEach((s) => $(s).addEventListener('input', () => { fetchStaff(); }));
   $('#rows').addEventListener('click', async (e) => {
     const ed = e.target.closest('[data-edit]'), tg = e.target.closest('[data-toggle]'), rs = e.target.closest('[data-reset]');
-    if (ed) form(DB.user(ed.dataset.edit));
+    if (ed) form(getStaff(ed.dataset.edit));
     if (tg) {
-      const u = DB.user(tg.dataset.toggle); const off = u.status === 'nonaktif';
+      const u = getStaff(tg.dataset.toggle); const off = u.status === 'nonaktif';
       if (!off && u.role === 'owner' && activeOwners().length <= 1) { toast('Minimal harus ada satu Owner aktif.', 'err'); return; }
       const ok = await confirmBox(off ? { title: `Aktifkan ${esc(u.name)}?`, text: 'Staff bisa login kembali ke panel.', ok: 'Aktifkan' }
         : { title: `Nonaktifkan ${esc(u.name)}?`, text: 'Staff tidak bisa login lagi dan sesi yang sedang berjalan akan ditutup. Akun dan histori aktivitasnya tetap tersimpan.', ok: 'Nonaktifkan', danger: true });
       if (!ok) return;
-      DB.updateStaff(u.id, { status: off ? 'aktif' : 'nonaktif' }); toast(off ? 'Staff diaktifkan.' : 'Staff dinonaktifkan.'); draw();
+
+      const r = await Api.try('POST', 'api/owner/staff/' + u.id + '/toggle', null, () => DB.updateStaff(u.id, { status: off ? 'aktif' : 'nonaktif' }));
+      if (r && r.ok) {
+        toast(off ? 'Staff diaktifkan.' : 'Staff dinonaktifkan.');
+        await fetchStaff();
+      } else if (r) {
+        toast(r.msg || 'Gagal mengubah status staff.', 'err');
+      }
     }
     if (rs) {
-      const u = DB.user(rs.dataset.reset);
+      const u = getStaff(rs.dataset.reset);
       if (!(await confirmBox({ title: `Atur ulang kata sandi ${esc(u.name)}?`, text: `Kata sandi sementara baru dibuat dan dikirim ke ${esc(u.email)}. Kata sandi lama langsung tidak berlaku.`, ok: 'Kirim kata sandi baru' }))) return;
-      const r = DB.resetStaffPassword(u.id); draw(); sentModal('Kata sandi diatur ulang', u, r);
+      const r = await Api.try('POST', 'api/owner/staff/' + u.id + '/reset-password', null, () => DB.resetStaffPassword(u.id));
+      if (r && r.ok) {
+        await fetchStaff();
+        sentModal('Kata sandi diatur ulang', u, r);
+      } else if (r) {
+        toast(r.msg || 'Gagal mereset kata sandi.', 'err');
+      }
     }
   });
-  draw();
+
+  // Muat data awal dari API
+  fetchStaff();
 })();

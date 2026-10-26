@@ -62,12 +62,15 @@
       const F0 = DB.testimonials(); F0.forEach((x, k) => { x.order = k; save(x); });
       const cur = DB.review(id); cur.featured = !cur.featured; cur.order = cur.featured ? F0.length : undefined; save(cur); r.featured = cur.featured;
       DB.audit({ type: 'ulasan', action: `${r.featured ? 'Menampilkan' : 'Melepas'} ulasan ${r.name} ${r.featured ? 'di' : 'dari'} testimoni beranda`, ref: r.id });
+      try { fetch(url('./api/admin/ulasan/' + id + '/toggle-feature'), { method: 'POST', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }); } catch (_) {}
       toast(r.featured ? 'Ulasan ditampilkan di beranda.' : 'Ulasan dihapus dari beranda.');
     }
     if (t.dataset.vis) {
       if (r.visible && !(await confirmBox({ title: 'Sembunyikan ulasan?', text: 'Ulasan tidak akan tampil di halaman produk maupun beranda, dan tidak dihitung dalam rating.', ok: 'Sembunyikan', danger: true }))) return;
       r.visible = !r.visible; if (!r.visible) r.featured = false; save(r);
-      DB.audit({ type: 'ulasan', action: `${r.visible ? 'Menampilkan kembali' : 'Menyembunyikan'} ulasan ${r.name} (${r.refId})`, ref: r.id, changes: [{ field: 'Tampil', from: r.visible ? 'Tidak' : 'Ya', to: r.visible ? 'Ya' : 'Tidak' }] }); toast(r.visible ? 'Ulasan ditampilkan kembali.' : 'Ulasan disembunyikan.');
+      DB.audit({ type: 'ulasan', action: `${r.visible ? 'Menampilkan kembali' : 'Menyembunyikan'} ulasan ${r.name} (${r.refId})`, ref: r.id, changes: [{ field: 'Tampil', from: r.visible ? 'Tidak' : 'Ya', to: r.visible ? 'Ya' : 'Tidak' }] });
+      try { fetch(url('./api/admin/ulasan/' + id + '/toggle-visibility'), { method: 'POST', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }); } catch (_) {}
+      toast(r.visible ? 'Ulasan ditampilkan kembali.' : 'Ulasan disembunyikan.');
     }
     if (t.dataset.reply) {
       const m = modal({ title: `Balas ulasan ${esc(r.name)}`, body: `<blockquote class="rv-quote">${UI.stars(r.rating, false)}<p>${esc(r.text)}</p></blockquote>
@@ -77,15 +80,28 @@
       const rc = () => (m.$('#rpCnt').textContent = m.$('#rpText').value.length); m.$('#rpText').addEventListener('input', rc); rc();
       m.$('#rpSave').addEventListener('click', () => { const v = m.$('#rpText').value.trim(); if (!v) { m.$('#rpText').classList.add('err'); return; }
         const isNew = !r.reply; const before = r.reply || ''; r.reply = v;
-        DB.audit({ type: 'ulasan', action: `${isNew ? 'Membalas' : 'Mengubah balasan'} ulasan ${r.name} (${r.refId})`, ref: r.id, changes: isNew ? [] : [{ field: 'Balasan', from: before.slice(0, 80), to: v.slice(0, 80) }] }); r.replyAt = D.nowStamp(); r.replySeen = false; save(r); if (r.email) DB.notify(r.email, isNew ? 'Ulasanmu dibalas' : 'Balasan ulasan diperbarui', `Annapurna Adventure: "${v.slice(0, 70)}${v.length > 70 ? '…' : ''}"`, `pesanan?tab=riwayat&review=${r.refId}`); m.close(); toast('Balasan disimpan.'); draw(); });
+        DB.audit({ type: 'ulasan', action: `${isNew ? 'Membalas' : 'Mengubah balasan'} ulasan ${r.name} (${r.refId})`, ref: r.id, changes: isNew ? [] : [{ field: 'Balasan', from: before.slice(0, 80), to: v.slice(0, 80) }] }); r.replyAt = D.nowStamp(); r.replySeen = false; save(r);
+        try { fetch(url('./api/admin/ulasan/' + id + '/reply'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ reply: v }) }); } catch (_) {}
+        if (r.email) DB.notify(r.email, isNew ? 'Ulasanmu dibalas' : 'Balasan ulasan diperbarui', `Annapurna Adventure: "${v.slice(0, 70)}${v.length > 70 ? '…' : ''}"`, `pesanan?tab=riwayat&review=${r.refId}`); m.close(); toast('Balasan disimpan.'); draw(); });
       return;
     }
     if (t.dataset.up || t.dataset.down) {
       const F = DB.testimonials(); const i = F.findIndex((x) => x.id === id); const j = t.dataset.up ? i - 1 : i + 1;
       [F[i], F[j]] = [F[j], F[i]]; F.forEach((x, k) => { x.order = k; save(x); });
+      try { fetch(url('./api/admin/ulasan/reorder'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ ids: F.map(x => x.id) }) }); } catch (_) {}
     }
     draw();
   });
   draw();
+  async function syncServer() {
+    try {
+      const res = await fetch(url('./api/admin/ulasan'), { headers: { 'Accept': 'application/json' } });
+      const d = await res.json();
+      if (d && d.ok && d.stats) {
+        draw();
+      }
+    } catch (_) {}
+  }
+  syncServer();
 })();
 

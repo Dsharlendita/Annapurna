@@ -1176,6 +1176,17 @@
     saveConfig(key, value, action, changes) {
       const st = DB.settings(); st[key] = value; write('settings', st);
       DB.audit({ type: 'konfigurasi', action, changes });
+      try {
+        fetch('/api/owner/konfigurasi', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+          },
+          body: JSON.stringify({ key, value, action, changes })
+        });
+      } catch (_) {}
     },
     packages: () => read('packages', PACKAGES),
     pkg: (id) => read('packages', PACKAGES).find((p) => p.id === id),

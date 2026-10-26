@@ -713,6 +713,19 @@
         if (st0.later) b.history.push({ at: D.nowStamp(), text: `Sisa ${rupiah(sisa(b))} dibayar saat barang kembali${st0.note ? ' · ' + st0.note : ''} (${me.name})` });
         log(b, 'Barang keluar / diambil customer', 'barang_keluar', `Mencatat barang keluar ${NO(b)}: ${itemsText(b)}`, [{ field: 'Status booking', from: rl('dikonfirmasi'), to: rl('disewa') }, { field: 'Kondisi keluar', from: '', to: b.out.cond }, ...stCh, ...(st0.later ? [{ field: 'Pelunasan', from: '', to: `ditunda ke saat kembali (${rupiah(sisa(b))})` }] : [])]);
         DB.saveBooking(b);
+        try {
+          fetch(url('./api/admin/booking/' + b.id + '/pickup'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' },
+            body: JSON.stringify({
+              condition: m.$('#oCond').value,
+              notes: note,
+              pay_now: st0.pay ? st0.pay.amount : 0,
+              payment_method: (st0.pay && st0.pay.method) || 'cash',
+              unit_ids: picks || {}
+            })
+          });
+        } catch (_) {}
         DB.notify(b.customer.email, 'Selamat bertualang!', `Barang ${NO(b)} sudah diambil. Harap kembalikan paling lambat ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
         m.close(); toast(st0.later ? `Barang keluar tercatat. Sisa ${rupiah(sisa(b))} ditagih saat kembali.` : 'Barang keluar tercatat. Status: Sedang disewa.'); done && done();
       });
@@ -783,6 +796,24 @@
         log(b, `Barang kembali (${b.ret.cond})${r.late ? `, terlambat ${r.late} hari` : ''}${r.fine ? `, denda ${rupiah(r.fine)}` : ''}`, 'pengembalian', `Mencatat barang kembali ${NO(b)} (kondisi ${b.ret.cond}${r.late ? `, terlambat ${r.late} hari` : ''})`,
           [{ field: 'Status booking', from: rl('disewa'), to: rl('selesai') }, { field: 'Kondisi kembali', from: b.out ? b.out.cond : '', to: b.ret.cond }, ...(r.fine ? [{ field: 'Denda', from: '', to: rupiah(r.fine) }] : []), ...stCh, ...(b.piutang ? [{ field: 'Piutang', from: '', to: rupiah(b.piutang.amount) }] : [])]);
         DB.saveBooking(b);
+        try {
+          fetch(url('./api/admin/booking/' + b.id + '/return'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' },
+            body: JSON.stringify({
+              return_date: r.date,
+              condition: m.$('#rCond').value,
+              late_days: r.late,
+              late_fee: r.lf,
+              damage_fee: r.dmg,
+              total_fine: r.fine,
+              notes: note,
+              pay_fine: r.fine - (r.ded || 0),
+              payment_method: 'cash',
+              unit_results: uc || {}
+            })
+          });
+        } catch (_) {}
         DB.notify(b.customer.email, 'Rental selesai — beri ulasan yuk!', `Terima kasih! ${NO(b)} sudah dikembalikan${r.fine ? ` dengan denda ${rupiah(r.fine)}` : ''}. Bagikan pengalamanmu dengan memberi bintang & ulasan.`, `pesanan?tab=riwayat&review=${b.id}`);
         m.close(); toast(b.piutang ? `Pengembalian tercatat. Piutang ${rupiah(b.piutang.amount)} muncul di Dashboard.` : 'Pengembalian tercatat. Booking lunas.'); done && done();
         if (hasUnits) setTimeout(() => afterReturnPopup(b, uc), 250);
@@ -1026,6 +1057,15 @@
         b.history.push({ at, text: `Pembayaran layanan ${rupiah(amt)} · ${via}` });
         changes.push({ field: 'Dibayar', from: '', to: rupiah(amt) }, { field: 'Lini usaha', from: '', to: 'Rental' });
       }
+      Api.try('POST', `api/admin/booking/${b.booking_code || b.id}/service`, {
+        service_mode: Svc.mode(b) || 'antar',
+        fee: c.jasa,
+        ongkir: c.ong,
+        pay_now: amt,
+        payment_method: m.$('#spVia') ? m.$('#spVia').value : 'Tunai',
+        address: (b.deliv && b.deliv.address) || null,
+        notes: note || null,
+      });
       DB.saveBooking(b);
       DB.audit({ type: amt ? 'keuangan' : 'layanan', action: `Memperbarui nota layanan ${NO(b)} (${b.customer.name})${amt ? ` · dibayar ${rupiah(amt)}` : ''}`, ref: b.id, changes });
       DB.notify(b.customer.email, 'Nota layanan diperbarui', `${Svc.ongkirText(b).replace(/^o/, 'O')} ${NO(b)}: ${rupiah(c.ong)}. Total layanan ${rupiah(c.total)}.`, 'pesanan');
@@ -1082,6 +1122,7 @@
   }
   /* Laundry SIAP DIAMBIL: staff WAJIB mengabari customer via WhatsApp (pesan + nota). Tidak perlu cetak struk di tahap ini. */
   function ldNotify(o, done) {
+    if (o) Api.try('POST', `api/admin/laundry/${o.order_code || o.no || o.id}/notify`, {});
     let sent = false;
     Promise.resolve(ldContact(DB.laundryOrder(o.id), { title: `Kabari siap diambil · ${o.no}`, logText: 'Customer dikabari via WhatsApp (siap diambil)', patch: () => ({ notifiedReady: D.nowStamp() }),
       note: '<b>Cucian sudah selesai.</b> Wajib kabari customer bahwa laundry-nya siap diambil.', onSent: () => { sent = true; } })).then((cm) => {
@@ -1120,6 +1161,7 @@
       o.payments = o.payments || []; o.payments.push({ at, amount: amt, type: Laundry.paid(o) + amt >= Laundry.total(o) ? 'Lunas' : 'Sebagian', via });
       o.paymentStatus = Laundry.paid(o) >= Laundry.total(o) ? 'paid' : 'unpaid';
       o.history.push({ at, text: `Pembayaran ${rupiah(amt)} (${via}) dicatat oleh ${me.name}` });
+      Api.try('POST', `api/admin/laundry/${o.order_code || o.no || o.id}/bayar`, { amount: amt, payment_method: S.method });
       DB.saveLaundry(o);
       DB.audit({ type: 'laundry', action: `Pembayaran laundry ${o.no} (${o.customer.name}) ${rupiah(amt)} · ${via}`, ref: o.id, changes: [{ field: 'Jumlah', from: '', to: rupiah(amt) }, { field: 'Lini usaha', from: '', to: 'Rental' }] });
       m.close(); toast('Pembayaran laundry tercatat di Keuangan (Rental).'); done && done();
@@ -1128,6 +1170,7 @@
   function ldAdvance(o, to, done) {
     const from = o.status; o.status = to; const at = D.nowStamp(); if (to === 'selesai') o.pickedAt = at; if (to === 'siap') o.readyAt = at;
     o.history.push({ at, text: `${(STATUS.laundry[to] || {}).label || to} · ${me.name}` });
+    Api.try('POST', `api/admin/laundry/${o.order_code || o.no || o.id}/status`, { status: to });
     DB.saveLaundry(o);
     DB.audit({ type: 'laundry', action: `Status laundry ${o.no} (${o.customer.name}): ${(STATUS.laundry[from] || {}).label} → ${(STATUS.laundry[to] || {}).label}`, ref: o.id, changes: [{ field: 'Status', from: (STATUS.laundry[from] || {}).label, to: (STATUS.laundry[to] || {}).label }] });
     toast(`${o.no}: ${(STATUS.laundry[to] || {}).label}.`); refreshShell();

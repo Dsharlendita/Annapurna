@@ -16,6 +16,8 @@ class BookingReturn extends Model
         'damage_fee',
         'total_fine',
         'notes',
+        'proof_photo',
+        'unit_results',
         'inspected_by',
     ];
 
@@ -27,6 +29,7 @@ class BookingReturn extends Model
             'late_fee' => 'integer',
             'damage_fee' => 'integer',
             'total_fine' => 'integer',
+            'unit_results' => 'array',
         ];
     }
 

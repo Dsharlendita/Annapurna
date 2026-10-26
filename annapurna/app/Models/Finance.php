@@ -9,8 +9,10 @@ class Finance extends Model
 {
     protected $fillable = [
         'finance_code',
+        'ref',
         'type',
         'category',
+        'line',
         'amount',
         'transaction_date',
         'description',
@@ -26,6 +28,13 @@ class Finance extends Model
             'amount' => 'integer',
             'transaction_date' => 'date',
         ];
+    }
+
+    public static function generateCode(string $type): string
+    {
+        $prefix = strtolower($type) === 'income' ? 'INC' : 'EXP';
+        $count = static::where('type', $type)->count() + 1;
+        return "{$prefix}-{$count}";
     }
 
     public function creator(): BelongsTo

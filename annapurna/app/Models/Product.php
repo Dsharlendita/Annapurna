@@ -20,6 +20,7 @@ class Product extends Model
         'img',
         'rent_price',
         'sale_price',
+        'cost_price',
         'stock',
         'rating',
         'reviews_count',
@@ -52,6 +53,7 @@ class Product extends Model
             'is_active' => 'boolean',
             'min_days' => 'integer',
             'has_variant' => 'boolean',
+            'cost_price' => 'integer',
             'specs' => 'array',
             'attrs' => 'array',
             'variant_data' => 'array',
@@ -66,6 +68,11 @@ class Product extends Model
     public function units(): HasMany
     {
         return $this->hasMany(ProductUnit::class, 'product_id', 'id');
+    }
+
+    public function restocks(): HasMany
+    {
+        return $this->hasMany(Restock::class, 'product_id', 'id');
     }
 
     public function reviews(): HasMany

@@ -40,12 +40,55 @@
         minTotal: +E.minTotal.value || 0, quota: +E.quota.value || 0, weekday: E.weekday.checked, home: E.home.checked });
       const ch = isNew ? [{ field: 'Potongan', from: '', to: `${valTxt(next)} · ${AP[next.applies]}` }, { field: 'Periode', from: '', to: `${D.fmtDate(next.start)} – ${D.fmtDate(next.end)}` }]
         : [['value', 'Potongan'], ['type', 'Jenis'], ['applies', 'Berlaku untuk'], ['start', 'Mulai'], ['end', 'Berakhir'], ['minTotal', 'Minimal'], ['quota', 'Kuota'], ['weekday', 'Hanya Senin–Kamis'], ['home', 'Tampil di beranda'], ['name', 'Nama']].filter(([k]) => p[k] !== next[k]).map(([k, l]) => ({ field: l, from: String(p[k]), to: String(next[k]) }));
-      DB.savePromo(next, `${isNew ? 'Membuat' : 'Mengubah'} promo ${code}`, ch); m.close(); toast('Promo disimpan.'); draw();
+      DB.savePromo(next, `${isNew ? 'Membuat' : 'Mengubah'} promo ${code}`, ch);
+      try {
+        fetch(url('./api/owner/promos' + (isNew ? '' : '/' + (next.id || 0))), {
+          method: isNew ? 'POST' : 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' },
+          body: JSON.stringify({
+            code,
+            name: next.name,
+            description: next.desc,
+            discount_type: next.type,
+            discount_value: next.value,
+            applies_to: next.applies,
+            valid_from: next.start,
+            valid_until: next.end,
+            min_order: next.minTotal,
+            quota: next.quota,
+            weekday_only: next.weekday,
+            show_on_home: next.home
+          })
+        });
+      } catch (_) {}
+      m.close(); toast('Promo disimpan.'); draw();
     });
   }
   $('#add').addEventListener('click', () => form());
   $('#list').addEventListener('click', (e) => { const ed = e.target.closest('[data-edit]'), tg = e.target.closest('[data-toggle]');
     if (ed) form(DB.promos().find((x) => x.id === ed.dataset.edit));
-    if (tg) { const p = Object.assign({}, DB.promos().find((x) => x.id === tg.dataset.toggle)); p.active = !p.active; DB.savePromo(p, `${p.active ? 'Mengaktifkan' : 'Menonaktifkan'} promo ${p.code}`, [{ field: 'Status', from: p.active ? 'Nonaktif' : 'Aktif', to: p.active ? 'Aktif' : 'Nonaktif' }]); draw(); } });
+    if (tg) {
+      const p = Object.assign({}, DB.promos().find((x) => x.id === tg.dataset.toggle));
+      p.active = !p.active;
+      DB.savePromo(p, `${p.active ? 'Mengaktifkan' : 'Menonaktifkan'} promo ${p.code}`, [{ field: 'Status', from: p.active ? 'Nonaktif' : 'Aktif', to: p.active ? 'Aktif' : 'Nonaktif' }]);
+      try {
+        fetch(url('./api/owner/promos/' + p.id + '/toggle'), {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }
+        });
+      } catch (_) {}
+      draw();
+    }
+  });
   draw();
+  async function syncServer() {
+    try {
+      const res = await fetch(url('./api/owner/promos'), { headers: { 'Accept': 'application/json' } });
+      const d = await res.json();
+      if (d && d.ok && d.promos) {
+        draw();
+      }
+    } catch (_) {}
+  }
+  syncServer();
 })();

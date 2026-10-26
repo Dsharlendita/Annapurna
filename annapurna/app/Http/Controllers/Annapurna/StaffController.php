@@ -130,6 +130,7 @@ class StaffController extends Controller
             'role' => ['required', Rule::in(['admin', 'owner'])],
             'status' => ['nullable', Rule::in(['aktif', 'nonaktif'])],
             'send_email' => ['nullable', 'boolean'],
+            'sendEmail' => ['nullable', 'boolean'],
         ], [
             'name.required' => 'Nama staf wajib diisi.',
             'name.min' => 'Nama minimal 3 huruf.',
@@ -163,7 +164,7 @@ class StaffController extends Controller
         );
 
         $mailStatus = ['status' => 'lewati'];
-        $shouldSend = $request->boolean('send_email', true);
+        $shouldSend = $request->has('sendEmail') ? $request->boolean('sendEmail') : $request->boolean('send_email', true);
 
         if ($shouldSend) {
             try {
@@ -197,6 +198,7 @@ class StaffController extends Controller
         return response()->json([
             'ok' => true,
             'user' => $this->formatUser($user),
+            'temp' => $tempPassword,
             'temp_password' => $tempPassword,
             'mail' => $mailStatus,
         ], 201);
@@ -403,6 +405,7 @@ class StaffController extends Controller
 
         return response()->json([
             'ok' => true,
+            'temp' => $tempPassword,
             'temp_password' => $tempPassword,
             'mail' => $mailStatus,
         ]);

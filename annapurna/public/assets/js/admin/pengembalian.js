@@ -44,5 +44,18 @@
       rows: L.map((r) => [D.fmtDateTime(r.at), r.kind === 'keluar' ? 'Keluar' : 'Kembali', r.b.id, r.b.customer.name, Admin.itemsText(r.b), r.qty, r.cond, r.late ? r.late + ' hari' : '-', r.fine, r.by || '-', r.note || '']),
       foot: ['Total', '', '', '', '', L.reduce((a, r) => a + r.qty, 0), '', '', L.reduce((a, r) => a + r.fine, 0), '', ''] }; });
   draw();
+  async function syncServer() {
+    try {
+      const res = await fetch(url('./api/admin/pengembalian'), { headers: { 'Accept': 'application/json' } });
+      const d = await res.json();
+      if (d && d.ok && d.stats) {
+        if ($('#stats') && d.stats) {
+          const st = (ic, tone, l, v) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong></div></div>`;
+          $('#stats').innerHTML = st('fa-box-open', 'gold', 'Siap diambil', d.stats.ready_to_pickup) + st('fa-person-hiking', '', 'Unit sedang disewa', d.stats.renting_units) + st('fa-triangle-exclamation', 'red', 'Terlambat kembali', d.stats.late_returns) + st('fa-coins', 'blue', 'Total denda tercatat', rupiah(d.stats.total_fines));
+        }
+      }
+    } catch (_) {}
+  }
+  syncServer();
 })();
 

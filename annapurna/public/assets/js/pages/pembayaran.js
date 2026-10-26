@@ -66,29 +66,59 @@
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('drag'); }));
   drop.addEventListener('drop', (e) => handle(e.dataTransfer.files[0]));
 
-  $('#confirmPay').addEventListener('click', () => {
+  $('#confirmPay').addEventListener('click', async () => {
     if (!proof) { $('#proofErr').classList.remove('hidden'); toast('Unggah foto bukti pembayaran dulu.', 'err'); return; }
-    pending.forEach((o) => {
-      const now = D.nowStamp();
-      if (o._t === 'rent') {
-        const b = DB.booking(o.id);
-        b.status = 'menunggu_konfirmasi'; b.paymentStatus = 'dp_verifying'; b.proof = proof;
-        b.history.push({ at: now, text: 'Bukti pembayaran DP diunggah' });
-        DB.saveBooking(b);
-      } else {
-        const s = DB.sale(o.id);
-        s.status = 'diproses'; s.paymentStatus = 'verifying'; s.proof = proof;
-        s.history.push({ at: now, text: 'Bukti pembayaran diunggah' });
-        DB.saveSale(s);
+    
+    const confirmBtn = $('#confirmPay');
+    await Api.busy(confirmBtn, async () => {
+      let fileBlob = null;
+      const fileInput = $('#proof');
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        fileBlob = fileInput.files[0];
+      } else if (proof) {
+        fileBlob = Api.dataURLtoBlob(proof);
       }
-      DB.notifyStaff('Bukti pembayaran masuk', `${o.customer.name} mengunggah bukti pembayaran untuk ${NO(o)}.`, o._t === 'rent' ? 'admin/booking?id=' + o.id : 'admin/penjualan?id=' + o.id);
-    });
-    DB.notify(user.email, 'Bukti pembayaran terkirim', `Admin sedang memverifikasi pembayaran ${pending.map((o) => NO(o)).join(', ')}.`, 'pesanan');
-    /* Ada permintaan antar / bongkar pasang: satu langkah lagi, konfirmasi ongkir ke admin via WhatsApp */
-    const svc = [...pending.filter((o) => o._t === 'rent').map((o) => DB.booking(o.id)).filter((b) => b && Svc.has(b)),
-      ...pending.filter((o) => o._t === 'buy').map((o) => DB.sale(o.id)).filter((x) => x && Svc.isSaleDeliv(x))];
-    if (svc.length) { nextStep(svc); return; }
-    location.href = 'pesanan?paid=1';
+
+      for (const o of pending) {
+        if (fileBlob) {
+          const fd = new FormData();
+          if (o._t === 'rent') {
+            fd.append('booking_id', o.booking_code || o.id);
+            fd.append('payment_type', 'DP');
+            fd.append('amount', due(o));
+          } else {
+            fd.append('sale_id', o.sale_code || o.id);
+            fd.append('payment_type', 'Penjualan');
+            fd.append('amount', due(o));
+          }
+          fd.append('bank_name', bank ? bank.bank : 'QRIS');
+          fd.append('proof_file', fileBlob, 'proof.jpg');
+
+          await Api.try('POST', 'api/pembayaran/upload', fd, () => null);
+        }
+
+        const now = D.nowStamp();
+        if (o._t === 'rent') {
+          const b = DB.booking(o.id) || o;
+          b.status = 'menunggu_konfirmasi'; b.paymentStatus = 'dp_verifying'; b.proof = proof;
+          b.history.push({ at: now, text: 'Bukti pembayaran DP diunggah' });
+          DB.saveBooking(b);
+        } else {
+          const s = DB.sale(o.id) || o;
+          s.status = 'diproses'; s.paymentStatus = 'verifying'; s.proof = proof;
+          s.history.push({ at: now, text: 'Bukti pembayaran diunggah' });
+          DB.saveSale(s);
+        }
+        DB.notifyStaff('Bukti pembayaran masuk', `${o.customer.name} mengunggah bukti pembayaran untuk ${NO(o)}.`, o._t === 'rent' ? 'admin/booking?id=' + o.id : 'admin/penjualan?id=' + o.id);
+      }
+
+      DB.notify(user.email, 'Bukti pembayaran terkirim', `Admin sedang memverifikasi pembayaran ${pending.map((o) => NO(o)).join(', ')}.`, 'pesanan');
+      /* Ada permintaan antar / bongkar pasang: satu langkah lagi, konfirmasi ongkir ke admin via WhatsApp */
+      const svc = [...pending.filter((o) => o._t === 'rent').map((o) => DB.booking(o.id)).filter((b) => b && Svc.has(b)),
+        ...pending.filter((o) => o._t === 'buy').map((o) => DB.sale(o.id)).filter((x) => x && Svc.isSaleDeliv(x))];
+      if (svc.length) { nextStep(svc); return; }
+      location.href = 'pesanan?paid=1';
+    }, 'Mengirim bukti…');
   });
 
   function nextStep(list) {

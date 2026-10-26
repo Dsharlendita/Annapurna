@@ -9,10 +9,11 @@
   const FIELDS = ['storeName', 'hours', 'phone', 'whatsapp', 'email', 'instagram', 'address'];
   const lineRow = (v) => `<div class="row"><textarea class="textarea" rows="2">${esc(v)}</textarea><button type="button" class="btn btn-danger btn-xs" data-rmline aria-label="Hapus"><i class="fa-regular fa-trash-can"></i></button></div>`;
   const bankRow = (b) => `<div class="bank-row"><input class="input" placeholder="Bank" value="${esc(b.bank)}" data-k="bank"><input class="input" placeholder="No. rekening" value="${esc(b.number)}" data-k="number"><input class="input" placeholder="Atas nama" value="${esc(b.holder)}" data-k="holder"><button type="button" class="btn btn-danger btn-xs" data-rmbank aria-label="Hapus"><i class="fa-regular fa-trash-can"></i></button></div>`;
-  function load() {
-    S = DB.settings();
-    FIELDS.forEach((k) => (E[k].value = S[k]));
-    $('#banks').innerHTML = S.banks.map(bankRow).join('');
+  async function load() {
+    const res = await Api.try('GET', 'api/admin/pengaturan', null, () => DB.settings());
+    S = (res && res.data) || DB.settings();
+    FIELDS.forEach((k) => (E[k].value = S[k] || ''));
+    $('#banks').innerHTML = (S.banks || []).map(bankRow).join('');
   }
   function show(t) {
     $$('#tabs .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === t));
@@ -27,7 +28,7 @@
   });
   $('#addBank').addEventListener('click', () => $('#banks').insertAdjacentHTML('beforeend', bankRow({ bank: '', number: '', holder: S.storeName })));
   $('#revert').addEventListener('click', () => { load(); toast('Perubahan dibatalkan.'); });
-  F.addEventListener('submit', (e) => {
+  F.addEventListener('submit', async (e) => {
     e.preventDefault();
     const ok = validate(F, { storeName: (v) => (!v ? 'Wajib diisi.' : ''), whatsapp: (v) => (!/^62\d{8,13}$/.test(v) ? 'Gunakan format 628xxxxxxxxx.' : ''), email: (v) => (!UI.isEmail(v) ? 'Email tidak valid.' : '') });
     if (!ok) { const bad = F.querySelector('.err'); const pane = bad && bad.closest('[data-pane]'); if (pane) show(pane.dataset.pane); return; }
@@ -36,10 +37,31 @@
     const lines = (id) => $$(`#${id} textarea`).map((t) => t.value.trim()).filter(Boolean);
     const next = Object.assign({}, S, { banks });
     FIELDS.forEach((k) => (next[k] = E[k].value.trim()));
-    const n = DB.saveSettings(next); load(); toast(n ? 'Pengaturan disimpan dan tercatat di histori.' : 'Tidak ada perubahan.');
+    const btn = F.querySelector('[type="submit"]');
+    const r = await Api.busy(btn, () => Api.try('POST', 'api/admin/pengaturan', next, () => DB.saveSettings(next)), 'Menyimpan…');
+    if (r && r.ok) {
+      DB.saveSettings(next);
+      await load();
+      toast(r.msg || 'Pengaturan disimpan dan tercatat di histori.');
+    } else if (r) {
+      toast(r.msg || 'Gagal menyimpan pengaturan.', 'err');
+    }
   });
   const A = $('#af'); A.elements.aname.value = Admin.me.name; A.elements.aphone.value = Admin.me.phone || '';
-  A.addEventListener('submit', (e) => { e.preventDefault(); if (!validate(A, { aname: (v) => (v.length < 3 ? 'Minimal 3 huruf.' : '') })) return; DB.updateProfile({ name: A.elements.aname.value.trim(), phone: A.elements.aphone.value.trim() }); toast('Profil disimpan.'); setTimeout(() => location.reload(), 600); });
+  A.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!validate(A, { aname: (v) => (v.length < 3 ? 'Minimal 3 huruf.' : '') })) return;
+    const payload = { name: A.elements.aname.value.trim(), phone: A.elements.aphone.value.trim() };
+    const btn = A.querySelector('[type="submit"]');
+    const r = await Api.busy(btn, () => Api.try('POST', 'api/akun/profil', payload, () => DB.updateProfile(payload)), 'Menyimpan…');
+    if (r && r.ok) {
+      DB.updateProfile(payload);
+      toast('Profil disimpan.');
+      setTimeout(() => location.reload(), 600);
+    } else if (r) {
+      toast(r.msg || 'Gagal menyimpan profil.', 'err');
+    }
+  });
   const P = $('#pf');
   P.addEventListener('submit', async (e) => { e.preventDefault(); if (!validate(P, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : '') })) return;
     const r = await Api.busy(P.querySelector('[type="submit"]'), () => Api.changePassword(P.elements.old.value, P.elements.npw.value), 'Menyimpan…'); if (!r) return;

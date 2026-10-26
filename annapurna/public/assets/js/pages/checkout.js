@@ -231,11 +231,12 @@
       proceed();
     });
   }
-  function proceed() {
+  async function proceed() {
     const pr = promoCalc(); const usePr = pr && pr.ok ? pr : null;
     const bad = cart.filter((it) => it.qty > Cart.availability(it));
     if (bad.length) { toast('Stok berubah untuk beberapa alat. Periksa lagi keranjangmu.', 'err'); setTimeout(() => (location.href = 'keranjang'), 1200); return; }
 
+    const submitBtn = form.querySelector('[type=submit]');
     const customer = { name: form.elements.name.value.trim(), phone: form.phone.value.trim(), email: user.email };
     const common = { customer, userEmail: user.email, method: form.elements.method.value, delivery: 'ambil', notes: form.notes.value.trim(), idType: UI.idRead(form, 'ckId', true).value, createdAt: D.nowStamp() };
     /* Layanan antar / bongkar pasang menempel ke booking sewa. Bila checkout memecah beberapa booking (durasi berbeda),
@@ -246,39 +247,116 @@
     rent.forEach((it) => { const k = it.start + '|' + it.end; (groups[k] = groups[k] || []).push(it); });
     /* Durasi berbeda dalam satu checkout = beberapa booking → ditandai satu "pesanan gabungan" */
     const grp = Object.keys(groups).length > 1 ? 'GRP-' + Date.now().toString(36).toUpperCase() : null;
-    Object.entries(groups).forEach(([k, items]) => {
-      const [start, end] = k.split('|');
-      const days = Rules.rentalDays(start, end);
-      const lines = items.map((it) => { const r = Cart.resolve(it); return Object.assign({ kind: it.kind, refId: it.refId, name: r.name, img: r.img, qty: it.qty, pricePerDay: r.unit, tiers: r.tiers, components: r.components }, r.size ? { size: r.size } : {}); });
-      const subtotal = Rules.itemsSubtotal(lines, days);
-      const disc = usePr && usePr.rent ? (usePr.promo.type === 'persen' ? { code: usePr.promo.code, type: 'persen', value: usePr.promo.value, amount: 0 } : { code: usePr.promo.code, type: 'nominal', fixed: Math.round(usePr.rent * subtotal / rentTotal), amount: 0 }) : null;
-      const dep = items.reduce((a, it) => a + depOf(it), 0);
-      const b = Object.assign({}, common, { id: DB.nextId('RNT', DB.bookings()), items: lines, start, end, days, deposit: dep, subtotal, total: subtotal, dp: Math.round(subtotal * st.dpPercent / 100), fine: 0, discount: disc,
-        status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], refunds: [], changes: [], history: [{ at: D.nowStamp(), text: 'Booking dibuat' }] }, grp ? { group: grp } : {});
-      if (SV.mode !== 'ambil' && !svcPlaced && start === earliest) {
-        svcPlaced = true;
-        const sp = Svc.spec(SV.mode), tent = Svc.isTent(SV.mode);
-        b.delivery = SV.mode;
-        b.deliv = Object.assign({ address: SV.address.trim(), date: start, time: sp.deliver ? SV.time : '' }, sp.pickup ? { backDate: latest, backTime: SV.backTime } : {}, tent ? { tents: SV.tents } : {}, { returnMode: sp.pickup === true ? 'jemput' : sp.pickup === false ? 'toko' : '' });
-        b.history.push({ at: D.nowStamp(), text: `Minta ${tent ? `${sp.label.toLowerCase()} (${SV.tents} tenda)` : 'diantar ke lokasi'} · ${Svc.brief(b)}` });
+
+    await Api.busy(submitBtn, async () => {
+      for (const [k, items] of Object.entries(groups)) {
+        const [start, end] = k.split('|');
+        const days = Rules.rentalDays(start, end);
+        const lines = items.map((it) => { const r = Cart.resolve(it); return Object.assign({ kind: it.kind, refId: it.refId, name: r.name, img: r.img, qty: it.qty, pricePerDay: r.unit, tiers: r.tiers, components: r.components }, r.size ? { size: r.size } : {}); });
+        const subtotal = Rules.itemsSubtotal(lines, days);
+        const disc = usePr && usePr.rent ? (usePr.promo.type === 'persen' ? { code: usePr.promo.code, type: 'persen', value: usePr.promo.value, amount: 0 } : { code: usePr.promo.code, type: 'nominal', fixed: Math.round(usePr.rent * subtotal / rentTotal), amount: 0 }) : null;
+        const dep = items.reduce((a, it) => a + depOf(it), 0);
+        const b = Object.assign({}, common, { id: DB.nextId('RNT', DB.bookings()), items: lines, start, end, days, deposit: dep, subtotal, total: subtotal, dp: Math.round(subtotal * st.dpPercent / 100), fine: 0, discount: disc,
+          status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], refunds: [], changes: [], history: [{ at: D.nowStamp(), text: 'Booking dibuat' }] }, grp ? { group: grp } : {});
+        if (SV.mode !== 'ambil' && !svcPlaced && start === earliest) {
+          svcPlaced = true;
+          const sp = Svc.spec(SV.mode), tent = Svc.isTent(SV.mode);
+          b.delivery = SV.mode;
+          b.deliv = Object.assign({ address: SV.address.trim(), date: start, time: sp.deliver ? SV.time : '' }, sp.pickup ? { backDate: latest, backTime: SV.backTime } : {}, tent ? { tents: SV.tents } : {}, { returnMode: sp.pickup === true ? 'jemput' : sp.pickup === false ? 'toko' : '' });
+          b.history.push({ at: D.nowStamp(), text: `Minta ${tent ? `${sp.label.toLowerCase()} (${SV.tents} tenda)` : 'diantar ke lokasi'} · ${Svc.brief(b)}` });
+        }
+        Rules.recalc(b); if (!b.discount) delete b.discount;
+
+        // Persiapkan data kirim ke API /api/booking Laravel
+        const apiItems = [];
+        items.forEach((it) => {
+          const r = Cart.resolve(it);
+          if (it.kind === 'package' && r && r.components && r.components.length) {
+            r.components.forEach((c) => {
+              apiItems.push({
+                product_id: c.productId,
+                product_name: (DB.product(c.productId) || {}).name || c.name || r.name,
+                qty: (c.qty || 1) * (it.qty || 1),
+                size: c.size || null,
+                price_per_day: r.unit || 0,
+              });
+            });
+          } else {
+            apiItems.push({
+              product_id: it.refId,
+              product_name: r ? r.name : (DB.product(it.refId) || {}).name,
+              qty: it.qty,
+              size: it.size || null,
+              price_per_day: r ? r.unit : undefined,
+            });
+          }
+        });
+
+        const apiPayload = {
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          customer_email: customer.email,
+          customer_address: (b.deliv && b.deliv.address) || null,
+          start_date: start,
+          end_date: end,
+          items: apiItems,
+          payment_method: common.method,
+          delivery_mode: b.delivery || 'ambil',
+          notes: common.notes || null,
+          promo_code: usePr && usePr.promo ? usePr.promo.code : null,
+          guarantee_type: common.idType || null,
+        };
+
+        const svRes = await Api.try('POST', 'api/booking', apiPayload, () => ({ ok: true, data: { booking: { booking_code: b.id, nota_no: b.id } } }));
+        if (svRes && svRes.ok && svRes.data && svRes.data.booking) {
+          b.id = svRes.data.booking.booking_code || b.id;
+          b.booking_code = svRes.data.booking.booking_code;
+          b.nota_no = svRes.data.booking.nota_no;
+          b.notaNo = svRes.data.booking.nota_no;
+        }
+
+        DB.saveBooking(b);
+        ids.push(b.id);
       }
-      Rules.recalc(b); if (!b.discount) delete b.discount;
-      DB.saveBooking(b); ids.push(b.id);
-      /* Admin baru diberi tahu saat customer mengunggah bukti DP (lihat pembayaran.js), bukan saat booking dibuat */
-    });
-    if (buy.length) {
-      const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
-      const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-      const dAmt = usePr ? usePr.buy : 0;
-      const o = Object.assign({}, common, { id: DB.nextId('ORD', DB.sales()), items, subtotal, total: subtotal - dAmt, ...(dAmt ? { discount: { code: usePr.promo.code, amount: dAmt } } : {}), delivery: SB.pick === 'antar' ? 'antar' : 'ambil', ...(SB.pick === 'antar' ? { deliv: { address: SB.address.trim() } } : {}), status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], history: [{ at: D.nowStamp(), text: SB.pick === 'antar' ? `Pesanan dibuat · minta diantar ke ${SB.address.trim()}` : 'Pesanan dibuat' }] });
-      DB.saveSale(o); ids.push(o.id);
-      /* Admin baru diberi tahu saat bukti pembayaran diunggah */
-    }
-    if (usePr) DB.usePromo(usePr.promo.code);
-    Cart.clear();
-    /* Pesanan sudah tercatat dengan tanggalnya sendiri: tanggal sewa di navbar dikosongkan untuk pesanan berikutnya */
-    if (rent.length) { DB.setTrip(null); try { sessionStorage.setItem('annapurna:tripReset', '1'); } catch (e) { /* abaikan */ } }
-    location.href = 'pembayaran?ids=' + ids.join(',');
+
+      if (buy.length) {
+        const items = buy.map((it) => { const p = DB.product(it.refId); return Object.assign({ productId: p.id, name: DB.variantName(p, it.size), img: p.img, qty: it.qty, price: p.price, cost: p.cost != null && p.cost !== '' ? +p.cost : null }, it.size ? { size: it.size } : {}); });
+        const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+        const dAmt = usePr ? usePr.buy : 0;
+        const o = Object.assign({}, common, { id: DB.nextId('ORD', DB.sales()), items, subtotal, total: subtotal - dAmt, ...(dAmt ? { discount: { code: usePr.promo.code, amount: dAmt } } : {}), delivery: SB.pick === 'antar' ? 'antar' : 'ambil', ...(SB.pick === 'antar' ? { deliv: { address: SB.address.trim() } } : {}), status: 'menunggu_pembayaran', paymentStatus: 'unpaid', payments: [], history: [{ at: D.nowStamp(), text: SB.pick === 'antar' ? `Pesanan dibuat · minta diantar ke ${SB.address.trim()}` : 'Pesanan dibuat' }] });
+
+        const salePayload = {
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          customer_email: customer.email,
+          customer_address: (SB.pick === 'antar' && SB.address) ? SB.address.trim() : null,
+          items: buy.map((it) => ({
+            product_id: it.refId,
+            qty: it.qty,
+          })),
+          payment_method: common.method,
+          delivery_mode: SB.pick === 'antar' ? 'antar' : 'ambil',
+          notes: common.notes || null,
+        };
+
+        const svSale = await Api.try('POST', 'api/sale', salePayload, () => ({ ok: true, data: { sale: { sale_code: o.id, nota_no: o.id } } }));
+        if (svSale && svSale.ok && svSale.data && svSale.data.sale) {
+          o.id = svSale.data.sale.sale_code || o.id;
+          o.sale_code = svSale.data.sale.sale_code;
+          o.nota_no = svSale.data.sale.nota_no;
+          o.notaNo = svSale.data.sale.nota_no;
+        }
+
+        DB.saveSale(o);
+        ids.push(o.id);
+      }
+
+      if (usePr) DB.usePromo(usePr.promo.code);
+      Cart.clear();
+      /* Pesanan sudah tercatat dengan tanggalnya sendiri: tanggal sewa di navbar dikosongkan untuk pesanan berikutnya */
+      if (rent.length) { DB.setTrip(null); try { sessionStorage.setItem('annapurna:tripReset', '1'); } catch (e) { /* abaikan */ } }
+      location.href = 'pembayaran?ids=' + ids.join(',');
+    }, 'Menyimpan pesanan…');
   }
 })();
 

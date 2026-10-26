@@ -11,6 +11,7 @@ class ProductUnit extends Model
         'product_id',
         'unit_code',
         'size',
+        'purchase_cost',
         'condition',
         'status',
         'rents_count',
@@ -22,6 +23,7 @@ class ProductUnit extends Model
     protected function casts(): array
     {
         return [
+            'purchase_cost' => 'integer',
             'rents_count' => 'integer',
             'since_service' => 'integer',
             'last_service' => 'datetime',

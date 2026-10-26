@@ -284,11 +284,33 @@
       const o = { id: DB.nextId('DRY', DB.laundry()), no: DB.nextLaundryNo(at), customer: { name: S.name, phone: S.phone, email: '' }, items, discount: t.disc || 0, ...(t.disc ? { discountReason: discReason() } : {}), estDone: S.ldEst || D.addDays(T, Laundry.days()),
         notes: S.note, channel: 'kasir', by: me.name, kasir, createdAt: at, status: 'diterima', payments: t.payNow ? [{ at, amount: t.payNow, type: 'Lunas', via }] : [], paymentStatus: t.payNow ? 'paid' : 'unpaid',
         history: [{ at, text: `Barang diterima di toko dan dicatat di kasir oleh ${me.name}${t.payNow ? ` · dibayar ${rupiah(t.payNow)} (${S.method})` : ' · dibayar saat diambil'}` }] };
+      // Simpan ke database MySQL server Laravel
+      Api.try('POST', 'api/admin/laundry', {
+        customer_name: S.name,
+        customer_phone: S.phone,
+        customer_email: null,
+        items: items,
+        discount: t.disc || 0,
+        discount_reason: discReason() || null,
+        est_done: S.ldEst || null,
+        notes: S.note || null,
+        payment_method: S.method,
+        pay_now: t.payNow || 0,
+        channel: 'kasir',
+      }).then((sv) => {
+        if (sv && sv.ok && sv.data && sv.data.order) {
+          o.id = sv.data.order.order_code || o.id;
+          o.no = sv.data.order.nota_no || o.no;
+          o.order_code = sv.data.order.order_code;
+          o.nota_no = sv.data.order.nota_no;
+          DB.saveLaundry(o);
+        }
+      });
+
       DB.saveLaundry(o);
       reset();
       DB.audit({ type: 'laundry', action: `Kasir: laundry ${o.no} · ${items.map((i) => `${i.qty}× ${i.name}`).join(', ')} · ${rupiah(Laundry.total(o))}${t.payNow ? ` · dibayar ${rupiah(t.payNow)} (${S.method})` : ' · belum dibayar'}`, ref: o.id });
-      DB.notifyStaff('Laundry baru', `${o.customer.name} · ${o.no} (${items.length} jenis barang).`, 'admin/laundry?id=' + o.id);
-      doneLaundry(DB.laundryOrder(o.id));
+      doneLaundry(o);
       return;
     }
     if (S.mode === 'buy') {
@@ -297,6 +319,25 @@
         ...(t.disc ? { discount: { code: discReason() || 'KASIR', reason: discReason(), type: S.dType === 'pct' ? 'persen' : 'nominal', value: +S.dVal || 0, amount: t.disc } } : {}), status: 'selesai', paymentStatus: 'paid', payments: [{ at: D.nowStamp(), amount: t.total, type: 'Pembayaran', via }],
         history: [{ at: D.nowStamp(), text: `Penjualan offline di kasir oleh ${me.name} (${S.method})` }] };
       DB.sellStock(o.items, 1);
+      
+      // Kirim pesanan penjualan offline ke database server Laravel
+      Api.try('POST', 'api/sale', {
+        customer_name: customer.name,
+        customer_phone: customer.phone || null,
+        is_walk_in: true,
+        payment_method: S.method,
+        notes: S.note || null,
+        items: S.items.map((it) => ({ product_id: it.refId, qty: it.qty })),
+      }).then((sv) => {
+        if (sv && sv.ok && sv.data && sv.data.sale) {
+          o.id = sv.data.sale.sale_code || o.id;
+          o.sale_code = sv.data.sale.sale_code;
+          o.nota_no = sv.data.sale.nota_no;
+          o.notaNo = sv.data.sale.nota_no;
+          DB.saveSale(o);
+        }
+      });
+
       DB.saveSale(o);
       reset(); /* form langsung kosong setelah tersimpan (mencegah tersimpan dua kali) */
       DB.audit({ type: 'penjualan', action: `Kasir: penjualan offline ${NO(o)} · ${items.map((i) => `${i.qty}× ${i.name}`).join(', ')} · ${rupiah(o.total)} (${S.method})`, ref: o.id });
@@ -321,6 +362,38 @@
       if (t.svc) { b.payments[0].amount = t.rentNow; b.paymentStatus = t.rentNow >= t.total ? 'lunas' : 'dp_paid'; b.payments[0].type = t.rentNow >= t.total ? 'Lunas' : 'DP'; }
     }
     Rules.recalc(b); if (b.paymentStatus === 'dp_paid') b.dp = t.svc ? t.rentNow : t.payNow;
+
+    // Kirim sewa offline ke database server Laravel
+    Api.try('POST', 'api/booking', {
+      customer_name: customer.name,
+      customer_phone: customer.phone,
+      customer_email: customer.email || null,
+      start_date: S.start,
+      end_date: S.end,
+      is_walk_in: true,
+      channel: 'offline',
+      status: 'dikonfirmasi',
+      payment_status: t.payNow >= t.total ? 'lunas' : 'dp_paid',
+      payment_method: S.method,
+      delivery_mode: S.svcMode || 'ambil',
+      notes: S.note || null,
+      guarantee_type: S.idType || null,
+      items: lns.map((it) => ({
+        product_id: it.refId,
+        qty: it.qty,
+        size: it.size || null,
+        price_per_day: it.pricePerDay,
+      })),
+    }).then((sv) => {
+      if (sv && sv.ok && sv.data && sv.data.booking) {
+        b.id = sv.data.booking.booking_code || b.id;
+        b.booking_code = sv.data.booking.booking_code;
+        b.nota_no = sv.data.booking.nota_no;
+        b.notaNo = sv.data.booking.nota_no;
+        DB.saveBooking(b);
+      }
+    });
+
     DB.saveBooking(b);
     reset(); /* form langsung kosong setelah tersimpan (mencegah tersimpan dua kali) */
     DB.audit({ type: 'rental', action: `Kasir: sewa offline ${NO(b)} · ${Admin.itemsText(b)} · ${D.fmtRange(b.start, b.end)} · dibayar ${rupiah(t.payNow)} (${S.method})`, ref: b.id });

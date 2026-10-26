@@ -14,6 +14,7 @@ class SaleItem extends Model
         'product_img',
         'qty',
         'unit_price',
+        'unit_cost',
         'subtotal',
     ];
 
@@ -22,6 +23,7 @@ class SaleItem extends Model
         return [
             'qty' => 'integer',
             'unit_price' => 'integer',
+            'unit_cost' => 'integer',
             'subtotal' => 'integer',
         ];
     }

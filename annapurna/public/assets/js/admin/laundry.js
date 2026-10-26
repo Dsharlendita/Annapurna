@@ -12,7 +12,36 @@
   let tab = param('tab') || 'aktif';
 
   /* ---------- Pesanan ---------- */
-  const inTab = (o, k) => (k === 'semua' ? true : k === 'aktif' ? ACTIVE.includes(o.status) : o.status === k);
+  async function syncServer() {
+    const r = await Api.get('api/admin/laundry');
+    if (r && r.ok && r.data && Array.isArray(r.data)) {
+      r.data.forEach((so) => {
+        const mapped = {
+          id: so.order_code || 'DRY-' + so.id,
+          no: so.nota_no || so.order_code,
+          order_code: so.order_code,
+          nota_no: so.nota_no,
+          customer: { name: so.customer_name, phone: so.customer_phone, email: so.customer_email || '' },
+          items: (so.items || []).map(i => ({ id: i.laundry_item_id, name: i.item_name, cat: i.category, price: i.unit_price, qty: i.qty, custom: i.is_custom })),
+          discount: so.discount_amount || 0,
+          discountReason: so.discount_reason,
+          estDone: so.est_done,
+          pickedAt: so.picked_at,
+          notifiedReady: so.notified_ready,
+          notes: so.notes,
+          status: so.status,
+          paymentStatus: so.payment_status,
+          total: so.total_amount,
+          createdAt: so.created_at,
+          payments: (so.payments || []).map(p => ({ at: p.paid_at, amount: p.amount, type: p.payment_type, via: p.payment_method })),
+        };
+        DB.saveLaundry(mapped);
+      });
+      draw();
+    }
+  }
+  syncServer();
+
   function list() {
     const q = $('#q').value.trim().toLowerCase(), f = $('#from').value, t = $('#to').value;
     return DB.laundry().filter((o) => inTab(o, tab)

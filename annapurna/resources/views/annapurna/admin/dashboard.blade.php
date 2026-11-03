@@ -5,18 +5,35 @@
 
 @section('content')
   <p class="page-sub" id="greet"></p>
-  <div class="seg biz-view" id="dashView" role="tablist" aria-label="Jenis operasional"><button type="button" data-v="sewa" class="active" role="tab"><i class="fa-solid fa-campground"></i> Operasional Sewa <b class="cnt" id="cntSewa"></b></button><button type="button" data-v="jual" role="tab"><i class="fa-solid fa-bag-shopping"></i> Penjualan <b class="cnt" id="cntJual"></b></button></div>
+  <div class="seg biz-view" id="dashView" role="tablist" aria-label="Jenis operasional"><button type="button" data-v="sewa" class="active" role="tab" aria-selected="true"><i class="fa-solid fa-campground"></i> Operasional Sewa <b class="cnt" id="cntSewa"></b></button><button type="button" data-v="jual" role="tab" aria-selected="false"><i class="fa-solid fa-bag-shopping"></i> Penjualan <b class="cnt" id="cntJual"></b></button><button type="button" data-v="laundry" role="tab" aria-selected="false"><i class="fa-solid fa-jug-detergent"></i> Laundry <b class="cnt" id="cntLaundry"></b></button></div>
   <div id="dashSewa">
   {{-- 1. Pusat tindakan: semua yang harus dikerjakan, diurutkan dari yang paling mendesak --}}
   <section class="act-center" aria-labelledby="actT">
     <div class="ac-h">
-      <div><h2 id="actT"><i class="fa-solid fa-bolt"></i> Perlu tindakan sekarang</h2><p id="actSub"></p></div>
-      <div class="ac-filter" id="actFilter" role="tablist" aria-label="Saring tugas"></div>
+      <div><h2 id="actT">Perlu tindakan sekarang</h2><p id="actSub"></p></div>
+      <div class="ac-filter" id="actFilter" role="group" aria-label="Saring tugas"></div>
     </div>
     <div class="ac-today" id="todayChips"></div>
     <div id="todo"></div>
   </section>
-  {{-- 2. Jadwal hari ini & kondisi toko --}}
+  {{-- 2. Layanan lapangan: jadwal antar / jemput dan jasa bongkar pasang tenda (7 hari ke depan) --}}
+  <div class="fs-grid" id="svcSec">
+    <section class="panel fs-panel" aria-labelledby="svcAT">
+      <div class="panel-h">
+        <div><h3 id="svcAT">Antar &amp; jemput</h3><p class="ph-sub" id="svcASub"></p></div>
+        <a class="btn btn-light btn-xs" href="{{ route('admin.kalender') }}">Kalender <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+      <div id="svcAntar"></div>
+    </section>
+    <section class="panel fs-panel" aria-labelledby="svcTT">
+      <div class="panel-h">
+        <div><h3 id="svcTT">Jasa bongkar pasang</h3><p class="ph-sub" id="svcTSub"></p></div>
+        <a class="btn btn-light btn-xs" href="{{ route('admin.kalender') }}">Kalender <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+      <div id="svcTenda"></div>
+    </section>
+  </div>
+  {{-- 3. Jadwal hari ini & kondisi toko --}}
   <div class="grid-dash dash-mid">
     <div class="panel">
       <div class="panel-h"><h3><i class="fa-regular fa-clock" style="color:var(--g600)"></i> Jadwal hari ini</h3><a class="btn btn-light btn-xs" href="{{ route('admin.kalender') }}">Kalender <i class="fa-solid fa-arrow-right"></i></a></div>
@@ -27,7 +44,7 @@
       <div class="mini-grid" id="stats2"></div>
     </div>
   </div>
-  {{-- 3. Untuk dilihat (bukan dikerjakan) --}}
+  {{-- 4. Untuk dilihat (bukan dikerjakan) --}}
   <h4 class="dash-sec"><i class="fa-solid fa-chart-column"></i> Ringkasan</h4>
   <div class="grid-dash">
     <div class="panel">
@@ -63,6 +80,24 @@
         <div class="panel"><div class="panel-h"><h3>Stok menipis</h3><a class="btn btn-light btn-xs" href="{{ route('admin.barang') }}?tab=jual">Data barang jual</a></div><div id="saleLow"></div></div>
         <div class="panel"><div class="panel-h"><h3>Barang paling laku bulan ini</h3></div><ul class="bar-list" id="saleTop"></ul></div>
       </div>
+    </div>
+  </div>
+  {{-- Tab Laundry: pesanan laundry diinput di Kasir; di sini dipantau & ditindaklanjuti --}}
+  <div id="dashLaundry" hidden>
+    <div class="stat-grid" id="ldStats"></div>
+    <section class="act-center" aria-labelledby="ldT">
+      <div class="ac-h">
+        <div><h2 id="ldT">Perlu tindakan laundry</h2><p id="ldSub"></p></div>
+        <div class="ac-tools">
+          <a class="btn btn-light btn-sm" href="{{ route('admin.kasir') }}?mode=laundry"><i class="fa-solid fa-plus"></i> Terima laundry</a>
+          <a class="btn btn-light btn-sm" href="{{ route('admin.laundry') }}">Halaman Laundry <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+      </div>
+      <div id="ldTodo"></div>
+    </section>
+    <div class="panel">
+      <div class="panel-h"><h3>Pesanan laundry aktif</h3><a class="btn btn-light btn-xs" href="{{ route('admin.laundry') }}">Semua pesanan <i class="fa-solid fa-arrow-right"></i></a></div>
+      <div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>No.</th><th>Customer</th><th>Barang</th><th>Estimasi</th><th class="num">Total</th><th>Status</th><th></th></tr></thead><tbody id="ldLatest"></tbody></table></div>
     </div>
   </div>
 @endsection

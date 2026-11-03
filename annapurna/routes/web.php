@@ -142,6 +142,7 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
 
     // Layanan Tambahan Sewa (Antar/Jemput & Pasang Tenda)
     Route::controller(BookingServiceController::class)->group(function () {
+        Route::get('/layanan', 'index')->name('booking.service.index');
         Route::post('/booking/{bookingId}/service', 'store')->name('booking.service.store');
         Route::post('/service/{serviceId}/bayar', 'addPayment')->name('booking.service.pay');
     });

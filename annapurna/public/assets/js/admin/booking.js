@@ -76,7 +76,13 @@
       columns: [{ header: 'No. Booking' }, { header: 'Tgl Booking' }, { header: 'Customer' }, { header: 'Telepon' }, { header: 'Barang', width: 40 }, { header: 'Periode Sewa' }, { header: 'Hari', type: 'number' }, { header: 'Total', type: 'money' }, { header: 'DP', type: 'money' }, { header: 'Dibayar', type: 'money' }, { header: 'Status' }, { header: 'Pembayaran' }],
       rows: L.map((b) => [NO(b), D.fmtDate(b.createdAt), b.customer.name, b.customer.phone, Admin.itemsText(b), D.fmtRange(b.start, b.end), b.days, b.total, b.dp, Rules.paidTotal(b), STATUS.rental[b.status].label, STATUS.payment[b.paymentStatus].label]),
       foot: ['Total', '', '', '', '', '', L.reduce((a, b) => a + b.days, 0), L.reduce((a, b) => a + b.total, 0), L.reduce((a, b) => a + b.dp, 0), L.reduce((a, b) => a + Rules.paidTotal(b), 0), '', ''] }; });
+  /* Tampilkan data tersimpan dulu (cepat), lalu ambil data terbaru dari database dan gambar ulang */
   draw();
-  if (param('id')) Admin.bookingModal(param('id'), draw);
+  $('#count').textContent = 'Memuat data booking dari server…';
+  Admin.syncBookings().then((ok) => {
+    draw();
+    if (!ok) toast('Data booking dari server gagal dimuat. Yang tampil adalah data tersimpan di perangkat ini.', 'err');
+    if (param('id')) Admin.bookingModal(param('id'), draw);
+  });
 })();
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\Annapurna\ConfigController;
 use App\Http\Controllers\Annapurna\FinanceController;
 use App\Http\Controllers\Annapurna\LaundryController;
 use App\Http\Controllers\Annapurna\NotaLinkController;
+use App\Http\Controllers\Annapurna\OrderController;
 use App\Http\Controllers\Annapurna\OwnerController;
 use App\Http\Controllers\Annapurna\PageController;
 use App\Http\Controllers\Annapurna\PermintaanController;
@@ -112,11 +113,22 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/akun/profil', [AdminController::class, 'updateProfile'])->name('api.akun.profil');
     Route::post('/api/akun/ganti-sandi', [StaffController::class, 'changePassword'])->name('api.akun.ganti-sandi');
     Route::post('/akun/kata-sandi', [StaffController::class, 'changePassword'])->name('akun.kata-sandi');
+
+    // Pesanan Saya (customer): data dari database, bukan localStorage
+    Route::get('/api/pesanan', [OrderController::class, 'myOrders'])->name('api.pesanan');
+    Route::post('/api/pesanan/{id}/batal', [OrderController::class, 'customerCancel'])->name('api.pesanan.batal');
 });
 
 // API Admin (Pengaturan Toko, Keuangan, & Restock)
 Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,owner'])->group(function () {
     Route::get('/pengaturan', [AdminController::class, 'getSettings'])->name('pengaturan.get');
+
+    // Daftar booking & aksi status (Verifikasi DP / Tolak bukti / Batalkan)
+    Route::controller(OrderController::class)->group(function () {
+        Route::get('/bookings', 'adminBookings')->name('bookings.index');
+        Route::post('/booking/{id}/verifikasi', 'verifyBooking')->name('booking.verify');
+        Route::post('/booking/{id}/batal', 'adminCancel')->name('booking.cancel');
+    });
     Route::post('/pengaturan', [AdminController::class, 'updateSettings'])->middleware('role:owner')->name('pengaturan.update');
 
     Route::controller(FinanceController::class)->group(function () {

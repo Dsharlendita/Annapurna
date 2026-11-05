@@ -271,16 +271,9 @@
         const apiItems = [];
         items.forEach((it) => {
           const r = Cart.resolve(it);
-          if (it.kind === 'package' && r && r.components && r.components.length) {
-            r.components.forEach((c) => {
-              apiItems.push({
-                product_id: c.productId,
-                product_name: (DB.product(c.productId) || {}).name || c.name || r.name,
-                qty: (c.qty || 1) * (it.qty || 1),
-                size: c.size || null,
-                price_per_day: r.unit || 0,
-              });
-            });
+          if (it.kind === 'package') {
+            /* Paket dikirim utuh: server menghitung harga paket (per malam / 3 hari / 5 hari) dan merinci isinya */
+            apiItems.push({ product_id: it.refId, qty: it.qty || 1 });
           } else {
             apiItems.push({
               product_id: it.refId,

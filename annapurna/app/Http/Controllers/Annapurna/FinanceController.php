@@ -11,6 +11,7 @@ use App\Models\ProductUnit;
 use App\Models\Restock;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Services\PaymentService;
 use App\Support\Audit;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -370,62 +371,14 @@ class FinanceController extends Controller
             return response()->json(['ok' => false, 'msg' => 'Pembayaran ini sudah diverifikasi sebelumnya.'], 422);
         }
 
-        return DB::transaction(function () use ($payment, $request) {
-            $user = Auth::user();
-            $payment->status = 'verified';
-            $payment->verified_by = $user?->id;
-            $payment->verified_at = Carbon::now('Asia/Jakarta');
-            $payment->save();
-
-            $line = 'umum';
-            $ref = null;
-
-            if ($payment->booking) {
-                $booking = $payment->booking;
-                $line = 'rent';
-                $ref = $booking->nota_no ?: $booking->booking_code;
-
-                if ($payment->payment_type === 'DP') {
-                    $booking->update([
-                        'status' => 'dikonfirmasi',
-                        'payment_status' => 'dp_paid',
-                    ]);
-                } elseif ($payment->payment_type === 'Pelunasan') {
-                    $booking->update([
-                        'payment_status' => 'lunas',
-                    ]);
-                }
-            } elseif ($payment->sale) {
-                $sale = $payment->sale;
-                $line = 'sale';
-                $ref = $sale->nota_no ?: $sale->sale_code;
-
-                $sale->update([
-                    'status' => 'diproses',
-                    'payment_status' => 'paid',
-                ]);
+        return DB::transaction(function () use ($payment) {
+            // Logika verifikasi dipindah ke PaymentService agar sama dengan tombol "Verifikasi DP" di daftar booking
+            try {
+                $finance = PaymentService::verify($payment);
+            } catch (\DomainException $e) {
+                return response()->json(['ok' => false, 'msg' => $e->getMessage()], 422);
             }
-
-            // Catat pemasukan otomatis ke tabel finances
-            $financeCode = Finance::generateCode('income');
-            $finance = Finance::create([
-                'finance_code' => $financeCode,
-                'ref' => $ref,
-                'type' => 'income',
-                'category' => $payment->payment_type . ' ' . ($payment->booking ? 'Sewa' : 'Penjualan'),
-                'line' => $line,
-                'amount' => $payment->amount,
-                'transaction_date' => Carbon::now('Asia/Jakarta')->toDateString(),
-                'description' => "Pembayaran {$payment->payment_type} untuk {$ref} via {$payment->bank_name}",
-                'status' => 'aktif',
-                'created_by' => $user?->id,
-            ]);
-
-            Audit::log(
-                'keuangan',
-                "Verifikasi pembayaran {$payment->payment_type} {$ref} Rp" . number_format($payment->amount),
-                $payment
-            );
+            $payment->refresh();
 
             return response()->json([
                 'ok' => true,

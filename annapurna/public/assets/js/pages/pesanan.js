@@ -169,6 +169,10 @@
       : `Tanggal ambil tinggal ${Math.max(0, D.diffDays(D.today(), b.start))} hari lagi (kurang dari H-${st.cancelDays}). <strong>DP ${rupiah(b.dp)} tidak dapat dikembalikan.</strong>`;
     const reason = await confirmBox({ title: `Batalkan ${NO(b)}?`, text: msg, ok: 'Batalkan booking', cancel: 'Kembali', danger: true, input: { label: 'Alasan pembatalan', placeholder: 'Contoh: jadwal pendakian diundur', required: true, error: 'Tulis alasan pembatalan.' } });
     if (!reason) return;
+    /* Simpan ke server dulu (aturan H-n dihitung server). Booking yang belum ada di server (404) tetap dibatalkan lokal. */
+    const r = await Api.try('POST', `api/pesanan/${encodeURIComponent(b.id)}/batal`, { reason }, () => ({ ok: true }));
+    if (!r.ok) { toast(r.msg || 'Gagal membatalkan booking.', 'err'); return; }
+    if (r.source === 'server' && r.data && r.data.id) { DB.mergeServer('bookings', [r.data]); b = DB.booking(b.id); }
     b.status = 'dibatalkan';
     b.cancel = { at: D.nowStamp(), reason, refundable: hasDp ? refundable : true, refundStatus: hasDp ? (refundable ? 'menunggu' : 'hangus') : 'tidak_perlu' };
     if (hasDp) b.paymentStatus = refundable ? 'refund_pending' : 'forfeited';
@@ -233,10 +237,28 @@
     if (act === 'buyagain') { const s = DB.sale(id); s.items.forEach((i) => UI.Cart.add(Object.assign({ type: 'buy', kind: 'product', refId: i.productId, qty: i.qty }, i.size ? { size: i.size } : {}))); location.href = 'keranjang'; }
   });
 
+  /* Pesanan milik akun ini diambil dari database (bisa dibuat dari HP/laptop lain).
+     Salinan lokal milik email ini yang tidak ada di server (data contoh / data lama) dibuang. */
+  async function syncMine() {
+    const r = await Api.get('api/pesanan', { redirectOn401: false });
+    if (!r.ok || !r.data || !Array.isArray(r.data.bookings)) return false;
+    const own = (x) => x.customer && String(x.customer.email || '').toLowerCase() === String(user.email || '').toLowerCase();
+    DB.mergeServer('bookings', r.data.bookings, { prune: own });
+    DB.mergeServer('sales', r.data.sales || [], { prune: own });
+    return true;
+  }
+
+  function openFromUrl() {
+    const openId = param('id');
+    if (openId) { const b = DB.booking(openId); if (b && b.customer.email === user.email) detail(b); }
+    const revId = param('review');
+    if (revId) { const x = revId.startsWith('RNT') ? DB.booking(revId) : DB.sale(revId); if (x && x.customer.email === user.email && x.status === 'selesai') reviewModal(x, draw); }
+  }
   draw();
-  const openId = param('id');
-  if (openId) { const b = DB.booking(openId); if (b && b.customer.email === user.email) detail(b); }
-  const revId = param('review');
-  if (revId) { const x = revId.startsWith('RNT') ? DB.booking(revId) : DB.sale(revId); if (x && x.customer.email === user.email && x.status === 'selesai') reviewModal(x, draw); }
+  syncMine().then((ok) => {
+    draw();
+    if (!ok) toast('Pesanan terbaru gagal dimuat dari server. Yang tampil adalah data tersimpan di perangkat ini.', 'err');
+    openFromUrl();
+  });
 })();
 

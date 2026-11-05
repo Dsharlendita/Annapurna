@@ -9,6 +9,7 @@ use App\Models\Finance;
 use App\Models\Payment;
 use App\Models\ProductUnit;
 use App\Support\Audit;
+use App\Support\OrderPresenter;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -71,70 +72,51 @@ class ReturnController extends Controller
     /**
      * POST /api/admin/booking/{id}/pickup
      * Mencatat barang keluar (customer mengambil barang sewaan).
+     *
+     * {id} = kode yang dipakai FE (RNT-…), nomor nota, atau id angka.
+     * unit_ids (format FE)  : { "0": [{ "pid": "tnd-4", "code": "TND4-01" }], … }  (kode unit per baris barang)
+     * unit_ids (format lama): { booking_item_id: product_unit_id }
      */
-    public function pickup(Request $request, int $id): JsonResponse
+    public function pickup(Request $request, string $id): JsonResponse
     {
-        $booking = Booking::with(['items.product'])->findOrFail($id);
-
-        if (! in_array($booking->status, ['dikonfirmasi', 'menunggu_konfirmasi'])) {
-            return response()->json([
-                'ok' => false,
-                'msg' => "Booking tidak dalam status siap keluar (status saat ini: {$booking->status}).",
-            ], 422);
-        }
-
         $validated = $request->validate([
             'condition' => 'nullable|string',
             'notes' => 'nullable|string',
             'pay_now' => 'nullable|integer|min:0',
-            'payment_method' => 'nullable|string',
-            'unit_ids' => 'nullable|array', // e.g. [booking_item_id => product_unit_id]
+            'payment_method' => 'nullable|string|max:100',
+            'unit_ids' => 'nullable|array',
         ]);
 
-        return DB::transaction(function () use ($booking, $validated, $request) {
+        return $this->tx($id, function (Booking $booking) use ($validated) {
+            // Barang hanya boleh keluar setelah DP diverifikasi (status dikonfirmasi)
+            if ($booking->status !== 'dikonfirmasi') {
+                throw new \DomainException("Barang belum bisa keluar: status booking {$this->statusLabel($booking->status)}.");
+            }
+
             $user = Auth::user();
             $payNow = (int) ($validated['pay_now'] ?? 0);
 
-            // Update status booking
             $booking->status = 'disewa';
+            $this->assignUnits($booking, $validated['unit_ids'] ?? []);
 
-            // Hubungkan unit fisik jika disediakan dan tandai sebagai 'disewa'
-            if (! empty($validated['unit_ids'])) {
-                foreach ($validated['unit_ids'] as $itemId => $unitId) {
-                    $item = $booking->items()->where('id', $itemId)->first();
-                    if ($item && $unitId) {
-                        $item->update(['product_unit_id' => $unitId]);
-                        ProductUnit::where('id', $unitId)->update(['status' => 'disewa']);
-                    }
-                }
-            } else {
-                // Tandai semua unit yang sudah terpasang di booking items menjadi 'disewa'
-                foreach ($booking->items as $item) {
-                    if ($item->product_unit_id) {
-                        ProductUnit::where('id', $item->product_unit_id)->update(['status' => 'disewa']);
-                    }
-                }
-            }
-
-            // Catat pembayaran pelunasan jika ada
             if ($payNow > 0) {
                 Payment::create([
                     'booking_id' => $booking->id,
+                    'payment_type' => 'Pelunasan',
                     'amount' => $payNow,
-                    'type' => 'pelunasan',
-                    'payment_method' => $validated['payment_method'] ?? 'cash',
+                    'bank_name' => $validated['payment_method'] ?? 'Tunai',
                     'status' => 'verified',
+                    'paid_at' => now(),
                     'verified_by' => $user?->id,
                     'verified_at' => now(),
                     'notes' => 'Pelunasan saat barang keluar / pickup',
                 ]);
 
-                // Catat ke buku kas keuangan
                 Finance::create([
                     'finance_code' => Finance::generateCode('income'),
                     'ref' => $booking->nota_no,
                     'type' => 'income',
-                    'category' => 'Penyewaan Alat',
+                    'category' => 'Pelunasan Sewa',
                     'line' => 'rent',
                     'amount' => $payNow,
                     'transaction_date' => now()->toDateString(),
@@ -142,44 +124,24 @@ class ReturnController extends Controller
                     'status' => 'aktif',
                     'created_by' => $user?->id,
                 ]);
-
-                $totalPaid = $booking->payments()->where('status', 'verified')->sum('amount');
-                if ($totalPaid >= $booking->total_amount) {
-                    $booking->payment_status = 'paid';
-                }
             }
 
+            $this->refreshPaymentStatus($booking);
             $booking->save();
 
-            Audit::log(
-                'rental',
-                "Barang keluar dicatat: {$booking->nota_no} ({$booking->customer_name})",
-                $booking
-            );
+            Audit::log('rental', "Barang keluar dicatat: {$booking->nota_no} ({$booking->customer_name})", $booking);
 
-            return response()->json([
-                'ok' => true,
-                'msg' => 'Barang keluar berhasil dicatat. Status sewa aktif.',
-                'booking' => $booking->fresh(['items.product', 'payments']),
-            ]);
+            return $this->ok($booking, 'Barang keluar berhasil dicatat. Status sewa aktif.');
         });
     }
 
     /**
      * POST /api/admin/booking/{id}/return
-     * Mencatat pengembalian barang, cek denda, dan mengembalikan unit ke status tersedia.
+     * Mencatat pengembalian barang, denda, dan mengembalikan unit ke rak.
+     * unit_results: { "<kode unit atau id unit>": { "res": "siap"|"cuci"|"perbaikan"|"hilang", "issue": "…" } }
      */
-    public function processReturn(Request $request, int $id): JsonResponse
+    public function processReturn(Request $request, string $id): JsonResponse
     {
-        $booking = Booking::with(['items.product', 'items.unit'])->findOrFail($id);
-
-        if ($booking->status !== 'disewa') {
-            return response()->json([
-                'ok' => false,
-                'msg' => "Booking tidak dalam status disewa (status saat ini: {$booking->status}).",
-            ], 422);
-        }
-
         $validated = $request->validate([
             'return_date' => 'nullable|date',
             'condition' => 'nullable|string',
@@ -189,24 +151,26 @@ class ReturnController extends Controller
             'total_fine' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
             'pay_fine' => 'nullable|integer|min:0',
-            'payment_method' => 'nullable|string',
-            'unit_results' => 'nullable|array', // e.g. [unit_id => ['res' => 'tersedia'|'cuci'|'perbaikan'|'hilang', 'cond' => 'Baik']]
+            'payment_method' => 'nullable|string|max:100',
+            'unit_results' => 'nullable|array',
         ]);
 
-        return DB::transaction(function () use ($booking, $validated, $request) {
-            $user = Auth::user();
+        return $this->tx($id, function (Booking $booking) use ($validated) {
+            if ($booking->status !== 'disewa') {
+                throw new \DomainException("Booking tidak sedang disewa (status: {$this->statusLabel($booking->status)}).");
+            }
 
+            $user = Auth::user();
             $returnDate = ! empty($validated['return_date']) ? Carbon::parse($validated['return_date']) : now();
             $condition = $validated['condition'] ?? 'Baik';
             $lateDays = (int) ($validated['late_days'] ?? 0);
             $lateFee = (int) ($validated['late_fee'] ?? 0);
             $damageFee = (int) ($validated['damage_fee'] ?? 0);
             $totalFine = (int) ($validated['total_fine'] ?? ($lateFee + $damageFee));
-            $notes = $validated['notes'] ?? null;
-            $payFine = (int) ($validated['pay_fine'] ?? 0);
+            // Uang denda yang dicatat tidak boleh melebihi dendanya (selebihnya kembalian, bukan pemasukan)
+            $payFine = min((int) ($validated['pay_fine'] ?? 0), $totalFine);
             $unitResults = $validated['unit_results'] ?? [];
 
-            // 1. Simpan rekam jejak BookingReturn
             $bookingReturn = BookingReturn::create([
                 'booking_id' => $booking->id,
                 'return_date' => $returnDate,
@@ -215,56 +179,57 @@ class ReturnController extends Controller
                 'late_fee' => $lateFee,
                 'damage_fee' => $damageFee,
                 'total_fine' => $totalFine,
-                'notes' => $notes,
+                'notes' => $validated['notes'] ?? null,
                 'unit_results' => $unitResults,
                 'inspected_by' => $user?->id,
             ]);
 
-            // 2. Kembalikan unit fisik ke rak inventaris
+            // Kembalikan unit fisik ke rak sesuai hasil pemeriksaan (dicari dari kode unit FE, atau id unit)
             foreach ($booking->items as $item) {
-                if ($item->product_unit_id) {
-                    $u = ProductUnit::find($item->product_unit_id);
-                    if ($u) {
-                        $result = $unitResults[$u->id]['res'] ?? 'tersedia';
-                        $cond = $unitResults[$u->id]['cond'] ?? 'Baik';
-
-                        $newStatus = match ($result) {
-                            'perbaikan' => 'perawatan',
-                            'hilang' => 'nonaktif',
-                            'cuci' => 'perawatan',
-                            default => 'tersedia',
-                        };
-
-                        $u->status = $newStatus;
-                        $u->condition = $cond;
-                        $u->rents_count = ($u->rents_count ?? 0) + 1;
-                        $u->since_service = ($u->since_service ?? 0) + 1;
-                        $u->save();
-                    }
+                $u = $item->product_unit_id ? ProductUnit::find($item->product_unit_id) : null;
+                if (! $u) {
+                    continue;
                 }
+                $r = $unitResults[$u->unit_code] ?? $unitResults[$u->id] ?? [];
+                $res = $r['res'] ?? 'siap';
+                $u->status = match ($res) {
+                    'perbaikan', 'cuci' => 'perawatan',
+                    'hilang' => 'nonaktif',
+                    default => 'tersedia',
+                };
+                $u->condition = $r['cond'] ?? match ($res) {
+                    'perbaikan' => 'Rusak',
+                    'hilang' => 'Hilang',
+                    'cuci' => 'Kotor',
+                    default => 'Baik',
+                };
+                if (! empty($r['issue'])) {
+                    $u->notes = $r['issue'];
+                }
+                $u->rents_count = ($u->rents_count ?? 0) + 1;
+                $u->since_service = ($u->since_service ?? 0) + 1;
+                $u->save();
             }
 
-            // 3. Update data booking
             $booking->status = 'selesai';
             if ($totalFine > 0) {
                 $booking->fine_amount = ($booking->fine_amount ?? 0) + $totalFine;
                 $booking->total_amount = ($booking->total_amount ?? 0) + $totalFine;
             }
 
-            // 4. Catat pembayaran denda jika ada yang dibayarkan sekarang
             if ($payFine > 0) {
                 Payment::create([
                     'booking_id' => $booking->id,
+                    'payment_type' => 'Denda',
                     'amount' => $payFine,
-                    'type' => 'denda',
-                    'payment_method' => $validated['payment_method'] ?? 'cash',
+                    'bank_name' => $validated['payment_method'] ?? 'Tunai',
                     'status' => 'verified',
+                    'paid_at' => now(),
                     'verified_by' => $user?->id,
                     'verified_at' => now(),
                     'notes' => 'Pembayaran denda & kerusakan',
                 ]);
 
-                // Catat kas masuk lini rental
                 Finance::create([
                     'finance_code' => Finance::generateCode('income'),
                     'ref' => $booking->nota_no,
@@ -279,27 +244,105 @@ class ReturnController extends Controller
                 ]);
             }
 
-            $totalPaid = $booking->payments()->where('status', 'verified')->sum('amount');
-            if ($totalPaid >= $booking->total_amount) {
-                $booking->payment_status = 'paid';
-            }
-
+            $this->refreshPaymentStatus($booking);
             $booking->save();
 
-            // 5. Audit log
-            $fineText = $totalFine > 0 ? " · Denda Rp " . number_format($totalFine, 0, ',', '.') : '';
-            Audit::log(
-                'rental',
-                "Pengembalian barang {$booking->nota_no} ({$booking->customer_name}) · Kondisi: {$condition}{$fineText}",
-                $booking
-            );
+            $fineText = $totalFine > 0 ? ' · Denda Rp ' . number_format($totalFine, 0, ',', '.') : '';
+            Audit::log('rental', "Pengembalian barang {$booking->nota_no} ({$booking->customer_name}) · Kondisi: {$condition}{$fineText}", $booking);
 
-            return response()->json([
-                'ok' => true,
-                'msg' => 'Pengembalian barang berhasil dicatat. Status rental selesai.',
-                'booking' => $booking->fresh(['items.product', 'returnLog', 'payments']),
-                'return' => $bookingReturn,
-            ]);
+            return $this->ok($booking, 'Pengembalian barang berhasil dicatat. Status rental selesai.', ['return' => $bookingReturn]);
         });
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Cari booking dari kode FE, kunci barisnya (cegah klik ganda / dua admin bersamaan), lalu jalankan $work
+     * dalam satu transaksi. DomainException = ditolak dengan pesan untuk admin; semua perubahan dibatalkan.
+     */
+    private function tx(string $id, \Closure $work): JsonResponse
+    {
+        $found = Booking::findByRef($id);
+        if (! $found) {
+            return response()->json(['ok' => false, 'msg' => 'Booking tidak ditemukan di server.'], 404);
+        }
+
+        try {
+            return DB::transaction(function () use ($found, $work) {
+                $booking = Booking::with(['items'])->whereKey($found->id)->lockForUpdate()->firstOrFail();
+
+                return $work($booking);
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['ok' => false, 'msg' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Pasangkan unit fisik ke barang booking dan tandai 'disewa'.
+     * Unit harus milik produk yang sama dan sedang 'tersedia' (cegah satu unit disewa dua orang).
+     */
+    private function assignUnits(Booking $booking, array $unitIds): void
+    {
+        $picked = [];
+        foreach ($unitIds as $key => $val) {
+            if (is_array($val)) {                     // format FE: [{pid, code}, …]
+                foreach ($val as $u) {
+                    if (is_array($u) && ! empty($u['code'])) {
+                        $picked[] = ['pid' => $u['pid'] ?? null, 'code' => (string) $u['code'], 'item' => null];
+                    }
+                }
+            } elseif ($val) {                         // format lama: item_id => unit_id
+                $item = $booking->items->firstWhere('id', (int) $key);
+                $unit = ProductUnit::find((int) $val);
+                if ($item && $unit) {
+                    $picked[] = ['pid' => $item->product_id, 'code' => $unit->unit_code, 'item' => $item];
+                }
+            }
+        }
+
+        foreach ($picked as $p) {
+            $unit = ProductUnit::where('unit_code', $p['code'])->lockForUpdate()->first();
+            if (! $unit) {
+                continue; // unit belum terdaftar di database (data unit masih di browser) — dilewati
+            }
+            if ($p['pid'] && $unit->product_id !== $p['pid']) {
+                throw new \DomainException("Unit {$unit->unit_code} bukan milik barang yang disewa.");
+            }
+            if ($unit->status !== 'tersedia') {
+                throw new \DomainException("Unit {$unit->unit_code} sedang {$unit->status}, pilih unit lain.");
+            }
+            $item = $p['item'] ?? $booking->items->first(fn ($i) => $i->product_id === $unit->product_id && ! $i->product_unit_id);
+            if ($item) {
+                $item->update(['product_unit_id' => $unit->id]);
+            }
+            $unit->update(['status' => 'disewa']);
+        }
+    }
+
+    /** Lunas bila seluruh tagihan (termasuk denda) sudah dibayar. Nilai 'paid' tidak ada di kolom bookings. */
+    private function refreshPaymentStatus(Booking $booking): void
+    {
+        $totalPaid = (int) $booking->payments()->where('status', 'verified')->sum('amount');
+        $due = max(0, (int) $booking->total_amount - (int) $booking->settle_disc_amount);
+        if ($totalPaid >= $due) {
+            $booking->payment_status = 'lunas';
+        } elseif ($booking->payment_status === 'lunas') {
+            $booking->payment_status = 'dp_paid'; // ada denda baru yang belum dibayar
+        }
+    }
+
+    private function statusLabel(string $s): string
+    {
+        return str_replace('_', ' ', $s);
+    }
+
+    private function ok(Booking $booking, string $msg, array $extra = []): JsonResponse
+    {
+        return response()->json(array_merge([
+            'ok' => true,
+            'msg' => $msg,
+            'data' => OrderPresenter::booking($booking->fresh(OrderPresenter::BOOKING_WITH)),
+        ], $extra));
     }
 }

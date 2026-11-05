@@ -530,7 +530,8 @@
           payment_amount: r.pay ? r.pay.amount : 0,
           payment_method: r.pay ? r.pay.via : 'Kasir · Tunai'
         })
-      }).catch(() => {});
+      }).then((res) => { if (!res.ok && res.status !== 404) toast('Pembayaran tersimpan di perangkat ini, tetapi GAGAL tersimpan di server. Cek koneksi lalu catat ulang.', 'err'); })
+        .catch(() => toast('Tidak terhubung ke server: pembayaran belum tersimpan di server.', 'err'));
     } catch (e) {}
     return ch;
   }
@@ -678,18 +679,45 @@
 
   const custFlag = (c) => { const m = DB.customerMeta(c.email); return m.flag === 'normal' || !m.flag ? '' : `<div class="notice ${m.flag === 'blacklist' ? 'red' : ''}" style="margin-bottom:12px"><i class="fa-solid fa-user-shield"></i><div><strong>${m.flag === 'blacklist' ? 'Pelanggan diblokir' : 'Perlu jaminan tambahan'}.</strong> ${esc(m.note || '')}</div></div>`; };
 
+  /* Daftar booking dari database → penyimpanan lokal. Data lokal yang tidak ada di server (data contoh) dibuang.
+     Mengembalikan true bila berhasil; false = server tidak bisa dihubungi (tampilan memakai data tersimpan). */
+  async function syncBookings() {
+    const r = await Api.get('api/admin/bookings', { redirectOn401: false });
+    if (!r.ok || !Array.isArray(r.data)) return false;
+    DB.mergeServer('bookings', r.data, { prune: () => true });
+    return true;
+  }
+  /* Kirim aksi booking ke server lebih dulu. Hasil server langsung digabung ke data lokal.
+     Booking yang belum ada di server (404, mis. data contoh lama) tetap diproses lokal seperti sebelumnya.
+     Mengembalikan booking terbaru, atau null bila server menolak (pesan error sudah ditampilkan). */
+  async function srvBooking(b, path, body, opts = {}) {
+    const url = path.startsWith('api/') ? path : `api/admin/booking/${encodeURIComponent(b.id)}/${path}`;
+    const r = await Api.try('POST', url, body, () => ({ ok: true }));
+    if (!r.ok) { toast(r.msg || 'Gagal menyimpan ke server.', 'err'); return null; }
+    /* opts.merge === false: halaman masih akan mencatat rincian lokal (pembayaran, unit) setelah ini,
+       jadi data server tidak digabung sekarang supaya pembayaran tidak tercatat dobel di layar. */
+    if (opts.merge !== false && r.source === 'server' && r.data && r.data.id) { DB.mergeServer('bookings', [r.data]); return DB.booking(b.id); }
+    return b;
+  }
+
   const BK = {
-    verifyDP(b) {
-      if (!b.payments.some((p) => p.type === 'DP')) b.payments.push({ at: D.nowStamp(), amount: b.dp, type: 'DP' });
-      const from = b.status; b.paymentStatus = 'dp_paid'; b.status = 'dikonfirmasi';
+    async verifyDP(b) {
+      const from = b.status;
+      const fresh = await srvBooking(b, 'verifikasi', { action: 'terima' }); if (!fresh) return false;
+      b = fresh;
+      if (!b._srv && !b.payments.some((p) => p.type === 'DP')) b.payments.push({ at: D.nowStamp(), amount: b.dp, type: 'DP' });
+      b.paymentStatus = 'dp_paid'; b.status = 'dikonfirmasi';
       log(b, 'Pembayaran DP diverifikasi, booking dikonfirmasi', 'rental', `Mengonfirmasi booking ${NO(b)} (DP ${rupiah(b.dp)} diverifikasi)`, chg('Status booking', rl(from), rl('dikonfirmasi')));
       DB.saveBooking(b);
       DB.notify(b.customer.email, 'Booking dikonfirmasi', `DP ${rupiah(b.dp)} untuk ${NO(b)} diterima. Barang bisa diambil ${D.fmtDate(b.start, true)}.`, `pesanan?id=${b.id}`);
       toast(`${NO(b)} dikonfirmasi.`);
+      return true;
     },
     async rejectProof(b) {
       const r = await confirmBox({ title: `Tolak bukti bayar ${NO(b)}?`, text: 'Customer akan diminta mengunggah ulang bukti pembayaran.', ok: 'Tolak bukti', danger: true, input: { label: 'Alasan penolakan (mis. nominal tidak sesuai)' } });
       if (r === false) return false;
+      const fresh = await srvBooking(b, 'verifikasi', { action: 'tolak', reason: val(r) || '' }); if (!fresh) return false;
+      b = fresh;
       b.status = 'menunggu_pembayaran'; b.paymentStatus = 'unpaid'; b.proof = null;
       log(b, `Bukti pembayaran ditolak${val(r) ? ': ' + val(r) : ''}`, 'rental', `Menolak bukti pembayaran ${NO(b)}${val(r) ? ` (${val(r)})` : ''}`, chg('Status booking', rl('menunggu_konfirmasi'), rl('menunggu_pembayaran')));
       DB.saveBooking(b);
@@ -713,7 +741,7 @@
         foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="oSave"><i class="fa-solid fa-check"></i> Simpan &amp; tandai disewa</button>` });
       bindExtras(m); UI.idBind(m.el, 'oId');
       const sb = settleBox(m, b, { stage: 'keluar' });
-      m.$('#oSave').addEventListener('click', () => {
+      m.$('#oSave').addEventListener('click', async () => {
         const st0 = sb.read(); if (!st0) return;
         if (b.deposit && !m.$('#oDep').checked) { toast(`Terima jaminan ${rupiah(b.deposit)} dulu sebelum barang keluar.`, 'err'); return; }
         const note = m.$('#oNote') ? m.$('#oNote').value.trim() : '';
@@ -721,6 +749,12 @@
         const idc = fc.idCard === 'sembunyi' ? { ok: true, value: '' } : UI.idRead(m.el, 'oId'); if (!idc.ok) return;
         const picks = readUnitPicks(m, b); if (!picks) return;
         const ex = readExtras(m, 'pickup'); if (!ex) return;
+        /* Simpan ke server dulu. Bila ditolak (mis. DP belum diverifikasi, unit sedang dipakai), tidak ada yang berubah. */
+        /* Uang pelunasan TIDAK dikirim di sini: settleApply() di bawah sudah mengirimnya ke /settle (cegah tercatat dobel) */
+        const okSrv = await Api.busy(m.$('#oSave'), () => srvBooking(b, 'pickup', {
+          condition: m.$('#oCond').value, notes: note, unit_ids: picks || {},
+        }, { merge: false }), 'Menyimpan…');
+        if (!okSrv) return;
         DB.assignUnits(b, picks);
         const stCh = settleApply(b, st0, 'Pelunasan');
         b.out = { at: D.nowStamp(), cond: m.$('#oCond').value, idCard: idc.value, by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: st0.pay ? st0.pay.amount : 0, payLater: st0.later, payLaterNote: st0.note || '', checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
@@ -729,19 +763,6 @@
         if (st0.later) b.history.push({ at: D.nowStamp(), text: `Sisa ${rupiah(sisa(b))} dibayar saat barang kembali${st0.note ? ' · ' + st0.note : ''} (${me.name})` });
         log(b, 'Barang keluar / diambil customer', 'barang_keluar', `Mencatat barang keluar ${NO(b)}: ${itemsText(b)}`, [{ field: 'Status booking', from: rl('dikonfirmasi'), to: rl('disewa') }, { field: 'Kondisi keluar', from: '', to: b.out.cond }, ...stCh, ...(st0.later ? [{ field: 'Pelunasan', from: '', to: `ditunda ke saat kembali (${rupiah(sisa(b))})` }] : [])]);
         DB.saveBooking(b);
-        try {
-          fetch(url('./api/admin/booking/' + b.id + '/pickup'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' },
-            body: JSON.stringify({
-              condition: m.$('#oCond').value,
-              notes: note,
-              pay_now: st0.pay ? st0.pay.amount : 0,
-              payment_method: (st0.pay && st0.pay.method) || 'cash',
-              unit_ids: picks || {}
-            })
-          });
-        } catch (_) {}
         DB.notify(b.customer.email, 'Selamat bertualang!', `Barang ${NO(b)} sudah diambil. Harap kembalikan paling lambat ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
         m.close(); toast(st0.later ? `Barang keluar tercatat. Sisa ${rupiah(sisa(b))} ditagih saat kembali.` : 'Barang keluar tercatat. Status: Sedang disewa.'); done && done();
       });
@@ -791,7 +812,7 @@
       ['#rDate', '#rTime', '#rCond', '#rDmg'].forEach((s) => { m.$(s).addEventListener('input', calc); m.$(s).addEventListener('change', calc); });
       sb = settleBox(m, b, { stage: 'kembali', extraLabel: 'Denda & biaya kerusakan' });
       calc(); bindExtras(m); bindUnitResults(m);
-      m.$('#rSave').addEventListener('click', () => {
+      m.$('#rSave').addEventListener('click', async () => {
         const r = calc(); const st0 = sb.read(); if (!st0) return;
         const note = m.$('#rNote') ? m.$('#rNote').value.trim() : '';
         if (fc.note === 'wajib' && !note) { m.$('#rNote').classList.add('err'); toast('Catatan pemeriksaan wajib diisi.', 'err'); return; }
@@ -799,6 +820,15 @@
         const t = m.$('#rTime').value || '12:00';
         const uc = hasUnits ? readUnitResults(m) : {}; if (!uc) return;
         if (hasUnits) { const v = Object.values(uc).map((x) => x.res); m.$('#rCond').value = v.includes('hilang') ? 'Hilang sebagian' : v.includes('perbaikan') ? 'Rusak ringan' : v.includes('cuci') ? 'Kotor (perlu dicuci)' : 'Baik'; }
+        /* Simpan ke server dulu. Uang yang dibayar customer dikirim settleApply() ke /settle;
+           di sini hanya denda yang dipotong dari uang jaminan (tidak lewat kasir). */
+        const okSrv = await Api.busy(m.$('#rSave'), () => srvBooking(b, 'return', {
+          return_date: `${r.date}T${t}:00`, condition: m.$('#rCond').value,
+          late_days: r.late, late_fee: r.lf, damage_fee: r.dmg, total_fine: r.fine, notes: note,
+          pay_fine: r.ded || 0, payment_method: 'Potong jaminan',
+          unit_results: uc || {},
+        }, { merge: false }), 'Menyimpan…');
+        if (!okSrv) return;
         DB.releaseUnits(b, uc);
         b.ret = { at: new Date(`${r.date}T${t}:00`).toISOString(), cond: m.$('#rCond').value, lateDays: r.late, lateFee: r.lf, damageFee: r.dmg, fine: r.fine, by: me.name, note, photo: ex.photo, extra: ex.extra, units: uc || null };
         b.fine = (b.fine || 0) + r.fine; Rules.recalc(b);
@@ -812,24 +842,6 @@
         log(b, `Barang kembali (${b.ret.cond})${r.late ? `, terlambat ${r.late} hari` : ''}${r.fine ? `, denda ${rupiah(r.fine)}` : ''}`, 'pengembalian', `Mencatat barang kembali ${NO(b)} (kondisi ${b.ret.cond}${r.late ? `, terlambat ${r.late} hari` : ''})`,
           [{ field: 'Status booking', from: rl('disewa'), to: rl('selesai') }, { field: 'Kondisi kembali', from: b.out ? b.out.cond : '', to: b.ret.cond }, ...(r.fine ? [{ field: 'Denda', from: '', to: rupiah(r.fine) }] : []), ...stCh, ...(b.piutang ? [{ field: 'Piutang', from: '', to: rupiah(b.piutang.amount) }] : [])]);
         DB.saveBooking(b);
-        try {
-          fetch(url('./api/admin/booking/' + b.id + '/return'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' },
-            body: JSON.stringify({
-              return_date: r.date,
-              condition: m.$('#rCond').value,
-              late_days: r.late,
-              late_fee: r.lf,
-              damage_fee: r.dmg,
-              total_fine: r.fine,
-              notes: note,
-              pay_fine: r.fine - (r.ded || 0),
-              payment_method: 'cash',
-              unit_results: uc || {}
-            })
-          });
-        } catch (_) {}
         DB.notify(b.customer.email, 'Rental selesai — beri ulasan yuk!', `Terima kasih! ${NO(b)} sudah dikembalikan${r.fine ? ` dengan denda ${rupiah(r.fine)}` : ''}. Bagikan pengalamanmu dengan memberi bintang & ulasan.`, `pesanan?tab=riwayat&review=${b.id}`);
         m.close(); toast(b.piutang ? `Pengembalian tercatat. Piutang ${rupiah(b.piutang.amount)} muncul di Dashboard.` : 'Pengembalian tercatat. Booking lunas.'); done && done();
         if (hasUnits) setTimeout(() => afterReturnPopup(b, uc), 250);
@@ -843,10 +855,13 @@
         ${hasDp ? `<div class="notice ${refundable ? 'green' : 'red'}" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>Tanggal ambil ${D.fmtDate(b.start, true)} (${D.diffDays(D.today(), b.start)} hari lagi). Sesuai kebijakan H-${DB.settings().cancelDays}, DP <strong>${refundable ? 'dapat dikembalikan' : 'hangus'}</strong>.</div></div>
         <div class="field"><label>Perlakuan DP (${rupiah(Rules.paidTotal(b))})</label><select class="select" id="cDp"><option value="refund" ${refundable ? 'selected' : ''}>Kembalikan DP (refund)</option><option value="forfeit" ${refundable ? '' : 'selected'}>DP hangus</option></select></div>` : ''}`,
         foot: `<button class="btn btn-light" data-close>Kembali</button><button class="btn btn-danger" id="cOk">Batalkan booking</button>` });
-      m.$('#cOk').addEventListener('click', () => {
+      m.$('#cOk').addEventListener('click', async () => {
         const reason = m.$('#cReason').value.trim(); if (!reason) { m.$('#cReason').classList.add('err'); m.$('#cReason').focus(); return; }
         const mode = hasDp ? m.$('#cDp').value : 'none';
-        const from = b.status; b.status = 'dibatalkan';
+        const from = b.status;
+        const fresh = await Api.busy(m.$('#cOk'), () => srvBooking(b, 'batal', { reason, dp_mode: mode === 'forfeit' ? 'forfeit' : 'refund' }), 'Membatalkan…');
+        if (!fresh) return;
+        b = fresh; b.status = 'dibatalkan';
         b.cancel = { at: D.nowStamp(), reason, by: 'admin', refundable: mode === 'refund', refundStatus: mode === 'refund' ? 'menunggu' : mode === 'forfeit' ? 'hangus' : 'tidak_perlu' };
         if (hasDp) b.paymentStatus = mode === 'refund' ? 'refund_pending' : 'forfeited';
         log(b, `Booking dibatalkan admin: ${reason}`, 'pembatalan', `Membatalkan booking ${NO(b)}: ${reason}`, [{ field: 'Status booking', from: rl(from), to: rl('dibatalkan') }, ...(hasDp ? [{ field: 'Perlakuan DP', from: '', to: mode === 'refund' ? 'Dikembalikan (refund)' : 'Hangus' }] : [])]);
@@ -859,18 +874,13 @@
       const amt = Rules.refundAmount(b); const pct = DB.settings().refundPercent ?? 100;
       const r = await confirmBox({ title: `Kembalikan DP ${NO(b)}?`, text: `Transfer ${rupiah(amt)}${pct < 100 ? ` (${pct}% dari DP sesuai aturan refund)` : ''} ke rekening ${b.customer.name}, lalu konfirmasi di sini.${sopBox('cancel') ? '<br><br>' + DB.sops('pembatalan').filter((x) => x.active !== false).map((x) => `<b>SOP:</b> ${esc(x.body)}`).join('<br>') : ''}`, ok: 'Sudah ditransfer', input: { label: 'No. referensi transfer (opsional)' } });
       if (r === false) return false;
+      /* Simpan ke server dulu (server menolak refund ganda / melebihi uang yang diterima, dan mencatat pengeluaran kas) */
+      const okSrv = await srvBooking(b, `api/admin/permintaan/refund/${encodeURIComponent(b.id)}`, { amount: amt, reason: val(r) || '', status: 'selesai' }, { merge: false });
+      if (!okSrv) return false;
       b.refunds = b.refunds || []; b.refunds.push({ at: D.nowStamp(), amount: amt, ref: val(r) });
       b.paymentStatus = 'refunded'; if (b.cancel) b.cancel.refundStatus = 'selesai';
       log(b, `DP ${rupiah(amt)} dikembalikan`, 'refund', `Memproses refund DP ${NO(b)} sebesar ${rupiah(amt)}${val(r) ? ` (ref. ${val(r)})` : ''}`, chg('Status pembayaran', STATUS.payment.refund_pending.label, STATUS.payment.refunded.label));
       DB.saveBooking(b);
-      try {
-        const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-        fetch(`/api/admin/permintaan/refund/${b.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-          body: JSON.stringify({ amount: amt, reason: val(r) || '', status: 'selesai' })
-        }).catch(() => {});
-      } catch (e) {}
       DB.notify(b.customer.email, 'DP sudah dikembalikan', `Refund ${rupiah(amt)} untuk ${NO(b)} sudah ditransfer.`, `pesanan?tab=riwayat`);
       toast('Refund tercatat.'); return true;
     },
@@ -1290,7 +1300,7 @@
   async function runBooking(act, id, done) {
     const b = DB.booking(id); if (!b) return;
     const fin = () => { refreshShell(); done && done(); };
-    if (act === 'verify') { if (await confirmBox({ title: `Konfirmasi ${NO(b)}?`, text: `DP ${rupiah(b.dp)} dari ${b.customer.name} sudah masuk ke rekening toko.`, ok: 'Ya, konfirmasi' })) { BK.verifyDP(b); fin(); } }
+    if (act === 'verify') { if (await confirmBox({ title: `Konfirmasi ${NO(b)}?`, text: `DP ${rupiah(b.dp)} dari ${b.customer.name} sudah masuk ke rekening toko.`, ok: 'Ya, konfirmasi' })) { if (await BK.verifyDP(b)) fin(); } }
     if (act === 'reject') { if (await BK.rejectProof(b)) fin(); }
     if (act === 'pickup') BK.pickup(b, fin);
     if (act === 'return') BK.processReturn(b, fin);
@@ -1750,5 +1760,5 @@ ${pay}
     e.preventDefault(); e.stopPropagation();
     UI.waCompose({ title: 'Kirim pesan WhatsApp', text: t, phone: u.pathname.replace(/\D/g, ''), waLabel: 'Buka WhatsApp' });
   }, true);
-  window.Admin = { settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
+  window.Admin = { syncBookings, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
 })();

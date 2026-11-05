@@ -1076,6 +1076,34 @@
 
   function actorOf(u) { return u ? { userId: u.id, userName: u.name, role: u.role } : null; }
 
+  /* ---------- Data pesanan dari server (OrderPresenter.php) → bentuk objek FE ----------
+     Server = sumber kebenaran untuk status, pembayaran, nominal, pembatalan & pengembalian.
+     Yang hanya ada di browser (riwayat, tarif berjenjang per baris, rincian paket, jadwal antar, permintaan) dipertahankan dari salinan lokal. */
+  const SRV_NULLABLE = ['proof', 'proofMeta', 'cancel', 'ret', 'piutang', 'settleDisc'];
+  function fromServer(kind, s, loc) {
+    const o = Object.assign({}, s);
+    if (!o.no) delete o.no;
+    SRV_NULLABLE.forEach((k) => { if (o[k] == null) o[k] = null; });
+    if (kind === 'bookings') {
+      o.items = loc && loc.items && loc.items.length ? loc.items : (s.items || []).map((it) => {
+        const p = DB.product(it.refId);
+        return Object.assign({}, it, { tiers: p ? productTiers(p) : { d1: it.pricePerDay || 0 }, components: [it.size ? { productId: it.refId, qty: 1, size: it.size } : { productId: it.refId, qty: 1 }] });
+      });
+      o.deliv = s.deliv || (loc && loc.deliv) ? Object.assign({}, loc && loc.deliv, s.deliv || {}) : undefined;
+      if (!o.deliv) delete o.deliv;
+      o.discount = s.discount ? Object.assign({}, loc && loc.discount, s.discount) : null;
+      o.refunds = (s.refunds || []).length ? s.refunds : (loc && loc.refunds) || [];
+      const base = { fine: 0, payments: [], refunds: [], changes: [], extensions: [], delivery: 'ambil', address: '', notes: '',
+        history: [{ at: s.createdAt, text: 'Booking dibuat' }].concat(s.cancel ? [{ at: s.cancel.at, text: `Booking dibatalkan${s.cancel.reason ? ': ' + s.cancel.reason : ''}` }] : []) };
+      return Object.assign(base, loc || {}, o, { _srv: true });
+    }
+    o.items = loc && loc.items && loc.items.length ? loc.items : s.items || [];
+    o.deliv = s.deliv || (loc && loc.deliv) ? Object.assign({}, loc && loc.deliv, s.deliv || {}) : undefined;
+    if (!o.deliv) delete o.deliv;
+    const base = { payments: [], notes: '', delivery: 'ambil', history: [{ at: s.createdAt, text: 'Pesanan dibuat' }] };
+    return Object.assign(base, loc || {}, o, { _srv: true });
+  }
+
   const DB = {
     get: (k) => { if (k === 'bookings' || k === 'sales') ensureNos(); return read(k, []); },
     set(k, v) { if (k === 'audit') { console.warn('Histori bersifat append-only dan tidak bisa ditimpa.'); return; } write(k, v); },
@@ -1358,6 +1386,19 @@
       return { ok: true, oldTotal, newTotal: b.total, line: newLine };
     },
     saveBooking(b) { ensureNos(); const all = read('bookings', []); const i = all.findIndex((x) => x.id === b.id); if (i >= 0) all[i] = b; else all.unshift(b); write('bookings', all); },
+    /* Gabungkan data dari server ke penyimpanan lokal. kind: 'bookings' | 'sales'.
+       opts.prune(x) → true = hapus data lokal yang TIDAK ada di jawaban server (mis. data contoh / data lama). */
+    mergeServer(kind, list, opts = {}) {
+      const all = read(kind, []); const srv = new Map((list || []).map((x) => [x.id, x])); const seen = new Set(); const out = [];
+      all.forEach((loc) => {
+        const s = srv.get(loc.id);
+        if (s) { out.push(fromServer(kind, s, loc)); seen.add(loc.id); } else if (!(opts.prune && opts.prune(loc))) out.push(loc);
+      });
+      (list || []).forEach((s) => { if (!seen.has(s.id)) out.push(fromServer(kind, s, null)); });
+      out.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      write(kind, out); ensureNos();
+      return out;
+    },
     sales: () => (ensureNos(), read('sales', [])),
     /* Pesanan website yang BELUM dibayar sama sekali (belum upload bukti DP / pembayaran) tidak ditampilkan ke admin:
        masih menunggu pembayaran, atau sudah batal karena lewat batas bayar / dibatalkan customer sebelum membayar.

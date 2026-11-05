@@ -126,4 +126,18 @@ class Booking extends Model
     {
         return $this->hasOne(Refund::class);
     }
+
+    public function service(): HasOne
+    {
+        return $this->hasOne(BookingService::class);
+    }
+
+    /** Cari booking dari kode yang dipakai FE: id angka, booking_code (RNT-…) atau nomor nota (RNTL/…). */
+    public static function findByRef(string $ref): ?self
+    {
+        return static::where('booking_code', $ref)
+            ->orWhere('nota_no', $ref)
+            ->when(ctype_digit($ref), fn ($q) => $q->orWhere('id', (int) $ref))
+            ->first();
+    }
 }

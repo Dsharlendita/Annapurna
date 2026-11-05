@@ -18,6 +18,7 @@ use App\Models\SaleDelivery;
 use App\Models\SaleItem;
 use App\Models\Setting;
 use App\Support\Audit;
+use App\Support\RentalPricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -192,10 +193,15 @@ class ApiController extends Controller
             'payment_status' => 'nullable|string',
         ]);
 
+        // Hanya staf (kasir) yang boleh menentukan walk-in / status / status bayar. Customer selalu mulai dari "menunggu pembayaran".
+        $isStaff = in_array(Auth::user()?->role, ['admin', 'owner'], true);
+        if (!$isStaff) {
+            unset($validated['status'], $validated['payment_status'], $validated['channel']);
+            $request->merge(['is_walk_in' => false]);
+        }
+
         return DB::transaction(function () use ($validated, $request) {
-            $startDate = Carbon::parse($validated['start_date']);
-            $endDate = Carbon::parse($validated['end_date']);
-            $days = max(1, $startDate->diffInDays($endDate));
+            $days = RentalPricing::nights($validated['start_date'], $validated['end_date']);
 
             $subtotal = 0;
             $itemsData = [];
@@ -205,8 +211,9 @@ class ApiController extends Controller
                 $product = Product::find($pid);
                 if ($product) {
                     $qty = (int)$it['qty'];
-                    $pricePerDay = isset($it['price_per_day']) && is_numeric($it['price_per_day']) ? (int)$it['price_per_day'] : (int)$product->rent_price;
-                    $itemSubtotal = $pricePerDay * $qty * $days;
+                    // Harga dihitung server (tarif per malam / 3 hari / 5 hari) — price_per_day dari browser diabaikan
+                    $pricePerDay = (int)$product->rent_price;
+                    $itemSubtotal = RentalPricing::lineTotal(RentalPricing::productTiers($product), $days) * $qty;
                     $subtotal += $itemSubtotal;
 
                     $itemsData[] = [
@@ -223,7 +230,7 @@ class ApiController extends Controller
                     if ($pkg) {
                         $qty = (int)$it['qty'];
                         $pkgPrice = (int)$pkg->price_per_day;
-                        $itemSubtotal = $pkgPrice * $qty * $days;
+                        $itemSubtotal = RentalPricing::lineTotal(RentalPricing::packageTiers($pkg), $days) * $qty;
                         $subtotal += $itemSubtotal;
 
                         if ($pkg->items->isNotEmpty()) {
@@ -243,6 +250,10 @@ class ApiController extends Controller
                         }
                     }
                 }
+            }
+
+            if (!$itemsData) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['items' => 'Barang yang dipesan tidak ditemukan.']);
             }
 
             // Hitung diskon promo jika ada
@@ -271,8 +282,8 @@ class ApiController extends Controller
             $dpAmount = (int)round($total * $dpPercent / 100);
             $payWindowHours = (int)Setting::get('pay_window_hours', 2);
 
-            // Generate Booking Code: RNT-YYYYMMDD-XXXX dan Nota Resmi RNTL/xxx/Romawi/Tahun
-            $code = 'RNT-' . date('Ymd') . '-' . str_pad((string)(Booking::count() + 1), 4, '0', STR_PAD_LEFT);
+            // Kode sementara unik; diganti RNT-YYYYMMDD-{id} setelah insert (count()+1 bentrok bila ada data terhapus / checkout bersamaan)
+            $code = 'RNT-TMP-' . bin2hex(random_bytes(6));
             $notaNo = DocumentSequence::nextNota('rent');
 
             $isWalkIn = $request->boolean('is_walk_in');
@@ -308,6 +319,8 @@ class ApiController extends Controller
                 'expired_at' => $isWalkIn ? null : now()->addHours($payWindowHours),
             ]);
 
+            $booking->update(['booking_code' => 'RNT-' . date('Ymd') . '-' . str_pad((string)$booking->id, 4, '0', STR_PAD_LEFT)]);
+
             foreach ($itemsData as $item) {
                 $booking->items()->create($item);
             }
@@ -339,13 +352,23 @@ class ApiController extends Controller
             'is_walk_in' => 'nullable|boolean',
         ]);
 
+        // Walk-in (langsung lunas) & diskon manual hanya boleh dari kasir (staf), bukan dari checkout publik
+        if (!in_array(Auth::user()?->role, ['admin', 'owner'], true)) {
+            $request->merge(['is_walk_in' => false, 'discount_amount' => 0, 'discount_reason' => null]);
+        }
+
         return DB::transaction(function () use ($validated, $request) {
             $subtotal = 0;
             $itemsData = [];
 
             foreach ($validated['items'] as $it) {
-                $product = Product::findOrFail($it['product_id']);
+                $product = Product::whereKey($it['product_id'])->lockForUpdate()->firstOrFail();
                 $qty = (int) $it['qty'];
+                if ($product->stock < $qty) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'items' => "Stok {$product->name} tinggal {$product->stock}.",
+                    ]);
+                }
                 $price = $product->sale_price ?: 0;
                 $lineSubtotal = $price * $qty;
                 $subtotal += $lineSubtotal;
@@ -364,7 +387,7 @@ class ApiController extends Controller
                 $product->decrement('stock', $qty);
             }
 
-            $code = 'ORD-' . date('Ymd') . '-' . str_pad((string) (Sale::count() + 1), 4, '0', STR_PAD_LEFT);
+            $code = 'ORD-TMP-' . bin2hex(random_bytes(6)); // diganti ORD-YYYYMMDD-{id} setelah insert
             $notaNo = DocumentSequence::nextNota('sale');
             $payWindowHours = (int) Setting::get('pay_window_hours', 2);
 
@@ -392,6 +415,8 @@ class ApiController extends Controller
                 'notes' => $validated['notes'] ?? null,
                 'expired_at' => $isWalkIn ? null : now()->addHours($payWindowHours),
             ]);
+
+            $sale->update(['sale_code' => 'ORD-' . date('Ymd') . '-' . str_pad((string) $sale->id, 4, '0', STR_PAD_LEFT)]);
 
             foreach ($itemsData as $item) {
                 $sale->items()->create($item);
@@ -431,14 +456,31 @@ class ApiController extends Controller
         $bInput = $request->input('booking_id');
         $sInput = $request->input('sale_id');
 
-        $booking = null;
-        if ($bInput) {
-            $booking = is_numeric($bInput) ? Booking::find($bInput) : Booking::where('booking_code', $bInput)->orWhere('nota_no', $bInput)->first();
-        }
+        $booking = $bInput ? Booking::findByRef((string)$bInput) : null;
 
         $sale = null;
         if ($sInput) {
             $sale = is_numeric($sInput) ? Sale::find($sInput) : Sale::where('sale_code', $sInput)->orWhere('nota_no', $sInput)->first();
+        }
+
+        if (!$booking && !$sale) {
+            return response()->json(['ok' => false, 'msg' => 'Pesanan untuk bukti pembayaran ini tidak ditemukan.'], 404);
+        }
+
+        // Hanya pemilik pesanan (atau staf) yang boleh mengunggah bukti — kode RNT-/ORD- mudah ditebak
+        $user = Auth::user();
+        $isStaff = in_array($user?->role, ['admin', 'owner'], true);
+        $owns = function ($order) use ($user) {
+            return $user && (($order->user_id && $order->user_id === $user->id)
+                || ($order->customer_email && strtolower($order->customer_email) === strtolower($user->email)));
+        };
+        foreach (array_filter([$booking, $sale]) as $order) {
+            if (!$isStaff && !$owns($order)) {
+                return response()->json(['ok' => false, 'msg' => 'Kamu tidak punya akses ke pesanan ini.'], 403);
+            }
+            if (in_array($order->status, ['dibatalkan', 'selesai'], true)) {
+                return response()->json(['ok' => false, 'msg' => 'Pesanan ini sudah ' . $order->status . ', bukti tidak bisa diunggah.'], 422);
+            }
         }
 
         $path = $request->file('proof_file')->store('payments', 'public');
@@ -455,7 +497,8 @@ class ApiController extends Controller
             'notes' => $request->input('notes'),
         ]);
 
-        if ($booking) {
+        // Bukti DP → menunggu konfirmasi. Bukti pelunasan/denda tidak boleh memundurkan booking yang sudah dikonfirmasi/disewa.
+        if ($booking && $request->input('payment_type') === 'DP' && $booking->status === 'menunggu_pembayaran') {
             $booking->update([
                 'status' => 'menunggu_konfirmasi',
                 'payment_status' => 'dp_verifying',
@@ -528,7 +571,10 @@ class ApiController extends Controller
      */
     public function settleBooking(Request $request, string $id): JsonResponse
     {
-        $booking = is_numeric($id) ? Booking::find($id) : Booking::where('booking_code', $id)->orWhere('nota_no', $id)->firstOrFail();
+        $found = Booking::findByRef($id);
+        if (!$found) {
+            return response()->json(['ok' => false, 'msg' => 'Booking tidak ditemukan di server.'], 404);
+        }
 
         $validated = $request->validate([
             'settle_disc_amount' => 'nullable|integer|min:0',
@@ -540,7 +586,8 @@ class ApiController extends Controller
             'payment_method' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($booking, $validated) {
+        return DB::transaction(function () use ($found, $validated) {
+            $booking = Booking::whereKey($found->id)->lockForUpdate()->firstOrFail();
             $settleDisc = (int)($validated['settle_disc_amount'] ?? 0);
             $settleLater = !empty($validated['settle_later']);
             $piutangAmt = (int)($validated['piutang_amount'] ?? 0);
@@ -567,6 +614,20 @@ class ApiController extends Controller
                     'verified_by' => Auth::id(),
                     'verified_at' => now(),
                     'notes' => 'Pelunasan di kasir',
+                ]);
+
+                // Uang yang diterima kasir wajib masuk buku kas (sebelumnya hanya tercatat sebagai pembayaran)
+                \App\Models\Finance::create([
+                    'finance_code' => \App\Models\Finance::generateCode('income'),
+                    'ref' => $booking->nota_no,
+                    'type' => 'income',
+                    'category' => 'Pelunasan Sewa',
+                    'line' => 'rent',
+                    'amount' => $payAmt,
+                    'transaction_date' => now()->toDateString(),
+                    'description' => "Pelunasan {$booking->nota_no} ({$booking->customer_name}) via " . ($validated['payment_method'] ?? 'Kasir · Tunai'),
+                    'status' => 'aktif',
+                    'created_by' => Auth::id(),
                 ]);
             }
 

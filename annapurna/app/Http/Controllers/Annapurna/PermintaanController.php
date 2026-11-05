@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingChange;
 use App\Models\BookingExtension;
+use App\Models\Finance;
 use App\Models\Payment;
 use App\Models\Refund;
 use App\Support\Audit;
@@ -43,18 +44,26 @@ class PermintaanController extends Controller
     /**
      * Menyetujui atau menolak permintaan ganti barang.
      */
-    public function actionChange(Request $request, int $id): JsonResponse
+    public function actionChange(Request $request, string $id): JsonResponse
     {
         $request->validate([
             'action' => 'required|in:setujui,tolak',
             'admin_note' => 'nullable|string|max:255',
         ]);
 
-        $change = BookingChange::with('booking.items')->findOrFail($id);
+        // FE masih memakai id lokal (CHG-…) untuk permintaan yang belum tersimpan di server → 404 yang jelas, bukan error 500
+        if (! ctype_digit($id) || ! BookingChange::whereKey((int) $id)->exists()) {
+            return response()->json(['ok' => false, 'msg' => 'Permintaan ganti barang tidak ditemukan di server.'], 404);
+        }
         $action = $request->input('action');
         $note = $request->input('admin_note');
 
-        return DB::transaction(function () use ($change, $action, $note) {
+        return DB::transaction(function () use ($id, $action, $note) {
+            // Kunci & cek ulang: permintaan yang sudah diputuskan tidak boleh diproses dua kali (selisih harga dobel)
+            $change = BookingChange::with('booking.items')->whereKey((int) $id)->lockForUpdate()->firstOrFail();
+            if ($change->status !== 'menunggu') {
+                return response()->json(['ok' => false, 'msg' => "Permintaan ini sudah {$change->status}."], 422);
+            }
             $booking = $change->booking;
 
             if ($action === 'setujui') {
@@ -120,7 +129,7 @@ class PermintaanController extends Controller
     /**
      * Menyetujui atau menolak perpanjangan sewa.
      */
-    public function actionExtend(Request $request, int $id): JsonResponse
+    public function actionExtend(Request $request, string $id): JsonResponse
     {
         $request->validate([
             'action' => 'required|in:setujui,tolak',
@@ -128,11 +137,19 @@ class PermintaanController extends Controller
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $ext = BookingExtension::with('booking')->findOrFail($id);
+        // FE masih memakai id lokal (EXT-…) untuk permintaan yang belum tersimpan di server → 404 yang jelas, bukan error 500
+        if (! ctype_digit($id) || ! BookingExtension::whereKey((int) $id)->exists()) {
+            return response()->json(['ok' => false, 'msg' => 'Permintaan perpanjangan tidak ditemukan di server.'], 404);
+        }
         $action = $request->input('action');
         $isPaid = $request->boolean('is_paid');
 
-        return DB::transaction(function () use ($ext, $action, $isPaid) {
+        return DB::transaction(function () use ($id, $action, $isPaid) {
+            // Kunci & cek ulang: klik "setujui" dua kali tidak boleh menambah hari & biaya dua kali
+            $ext = BookingExtension::with('booking')->whereKey((int) $id)->lockForUpdate()->firstOrFail();
+            if ($ext->status !== 'menunggu') {
+                return response()->json(['ok' => false, 'msg' => "Permintaan ini sudah {$ext->status}."], 422);
+            }
             $booking = $ext->booking;
 
             if ($action === 'setujui') {
@@ -159,6 +176,21 @@ class PermintaanController extends Controller
                         'verified_by' => Auth::id(),
                         'verified_at' => now(),
                         'notes' => 'Pembayaran perpanjangan sewa ' . $ext->days . ' hari',
+                        'bank_name' => 'Tunai',
+                    ]);
+
+                    // Uang yang diterima wajib masuk buku kas
+                    Finance::create([
+                        'finance_code' => Finance::generateCode('income'),
+                        'ref' => $booking->nota_no,
+                        'type' => 'income',
+                        'category' => 'Perpanjangan Sewa',
+                        'line' => 'rent',
+                        'amount' => $ext->cost,
+                        'transaction_date' => now()->toDateString(),
+                        'description' => "Perpanjangan {$booking->nota_no} +{$ext->days} hari ({$booking->customer_name})",
+                        'status' => 'aktif',
+                        'created_by' => Auth::id(),
                     ]);
                 }
 
@@ -198,7 +230,7 @@ class PermintaanController extends Controller
     /**
      * Memproses pengembalian dana (refund) untuk booking yang dibatalkan.
      */
-    public function actionRefund(Request $request, int $bookingId): JsonResponse
+    public function actionRefund(Request $request, string $bookingId): JsonResponse
     {
         $request->validate([
             'amount' => 'required|integer|min:0',
@@ -207,11 +239,27 @@ class PermintaanController extends Controller
             'status' => 'required|in:selesai,hangus,tidak_perlu',
         ]);
 
-        $booking = Booking::findOrFail($bookingId);
+        // FE mengirim kode booking (RNT-…), bukan id angka
+        $found = Booking::findByRef($bookingId);
+        if (! $found) {
+            return response()->json(['ok' => false, 'msg' => 'Booking tidak ditemukan di server.'], 404);
+        }
 
-        return DB::transaction(function () use ($booking, $request) {
+        return DB::transaction(function () use ($found, $request) {
+            $booking = Booking::whereKey($found->id)->lockForUpdate()->firstOrFail();
             $status = $request->input('status');
             $amount = (int) $request->input('amount');
+
+            if ($booking->status !== 'dibatalkan') {
+                return response()->json(['ok' => false, 'msg' => 'Refund hanya untuk booking yang sudah dibatalkan.'], 422);
+            }
+            if ($booking->payment_status === 'refunded') {
+                return response()->json(['ok' => false, 'msg' => 'DP booking ini sudah dikembalikan sebelumnya.'], 422);
+            }
+            $paid = (int) $booking->payments()->where('status', 'verified')->sum('amount');
+            if ($amount > $paid) {
+                return response()->json(['ok' => false, 'msg' => 'Nominal refund melebihi uang yang sudah diterima (Rp ' . number_format($paid, 0, ',', '.') . ').'], 422);
+            }
             $bank = $request->input('bank_account');
             $reason = $request->input('reason');
 
@@ -231,6 +279,21 @@ class PermintaanController extends Controller
                 $booking->update([
                     'payment_status' => 'refunded',
                 ]);
+                // Uang yang ditransfer balik ke customer = pengeluaran kas
+                if ($amount > 0) {
+                    Finance::create([
+                        'finance_code' => Finance::generateCode('expense'),
+                        'ref' => $booking->nota_no,
+                        'type' => 'expense',
+                        'category' => 'Refund DP',
+                        'line' => 'rent',
+                        'amount' => $amount,
+                        'transaction_date' => now()->toDateString(),
+                        'description' => "Refund DP {$booking->nota_no} ({$booking->customer_name})",
+                        'status' => 'aktif',
+                        'created_by' => Auth::id(),
+                    ]);
+                }
             } elseif ($status === 'hangus') {
                 $booking->update([
                     'payment_status' => 'forfeited',

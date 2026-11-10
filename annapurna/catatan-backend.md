@@ -855,3 +855,4 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 - Asisten Trip di HP: jendela jadi lembar dari bawah (±84% tinggi layar) dengan latar gelap; tombol X selalu terlihat (dulu kepala jendela terpotong 76px di atas layar). Tutup lewat X, ketuk latar gelap, atau tombol Kembali Android (`history.pushState`). Laptop tidak berubah.
 - Audit tampilan HP menyeluruh (17 halaman customer + 10 halaman admin, lebar 390px): tidak ada yang melebar ke samping. Teks minimal 11px, area sentuh tombol kecil diperbesar (±36–40px), menu bawah tidak tampil di detail produk (cukup bar Sewa/Beli), label "Paling laris" paket tidak terpotong.
 - HP: semua ringkasan angka (kartu stat, Transaksi/Stok di Dashboard, Keuangan, Laporan) jadi 2 kolom ringkas; kasir 3 barang per baris; tabel bawaan 10 baris per halaman di HP (laptop 20).
+- HP: langkah laundry jadi jalur pendakian (sama dengan Cara Sewa di beranda), ±900 → ±295 px.

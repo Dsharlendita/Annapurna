@@ -4445,3 +4445,19 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   .k-st { font-size: 11px; }
 }
 @media (max-width: 640px) { .mini-grid .stat > div { text-align: left !important; } .mini-grid .stat { align-items: center; } }
+
+/* HP: langkah laundry = jalur pendakian yang sama dengan "Cara Sewa" di beranda (4 pos bernomor di garis trek) */
+@media (max-width: 640px) {
+  .lp-steps-sec { padding: 14px 0 0; }
+  .lp-steps { display: block !important; position: relative; margin: 0; padding: 0; list-style: none; }
+  .lp-steps::before { content: ""; position: absolute; left: 17px; top: 24px; bottom: 24px; border-left: 2px dashed var(--g500); opacity: .55; }
+  .lp-steps li { position: relative; background: none; border: 0; border-radius: 0; padding: 8px 0 8px 50px; min-height: 52px; }
+  .lp-steps li + li { margin-top: 2px; }
+  .lp-steps .ic { display: none; }
+  .lp-steps .n { top: 8px; left: 0; right: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--g700); color: #fff; font-size: 15px; font-weight: 800; box-shadow: 0 0 0 4px var(--cream); }
+  .lp-steps li:last-child .n { background: var(--gold); color: var(--g900); }
+  .lp-steps h3 { font-size: 15px; margin: 0 0 2px; }
+  .lp-steps p { font-size: 12.5px; line-height: 1.45; }
+  .lp-main { padding-top: 22px; }
+}
+@media (max-width: 640px) { .lp-steps li { display: block !important; } .lp-steps h3, .lp-steps p { display: block; } }

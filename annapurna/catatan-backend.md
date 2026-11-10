@@ -852,3 +852,4 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 ## C.36 Beranda di HP lebih ringkas (FE saja) — 10 Nov 2026
 - Hanya CSS (≤ 640px, `body[data-page="home"]`) + footer di `site.js` (kolom Menu & Kontak jadi `<details>`, dilipat di HP). Tampilan laptop tidak berubah. Tinggi beranda HP ±8.200 → ±5.250 px.
 - Lanjutan (HP): kartu produk ringkas di semua halaman (gambar 4:3, 2 kartu per layar; tinggi kartu ±470 → ±310 px), footer menyesuaikan ukuran layar setiap saat (HP tertutup, laptop terbuka), tombol "ke atas" disembunyikan di HP, tombol Asisten Trip memudar saat layar digeser.
+- Asisten Trip di HP: jendela jadi lembar dari bawah (±84% tinggi layar) dengan latar gelap; tombol X selalu terlihat (dulu kepala jendela terpotong 76px di atas layar). Tutup lewat X, ketuk latar gelap, atau tombol Kembali Android (`history.pushState`). Laptop tidak berubah.

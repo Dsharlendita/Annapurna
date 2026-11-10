@@ -4322,3 +4322,24 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   body.is-scrolling .ai-fab { opacity: 0; pointer-events: none; transform: translateY(16px) scale(.82); }
 }
 @media (max-width: 640px) and (prefers-reduced-motion: reduce) { .ai-fab { transition: none; } }
+
+/* =====================================================================
+   Asisten Trip di HP: lembar dari bawah (bukan layar penuh yang terdorong ke atas).
+   Dulu tinggi 100% + digeser 76px untuk menu bawah → kepala jendela & tombol X terpotong di luar layar.
+   ===================================================================== */
+.ai-backdrop { display: none; }
+@media (max-width: 640px) {
+  .ai-panel, body.has-bnav .ai-panel { left: 0; right: 0; top: auto; bottom: 0 !important; width: 100%; max-width: none; height: 84vh; height: 84dvh; max-height: none; border-radius: 22px 22px 0 0; z-index: 91; padding-bottom: env(safe-area-inset-bottom, 0px); transform: translateY(28px); box-shadow: 0 -18px 40px -16px rgba(16, 39, 24, .45); }
+  .ai-panel.open, body.has-bnav .ai-panel.open { transform: none; }
+  .ai-head { position: relative; padding-top: 22px; border-radius: 22px 22px 0 0; }
+  /* garis pegangan */
+  .ai-head::before { content: ""; position: absolute; top: 8px; left: 50%; width: 42px; height: 4px; margin-left: -21px; border-radius: 4px; background: rgba(255, 255, 255, .38); }
+  .ai-x { width: 40px; height: 40px; border-radius: 12px; }
+  .ai-close { background: rgba(255, 255, 255, .2); font-size: 17px; }
+  /* latar gelap di belakang lembar; diketuk = tutup */
+  .ai-backdrop { display: block; position: fixed; inset: 0; z-index: 90; background: rgba(16, 39, 24, .5); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  body.ai-open .ai-backdrop { opacity: 1; pointer-events: auto; }
+  body.ai-open { overflow: hidden; }
+  body.ai-open .bnav { visibility: hidden; }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) { .ai-backdrop, .ai-panel { transition: none; } }

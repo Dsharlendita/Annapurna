@@ -400,7 +400,7 @@
     wrap.innerHTML = `<button class="ai-fab" id="aiFab" aria-label="Buka Asisten Trip" aria-expanded="false"><span class="ai-fab-ic">${mdIcon()}</span><span class="ai-fab-t">Asisten Trip</span></button>
       <section class="ai-panel" id="aiPanel" role="dialog" aria-label="Asisten Trip" hidden>
         <header class="ai-head"><span class="ai-av">${mdIcon()}</span><div><strong>Asisten Trip</strong><small><i class="fa-solid fa-circle"></i> Rencanakan trip &amp; tanya seputar sewa</small></div>
-          <button class="ai-x" id="aiReset" title="Mulai ulang percakapan"><i class="fa-solid fa-rotate-right"></i></button><button class="ai-x" id="aiClose" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button></header>
+          <button class="ai-x" id="aiReset" title="Mulai ulang percakapan"><i class="fa-solid fa-rotate-right"></i></button><button class="ai-x ai-close" id="aiClose" aria-label="Tutup Asisten Trip" title="Tutup"><i class="fa-solid fa-xmark"></i></button></header>
         <div class="ai-tabs" role="tablist">
           <button type="button" role="tab" data-t="plan" class="active"><i class="fa-solid fa-route"></i> Rencanakan Trip</button>
           <button type="button" role="tab" data-t="chat"><i class="fa-regular fa-comments"></i> Tanya Jawab</button>
@@ -483,12 +483,16 @@
       if (t === 'chat') { if (!body.children.length) render(); setTimeout(() => { body.scrollTop = body.scrollHeight; input.focus(); }, 60); }
       else setTimeout(() => $('#aiPlanText').focus(), 60);
     };
+    /* HP: jendela tampil sebagai lembar dari bawah + latar gelap. Tombol Kembali (Android) menutup jendela. */
+    const mq = matchMedia('(max-width: 640px)');
+    if (!document.getElementById('aiBackdrop')) document.body.insertAdjacentHTML('beforeend', '<div class="ai-backdrop" id="aiBackdrop" aria-hidden="true"></div>');
     const open = (t) => {
+      if (mq.matches && !(history.state && history.state.aiOpen)) { try { history.pushState(Object.assign({}, history.state || {}, { aiOpen: 1 }), ''); } catch (e) { /* abaikan */ } }
       $('#aiPanel').hidden = false; requestAnimationFrame(() => $('#aiPanel').classList.add('open'));
       $('#aiFab').classList.add('on'); $('#aiFab').setAttribute('aria-expanded', 'true'); document.body.classList.add('ai-open');
       tab(typeof t === 'string' ? t : cur);
     };
-    const close = () => { $('#aiPanel').classList.remove('open'); $('#aiFab').classList.remove('on'); $('#aiFab').setAttribute('aria-expanded', 'false'); document.body.classList.remove('ai-open'); setTimeout(() => { $('#aiPanel').hidden = true; }, 220); };
+    const close = (fromBack) => { if (fromBack !== true && history.state && history.state.aiOpen) { try { history.back(); } catch (e) { /* abaikan */ } } $('#aiPanel').classList.remove('open'); $('#aiFab').classList.remove('on'); $('#aiFab').setAttribute('aria-expanded', 'false'); document.body.classList.remove('ai-open'); setTimeout(() => { $('#aiPanel').hidden = true; }, 220); };
     wrap.querySelector('.ai-tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) tab(b.dataset.t); });
     wrap.querySelector('[data-go=chat]').addEventListener('click', () => tab('chat'));
     const planGo = () => {
@@ -504,7 +508,8 @@
     UI.dateGuard && UI.dateGuard($('#aiStart'), $('#aiEnd'));
     $('#aiEnd').addEventListener('change', () => { $('#aiEnd').dataset.touched = '1'; });
     $('#aiFab').addEventListener('click', () => ($('#aiPanel').hidden ? open() : close()));
-    $('#aiClose').addEventListener('click', close);
+    $('#aiClose').addEventListener('click', () => close());
+    addEventListener('popstate', () => { if (!$('#aiPanel').hidden) close(true); });
     $('#aiReset').addEventListener('click', () => { log = []; save(); render(); $('#aiPlanText').value = ''; });
     $('#aiForm').addEventListener('submit', (e) => { e.preventDefault(); ask(input.value); });
     chips.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) ask(b.textContent); });

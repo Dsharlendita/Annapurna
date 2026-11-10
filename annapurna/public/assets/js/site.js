@@ -107,7 +107,10 @@
     /* Setelah pesanan dibuat, tanggal sewa direset: beri tahu sekali supaya customer tidak bingung */
     try { sessionStorage.removeItem('annapurna:tripReset'); } catch (e) { /* abaikan */ }
     /* Checkout & pembayaran: fokus ke satu tombol bayar (tanpa menu bawah, Asisten Trip & tombol ke atas) supaya isian tidak tertutup di HP */
-    if (FOCUS_PAGES.includes(page)) document.body.classList.add('flow-focus'); else bottomNav(s);
+    if (FOCUS_PAGES.includes(page)) document.body.classList.add('flow-focus');
+    /* Detail produk di HP: cukup bar "Sewa / Beli" di bawah (seperti aplikasi belanja), menu bawah tidak ditampilkan */
+    else if (/\/produk\/?$/.test(location.pathname)) document.body.classList.add('pd-focus'); /* halaman produk memakai data-page "katalog" */
+    else bottomNav(s);
     remindCustomer(s);
     setTimeout(() => pwCard(s), 0);
 

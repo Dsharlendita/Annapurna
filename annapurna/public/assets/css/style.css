@@ -4343,3 +4343,39 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   body.ai-open .bnav { visibility: hidden; }
 }
 @media (max-width: 640px) and (prefers-reduced-motion: reduce) { .ai-backdrop, .ai-panel { transition: none; } }
+
+/* =====================================================================
+   HP: keterbacaan & ukuran sentuh (minimal teks 11px, area sentuh ±36px)
+   ===================================================================== */
+@media (max-width: 640px) {
+  /* teks minimal 11px */
+  .prod-card .pc-cat { font-size: 11px; }
+  .prod-card .pc-badge { font-size: 11px; }
+  .pk .pk-hot, .pk-hot { font-size: 11px !important; padding: 3px 8px !important; }
+  .cal-grid .dow { font-size: 11px; }
+  .cal-day small, .cal-day span { font-size: 10.5px !important; letter-spacing: -.02em; }
+  .k-pr small { font-size: 11px; }
+  /* area sentuh lebih besar */
+  .prod-card h3 a { display: block; padding: 3px 0; }
+  .svc-acts .btn, .svc-acts a.btn, .svc-foot .btn { min-height: 38px; padding: 8px 14px; font-size: 13px; }
+  .pk-more { min-height: 34px; padding: 6px 12px !important; }
+  .sec-head .link { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 4px; }
+  main nav[aria-label="Breadcrumb"] a, .crumbs a, .bc a { display: inline-block; padding: 8px 0; }
+  .pd-rate a, a.pd-rv, .rating-link { display: inline-block; padding: 8px 0; }
+  /* Halaman Tentang: kolom grid boleh menyusut → teks tidak terpotong di tepi kanan */
+  .ab-story-grid > * { min-width: 0; }
+}
+@media (max-width: 640px) { .meta a.link { display: inline-block; padding: 8px 0; } }
+@media (max-width: 640px) { .svc-link { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 4px; } }
+@media (max-width: 768px) {
+  /* Detail produk: bar beli turun ke paling bawah (tanpa menu bawah) */
+  body.pd-focus { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+  body.pd-focus .sticky-buy { bottom: calc(10px + env(safe-area-inset-bottom)); }
+  body.pd-focus .ai-fab { bottom: calc(96px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 640px) {
+  /* Paket: label "Paling laris" boleh keluar dari gambar kecil supaya tidak terpotong */
+  .pk-ph { overflow: visible !important; }
+  .pk-ph img { border-radius: 14px; }
+  .pk .pk-hot { left: -6px !important; top: -8px !important; white-space: nowrap; z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, .12); }
+}

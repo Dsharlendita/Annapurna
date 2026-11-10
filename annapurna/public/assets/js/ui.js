@@ -1711,7 +1711,9 @@
      tetap di halaman yang sama. Ringkasan dashboard & laporan tidak dipecah. */
   const PG = new WeakMap();
   /* Bawaan 20 data per halaman (Data Barang, Histori, dll.) supaya halaman tidak terlalu panjang; bisa diganti 20 / 30 / 50 */
-  const pgPer = () => { try { return +localStorage.getItem('ann_pg_per') || 20; } catch (e) { return 20; } };
+  /* HP: bawaan 10 baris per halaman supaya tombol halaman berikutnya cepat terjangkau; laptop 20 */
+  const pgDef = () => (matchMedia('(max-width: 640px)').matches ? 10 : 20);
+  const pgPer = () => { try { return +localStorage.getItem('ann_pg_per') || pgDef(); } catch (e) { return pgDef(); } };
   function pgTargets() {
     const page = String(document.body.dataset.page || '');
     if (page === 'admin-' || page === 'invoice' || /^admin-(dashboard|laporan|kalender)$/.test(page) || page === 'owner-dashboard') return [];
@@ -1755,7 +1757,7 @@
     }
     const html = `<span class="pg-info">Menampilkan <b>${n ? from + 1 : 0}–${Math.min(to, n)}</b> dari <b>${n}</b></span>
       <div class="pg-btns"><button type="button" class="pg-b" data-pg="${st.page - 1}" ${st.page === 1 ? 'disabled' : ''} aria-label="Sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>${pgPages(st.page, pages).map((x) => x === '…' ? '<span class="pg-gap">…</span>' : `<button type="button" class="pg-b ${x === st.page ? 'on' : ''}" data-pg="${x}" ${x === st.page ? 'aria-current="page"' : ''}>${x}</button>`).join('')}<button type="button" class="pg-b" data-pg="${st.page + 1}" ${st.page === pages ? 'disabled' : ''} aria-label="Berikutnya"><i class="fa-solid fa-chevron-right"></i></button></div>
-      <label class="pg-per">Tampilkan <select class="select" data-pg-per>${[20, 30, 50].map((v) => `<option value="${v}" ${v === per ? 'selected' : ''}>${v}</option>`).join('')}</select> per halaman</label>`;
+      <label class="pg-per">Tampilkan <select class="select" data-pg-per>${[10, 20, 30, 50].map((v) => `<option value="${v}" ${v === per ? 'selected' : ''}>${v}</option>`).join('')}</select> per halaman</label>`;
     if (st.pager.dataset.h !== html) { st.pager.innerHTML = html; st.pager.dataset.h = html; }
   }
   let pgQueued = false;

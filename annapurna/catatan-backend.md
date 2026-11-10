@@ -858,3 +858,4 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 - HP: langkah laundry jadi jalur pendakian (sama dengan Cara Sewa di beranda), ±900 → ±295 px.
 - Kasir di HP: kategori satu baris, tanggal berdampingan, 12 barang + "Tampilkan lebih banyak", bar ringkasan transaksi di bawah layar, rincian barang 2 baris (sebelumnya tombol uang cepat melebarkan halaman jadi 431px). Kartu produk: seluruh kartu bisa ditekan untuk membuka detail (tautan judul diperluas), dengan efek tekan.
 - HP: menu bawah didesain ulang (dok hijau hutan, menu aktif = batu emas + penanda puncak gunung). Ruang untuk menu/bar bawah dipindah ke dalam footer (tidak ada lagi area kosong di bawah footer). Keunggulan di judul Laundry sejajar 3 kolom.
+- HP: hero beranda dirapikan (judul + 2 baris pengantar + pencarian); tombol Sewa/Beli/Laundry & 4 poin keunggulan disembunyikan di HP (duplikat menu bawah / dijelaskan di bawah). Hero ±720 → ±400 px.

@@ -149,19 +149,3 @@
   })();
 })();
 
-/* HP: keempat keunggulan tampil di kartu putih yang menempel di tepi bawah hero (salinan dari .hero-perks),
-   dan satu baris rating pelanggan di bawah pencarian (data sama dengan bagian testimoni). Laptop tidak berubah. */
-(function heroMobile() {
-  const { DB } = Ann; const hero = document.getElementById('hero'); if (!hero) return;
-  const perks = hero.querySelector('.hero-perks');
-  if (perks && !document.querySelector('.hero-perks-wrap')) {
-    const c = perks.cloneNode(true); c.className = 'hero-perks-m'; c.setAttribute('aria-hidden', 'true');
-    c.querySelectorAll('li').forEach((li) => { li.classList.remove('ha'); li.removeAttribute('style'); });
-    const box = document.createElement('div'); box.className = 'wrap hero-perks-wrap'; box.appendChild(c);
-    hero.insertAdjacentElement('afterend', box);
-  }
-  const rs = DB.ratingSummary ? DB.ratingSummary() : null; const search = hero.querySelector('.hero-search');
-  if (rs && rs.count && search && !hero.querySelector('.hero-proof')) {
-    search.insertAdjacentHTML('afterend', `<a class="hero-proof" href="#testimoni"><span class="hp-stars" aria-hidden="true">${'<i class="fa-solid fa-star"></i>'.repeat(5)}</span><span><b>${rs.avg.toLocaleString('id-ID')}</b> dari ${rs.count.toLocaleString('id-ID')} penilaian pelanggan</span></a>`);
-  }
-})();

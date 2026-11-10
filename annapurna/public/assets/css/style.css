@@ -4595,3 +4595,8 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   .hero-perks-m .ic { flex: 0 0 30px; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #fdf3d8; color: #8a5a00; font-size: 13px; border: 0; }
   body[data-page="home"] .hero-perks-wrap + .section { padding-top: 26px; }
 }
+/* HP: hero final — judul, pengantar utuh (tanpa "…"), pencarian. Rating & kartu keunggulan dihapus. */
+@media (max-width: 640px) {
+  body[data-page="home"] .hero-lead { display: block !important; -webkit-line-clamp: unset !important; overflow: visible !important; margin-bottom: 18px; }
+  body[data-page="home"] .hero-inner { padding-bottom: 32px; }
+}

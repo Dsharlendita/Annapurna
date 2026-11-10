@@ -173,7 +173,14 @@
     <button class="to-top" id="toTop" aria-label="Kembali ke atas"><i class="fa-solid fa-arrow-up"></i></button>`;
     $('#toTop').addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));
     /* HP: kolom Menu & Kontak di footer dilipat (tekan judulnya untuk membuka) supaya footer tidak terlalu panjang */
-    if (matchMedia('(max-width: 640px)').matches) document.querySelectorAll('.footer details.f-col').forEach((d) => { d.open = false; });
+    /* Ikuti ukuran layar setiap saat (termasuk saat HP diputar / jendela diubah ukurannya): HP = tertutup, laptop = terbuka */
+    const fq = matchMedia('(max-width: 640px)');
+    const syncFoot = () => document.querySelectorAll('.footer details.f-col').forEach((d) => { d.open = !fq.matches; });
+    syncFoot(); (fq.addEventListener ? fq.addEventListener('change', syncFoot) : fq.addListener(syncFoot));
+    /* HP: tombol melayang (Asisten Trip) disembunyikan sementara saat layar digeser, muncul lagi saat berhenti,
+       supaya tidak menutupi tombol "Sewa" / "Beli" di kartu yang sedang dilihat */
+    let scrT = null;
+    addEventListener('scroll', () => { if (!fq.matches) return; document.body.classList.add('is-scrolling'); clearTimeout(scrT); scrT = setTimeout(() => document.body.classList.remove('is-scrolling'), 700); }, { passive: true });
   }
 
   /* Akun dibuat otomatis saat checkout → tawarkan buat kata sandi (opsional) */

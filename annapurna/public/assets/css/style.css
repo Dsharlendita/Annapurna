@@ -4247,7 +4247,7 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   body[data-page="home"] .testi-track { grid-auto-columns: 86%; margin: 0 -16px; padding: 2px 16px 8px; }
 
   /* ---- Footer (semua halaman): Menu & Kontak bisa dilipat ---- */
-  .footer-grid { grid-template-columns: 1fr; gap: 0; padding: 30px 0 18px; }
+  .footer-grid { grid-template-columns: 1fr; gap: 0; padding-top: 28px; padding-bottom: 16px; } /* jarak kiri-kanan tetap dari .wrap */
   .footer-grid > div:first-child p { font-size: 13px; margin: 8px 0 14px; }
   .footer details.f-col { border-top: 1px solid rgba(255, 255, 255, .14); }
   .footer details.f-col > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
@@ -4282,3 +4282,43 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   body[data-page="home"] .testi-score { margin-top: 10px; }
   body[data-page="home"] .testi-track > * { min-height: 0; }
 }
+
+/* =====================================================================
+   HP (≤ 640px): kartu produk ringkas — 2 kartu terlihat per layar, gambar 4:3,
+   info sekunder disembunyikan, seluruh kartu tetap bisa ditekan lewat gambar/judul.
+   ===================================================================== */
+@media (max-width: 640px) {
+  .prod-card { padding: 0 0 10px; border-radius: 14px; }
+  .prod-card .ph { aspect-ratio: 4 / 3 !important; }
+  .prod-card .ph img { object-fit: contain !important; padding: 6% !important; }
+  .prod-card .pc-badge { top: 6px; left: 6px; padding: 3px 8px; font-size: 10.5px; gap: 4px; }
+  .prod-card .pc-badge.adm { left: auto; right: 6px; }
+  .prod-card .bd { padding: 8px 10px 0; }
+  .prod-card .pc-top { margin: 0; }
+  .prod-card .pc-cat { font-size: 10px; letter-spacing: .04em; }
+  .prod-card h3 { font-size: 13.5px; line-height: 1.3; margin: 2px 0 4px; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .prod-card .pc-stars { display: flex; align-items: center; gap: 4px; margin: 0; }
+  .prod-card .pc-stars .stars { font-size: 10.5px; }
+  .prod-card .pc-rv { font-size: 11px; }
+  .prod-card .pc-stars.none { display: none; }
+  .prod-card .pc-price { margin: 6px 0 0; }
+  .prod-card .pc-price strong { font-size: 15px; }
+  .prod-card .pc-price small { font-size: 11.5px; }
+  .prod-card .pc-info, .prod-card .pc-detail { display: none !important; }
+  .prod-card .acts { margin-top: 8px; gap: 6px; }
+  .prod-card .acts .btn { min-height: 38px; padding: 8px 10px; font-size: 13px; border-radius: 10px; }
+  .prod-card .acts .pc-cart { width: 38px; flex: 0 0 38px; padding: 0; }
+  .prod-card .acts .btn-primary { flex: 1; }
+  .prod-card .pc-long { display: none; }
+  /* Etalase geser (beranda & "Alat lain"): 2 kartu terlihat + sedikit kartu ketiga sebagai tanda bisa digeser */
+  #bestGrid > *, #shopGrid > *, #related > * { flex: 0 0 44% !important; max-width: 44% !important; }
+
+  /* Tombol melayang: "ke atas" disembunyikan (ada menu bawah), Asisten Trip dikecilkan agar tidak menutupi tombol kartu */
+  .to-top { display: none !important; }
+  .ai-fab { transform: scale(.82); transform-origin: 100% 100%; right: 10px; }
+}
+@media (max-width: 640px) {
+  .ai-fab { transition: opacity .2s, transform .2s; }
+  body.is-scrolling .ai-fab { opacity: 0; pointer-events: none; transform: translateY(16px) scale(.82); }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) { .ai-fab { transition: none; } }

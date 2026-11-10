@@ -2,6 +2,7 @@
   const { DB, D, rupiah } = window.Ann;
   const { $, $$, esc, asset, url, toast, Cart, waLink } = window.UI;
   const page = document.body.dataset.page || '';
+  const FOCUS_PAGES = ['checkout', 'pembayaran'];
 
   const MTN = {
     line: `<svg viewBox="0 0 200 80" fill="none" aria-hidden="true"><path d="M4 76 L52 34 L66 46 L98 10 L120 32 L132 24 L196 76" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><path d="M98 10 L90 30 L100 24 L106 34 M52 34 L48 48 L56 44" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
@@ -104,8 +105,10 @@
     $('#tripChip') && $('#tripChip').addEventListener('click', () => UI.tripModal(() => location.reload()));
     $('#tripClear') && $('#tripClear').addEventListener('click', (e) => { e.stopPropagation(); DB.setTrip(null); UI.toast('Tanggal sewa dihapus.'); setTimeout(() => location.reload(), 500); });
     /* Setelah pesanan dibuat, tanggal sewa direset: beri tahu sekali supaya customer tidak bingung */
-    try { if (sessionStorage.getItem('annapurna:tripReset')) { sessionStorage.removeItem('annapurna:tripReset'); setTimeout(() => UI.toast('Pesanan dibuat. Tanggal sewa direset untuk pesanan berikutnya.'), 600); } } catch (e) { /* abaikan */ }
-    bottomNav(s); remindCustomer(s);
+    try { sessionStorage.removeItem('annapurna:tripReset'); } catch (e) { /* abaikan */ }
+    /* Checkout & pembayaran: fokus ke satu tombol bayar (tanpa menu bawah, Asisten Trip & tombol ke atas) supaya isian tidak tertutup di HP */
+    if (FOCUS_PAGES.includes(page)) document.body.classList.add('flow-focus'); else bottomNav(s);
+    remindCustomer(s);
     setTimeout(() => pwCard(s), 0);
 
     const pop = $('#searchPop'), inp = $('#searchInput'), res = $('#searchRes');
@@ -173,7 +176,8 @@
 
   /* Akun dibuat otomatis saat checkout → tawarkan buat kata sandi (opsional) */
   function pwCard(s) {
-    if (!s || !s.needsPassword || !['pembayaran', 'pesanan', 'profil'].includes(page)) return;
+    /* Tidak ditampilkan di halaman pembayaran supaya customer fokus membayar; muncul di Pesanan Saya setelah bukti terkirim */
+    if (!s || !s.needsPassword || !['pesanan', 'profil'].includes(page)) return;
     let skip = false; try { skip = sessionStorage.getItem('ann-pw-skip') === '1'; } catch (e) { skip = false; }
     const root = document.getElementById('root') || document.getElementById('list');
     if (skip || !root || document.getElementById('pwCard')) return;

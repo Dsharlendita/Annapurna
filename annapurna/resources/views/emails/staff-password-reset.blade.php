@@ -11,15 +11,19 @@
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Nama akun</td><td style="border-bottom:1px solid #e4dfd4">{{ $staff->name }}</td></tr>
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Email akun</td><td style="border-bottom:1px solid #e4dfd4">{{ $staff->email }}</td></tr>
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Role</td><td style="border-bottom:1px solid #e4dfd4">{{ ucfirst($staff->role) }}</td></tr>
+          @if ($temporaryPassword)
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Kata sandi sementara baru</td><td style="border-bottom:1px solid #e4dfd4"><code style="font-size:15px;background:#eef6f0;padding:2px 8px;border-radius:4px;color:#1f4d2f;font-weight:bold">{{ $temporaryPassword }}</code></td></tr>
+          @else
+          <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Kata sandi baru</td><td style="border-bottom:1px solid #e4dfd4">Diberikan langsung oleh Owner</td></tr>
+          @endif
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Link login</td><td style="border-bottom:1px solid #e4dfd4"><a href="{{ $loginUrl }}">{{ $loginUrl }}</a></td></tr>
         </table>
         <p><strong>Penting:</strong></p>
         <ol>
           <li>Kata sandi lama Anda sudah <strong>tidak berlaku</strong> dan seluruh sesi login sebelumnya telah dinonaktifkan.</li>
-          <li>Masuk ke sistem menggunakan email dan kata sandi sementara baru di atas.</li>
+          <li>Masuk ke sistem menggunakan email dan kata sandi {{ $temporaryPassword ? 'sementara baru di atas' : 'baru yang diberikan Owner' }}.</li>
           <li>Anda <strong>wajib membuat kata sandi baru</strong> saat pertama kali berhasil masuk.</li>
-          <li>Jangan bagikan kata sandi sementara ini kepada siapa pun.</li>
+          <li>Jangan bagikan kata sandi ini kepada siapa pun.</li>
         </ol>
         <p style="font-size:12.5px;color:#6b766e">Aktivitas ini dicatat otomatis pada sistem audit Annapurna Adventure demi keamanan akun.</p>
         <p><a href="{{ $loginUrl }}" style="display:inline-block;background:#1f4d2f;color:#ffffff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:bold">Masuk ke Panel</a></p>

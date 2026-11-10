@@ -8,6 +8,7 @@
   const days = Laundry.days();
   const minAll = Math.min(...cats.flatMap((c) => c.items.map((i) => i.price)));
   const qty = {}; /* id item → jumlah */
+  /* Daftar harga ditampilkan per kategori (bawaan: kategori pertama) supaya halaman tidak terlalu panjang di HP; "Semua" tetap ada */
   let filter = 'all';
 
   /* ---------- Hero: fakta singkat ---------- */
@@ -30,8 +31,9 @@
   root.innerHTML = `
     <div class="lp-list">
       <div class="lp-tabs" role="tablist" aria-label="Kategori laundry">
-        <button type="button" class="on" data-f="all" role="tab">Semua</button>
-        ${cats.map((c) => `<button type="button" data-f="${esc(c.id)}" role="tab"><i class="fa-solid ${esc(c.icon || 'fa-circle')}"></i> ${esc(c.name)}</button>`).join('')}
+        ${cats.map((c, i) => `<button type="button" ${i === 0 ? 'class="on"' : ''} data-f="${esc(c.id)}" role="tab"><i class="fa-solid ${esc(c.icon || 'fa-circle')}"></i> ${esc(c.name)}</button>`).join('')}
+        ${OT.enabled !== false ? `<button type="button" data-f="__other" role="tab"><i class="fa-solid fa-plus"></i> ${esc(OT.name)}</button>` : ''}
+        <button type="button" data-f="all" role="tab">Semua</button>
       </div>
       ${cats.map((c) => `<section class="lp-cat" data-cat="${esc(c.id)}" aria-labelledby="ldc-${esc(c.id)}">
         <h3 class="lp-cat-h" id="ldc-${esc(c.id)}"><span><i class="fa-solid ${esc(c.icon || 'fa-circle')}" aria-hidden="true"></i></span>${esc(c.name)}<small>${c.items.length} jenis</small></h3>
@@ -81,6 +83,7 @@
     $$('[data-row]').forEach((r) => r.classList.toggle('on', qty[r.dataset.row] > 0));
   }
   const setQty = (id, v) => { qty[id] = Math.max(0, Math.min(99, Math.round(+v || 0))); const inp = root.querySelector(`[data-in="${id}"]`); if (inp) inp.value = qty[id]; sync(); };
+  if (cats.length) { filter = cats[0].id; $$('.lp-cat').forEach((c) => { c.hidden = c.dataset.cat !== filter; }); }
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-q]'); if (b) { setQty(b.dataset.id, (qty[b.dataset.id] || 0) + +b.dataset.q); return; }
     const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; $$('.lp-tabs [data-f]').forEach((x) => x.classList.toggle('on', x === f)); $$('.lp-cat').forEach((c) => { c.hidden = filter !== 'all' && c.dataset.cat !== filter; }); return; }

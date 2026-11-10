@@ -700,3 +700,151 @@ Isi: pemasukan, pengeluaran, laba per lini (`rent`, `sale`, `umum`), rincian pen
 - Nota publik: nomor HP **customer** disamarkan, nomor HP **staff pengantar** tidak (customer perlu menghubunginya).
 - Label diskon di semua dokumen: `DB.discLabel(discount)` → "Diskon · <alasan> <n>%" atau "Promo <kode>". Laundry: `discountReason`.
 - Status pesanan penjualan diantar: tampil "Siap Dikirim" → "Dalam Pengiriman" → "Sudah Tiba" (dari `deliv.ship`), tidak lagi bertabrakan.
+
+## C.23 Pembatalan H-2: metode pengembalian DP (transfer / tunai) — 9 Nov 2026
+**Alur**
+1. Customer membatalkan booking (Pesanan → Batalkan). Bila DP sudah dibayar **dan** pembatalan ≥ H-`cancelDays`, customer **wajib** memilih metode pengembalian:
+   - `transfer` → isi `refund_bank`, `refund_account_number` (6–30 digit), `refund_account_name`.
+   - `tunai` → DP diambil di toko (alamat & jam buka dari settings).
+2. Admin (Booking → Permintaan → tab **Pembatalan & Refund**) melihat metode + rekening (tombol **Salin** nomor rekening). Tunai: tombol **Kabari siap diambil** (template WA `refund_cash_ready`).
+3. **Proses refund**: rekening, nama & jumlah bisa disalin; upload **foto bukti** (wajib untuk transfer, opsional untuk tunai); no. referensi transfer opsional. Simpan → jendela WhatsApp terbuka dengan foto bukti + pesan (`refund_tf` / `refund_cash`). Setelah dikirim, FE memanggil endpoint `notified`. Tombol **Kirim ulang bukti** tersedia setelah refund selesai.
+4. Admin yang membatalkan booking (Batalkan booking) bisa langsung mengisi metode; boleh dikosongkan lalu dilengkapi saat Proses refund.
+
+**Database** — migrasi `2026_11_09_000001_add_refund_method_to_refunds_table.php` (tabel `refunds`):
+`method` ENUM(transfer,tunai) NULL, `bank_name` VARCHAR(60), `account_number` VARCHAR(30), `account_name` VARCHAR(100), `transfer_ref` VARCHAR(100), `proof_file` (disk `public`, folder `refunds/`), `requested_by` ENUM(customer,admin), `notified_at` TIMESTAMP. Kolom lama `bank_account` tetap diisi ringkasan "BANK NOMOR a.n. NAMA". Model `Refund` menambah atribut `proof_url`.
+
+**Endpoint** (`{id}` = id angka / `booking_code` / `nota_no`)
+| Method & URL | Siapa | Body |
+|---|---|---|
+| `POST /api/booking/{id}/batal` | customer login (pemilik booking) | `reason`, `refund_method`, `refund_bank`, `refund_account_number`, `refund_account_name` |
+| `POST /api/admin/booking/{id}/batal` | admin/owner | `reason`, `dp_mode` (refund\|forfeit\|none), `refund_*` opsional |
+| `POST /api/admin/permintaan/refund/{id}` | admin/owner | multipart: `amount`, `status` (selesai\|hangus\|tidak_perlu), `reason`, `refund_*`, `transfer_ref`, `proof_file` (jpg/png/webp ≤ 5 MB; wajib bila transfer diselesaikan) |
+| `POST /api/admin/permintaan/refund/{id}/notified` | admin/owner | — (isi `notified_at`) |
+
+- Controller baru `BookingCancelController` (customer & admin). Server menghitung ulang hak refund (`cancelDays`, `refundPercent`) — tidak percaya angka dari FE. Status yang bisa dibatalkan customer: `menunggu_pembayaran`, `menunggu_konfirmasi`, `dikonfirmasi` (selain itu 409).
+- `PermintaanController@actionRefund` sekarang menerima **kode booking** (sebelumnya hanya `int`, sehingga panggilan dari FE yang mengirim `RNT-…` selalu gagal).
+- FE tetap menyimpan data di perangkat lebih dulu; `Api.try` memakai data lokal bila route belum ada (404/405).
+- Data FE: `booking.cancel.refund = { method, bank, account, holder }`, `booking.refunds[] = { at, amount, method, bank, account, holder, ref, proof (dataURL), by, waAt }`.
+- Template WA baru (Konfigurasi → Template Pesan WhatsApp, grup Rental): `refund_tf`, `refund_cash_ready`, `refund_cash`. Variabel baru: `{jumlah_refund}`, `{rekening}`, `{ref_transfer}`, `{tgl_refund}`.
+
+## C.24 Asisten Trip → chatbot AI (FE saja) — 9 Nov 2026
+- Konfigurasi → **Asisten Trip (Tanya jawab AI)**: kolom kata kunci, label JIKA–MAKA, prioritas, deteksi bentrok, dan "Coba tanya" dihapus. Owner cukup mengisi **topik + jawaban** (+ tombol & aktif/nonaktif) sebagai basis pengetahuan chatbot.
+- `settings.chatRules[]` = `{ id, title, answer, action, priority, active, builtin }`. Field `keys` milik aturan lama **tetap disimpan** (tidak ditampilkan) agar Asisten Trip di website masih jalan selama chatbot AI di server belum siap; topik baru tidak punya `keys`.
+- **Untuk backend chatbot AI**: kirim topik aktif (`title` + `answer`, isian `{jam_buka}` dll. sudah diganti) sebagai konteks/system prompt; toggle `settings.chatSpecial` menentukan data toko (stok, harga, status pesanan) yang boleh dipakai. Pertanyaan yang tidak terjawab tetap direkam ke `POST /api/chat/miss`.
+
+## C.25 Manajemen Staff: kata sandi dibuat Owner, hanya akun Admin / Staff — 9 Nov 2026
+- **Tambah staff**: Owner mengisi `password` + `password_confirmation` sendiri (min. 8 karakter, wajib huruf & angka, tanpa spasi). Sistem **tidak lagi** membuat kata sandi sementara untuk staff baru; respons `POST /api/owner/staff` tidak lagi berisi `temp` / `temp_password`.
+- `mustChangePw` (boolean, bawaan `true`): bila dicentang Owner, staff wajib mengganti kata sandi saat login pertama (`users.must_change_password`).
+- **Role**: akun baru selalu `admin`. Validasi `role` hanya menerima `admin` (pesan: "Owner hanya bisa membuat akun Admin / Staff."). Pilihan Owner dihapus dari form tambah & edit; `PATCH /api/owner/staff/{id}` menolak perubahan role (422).
+- **Email undangan** (`StaffAccountCreated`): kata sandi **tidak** dikirim lewat email (ditulis "Diberikan langsung oleh Owner"). Konstruktor: `new StaffAccountCreated($staff, $owner, ?string $temporaryPassword = null, bool $mustChange = true)`.
+- **Atur ulang kata sandi** (tombol kunci) tetap memakai kata sandi sementara buatan sistem seperti sebelumnya.
+
+## C.26 Form Catat barang keluar & Proses pengembalian diringkas (FE saja) — 9 Nov 2026
+Tidak ada perubahan endpoint maupun isi payload `POST /api/admin/booking/{id}/pickup` dan `/return`.
+- Barang keluar: pilihan "Kondisi barang saat keluar" dihapus dari form; `condition` selalu dikirim `Baik` (kondisi detail tercatat per unit, pengecualian lewat catatan). Unit dipilih otomatis dan hanya ditampilkan ringkas; daftar unit dibuka lewat "Ganti unit".
+- Barang kembali: tanggal/jam otomatis = sekarang (bisa diubah). Mode bawaan "Semua kembali" (unit wajib cuci → `cuci`, lainnya → `siap`). Status per unit, biaya kerusakan, dan aturan kerusakan hanya muncul di mode "Ada yang rusak / hilang"; catatan wajib bila ada unit rusak/hilang.
+- Isian opsional dari Form & Field (catatan, foto, field kustom tidak wajib) dilipat di "+ Catatan / foto"; isian wajib tetap tampil langsung.
+- SOP tidak lagi memakai centang wajib; cukup tautan "Lihat SOP" di form (berlaku juga di Proses refund).
+
+## C.27 Penyederhanaan alur + sambungan ke endpoint yang sudah ada — 10 Nov 2026
+Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang SUDAH ADA dengan benar.
+
+**Sambungan baru dari FE (endpoint sudah ada)**
+- `POST api/booking` & `POST api/sale`: FE kini menyimpan `data.booking.id` / `data.sale.id` sebagai `serverId`.
+- `POST api/admin/booking/{serverId}/pickup` & `/return`: sebelumnya FE mengirim kode booking ke parameter `int $id` → selalu gagal. Sekarang memakai `serverId`. **`pay_now` dan `pay_fine` selalu 0** karena uang sudah dicatat lewat `/settle` (mencegah Payment tercatat dua kali).
+- `POST api/pembayaran/upload`: FE menyimpan `payment.id` dari respons sebagai `serverPaymentId`; `bank_name` = rekening yang dipilih customer di halaman pembayaran (BCA/Mandiri/BNI/BRI/QRIS).
+- `POST api/admin/pembayaran/{serverPaymentId}/verifikasi`: dipanggil saat admin menekan Verifikasi DP (booking) dan Verifikasi pembayaran (penjualan).
+- Kasir: setelah `POST api/booking` berhasil, uang yang diterima di kasir dikirim SEKALI ke `POST api/admin/booking/{kode}/settle` (`payment_amount`, `payment_method: "Kasir · Tunai/Transfer/QRIS"`). Tercatat sebagai Payment tipe "Pelunasan" walau isinya DP / lunas.
+- `payment_method` di `POST api/booking` sekarang `"Transfer / QRIS"` (rekening dipilih saat bayar).
+
+**Belum bisa disambungkan (perlu dibuat di backend)**
+1. **Tolak bukti bayar**: belum ada endpoint (mis. `POST api/admin/pembayaran/{id}/tolak` → payment `rejected`, booking kembali `menunggu_pembayaran`).
+2. **Customer mengajukan perpanjangan / ganti barang**: belum ada endpoint pengajuan, jadi tabel `booking_extensions` / `booking_changes` tidak terisi dan `actionExtend` / `actionChange` (`int $id`) dipanggil FE dengan ID lokal (`EXT-…` / `CHG-…`) → gagal. Usul: `POST api/booking/{kode}/perpanjang` & `/ganti-barang` yang mengembalikan `id`, lalu FE memakai id itu.
+3. **Login dengan kode verifikasi (OTP) & kata sandi untuk akun dari checkout tanpa login** — *(koreksi: catatan sebelumnya menyebut backend tidak membuat akun; itu keliru)*.
+   Saat checkout tanpa login, FE memanggil `POST /daftar` dengan kata sandi acak yang tidak diketahui customer → backend membuat user & `Auth::login`. Jadi booking terhubung ke akun dan pembatalan customer berjalan selama sesi masih aktif. Yang BELUM ada:
+   - `POST api/masuk/kode` `{ identifier }` (email / no. WA) → kirim kode 6 digit (berlaku 5 menit) via email/WA, balas `{ ok, dest }`.
+   - `POST api/masuk/verifikasi` `{ identifier, code }` → bila cocok `Auth::login`, balas `{ ok, user }` (bentuk sama dengan respons `/masuk`).
+   - `POST api/akun/buat-sandi` `{ password, password_confirmation }` untuk akun dari checkout (tanpa kata sandi lama), dan tandai akun itu (mis. kolom `needs_password`) saat `/daftar` dipanggil dari checkout.
+   Saat ini ketiganya hanya disimulasikan di FE (kode ditampilkan di layar). Dipakai di: halaman Masuk (tab Kode verifikasi & Lupa kata sandi), jendela "Kamu sudah punya akun" di checkout, dan kartu "Buat kata sandi" di Pesanan Saya.
+4. **Unit fisik saat pickup**: FE mengirim `unit_ids` berbentuk `{indeksBaris: [{pid, code}]}`, backend mengharapkan `{booking_item_id: product_unit_id}` → diabaikan (tidak error). Perlu disepakati format (mis. kirim kode unit).
+5. **Diskon kasir**: `storeBooking` hanya menerima `promo_code`; diskon manual kasir (alasan + nominal) belum terkirim.
+
+**Perubahan alur FE (tanpa efek ke backend)**
+- Checkout & pembayaran di HP: tanpa menu bawah / Asisten Trip; bagian "Metode pembayaran" dihapus dari checkout; rekening dipilih di halaman pembayaran; kartu "buat kata sandi" pindah ke Pesanan Saya.
+- Produk: kalender ketersediaan hanya informasi & dilipat; ketentuan lengkap + kebijakan pembatalan dilipat. Katalog: 12 barang + "Muat lebih banyak".
+- Perpanjangan: tombol cepat +1/+2/+3 malam (alur pengajuan tetap).
+- Admin: menu "Barang Keluar & Kembali" + "Perawatan unit" pindah jadi tab di Booking Rental (URL halaman tetap sama, `GET api/admin/pengembalian` tetap dipakai). Dashboard: "Jadwal hari ini" & "Booking terbaru" dihapus (sudah ada di Perlu tindakan & menu Booking), jadwal antar/jasa tenda 7 hari dilipat. Detail booking: satu tombol utama + menu "Lainnya". Tombol ongkir dobel dihapus.
+- Kasir: perbaikan bug klik Simpan pertama hilang setelah mengisi "Uang diterima".
+
+## C.28 Penyederhanaan lanjutan (FE saja) — 10 Nov 2026
+- Kasir mode Laundry hanya menerima laundry baru; proses (mulai dicuci, siap, bayar, diambil) cukup di menu Laundry.
+- **Perbaikan bug lama**: halaman admin Laundry kosong karena fungsi `inTab` tidak ada di `admin/laundry.js`.
+- Keranjang & checkout menampilkan rincian tarif, mis. "6 malam = Ekspedisi (5 hari) Rp38.000 + 1 malam × Rp15.000" (`Rules.tierBreak`). Rumus harga TIDAK berubah.
+- Pesanan Saya: satu status untuk customer (gabungan status booking + pembayaran). Data status tidak berubah.
+- Konfigurasi: menu "Sesi Staff" dihapus dan logout otomatis tidak dipakai (`settings.idleLogoutMin` diabaikan). "Tampilan Beranda" tidak lagi punya pilihan mode/periode/jumlah; memakai nilai `homeBest` yang tersimpan (bawaan: gabungan, 90 hari, 6 barang, sembunyikan stok habis).
+- Manajemen Staff: kartu "Sedang login" diganti "Belum ganti sandi awal".
+- Catatan: login "Kode verifikasi" (OTP) di halaman Masuk/Checkout hanya ada di FE; backend belum punya endpoint OTP.
+
+## C.29 Konfigurasi dikelompokkan, Form & Field ringkas, penjualan ambil di toko (FE saja) — 10 Nov 2026
+- Konfigurasi Sistem: 16 bagian dikelompokkan jadi 5 menu (Barang · Sewa & pembayaran · Tampilan & dokumen · Komunikasi · Staff) dengan tab. Kunci `settings` dan tautan `?s=<bagian>` tidak berubah.
+- Form & Field Staff versi ringkas: hanya Wajib / Opsional / Sembunyikan untuk isian bawaan; "tambah field" ditiadakan dan `forms.*.custom` disimpan kosong. "Kelengkapan sudah dicek bersama customer" jadi isian tetap (wajib) dan tetap tercatat di `out.extra` seperti sebelumnya, jadi data lama & baru formatnya sama.
+- Penjualan ambil di toko: `diproses → siap_diambil → selesai` (tanpa `dikemas`). Pesanan yang dikirim tetap `diproses → dikemas → siap_diambil → selesai`. Status `dikemas` tetap ada.
+- Logout otomatis staff tidak dipakai (dikonfirmasi tidak diperlukan).
+- Proses refund (admin): bila pilihan metode customer tidak ada di perangkat admin, FE mengambilnya dari `GET api/admin/permintaan` (`data.refunds[]`: `method`, `bank_name`, `account_number`, `account_name`, `booking.booking_code`) lalu mengisi form otomatis. Endpoint ini sudah ada, tidak perlu diubah.
+
+## C.30 Revisi lanjutan (FE saja, endpoint yang sudah ada dipakai) — 10 Nov 2026
+- **Link nota pendek di semua pesan WhatsApp**: FE memakai `POST api/nota-link` → `/n/{token}` (sudah ada). Link pendek disimpan & dipakai ulang selama isi nota sama. Pemendek hanya dimatikan bila endpoint 404/405; gangguan sesaat (offline/timeout/419/5xx) tidak lagi mematikannya untuk seluruh sesi.
+- **Jendela kirim WhatsApp** (laundry, kasir, penjualan, refund): satu tombol "Kirim ke …" (HP: bagikan gambar+pesan; komputer: gambar otomatis tersalin/terunduh lalu WhatsApp terbuka). Judul & tombol selalu terlihat; notifikasi kecil pindah ke bawah saat ada jendela terbuka (sebelumnya menutupi tombol X).
+- **Sematkan di beranda** pindah dari form Data Barang ke Konfigurasi → Tampilan Beranda (maks. 3 = setengah dari 6). Tetap memakai field `featured` produk (backend: `products.is_featured`).
+- **Atur ulang kata sandi staff** pindah ke jendela Edit staff (endpoint `reset-password` tetap sama).
+- **Penjualan ambil di toko**: Cek pembayaran (bukti + nominal + rekening; Tolak / Sesuai) → Siap diambil (+ WhatsApp template `sale_ready`) → Serahkan barang (cocokkan pesanan; opsional WhatsApp `sale_thanks`). Penolakan bukti hanya di FE sampai ada endpoint tolak bukti (lihat C.27).
+- **Data Barang**: hanya tata letak. Isian jarang dipakai dilipat; harga paket 3/5 hari kosong = otomatis (tetap disimpan 0 seperti sebelumnya). Harga beli/modal, harga jual, jendela "Stok awal" (pengeluaran) dan Restock **tidak diubah**.
+- **Tambah atribut**: 3 pertanyaan (nama & pilihan, kategori, stok terpisah?). Atribut baru bertipe `pilihan`; `required` = `variant`. Atribut lama bertipe teks/angka tetap berlaku.
+- **Tombol pengantaran** di daftar booking: satu tombol berlabel sesuai keadaan (Isi ongkir → Atur pengantar → Ubah pengantaran). Detail booking hanya menampilkan informasi layanan; "Ubah/Tambah layanan" ada di menu Lainnya.
+
+## C.31 Data Barang: satu pintu stok & restock lebih ringkas (FE saja) — 10 Nov 2026
+- **Stok di form Edit barang** (barang yang sudah ada) hanya ditampilkan. Stok berubah lewat:
+  - **Restock** → fungsi lama `DB.restock` / `DB.restockRent` (pengeluaran "Pembelian Barang" + unit fisik baru) — **tidak diubah**.
+  - **Koreksi stok** (barang jual / sewa tanpa unit): mengubah stok + catatan histori (alasan), **tanpa** pengeluaran. Barang sewa dengan unit fisik dikoreksi lewat jendela Unit (nonaktifkan / aktifkan unit).
+  - Stok awal barang **baru** tetap lewat form + jendela "Stok awal: barang baru dibeli?" (tidak diubah).
+- **Restock beberapa barang** (satu nota supplier): tiap baris memanggil fungsi restock yang sama → pengeluaran tetap dicatat **per barang** seperti restock satuan. Saat backend membuat endpoint barang/restock, cukup satu endpoint restock per barang.
+- Jendela restock satuan: tanggal/supplier/catatan dilipat; pilihan ukuran jadi tombol berisi stok saat ini.
+- Toolbar: satu menu "Restock ▾" (beberapa barang · satu barang · riwayat).
+- Promo: aturan lain (deskripsi, periode, minimal, kuota, hari kerja, tampil di beranda) dilipat dengan ringkasan; field & sinkron `api/owner/promos` tidak berubah.
+- Laundry (customer): daftar harga per kategori (bawaan kategori pertama), "Semua" tetap ada.
+
+## C.32 Keranjang sewa/beli terpisah, perawatan unit lebih ringan, tampilan HP (FE saja) — 10 Nov 2026
+- **Keranjang & checkout dipisah**: `keranjang?t=sewa|beli`, `checkout?t=sewa|beli`. Checkout sewa hanya mengirim `POST api/booking`, checkout beli hanya `POST api/sale` (endpoint tidak berubah). Setelah checkout, hanya keranjang jenis itu yang dikosongkan.
+- **Perawatan unit** (tabel `product_units` di backend tetap dipakai, tidak ada yang dihapus):
+  - Label status unit: Siap · Disewa · Dicuci · Diperbaiki · Nonaktif.
+  - Wajib cuci bawaan hanya kategori **Tenda**; per barang bisa diatur `products.wash` (true = selalu dicuci, false = tidak, kosong = ikuti kategori). Sleeping Bag = true. **Backend perlu kolom/aturan yang sama** saat menentukan unit masuk antrean cuci.
+  - Perawatan berkala bawaan **nonaktif** (`settings.serviceEvery = 0`); bisa dinyalakan Owner. Migrasi sekali jalan hanya mengganti nilai yang masih sama dengan bawaan lama.
+  - Halaman Perawatan: tombol "Semua selesai dicuci".
+  - Barang keluar: unit berstatus Dicuci boleh dipilih setelah staff mengonfirmasi sudah bersih (unit ditandai selesai dicuci dulu).
+- **Tabel**: bawaan 20 baris per halaman (pilihan 20/30/50).
+- **Data Barang**: tombol Unit di baris hanya muncul bila ada unit yang perlu perawatan; selain itu di menu ⋯.
+- **HP**: daftar produk beranda & "Alat lain" di halaman produk digeser ke samping; Cara Sewa 2 kolom.
+
+## C.33 Atur ulang kata sandi staff dibuat Owner + menu Keuangan dikelompokkan — 10 Nov 2026
+- `POST api/owner/staff/{id}/reset-password` kini menerima `password` + `password_confirmation` (min. 8, huruf & angka, tanpa spasi), `mustChangePw` (bawaan true), `sendEmail` (bawaan false). Bila `password` dikirim: kata sandi itu yang dipakai, respons **tanpa** `temp`, dan email (opsional) **tidak** memuat kata sandi. Bila tidak dikirim: perilaku lama (kata sandi sementara acak + email) tetap. Rate limit & pengakhiran sesi tetap.
+- `StaffPasswordReset` mail: konstruktor `($staff, $owner, ?string $temporaryPassword = null, bool $mustChange = true)`; view menampilkan "Diberikan langsung oleh Owner" bila tanpa kata sandi.
+- File backend yang berubah di bagian ini: `StaffController.php` (resetPassword), `app/Mail/StaffPasswordReset.php`, `resources/views/emails/staff-password-reset.blade.php`.
+- Menu samping Owner: "Catatan keuangan" & "Laporan" dalam satu grup "Keuangan" (halaman & URL tidak berubah).
+- Setelah Owner membuat kata sandi staff (tambah staff / buat kata sandi baru), FE membuka WhatsApp ke nomor HP staff dengan template `staff_pw` (email, kata sandi, link masuk). Ini dari perangkat Owner; backend tidak mengirim apa pun dan tetap tidak menyimpan / mengembalikan kata sandi.
+
+## C.34 Ganti kata sandi staff: pengingat, bukan paksaan (FE saja) — 10 Nov 2026
+- Staff dengan `must_change_password = true` tidak lagi dikunci jendela wajib ganti (dulu tombolnya "Keluar" → logout). Sekarang muncul **pengingat** di atas halaman panel: "Ganti sekarang" (form ganti kata sandi, bisa ditutup) atau "Nanti saja" (disembunyikan sampai login berikutnya). Panel tetap bisa dipakai.
+- Middleware `password.changed` tidak perlu diubah: middleware itu hanya menolak permintaan JSON ke grup `/admin` & `/owner` (halaman tetap terbuka) dan tidak dipasang di grup `api/admin` / `api/owner`. **Jangan** dipasang ke grup API, karena staff yang belum mengganti kata sandi akan terkunci.
+- Centang Owner berganti nama jadi "Ingatkan staff untuk mengganti kata sandi ini" (field tetap `mustChangePw` → `must_change_password`). Setelah kata sandi diganti di `api/akun/ganti-sandi`, flag kembali false seperti biasa.
+
+## C.35 Sambungan tambahan ke endpoint yang sudah ada — 10 Nov 2026
+- **Restock** (satu barang & beberapa barang) kini memanggil `POST api/admin/products/{id}/restock` `{qty, unit_cost, kind: rent|sale, size, supplier, restock_date, note}` — satu panggilan per barang. Server mencatat stok/unit, pengeluaran "Pembelian Barang", dan riwayat restock. 404 (barang hanya ada di perangkat) diabaikan.
+- **Konfigurasi**: semua bagian yang memakai `cfgSave` (Asisten AI, Perawatan & Stok, Form & Field, Tampilan Beranda, dll.) kini mengirim setiap key yang berubah ke `POST api/owner/konfigurasi {key, value, action, changes}`. Catatan: validasi `value => required` menolak array kosong (mis. `washCats: []`); pertimbangkan `present` agar nilai kosong bisa disimpan.
+
+## Ringkasan yang BELUM tersambung karena endpoint belum ada (untuk backend)
+1. Data Barang: tambah/edit barang, koreksi stok, sematkan di beranda (`is_featured`), aturan cuci per barang (`wash`), status unit/perawatan (cuci/perbaikan/aktifkan).
+2. Tolak bukti pembayaran (booking & penjualan).
+3. Customer mengajukan perpanjangan / ganti barang.
+4. Login kode verifikasi (OTP) & buat kata sandi untuk akun dari checkout tanpa login.
+5. Format unit fisik saat barang keluar; diskon manual kasir; pembayaran DP kasir "diambil nanti".
+6. Google Drive & rekap otomatis; chatbot AI (`api/chat`, `api/ai/rencana`).

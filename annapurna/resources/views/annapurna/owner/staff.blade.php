@@ -5,7 +5,7 @@
 @section('owner_only', '1')
 
 @section('content')
-  <p class="page-sub">Tambah staff, atur role, dan aktifkan / nonaktifkan akses panel. Akun staff tidak dihapus agar histori aktivitasnya tetap bisa ditelusuri. Setiap staff baru menerima email berisi informasi akun dan diminta mengganti kata sandi saat pertama login.</p>
+  <p class="page-sub">Tambah akun Admin / Staff dan aktifkan / nonaktifkan akses panel. Kata sandi awal dibuat sendiri oleh Owner saat menambahkan staff. Akun staff tidak dihapus agar histori aktivitasnya tetap bisa ditelusuri.</p>
   <div class="stat-grid" id="stats"></div>
   <div class="filters">
     <div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input class="input" id="q" placeholder="Cari nama atau email…"></div>

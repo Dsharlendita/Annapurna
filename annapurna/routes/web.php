@@ -3,6 +3,7 @@
 use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
+use App\Http\Controllers\Annapurna\BookingCancelController;
 use App\Http\Controllers\Annapurna\BookingServiceController;
 use App\Http\Controllers\Annapurna\ChatMissController;
 use App\Http\Controllers\Annapurna\ConfigController;
@@ -112,6 +113,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/akun/profil', [AdminController::class, 'updateProfile'])->name('api.akun.profil');
     Route::post('/api/akun/ganti-sandi', [StaffController::class, 'changePassword'])->name('api.akun.ganti-sandi');
     Route::post('/akun/kata-sandi', [StaffController::class, 'changePassword'])->name('akun.kata-sandi');
+    // Customer membatalkan booking sendiri (+ metode pengembalian DP transfer/tunai bila ≥ H-2)
+    Route::post('/api/booking/{id}/batal', [BookingCancelController::class, 'customer'])->name('api.booking.cancel');
 });
 
 // API Admin (Pengaturan Toko, Keuangan, & Restock)
@@ -169,7 +172,11 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
         Route::post('/permintaan/change/{id}/action', 'actionChange')->name('permintaan.change.action');
         Route::post('/permintaan/extend/{id}/action', 'actionExtend')->name('permintaan.extend.action');
         Route::post('/permintaan/refund/{bookingId}', 'actionRefund')->name('permintaan.refund.action');
+        Route::post('/permintaan/refund/{bookingId}/notified', 'notifyRefund')->name('permintaan.refund.notified');
     });
+
+    // Pembatalan booking oleh admin (perlakuan DP + metode pengembalian)
+    Route::post('/booking/{id}/batal', [BookingCancelController::class, 'admin'])->name('booking.cancel');
 
     // Pengiriman Penjualan Belanja & Pelunasan Kasir
     Route::post('/sales/{id}/delivery', [ApiController::class, 'saveSaleDelivery'])->name('sales.delivery');

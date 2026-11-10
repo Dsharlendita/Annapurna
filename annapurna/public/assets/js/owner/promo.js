@@ -23,15 +23,20 @@
     const isNew = !p; p = p ? Object.assign({}, p) : { id: '', code: '', name: '', desc: '', type: 'persen', value: 10, applies: 'rent', minTotal: 0, start: T, end: D.addDays(T, 30), weekday: false, quota: 0, used: 0, active: true, home: true };
     const m = modal({ title: isNew ? 'Buat promo' : `Edit promo ${esc(p.code)}`, size: 'lg', body: `<form id="pf" novalidate>
       <div class="grid-2"><div class="field"><label>Kode promo</label><input class="input" name="code" value="${esc(p.code)}" placeholder="HEMAT20" style="text-transform:uppercase" ${isNew ? '' : 'readonly'}></div><div class="field"><label>Nama promo</label><input class="input" name="pname" value="${esc(p.name)}" placeholder="Hemat Akhir Bulan"></div></div>
-      <div class="field"><label>Deskripsi (tampil ke customer)</label><input class="input" name="desc" value="${esc(p.desc || '')}"></div>
       <div class="grid-3"><div class="field"><label>Jenis potongan</label><select class="select" name="type"><option value="persen" ${p.type === 'persen' ? 'selected' : ''}>Persentase (%)</option><option value="nominal" ${p.type === 'nominal' ? 'selected' : ''}>Nominal (Rp)</option></select></div>
         <div class="field"><label>Besar potongan</label><input class="input" type="number" min="1" name="value" value="${p.value}"></div>
         <div class="field"><label>Berlaku untuk</label><select class="select" name="applies">${Object.entries(AP).map(([k, l]) => `<option value="${k}" ${p.applies === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      <details class="more-box" ${isNew ? '' : 'open'}><summary><i class="fa-solid fa-plus"></i> Aturan lain <span class="opt" id="prSum"></span></summary><div class="more-in">
+      <div class="field"><label>Deskripsi (tampil ke customer)</label><input class="input" name="desc" value="${esc(p.desc || '')}"></div>
       <div class="grid-4"><div class="field"><label>Mulai</label><input class="input" type="date" name="start" value="${p.start}"></div><div class="field"><label>Berakhir</label><input class="input" type="date" name="end" value="${p.end}"></div>
         <div class="field"><label>Minimal transaksi (Rp)</label><input class="input" type="number" min="0" step="10000" name="minTotal" value="${p.minTotal || 0}"></div><div class="field"><label>Kuota pemakaian</label><input class="input" type="number" min="0" name="quota" value="${p.quota || 0}"><span class="hint">0 = tanpa batas</span></div></div>
       <label class="chk-line"><input type="checkbox" name="weekday" ${p.weekday ? 'checked' : ''}> Hanya untuk tanggal ambil Senin–Kamis (sewa hari kerja)</label>
-      <label class="chk-line"><input type="checkbox" name="home" ${p.home ? 'checked' : ''}> Tampilkan di beranda website</label></form>`,
+      <label class="chk-line"><input type="checkbox" name="home" ${p.home ? 'checked' : ''}> Tampilkan di beranda website</label>
+      </div></details></form>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="pSave">Simpan promo</button>' });
+    /* Ringkasan aturan lain (periode, minimal, kuota) supaya tidak perlu dibuka bila bawaan sudah cocok */
+    const prSum = () => { const E0 = m.$('#pf').elements; m.$('#prSum').textContent = `(${E0.start.value ? D.fmtDate(E0.start.value) : '?'} – ${E0.end.value ? D.fmtDate(E0.end.value) : '?'} · ${+E0.minTotal.value ? 'min. ' + rupiah(+E0.minTotal.value) : 'tanpa minimal'} · ${+E0.quota.value ? 'kuota ' + E0.quota.value : 'kuota tak terbatas'}${E0.home.checked ? ' · tampil di beranda' : ''})`; };
+    m.$('#pf').addEventListener('input', prSum); m.$('#pf').addEventListener('change', prSum); prSum();
     m.$('#pSave').addEventListener('click', () => {
       const F = m.$('#pf'), E = F.elements; const code = E.code.value.trim().toUpperCase().replace(/\s+/g, '');
       if (!validate(F, { code: () => (!/^[A-Z0-9]{4,16}$/.test(code) ? '4–16 huruf/angka tanpa spasi.' : isNew && DB.promos().some((x) => x.code === code) ? 'Kode sudah dipakai.' : ''), pname: (v) => (v.length < 3 ? 'Isi nama promo.' : ''),

@@ -1,9 +1,12 @@
 (function () {
   const { DB, Rules, D, rupiah, Svc } = Ann; const { $, $$, esc, asset, Cart, toast, validate, isPhone, isEmail } = UI;
   let user = DB.session();
-  const cart = Cart.all();
+  /* Checkout dipisah: ?t=sewa hanya barang sewa, ?t=beli hanya barang beli. Barang jenis lain tetap di keranjang. */
+  const all0 = Cart.all();
+  const CT = UI.param('t') === 'beli' ? 'buy' : UI.param('t') === 'sewa' ? 'rent' : (all0.some((c) => c.type === 'rent') ? 'rent' : 'buy');
+  const cart = all0.filter((c) => c.type === CT);
   const root = $('#root');
-  if (!cart.length) { location.replace('keranjang'); return; }
+  if (!cart.length) { location.replace('keranjang' + (all0.length ? '?t=' + (CT === 'rent' ? 'beli' : 'sewa') : '')); return; }
   const st = DB.settings();
   const rent = cart.filter((c) => c.type === 'rent'), buy = cart.filter((c) => c.type === 'buy');
   const rentTotal = rent.reduce((s, i) => s + Cart.lineTotal(i), 0);
@@ -76,13 +79,6 @@
         <div class="field" style="margin-top:14px"><label for="notes">Catatan untuk admin <span class="muted">(opsional)</span></label><input class="input" id="notes" name="notes" placeholder="Contoh: ambil sore sekitar jam 4"></div>
       </div>
 
-      <div class="card">
-        <div class="card-title"><i class="fa-regular fa-credit-card"></i> Metode pembayaran</div>
-        <div class="radio-cards">
-          ${st.banks.map((b, i) => `<label class="radio-card"><input type="radio" name="method" value="Transfer ${esc(b.bank)}" ${i === 0 ? 'checked' : ''}><span class="rc-ic"><i class="fa-solid fa-building-columns"></i></span><span><strong>Transfer ${esc(b.bank)}</strong><small>a.n. ${esc(b.holder)}</small></span></label>`).join('')}
-          <label class="radio-card"><input type="radio" name="method" value="QRIS"><span class="rc-ic"><i class="fa-solid fa-qrcode"></i></span><span><strong>QRIS</strong><small>GoPay, OVO, DANA, ShopeePay, m-banking</small></span></label>
-        </div>
-      </div>
 
       ${rent.length ? `<div class="notice" style="margin-top:18px"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Kebijakan pembatalan sewa</strong><ul>${st.cancelPolicy.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
         <p style="margin-top:6px">Tanggal ambil paling awal: <strong>${D.fmtDate(earliest, true)}</strong>. Batas pembatalan dengan DP kembali: <strong>${D.fmtDate(D.addDays(earliest, -st.cancelDays), true)}</strong>.</p></div></div>
@@ -91,13 +87,13 @@
 
     <aside class="card sticky-side">
       <div class="card-title">Pesananmu</div>
-      ${rent.length ? `<small class="muted" style="font-weight:700">SEWA</small>${rent.map((it) => { const r = Cart.resolve(it); return `<div class="mini-line"><img loading="lazy" decoding="async" src="${asset(r.img)}" alt=""><div class="nm">${it.qty}× ${esc(r.name)}<small>${D.fmtRange(it.start, it.end)} · ${esc(Rules.tierLabel(r.tiers, Rules.rentalDays(it.start, it.end)))}</small></div><span>${rupiah(Cart.lineTotal(it))}</span></div>`; }).join('')}` : ''}
+      ${rent.length ? `<small class="muted" style="font-weight:700">SEWA</small>${rent.map((it) => { const r = Cart.resolve(it); return `<div class="mini-line"><img loading="lazy" decoding="async" src="${asset(r.img)}" alt=""><div class="nm">${it.qty}× ${esc(r.name)}<small>${D.fmtRange(it.start, it.end)} · ${esc(Rules.tierLabel(r.tiers, Rules.rentalDays(it.start, it.end)))}</small>${Rules.tierBreak(r.tiers, Rules.rentalDays(it.start, it.end)) ? `<small class="dur-break">${esc(Rules.tierBreak(r.tiers, Rules.rentalDays(it.start, it.end)))} / unit</small>` : ''}</div><span>${rupiah(Cart.lineTotal(it))}</span></div>`; }).join('')}` : ''}
       ${buy.length ? `<small class="muted" style="font-weight:700;display:block;margin-top:10px">BELI</small>${buy.map((it) => { const r = Cart.resolve(it); return `<div class="mini-line"><img loading="lazy" decoding="async" src="${asset(r.img)}" alt=""><div class="nm">${it.qty}× ${esc(r.name)}</div><span>${rupiah(Cart.lineTotal(it))}</span></div>`; }).join('')}` : ''}
       <div class="promo-box"><label for="promoIn"><i class="fa-solid fa-ticket"></i> Kode promo</label><div class="promo-row"><input class="input" id="promoIn" placeholder="Contoh: WEEKDAY15" autocomplete="off"><button type="button" class="btn btn-light btn-sm" id="promoBtn">Pakai</button></div><div id="promoMsg"></div></div>
       <div style="margin-top:10px" id="coSum"></div>
       ${blocked ? `<div class="notice red" style="margin-top:12px"><i class="fa-solid fa-user-lock"></i><div>Akunmu sedang tidak bisa membuat pesanan baru. Silakan hubungi admin Annapurna via WhatsApp.</div></div>` : ''}
       <button class="btn btn-primary btn-block" ${blocked ? 'disabled' : ''} type="submit" style="margin-top:14px">Buat pesanan &amp; bayar <i class="fa-solid fa-arrow-right"></i></button>
-      <a class="btn btn-ghost btn-block btn-sm" href="keranjang" style="margin-top:6px"><i class="fa-solid fa-arrow-left"></i> Ubah keranjang</a>
+      <a class="btn btn-ghost btn-block btn-sm" href="keranjang?t=${CT === 'rent' ? 'sewa' : 'beli'}" style="margin-top:6px"><i class="fa-solid fa-arrow-left"></i> Ubah keranjang</a>
     </aside>
     <div class="sticky-buy co-sticky"><div><small>Dibayar sekarang</small><b id="coStickyAmt">-</b></div><button class="btn btn-primary" type="submit" ${blocked ? 'disabled' : ''}>Buat pesanan <i class="fa-solid fa-arrow-right"></i></button></div>
   </form>`;
@@ -159,7 +155,7 @@
     e.preventDefault();
     if (!UI.idRead(form, 'ckId').ok) return;
     /* Paket berisi barang berukuran wajib sudah dipilih ukurannya */
-    const noSz = Cart.all().filter((it) => it.type === 'rent' && it.kind === 'package' && ((Cart.resolve(it) || {}).missingSizes || []).length);
+    const noSz = cart.filter((it) => it.type === 'rent' && it.kind === 'package' && ((Cart.resolve(it) || {}).missingSizes || []).length);
     if (noSz.length) { toast('Pilih dulu ukuran barang di paket (mis. sepatu / jaket) di keranjang.', 'err'); setTimeout(() => (location.href = UI.url('keranjang')), 900); return; }
     const ok = validate(form, {
       name: (v) => (v.length < 3 ? 'Isi nama lengkap.' : ''),
@@ -238,7 +234,7 @@
 
     const submitBtn = form.querySelector('[type=submit]');
     const customer = { name: form.elements.name.value.trim(), phone: form.phone.value.trim(), email: user.email };
-    const common = { customer, userEmail: user.email, method: form.elements.method.value, delivery: 'ambil', notes: form.notes.value.trim(), idType: UI.idRead(form, 'ckId', true).value, createdAt: D.nowStamp() };
+    const common = { customer, userEmail: user.email, method: 'Transfer / QRIS', /* rekening tujuan dipilih di halaman pembayaran */ delivery: 'ambil', notes: form.notes.value.trim(), idType: UI.idRead(form, 'ckId', true).value, createdAt: D.nowStamp() };
     /* Layanan antar / bongkar pasang menempel ke booking sewa. Bila checkout memecah beberapa booking (durasi berbeda),
        layanan dipasang ke booking yang tanggal ambilnya paling awal (dan jumlah tendanya mengikuti isi booking itu). */
     let svcPlaced = false;
@@ -310,6 +306,7 @@
         const svRes = await Api.try('POST', 'api/booking', apiPayload, () => ({ ok: true, data: { booking: { booking_code: b.id, nota_no: b.id } } }));
         if (svRes && svRes.ok && svRes.data && svRes.data.booking) {
           b.id = svRes.data.booking.booking_code || b.id;
+          if (svRes.data.booking.id) b.serverId = svRes.data.booking.id; /* ID angka di server: dipakai endpoint pickup / return */
           b.booking_code = svRes.data.booking.booking_code;
           b.nota_no = svRes.data.booking.nota_no;
           b.notaNo = svRes.data.booking.nota_no;
@@ -342,6 +339,7 @@
         const svSale = await Api.try('POST', 'api/sale', salePayload, () => ({ ok: true, data: { sale: { sale_code: o.id, nota_no: o.id } } }));
         if (svSale && svSale.ok && svSale.data && svSale.data.sale) {
           o.id = svSale.data.sale.sale_code || o.id;
+          if (svSale.data.sale.id) o.serverId = svSale.data.sale.id;
           o.sale_code = svSale.data.sale.sale_code;
           o.nota_no = svSale.data.sale.nota_no;
           o.notaNo = svSale.data.sale.nota_no;
@@ -352,7 +350,7 @@
       }
 
       if (usePr) DB.usePromo(usePr.promo.code);
-      Cart.clear();
+      Cart.clear(CT); /* hanya keranjang yang di-checkout; keranjang jenis lain tetap */
       /* Pesanan sudah tercatat dengan tanggalnya sendiri: tanggal sewa di navbar dikosongkan untuk pesanan berikutnya */
       if (rent.length) { DB.setTrip(null); try { sessionStorage.setItem('annapurna:tripReset', '1'); } catch (e) { /* abaikan */ } }
       location.href = 'pembayaran?ids=' + ids.join(',');

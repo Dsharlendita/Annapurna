@@ -1,4 +1,23 @@
 (function () {
+  /* Satu status yang menjawab "saya harus apa sekarang?" (status booking + pembayaran digabung untuk customer) */
+  const one = (tone, label) => `<span class="pill ${tone}">${label}</span>`;
+  function custPill(b) {
+    const T0 = D.today(); const left = Math.max(0, (b.total || 0) - Rules.paidTotal(b));
+    switch (b.status) {
+      case 'menunggu_pembayaran': return one('amber', b.paymentStatus === 'dp_verifying' ? 'Menunggu dicek admin' : 'Menunggu pembayaran');
+      case 'menunggu_konfirmasi': return one('blue', 'Menunggu dicek admin');
+      case 'dikonfirmasi': return one('green', b.start <= T0 ? 'Siap diambil hari ini' : 'Siap diambil');
+      case 'disewa': return b.end < T0 ? one('red', 'Terlambat dikembalikan') : one('teal', b.end === T0 ? 'Kembalikan hari ini' : 'Sedang disewa');
+      case 'selesai': return left ? one('amber', `Selesai · sisa ${rupiah(left)}`) : one('gray', 'Selesai');
+      case 'dibatalkan': return one('red', b.paymentStatus === 'refund_pending' ? 'Dibatalkan · refund diproses' : b.paymentStatus === 'refunded' ? 'Dibatalkan · DP dikembalikan' : 'Dibatalkan');
+      default: return pill('rental', b.status);
+    }
+  }
+  function custSalePill(s) {
+    if (s.status === 'menunggu_pembayaran') return one('amber', s.paymentStatus === 'verifying' ? 'Menunggu dicek admin' : 'Menunggu pembayaran');
+    if (s.status === 'diproses' && s.paymentStatus === 'verifying') return one('blue', 'Menunggu dicek admin');
+    return pill('sale', s.status);
+  }
   const { DB, Rules, D, rupiah, Svc } = Ann; const { $, $$, esc, asset, param, toast, modal, confirmBox, pill, Cart, stars, reviewModal } = UI;
   const user = Site.requireLogin(); if (!user) return;
   const st = DB.settings();
@@ -34,7 +53,7 @@
     if (b.status === 'selesai') { acts.push(revBtn(b)); acts.push(`<button class="btn btn-primary btn-sm" data-act="again" data-id="${b.id}"><i class="fa-solid fa-rotate-right"></i> Sewa lagi</button>`); }
     const late = b.status === 'disewa' && D.today() > b.end;
     return `<article class="order-card">
-      <div class="oh"><div><strong>${NO(b)}</strong><small>Dibuat ${D.fmtDateTime(b.createdAt)}</small>${b.group ? (() => { const mates = DB.bookings().filter((x) => x.group === b.group && x.id !== b.id); return mates.length ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan · ${mates.map((x) => `${NO(x)} kembali ${D.fmtDate(x.end)}`).join(', ')}</small>` : ''; })() : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div></div>
+      <div class="oh"><div><strong>${NO(b)}</strong><small>Dibuat ${D.fmtDateTime(b.createdAt)}</small>${b.group ? (() => { const mates = DB.bookings().filter((x) => x.group === b.group && x.id !== b.id); return mates.length ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan · ${mates.map((x) => `${NO(x)} kembali ${D.fmtDate(x.end)}`).join(', ')}</small>` : ''; })() : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${custPill(b)}</div></div>
       ${UI.orderTracker(b)}
       <div class="ob">
         <div>
@@ -45,7 +64,7 @@
           ${lines(b.items)}
           ${pendingChange ? `<div class="notice" style="margin-top:10px"><i class="fa-solid fa-arrows-rotate"></i><div>Permintaan ganti <strong>${esc(pendingChange.fromName)}</strong> → <strong>${esc(pendingChange.toName)}</strong> sedang ditinjau admin.</div></div>` : ''}
           ${late ? `<div class="notice red" style="margin-top:10px"><i class="fa-solid fa-clock"></i><div>Sudah lewat tanggal kembali ${D.diffDays(b.end, D.today())} hari. Segera kembalikan untuk menghindari denda bertambah.</div></div>` : ''}
-          ${b.status === 'dibatalkan' && b.cancel && !b.cancel.auto ? `<div class="notice ${b.cancel.refundable ? 'green' : 'red'}" style="margin-top:10px"><i class="fa-solid fa-circle-info"></i><div>${b.cancel.refundable ? (b.cancel.refundStatus === 'selesai' ? `DP ${rupiah(b.dp)} sudah dikembalikan.` : b.cancel.refundStatus === 'menunggu' ? `Pengembalian DP ${rupiah(b.dp)} sedang diproses admin.` : 'Booking dibatalkan sebelum pembayaran.') : 'Dibatalkan kurang dari H-2, DP tidak dikembalikan.'}</div></div>` : ''}
+          ${b.status === 'dibatalkan' && b.cancel && !b.cancel.auto ? cancelNotice(b) : ''}
         </div>
         ${sumBox(b, paid)}
       </div>
@@ -103,7 +122,7 @@
     if (s.status === 'siap_diambil') acts.push(`<button class="btn btn-primary btn-sm" data-act="received" data-id="${s.id}"><i class="fa-solid fa-check"></i> ${Svc.isSaleDeliv(s) ? 'Pesanan sudah saya terima' : 'Sudah saya ambil'}</button>`);
     if (s.status === 'selesai') { acts.push(revBtn(s)); acts.push(`<button class="btn btn-outline btn-sm" data-act="buyagain" data-id="${s.id}">Beli lagi</button>`); }
     return `<article class="order-card">
-      <div class="oh"><div><strong>${NO(s)}</strong><small>Dibuat ${D.fmtDateTime(s.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${Svc.isSaleDeliv(s) ? '<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Dikirim</span>' : ''}${Svc.isSaleDeliv(s) && s.status === 'siap_diambil' ? (Svc.shipStatus(s) === 'dikirim' ? '<span class="pill blue">Dalam Pengiriman</span>' : Svc.shipStatus(s) === 'tiba' ? '<span class="pill green">Sudah Tiba</span>' : '<span class="pill green">Siap Dikirim</span>') : pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div></div>
+      <div class="oh"><div><strong>${NO(s)}</strong><small>Dibuat ${D.fmtDateTime(s.createdAt)}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap">${Svc.isSaleDeliv(s) ? '<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Dikirim</span>' : ''}${Svc.isSaleDeliv(s) && s.status === 'siap_diambil' ? (Svc.shipStatus(s) === 'dikirim' ? '<span class="pill blue">Dalam Pengiriman</span>' : Svc.shipStatus(s) === 'tiba' ? '<span class="pill green">Sudah Tiba</span>' : '<span class="pill green">Siap Dikirim</span>') : custSalePill(s)}</div></div>
       ${UI.orderTracker(s)}
       <div class="ob"><div><div style="font-size:13.5px;margin-bottom:8px">${Svc.isSaleDeliv(s) ? '<i class="fa-solid fa-truck-fast" style="color:var(--g600)"></i> ' + (s.status === 'siap_diambil' ? (Svc.shipStatus(s) === 'dikirim' ? '<strong style="color:var(--g700)">Sedang dikirim</strong>' : '<strong style="color:var(--g700)">Siap dikirim</strong> — admin akan menghubungimu') : 'Dikirim ke alamat') : `<i class="fa-solid fa-store" style="color:var(--g600)"></i> ${s.status === 'siap_diambil' ? '<strong style="color:var(--g700)">Siap diambil di toko</strong> — bawa nota digital' : 'Ambil di toko'}`}</div>${lines(s.items)}</div>
       <div class="sum"><small>Total belanja</small><strong>${rupiah(s.total)}</strong>${s.status !== 'dibatalkan' ? `<small>Sudah dibayar ${rupiah(Rules.paidTotal ? (s.payments || []).reduce((a, p) => a + (+p.amount || 0), 0) : 0)}</small>` : ''}${UI.pendingPay(s) ? `<small class="pay-wait-s"><i class="fa-regular fa-clock"></i> ${rupiah(UI.pendingPay(s))} menunggu verifikasi</small>` : ''}</div></div>
@@ -130,7 +149,7 @@
 
   function detail(b) {
     modal({ title: `Detail ${NO(b)}`, size: 'lg', body: `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${pill('rental', b.status)}${pill('payment', b.paymentStatus)}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${custPill(b)}</div>
       <div class="grid-2" style="gap:20px">
         <div>
           <h4 style="margin-bottom:8px">Barang</h4>${lines(b.items)}
@@ -154,11 +173,30 @@
       </div>`, foot: `<button class="btn btn-light" data-close>Tutup</button>${['dikonfirmasi', 'disewa', 'selesai'].includes(b.status) ? `<a class="btn btn-primary" href="invoice?id=${b.id}">Lihat bukti booking</a>` : ''}` });
   }
   function sdetail(s) {
-    modal({ title: `Detail ${NO(s)}`, body: `<div style="display:flex;gap:6px;margin-bottom:12px">${pill('sale', s.status)}${pill('payment', s.paymentStatus)}</div>${lines(s.items)}
+    modal({ title: `Detail ${NO(s)}`, body: `<div style="display:flex;gap:6px;margin-bottom:12px">${custSalePill(s)}</div>${lines(s.items)}
       <div class="kv"><span>Pengambilan</span><span>${Svc.isSaleDeliv(s) ? `<span class="svc-tag antar"><i class="fa-solid fa-truck-fast"></i> Diantar</span> ${esc((s.deliv || {}).address || '')}` : 'Ambil di toko'}</span></div>
       <div class="kv"><span>Subtotal</span><span>${rupiah(s.subtotal)}</span></div>
       <div class="kv total"><span>Total</span><span>${rupiah(s.total)}</span></div>
       <h4 style="margin:14px 0 10px">Riwayat status</h4><ul class="timeline">${[...s.history].reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul>`, foot: `<button class="btn btn-light" data-close>Tutup</button>` });
+  }
+
+  /* Info pembatalan & pengembalian DP di kartu pesanan (metode transfer / tunai + bukti dari admin) */
+  function cancelNotice(b) {
+    const c = b.cancel; const rf = c.refund || null; const last = (b.refunds || []).slice(-1)[0];
+    const amt = last ? last.amount : (Rules.refundAmount ? Rules.refundAmount(b) : b.dp);
+    if (!c.refundable) return `<div class="notice red" style="margin-top:10px"><i class="fa-solid fa-circle-info"></i><div>Dibatalkan kurang dari H-${st.cancelDays}, DP tidak dikembalikan.</div></div>`;
+    let t;
+    if (c.refundStatus === 'selesai') {
+      const how = UI.refundText((last && last.method) ? last : rf, true);
+      t = `DP ${rupiah(amt)} sudah dikembalikan${how ? ` (${esc(how)})` : ''}${last && last.at ? ` pada ${D.fmtDateTime(last.at)}` : ''}.${last && last.proof ? ` <button type="button" class="link-btn" data-act="rfproof" data-id="${b.id}"><i class="fa-regular fa-image"></i> Lihat bukti</button>` : ''}`;
+    } else if (c.refundStatus === 'menunggu') {
+      t = rf && rf.method === 'tunai'
+        ? `DP ${rupiah(amt)} bisa diambil <b>tunai di toko</b>${st.address ? ` (${esc(st.address)}${st.hours ? `, ${esc(st.hours)}` : ''})` : ''}. Tunjukkan nomor booking <b>${esc(NO(b))}</b> & identitas saat mengambil.`
+        : rf && rf.method === 'transfer'
+          ? `Pengembalian DP ${rupiah(amt)} sedang diproses admin dan akan ditransfer ke <b>${esc(rf.bank)} ${esc(rf.account)}</b> a.n. ${esc(rf.holder)}. Bukti transfer dikirim lewat WhatsApp.`
+          : `Pengembalian DP ${rupiah(amt)} sedang diproses admin.`;
+    } else t = 'Booking dibatalkan sebelum pembayaran.';
+    return `<div class="notice green" style="margin-top:10px"><i class="fa-solid fa-circle-info"></i><div>${t}</div></div>`;
   }
 
   async function cancel(b) {
@@ -167,30 +205,61 @@
     const msg = !hasDp ? 'Booking ini belum dibayar, jadi bisa langsung dibatalkan tanpa biaya.'
       : refundable ? `Kamu membatalkan paling lambat H-${st.cancelDays}. DP <strong>${rupiah(b.dp)}</strong> akan dikembalikan penuh oleh admin.`
       : `Tanggal ambil tinggal ${Math.max(0, D.diffDays(D.today(), b.start))} hari lagi (kurang dari H-${st.cancelDays}). <strong>DP ${rupiah(b.dp)} tidak dapat dikembalikan.</strong>`;
+    /* DP dikembalikan → customer wajib memilih metode pengembalian (transfer ke rekening / tunai di toko) */
+    if (hasDp && refundable) {
+      const m = modal({ title: `Batalkan ${NO(b)}?`, body: `<p style="color:var(--ink-2)">${msg}</p>
+        <div class="field cx-reason" style="margin:14px 0 0"><label>Alasan pembatalan <span class="req" style="color:var(--red)">*</span></label><textarea class="textarea" id="cxReason" placeholder="Contoh: jadwal pendakian diundur"></textarea><span class="error hidden" id="cxReasonErr">Tulis alasan pembatalan.</span></div>
+        ${UI.refundFields({ holder: b.customer.name || '' })}`,
+        foot: '<button class="btn btn-light" data-close>Kembali</button><button class="btn btn-danger" id="cxOk">Batalkan booking</button>' });
+      UI.refundBind(m.el);
+      m.$('#cxReason').addEventListener('input', () => { m.$('#cxReason').classList.remove('err'); m.$('#cxReasonErr').classList.add('hidden'); });
+      m.$('#cxOk').addEventListener('click', async () => {
+        const reason = m.$('#cxReason').value.trim();
+        if (!reason) { m.$('#cxReason').classList.add('err'); m.$('#cxReasonErr').classList.remove('hidden'); m.$('#cxReason').focus(); return; }
+        const rf = UI.refundRead(m.el); if (!rf.ok) return;
+        const btn = m.$('#cxOk'); btn.disabled = true;
+        await doCancel(b, reason, { hasDp, refundable, refund: rf.data });
+        m.close();
+      });
+      return;
+    }
     const reason = await confirmBox({ title: `Batalkan ${NO(b)}?`, text: msg, ok: 'Batalkan booking', cancel: 'Kembali', danger: true, input: { label: 'Alasan pembatalan', placeholder: 'Contoh: jadwal pendakian diundur', required: true, error: 'Tulis alasan pembatalan.' } });
     if (!reason) return;
+    await doCancel(b, reason, { hasDp, refundable, refund: null });
+  }
+  /* Simpan pembatalan di perangkat + kirim ke server (POST api/booking/{kode}/batal).
+     Selama route server belum ada (404/405), Api.try tetap memakai data lokal. */
+  async function doCancel(b, reason, { hasDp, refundable, refund }) {
     b.status = 'dibatalkan';
-    b.cancel = { at: D.nowStamp(), reason, refundable: hasDp ? refundable : true, refundStatus: hasDp ? (refundable ? 'menunggu' : 'hangus') : 'tidak_perlu' };
+    b.cancel = { at: D.nowStamp(), reason, refundable: hasDp ? refundable : true, refundStatus: hasDp ? (refundable ? 'menunggu' : 'hangus') : 'tidak_perlu', ...(refund ? { refund } : {}) };
     if (hasDp) b.paymentStatus = refundable ? 'refund_pending' : 'forfeited';
-    b.history.push({ at: D.nowStamp(), text: `Customer membatalkan booking (${reason})` });
+    b.history.push({ at: D.nowStamp(), text: `Customer membatalkan booking (${reason})${refund ? ` · pengembalian DP: ${UI.refundText(refund, true)}` : ''}` });
     DB.saveBooking(b);
-    DB.notifyStaff('Pembatalan booking', `${b.customer.name} membatalkan ${NO(b)}.${hasDp && refundable ? ' DP perlu dikembalikan.' : ''}`, 'admin/permintaan');
-    toast(hasDp && refundable ? 'Booking dibatalkan. Pengembalian DP sedang diproses.' : 'Booking dibatalkan.');
+    if (window.Api) {
+      const r = await Api.try('POST', `api/booking/${encodeURIComponent(b.id)}/batal`, Object.assign({ reason }, UI.refundPayload(refund)), () => ({ ok: true }));
+      /* 403/409/422 = server menolak (bukan milik akun, status tidak bisa dibatalkan, isian salah) → beri tahu customer */
+      if (r && !r.ok && r.source === 'server' && [403, 409, 422].includes(r.status)) toast(r.msg || 'Pembatalan tersimpan, tetapi ditolak server.', 'err');
+    }
+    DB.notifyStaff('Pembatalan booking', `${b.customer.name} membatalkan ${NO(b)}.${hasDp && refundable ? ` DP perlu dikembalikan (${UI.refundText(refund) || 'metode belum dipilih'}).` : ''}`, 'admin/permintaan?tab=cancel');
+    toast(hasDp && refundable ? (refund && refund.method === 'tunai' ? 'Booking dibatalkan. DP bisa diambil tunai di toko.' : 'Booking dibatalkan. Pengembalian DP sedang diproses.') : 'Booking dibatalkan.');
     draw();
   }
 
   function extend(b) {
     const st = DB.settings(); const maxEnd = D.addDays(b.start, st.maxRentDays || 60);
     const m = modal({ title: `Perpanjang sewa · ${NO(b)}`, body: `
-      <p class="muted" style="margin-bottom:14px">Sewa sekarang ${D.fmtRange(b.start, b.end)}. Pilih tanggal kembali baru; admin akan mengecek dan menyetujui.</p>
-      <div class="field"><label>Tanggal kembali baru</label><input class="input" type="date" id="xEnd" min="${D.addDays(b.end, 1)}" max="${maxEnd}" value="${D.addDays(b.end, 1)}"></div>
+      <p class="muted" style="margin-bottom:14px">Sewa sekarang ${D.fmtRange(b.start, b.end)}. Pilih tambahannya; admin akan mengecek dan menyetujui.</p>
+      <div class="field"><label>Tambah berapa malam?</label><div class="x-quick" id="xQuick">${[1, 2, 3].map((n) => `<button type="button" data-n="${n}" class="${n === 1 ? 'on' : ''}">+${n} malam</button>`).join('')}</div></div>
+      <div class="field"><label>Tanggal kembali baru <span class="opt">(atau pilih sendiri)</span></label><input class="input" type="date" id="xEnd" min="${D.addDays(b.end, 1)}" max="${maxEnd}" value="${D.addDays(b.end, 1)}"></div>
       <div id="xInfo"></div>
       <div class="field" style="margin-top:12px"><label>Alasan (opsional)</label><input class="input" id="xWhy" placeholder="Contoh: cuaca buruk, pendakian diundur sehari"></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="xOk">Ajukan perpanjangan</button>' });
     const calc = () => { const r = Rules.extendCheck(b, m.$('#xEnd').value);
       m.$('#xInfo').innerHTML = r.extraDays > 0 ? `<div class="notice ${r.ok ? 'green' : 'red'}"><i class="fa-solid ${r.ok ? 'fa-circle-check' : 'fa-circle-xmark'}"></i><div>${r.ok ? `Tambahan <strong>${r.extraDays} malam</strong>, biaya <strong>${rupiah(r.cost)}</strong> (dibayar saat pengembalian).` : esc(r.msg)}</div></div>` : '';
       m.$('#xOk').disabled = !r.ok; return r; };
-    m.$('#xEnd').addEventListener('change', calc); calc();
+    const syncQ = () => { const n = D.diffDays(b.end, m.$('#xEnd').value); m.$$('#xQuick [data-n]').forEach((x) => x.classList.toggle('on', +x.dataset.n === n)); };
+    m.$('#xQuick').addEventListener('click', (e) => { const q = e.target.closest('[data-n]'); if (!q) return; m.$('#xEnd').value = D.addDays(b.end, +q.dataset.n); syncQ(); calc(); });
+    m.$('#xEnd').addEventListener('change', () => { syncQ(); calc(); }); calc();
     m.$('#xOk').addEventListener('click', () => { const r = calc(); if (!r.ok) return; const to = m.$('#xEnd').value;
       b.extensions = b.extensions || []; b.extensions.push({ id: 'EXT-' + Date.now(), at: D.nowStamp(), from: b.end, to, days: r.extraDays, cost: r.cost, reason: m.$('#xWhy').value.trim(), status: 'menunggu', source: 'customer' });
       b.history.push({ at: D.nowStamp(), text: `Mengajukan perpanjangan sampai ${D.fmtDate(to, true)}` }); DB.saveBooking(b);
@@ -215,6 +284,7 @@
     if (act === 'waadmin') { UI.waContact(`Halo admin, saya mau tanya soal pesanan #${NO(DB.booking(id) || DB.sale(id) || { id })}.`, { focus: id }); return; }
     if (act === 'detail') detail(DB.booking(id));
     if (act === 'cancel') cancel(DB.booking(id));
+    if (act === 'rfproof') { const b = DB.booking(id); const last = (b.refunds || []).slice(-1)[0]; if (last && last.proof) modal({ title: `Bukti pengembalian DP · ${NO(b)}`, body: `<img src="${last.proof}" alt="Bukti pengembalian DP" style="width:100%;border-radius:10px;display:block">`, foot: '<button class="btn btn-light" data-close>Tutup</button>' }); }
     if (act === 'change') change(DB.booking(id));
     if (act === 'extend') extend(DB.booking(id));
     if (act === 'again') {

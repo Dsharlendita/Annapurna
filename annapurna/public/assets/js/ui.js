@@ -986,13 +986,13 @@
     opts = opts || {}; const st = DB.settings(); const rent = !!x.start;
     const SV = Ann.Svc; const dlv = rent && SV.delivers(x); const pick = rent && SV.has(x) && SV.returnMode(x) === 'jemput'; const dd = x.deliv || {};
     const sdl = !rent && SV.isSaleDeliv(x);
-    const steps = rent ? ['Booking dibuat', 'DP diverifikasi', dlv ? 'Siap diantar' : 'Siap diambil', 'Sedang disewa', 'Selesai'] : ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Dikemas', sdl ? 'Dikirim' : 'Siap diambil', 'Selesai'];
+    const steps = rent ? ['Booking dibuat', 'DP diverifikasi', dlv ? 'Siap diantar' : 'Siap diambil', 'Sedang disewa', 'Selesai'] : (sdl ? ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Dikemas', 'Dikirim', 'Selesai'] : ['Pesanan dibuat', 'Pembayaran diverifikasi', 'Disiapkan', 'Siap diambil', 'Selesai']); /* ambil di toko: tanpa langkah Dikemas */
     const idx = rent ? { menunggu_pembayaran: 0, menunggu_konfirmasi: 1, dikonfirmasi: 2, disewa: 3, selesai: 5 }[x.status] : (x.paymentStatus === 'verifying' && ['menunggu_pembayaran', 'diproses'].includes(x.status) ? 1 : { menunggu_pembayaran: 0, diproses: 2, dikemas: 2, siap_diambil: 3, selesai: 5 }[x.status]);
     const late = rent && x.status === 'disewa' && D.today() > x.end;
     const sisa = rent ? Math.max(0, x.total - Rules.paidTotal(x)) : 0;
     const link = (h, t) => (opts.links === false ? '' : ` <a class="link" href="${url(h)}">${t}</a>`);
     let todo = '';
-    if (x.status === 'dibatalkan') todo = x.cancel && x.cancel.auto ? `<i class="fa-solid fa-clock"></i> <b>Pesanan dibatalkan</b> karena melewati batas waktu pembayaran. Silakan buat pesanan baru.` : `<i class="fa-solid fa-ban"></i> Pesanan dibatalkan.${x.cancel && x.cancel.refundable ? ' DP dikembalikan ke rekeningmu.' : ''}`;
+    if (x.status === 'dibatalkan') todo = x.cancel && x.cancel.auto ? `<i class="fa-solid fa-clock"></i> <b>Pesanan dibatalkan</b> karena melewati batas waktu pembayaran. Silakan buat pesanan baru.` : `<i class="fa-solid fa-ban"></i> Pesanan dibatalkan.${x.cancel && x.cancel.refundable ? (x.cancel.refundStatus === 'selesai' ? ' DP sudah dikembalikan.' : x.cancel.refund && x.cancel.refund.method === 'tunai' ? ' DP bisa diambil tunai di toko.' : x.cancel.refund && x.cancel.refund.method === 'transfer' ? ' DP dikembalikan ke rekeningmu.' : ' Pengembalian DP sedang diproses admin.') : ''}`;
     else if (rent) todo = {
       menunggu_pembayaran: `<i class="fa-solid fa-wallet"></i> <b>Yang perlu kamu lakukan:</b> bayar DP ${rupiah(x.dp)} dalam ${cdSpan(DB.payDeadline(x).toISOString(), 'pay')} lalu unggah bukti transfer.${link('pembayaran?ids=' + x.id, 'Bayar sekarang')}`,
       menunggu_konfirmasi: `<i class="fa-solid fa-hourglass-half"></i> Bukti pembayaranmu sedang dicek admin, maksimal 1×24 jam. Kamu akan dapat notifikasi.`,
@@ -1574,39 +1574,51 @@
     const sess = DB.session(); const owner = sess && sess.role === 'owner';
     const tpl = tplKey ? (DB.WA_TPL.find((x) => x.key === tplKey) || null) : null;
     const label = waLabel || 'Buka WhatsApp';
-    const steps = blob ? (canShare ? '<span><b>1</b> Periksa / ubah isi pesan</span><span><b>2</b> Tekan <b>Bagikan</b>, pilih WhatsApp lalu chat tujuan</span>'
-      : `<span><b>1</b> ${canCopy ? 'Tekan <b>Salin gambar</b>' : 'Tekan <b>Unduh gambar</b>'}</span><span><b>2</b> Periksa / ubah isi pesan, lalu tekan <b>${esc(label)}</b></span><span><b>3</b> Di chat WhatsApp, ${canCopy ? 'tekan <b>Ctrl+V</b> untuk menempel gambar' : 'lampirkan gambar yang diunduh'}, lalu kirim</span>`)
-      : `<span><b>1</b> Periksa / ubah isi pesan</span><span><b>2</b> Tekan <b>${esc(label)}</b>, lalu kirim di WhatsApp</span>`;
+    /* Satu tombol utama "Kirim ke WhatsApp":
+       - HP (bisa berbagi file): gambar + pesan langsung dibagikan lewat menu bagikan HP.
+       - Komputer: gambar nota otomatis disalin (atau diunduh bila browser tidak mendukung), lalu WhatsApp terbuka
+         dengan pesannya → tinggal tempel gambar (Ctrl+V). Tanpa petunjuk bernomor yang membingungkan. */
+    const hint = blob ? (canShare ? 'Gambar nota & pesan dikirim bersamaan lewat menu bagikan HP.'
+      : canCopy ? 'Gambar nota ikut tersalin otomatis — di chat WhatsApp, tempel dengan <b>Ctrl+V</b> lalu kirim.'
+      : 'Gambar nota ikut terunduh otomatis — lampirkan di chat WhatsApp lalu kirim.') : '';
     const m = modal({ title, size: blob ? 'xl' : 'lg', body: `
-      <div class="tg-steps">${steps}</div>
       ${note ? `<div class="notice" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>${note}</div></div>` : ''}
       ${noPhone ? '<div class="notice amber" style="margin-bottom:12px"><i class="fa-solid fa-phone-slash"></i><div>Nomor WhatsApp customer belum ada / tidak valid. Gambar & pesan tetap bisa disalin atau diunduh.</div></div>' : ''}
-      <div class="wc-grid ${blob ? '' : 'one'}">
-        ${blob ? `<div class="wc-prev"><div class="tg-prev"><img src="${imgUrl}" alt="Pratinjau nota"></div>
-          <div class="wc-img-acts"><button type="button" class="btn btn-light btn-sm" id="wcDl"><i class="fa-solid fa-download"></i> Unduh gambar</button>${canCopy ? '<button type="button" class="btn btn-light btn-sm" id="wcCopy"><i class="fa-regular fa-copy"></i> Salin gambar</button>' : ''}</div></div>` : ''}
+      <div class="wc-grid2 ${blob ? '' : 'one'}">
         <div class="wc-msg">
           <div class="wc-msg-h"><label for="wcText"><i class="fa-brands fa-whatsapp"></i> Isi pesan <small>bisa diedit sebelum dikirim</small></label>
             <button type="button" class="link-btn" id="wcReset" hidden><i class="fa-solid fa-rotate-left"></i> Kembalikan pesan awal</button></div>
-          <textarea class="textarea wc-text" id="wcText" rows="${blob ? 16 : 12}" spellcheck="false">${esc(text || '')}</textarea>
+          <textarea class="textarea wc-text" id="wcText" rows="${blob ? 13 : 11}" spellcheck="false">${esc(text || '')}</textarea>
           <div class="wc-msg-f"><span class="muted" id="wcLen"></span>
             ${tpl ? `<span class="muted wc-tpl">Template: <b>${esc(tpl.title)}</b>${owner ? ` · <a class="link" href="${url('owner/konfigurasi?s=pesan&t=' + tpl.key)}" target="_blank" rel="noopener">Atur template</a>` : ' · diatur Owner'}</span>` : ''}</div>
-          <button type="button" class="btn btn-light btn-sm" id="wcCopyTxt"><i class="fa-regular fa-clipboard"></i> Salin teks pesan</button>
         </div>
-      </div>`,
-      foot: `<button class="btn btn-light" data-close>Tutup</button>${canShare ? '<button class="btn btn-wa" id="wcShare"><i class="fa-solid fa-share-nodes"></i> Bagikan ke WhatsApp</button>' : ''}<button class="btn btn-wa" id="wcWa" ${noPhone ? 'disabled' : ''}><i class="fa-brands fa-whatsapp"></i> ${esc(label)}</button>` });
+        ${blob ? `<div class="wc-side"><span class="wc-side-l">Gambar nota (ikut dikirim)</span>
+          <a class="wc-thumb" href="${imgUrl}" target="_blank" rel="noopener" title="Lihat gambar nota ukuran penuh"><img src="${imgUrl}" alt="Pratinjau nota"><span><i class="fa-solid fa-magnifying-glass-plus"></i> Perbesar</span></a>
+          <div class="wc-side-acts"><button type="button" class="link-btn" id="wcDl"><i class="fa-solid fa-download"></i> Unduh</button>${canCopy ? '<button type="button" class="link-btn" id="wcCopy"><i class="fa-regular fa-copy"></i> Salin</button>' : ''}<button type="button" class="link-btn" id="wcCopyTxt"><i class="fa-regular fa-clipboard"></i> Salin teks</button></div></div>` : ''}
+      </div>
+      ${blob ? '' : '<button type="button" class="link-btn" id="wcCopyTxt" style="margin-top:6px"><i class="fa-regular fa-clipboard"></i> Salin teks pesan</button>'}`,
+      foot: `${hint ? `<span class="wc-hint"><i class="fa-solid fa-circle-info"></i> ${hint}</span>` : ''}<button class="btn btn-light" data-close>Tutup</button><button class="btn btn-wa" id="wcWa" ${noPhone && !canShare ? 'disabled' : ''}><i class="fa-brands fa-whatsapp"></i> ${esc(waLabel ? waLabel.replace(/^Hubungi /, 'Kirim ke ') : 'Kirim ke WhatsApp')}</button>` });
+    m.$('.modal-box').classList.add('wc-modal');
     const ta = m.$('#wcText'); const orig = text || '';
     const len = () => { m.$('#wcLen').textContent = `${ta.value.length} karakter`; m.$('#wcReset').hidden = ta.value === orig; };
     ta.addEventListener('input', len); len();
-    setTimeout(() => { if (!blob) { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; } }, 60);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; }, 60);
     m.$('#wcReset').addEventListener('click', () => { ta.value = orig; len(); ta.focus(); });
     if (imgUrl) { const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); URL.revokeObjectURL(imgUrl); } }); obs.observe(document.body, { childList: true }); }
-    if (m.$('#wcDl')) m.$('#wcDl').addEventListener('click', () => { const a = document.createElement('a'); a.href = imgUrl; a.download = name || 'nota.png'; document.body.appendChild(a); a.click(); a.remove(); toast('Gambar tersimpan di folder Unduhan.'); });
-    if (m.$('#wcCopy')) m.$('#wcCopy').addEventListener('click', async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); m.$('#wcCopy').innerHTML = '<i class="fa-solid fa-check"></i> Gambar tersalin'; m.$('#wcCopy').classList.add('done'); toast('Gambar tersalin. Tempel di chat WhatsApp dengan Ctrl+V.'); } catch (e) { toast('Browser tidak mengizinkan menyalin gambar. Pakai tombol Unduh gambar.', 'err'); } });
+    const download = () => { const a = document.createElement('a'); a.href = imgUrl; a.download = name || 'nota.png'; document.body.appendChild(a); a.click(); a.remove(); };
+    const copyImg = async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); return true; } catch (e) { return false; } };
+    if (m.$('#wcDl')) m.$('#wcDl').addEventListener('click', () => { download(); toast('Gambar tersimpan di folder Unduhan.'); });
+    if (m.$('#wcCopy')) m.$('#wcCopy').addEventListener('click', async () => { toast((await copyImg()) ? 'Gambar nota tersalin.' : 'Gambar tidak bisa disalin. Pakai Unduh.', 'ok'); });
     m.$('#wcCopyTxt').addEventListener('click', async () => { try { await navigator.clipboard.writeText(ta.value); toast('Teks pesan tersalin.'); } catch (e) { ta.select(); document.execCommand && document.execCommand('copy'); toast('Teks pesan tersalin.'); } });
     let sent = false; const done = (how) => { if (sent) return; sent = true; onSent && onSent(how || '', ta.value); };
-    m.$('#wcWa').addEventListener('click', () => { const t = ta.value.trim(); if (!t) { toast('Isi pesan masih kosong.', 'err'); ta.focus(); return; }
-      window.open(num ? `https://wa.me/${num}?text=${encodeURIComponent(t)}` : waLink(t), '_blank', 'noopener'); done(''); });
-    if (m.$('#wcShare')) m.$('#wcShare').addEventListener('click', async () => { try { await navigator.share({ files: [file], text: ta.value }); done('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ } });
+    m.$('#wcWa').addEventListener('click', async () => {
+      const t = ta.value.trim(); if (!t) { toast('Isi pesan masih kosong.', 'err'); ta.focus(); return; }
+      if (canShare) { try { await navigator.share({ files: [file], text: t }); done('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ } return; }
+      let extra = '';
+      if (blob) { if (canCopy && (await copyImg())) extra = 'Gambar nota sudah tersalin — tempel dengan Ctrl+V di chat.'; else { download(); extra = 'Gambar nota terunduh — lampirkan di chat WhatsApp.'; } }
+      window.open(num ? `https://wa.me/${num}?text=${encodeURIComponent(t)}` : waLink(t), '_blank', 'noopener');
+      if (extra) toast(extra); done('');
+    });
     return m;
   }
   /* Nama lama tetap bisa dipakai */
@@ -1698,7 +1710,8 @@
      Saat jumlah data berubah (filter / pencarian) kembali ke halaman 1; kalau hanya diperbarui (mis. setelah verifikasi)
      tetap di halaman yang sama. Ringkasan dashboard & laporan tidak dipecah. */
   const PG = new WeakMap();
-  const pgPer = () => { try { return +localStorage.getItem('ann_pg_per') || 30; } catch (e) { return 30; } };
+  /* Bawaan 20 data per halaman (Data Barang, Histori, dll.) supaya halaman tidak terlalu panjang; bisa diganti 20 / 30 / 50 */
+  const pgPer = () => { try { return +localStorage.getItem('ann_pg_per') || 20; } catch (e) { return 20; } };
   function pgTargets() {
     const page = String(document.body.dataset.page || '');
     if (page === 'admin-' || page === 'invoice' || /^admin-(dashboard|laporan|kalender)$/.test(page) || page === 'owner-dashboard') return [];
@@ -1742,7 +1755,7 @@
     }
     const html = `<span class="pg-info">Menampilkan <b>${n ? from + 1 : 0}–${Math.min(to, n)}</b> dari <b>${n}</b></span>
       <div class="pg-btns"><button type="button" class="pg-b" data-pg="${st.page - 1}" ${st.page === 1 ? 'disabled' : ''} aria-label="Sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>${pgPages(st.page, pages).map((x) => x === '…' ? '<span class="pg-gap">…</span>' : `<button type="button" class="pg-b ${x === st.page ? 'on' : ''}" data-pg="${x}" ${x === st.page ? 'aria-current="page"' : ''}>${x}</button>`).join('')}<button type="button" class="pg-b" data-pg="${st.page + 1}" ${st.page === pages ? 'disabled' : ''} aria-label="Berikutnya"><i class="fa-solid fa-chevron-right"></i></button></div>
-      <label class="pg-per">Tampilkan <select class="select" data-pg-per>${[15, 30, 50].map((v) => `<option value="${v}" ${v === per ? 'selected' : ''}>${v}</option>`).join('')}</select> per halaman</label>`;
+      <label class="pg-per">Tampilkan <select class="select" data-pg-per>${[20, 30, 50].map((v) => `<option value="${v}" ${v === per ? 'selected' : ''}>${v}</option>`).join('')}</select> per halaman</label>`;
     if (st.pager.dataset.h !== html) { st.pager.innerHTML = html; st.pager.dataset.h = html; }
   }
   let pgQueued = false;
@@ -1794,6 +1807,73 @@
   }
 
   /* to (opsional) = nomor customer, mis. 0812… → 62812… ; tanpa to = nomor WhatsApp toko */
+  /* ===== Metode pengembalian DP pembatalan (Transfer / Tunai) =====
+     Dipakai di 3 tempat supaya isian & datanya sama persis:
+       - Customer: Pesanan → Batalkan (H-2 atau lebih, DP dikembalikan)
+       - Admin   : Batalkan booking (perlakuan DP = refund)
+       - Admin   : Proses refund (bila customer belum memilih / metode diubah)
+     Bentuk data: { method: 'transfer' | 'tunai', bank, account, holder }  (bank/account/holder hanya untuk transfer)
+     Nama field ke server: refund_method, refund_bank, refund_account_number, refund_account_name */
+  const REFUND_BANKS = ['BCA', 'BRI', 'BNI', 'Mandiri', 'BSI', 'BTN', 'CIMB Niaga', 'Permata', 'Danamon', 'Bank Jago', 'SeaBank', 'Blu by BCA', 'DANA', 'OVO', 'GoPay', 'ShopeePay'];
+  function refundFields(init, opts) {
+    const v = Object.assign({ method: '', bank: '', account: '', holder: '' }, init || {}); const o = opts || {};
+    const st = DB.settings(); const who = o.admin ? 'customer' : 'kamu';
+    const opt = (k, ic, t, d) => `<label class="pk-opt"><input type="radio" name="rfMethod" value="${k}" ${v.method === k ? 'checked' : ''}><span><i class="fa-solid ${ic}"></i><b>${t}</b><small>${d}</small></span></label>`;
+    return `<div class="rf-box" data-rf>
+      <p class="rf-q">Metode pengembalian DP ${o.optional ? '<span class="opt">(boleh dilengkapi saat proses refund)</span>' : '<span class="req">*</span>'}</p>
+      <div class="pk-opts">${opt('transfer', 'fa-building-columns', 'Transfer', `Dikirim ke rekening bank / e-wallet ${who}.`)}${opt('tunai', 'fa-money-bill-wave', 'Tunai', `${o.admin ? 'Customer mengambil' : 'Ambil'} langsung di toko.`)}</div>
+      <div class="rf-tf" data-rf-tf ${v.method === 'transfer' ? '' : 'hidden'}>
+        <div class="grid-3">
+          <div class="field"><label>Bank / e-wallet</label><input class="input" name="rfBank" list="rfBankList" value="${esc(v.bank)}" placeholder="BCA, BRI, DANA…" autocomplete="off" maxlength="40"><datalist id="rfBankList">${REFUND_BANKS.map((b) => `<option value="${b}">`).join('')}</datalist></div>
+          <div class="field"><label>No. rekening / e-wallet</label><input class="input" name="rfAcc" value="${esc(v.account)}" inputmode="numeric" placeholder="Contoh: 1234567890" maxlength="30" autocomplete="off"></div>
+          <div class="field"><label>Atas nama</label><input class="input" name="rfHolder" value="${esc(v.holder)}" placeholder="Nama pemilik rekening" maxlength="100"></div>
+        </div>
+        <span class="hint">${o.admin ? 'Pastikan sesuai data dari customer.' : 'Pastikan nomor & nama pemilik rekening benar supaya DP tidak salah kirim.'}</span>
+      </div>
+      <div class="notice" data-rf-cash ${v.method === 'tunai' ? '' : 'hidden'}><i class="fa-solid fa-store"></i><div>${o.admin ? 'Customer mengambil DP tunai di toko.' : 'DP bisa diambil tunai di toko'} <b>${esc(st.storeName || 'Annapurna Adventure')}</b>${st.address ? ` · ${esc(st.address)}` : ''}${st.hours ? ` (${esc(st.hours)})` : ''}.${o.admin ? '' : ' Tunjukkan nomor booking & identitas saat mengambil.'}</div></div>
+      <span class="error hidden" data-rf-err></span>
+    </div>`;
+  }
+  function refundBind(root) {
+    const box = root.querySelector('[data-rf]'); if (!box) return;
+    const sync = () => { const m = (box.querySelector('input[name="rfMethod"]:checked') || {}).value || '';
+      box.querySelector('[data-rf-tf]').hidden = m !== 'transfer'; box.querySelector('[data-rf-cash]').hidden = m !== 'tunai'; box.querySelector('[data-rf-err]').classList.add('hidden'); };
+    box.addEventListener('change', (e) => { if (e.target.name === 'rfMethod') { sync(); if (e.target.value === 'transfer') { const b = box.querySelector('[name="rfBank"]'); if (b && !b.value) b.focus(); } } });
+    const acc = box.querySelector('[name="rfAcc"]'); if (acc) acc.addEventListener('input', () => { const c = acc.value.replace(/[^\d]/g, ''); if (c !== acc.value) acc.value = c; });
+    box.addEventListener('input', (e) => { if (e.target.classList) e.target.classList.remove('err'); });
+  }
+  /* opts.optional = boleh dikosongkan (admin bisa melengkapinya nanti). Hasil: { ok, data } — data null bila belum dipilih. */
+  function refundRead(root, opts) {
+    const box = root.querySelector('[data-rf]'); if (!box) return { ok: true, data: null };
+    const o = opts || {}; const er = box.querySelector('[data-rf-err]');
+    const fail = (msg, el) => { er.textContent = msg; er.classList.remove('hidden'); if (el) { el.classList.add('err'); el.focus(); } else box.scrollIntoView({ block: 'center', behavior: 'smooth' }); return { ok: false, data: null }; };
+    const method = (box.querySelector('input[name="rfMethod"]:checked') || {}).value || '';
+    if (!method) return o.optional ? { ok: true, data: null } : fail('Pilih metode pengembalian DP: transfer atau tunai.');
+    if (method === 'tunai') return { ok: true, data: { method: 'tunai' } };
+    const g = (n) => box.querySelector(`[name="${n}"]`);
+    const d = { method: 'transfer', bank: g('rfBank').value.trim(), account: g('rfAcc').value.replace(/[^\d]/g, ''), holder: g('rfHolder').value.trim() };
+    if (o.optional && !d.bank && !d.account && !d.holder) return { ok: true, data: d };
+    if (!d.bank) return fail('Isi nama bank / e-wallet tujuan.', g('rfBank'));
+    if (d.account.length < 6 || d.account.length > 30) return fail('Nomor rekening / HP e-wallet harus 6–30 digit angka.', g('rfAcc'));
+    if (d.holder.length < 2) return fail('Isi nama pemilik rekening.', g('rfHolder'));
+    return { ok: true, data: d };
+  }
+  /* Teks ringkas untuk tabel, catatan, & pesan WhatsApp */
+  function refundText(r, long) {
+    if (!r || !r.method) return '';
+    if (r.method === 'tunai') return long ? 'Tunai, diambil di toko' : 'Tunai di toko';
+    const acc = [r.bank, r.account].filter(Boolean).join(' ');
+    return `Transfer${acc ? ` ke ${acc}` : ''}${r.holder ? ` a.n. ${r.holder}` : ''}`;
+  }
+  /* Data dari form → isian FormData / JSON untuk server */
+  const refundPayload = (r) => (r && r.method ? { refund_method: r.method, refund_bank: r.method === 'transfer' ? r.bank || '' : '', refund_account_number: r.method === 'transfer' ? r.account || '' : '', refund_account_name: r.method === 'transfer' ? r.holder || '' : '' } : {});
+  /* Salin teks ke clipboard (dengan cadangan untuk browser lama / non-HTTPS) */
+  async function copyText(text, okMsg) {
+    try { await navigator.clipboard.writeText(String(text)); }
+    catch (e) { const ta = document.createElement('textarea'); ta.value = String(text); ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove(); }
+    toast(okMsg || 'Tersalin.');
+  }
+
   function waLink(text, to) { const num = to ? String(to).replace(/[^\d]/g, '').replace(/^0/, '62') : DB.settings().whatsapp; return `https://wa.me/${num}?text=${encodeURIComponent(text || 'Halo Annapurna Adventure, saya mau tanya soal sewa alat camping.')}`; }
 
   /* Avatar pengulas: foto bila ada, selain itu inisial nama (maks. 2 huruf) dengan warna tetap per nama.
@@ -1837,5 +1917,5 @@
     document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement !== cur) hide(); }, 80));
     window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
   })();
-  window.UI = { ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

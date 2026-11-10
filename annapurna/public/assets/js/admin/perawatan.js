@@ -3,7 +3,7 @@
   const { DB, D, rupiah } = Ann;
   const { $, esc, asset, toast, modal, confirmBox } = UI;
   Admin.init('perawatan', 'Perawatan Unit');
-  const every = () => DB.settings().serviceEvery || 10;
+  const every = () => DB.settings().serviceEvery || 0; /* 0 = perawatan berkala nonaktif */
 
   $('#careExplain').innerHTML = `<div class="ce-grid">
     <div class="ce cuci"><i class="fa-solid fa-soap"></i><div><b>Pembersihan</b><small>Setiap barang kembali. Kategori yang wajib dicuci diatur Owner. Unit belum bisa diserahkan sampai ditandai bersih.</small></div></div>
@@ -21,15 +21,15 @@
         : u.out ? `<span class="muted care-wait"><i class="fa-solid fa-person-hiking"></i> Sedang disewa (${u.out}) — kerjakan setelah kembali</span>` : `<button class="btn btn-light btn-sm" data-rutin="${p.id}|${u.code}"><i class="fa-solid fa-clipboard-check"></i> Catat perawatan</button>`;
     return `<div class="care-row"><img loading="lazy" decoding="async" src="${asset(p.img)}" alt=""><div class="cr-bd"><b><span class="mono">${u.code}</span> · ${esc(p.name)}${u.size ? ` · ${esc(String(u.size).replace(/\s*\(.*\)/, ''))}` : ''}</b><small>${sub}</small></div><div class="cr-act">${act}</div></div>`;
   };
-  const sec = (k, ic, t, empty, list, bulk) => `<section class="panel care-sec ${k}"><div class="panel-h"><h3><i class="fa-solid ${ic}"></i> ${t} <span class="cnt">${list.length}</span></h3>${bulk && list.length > 1 ? `<button class="btn btn-light btn-sm" data-bulk="${k}">Tandai semua sudah bersih</button>` : ''}</div>${list.length ? list.map((x) => row(x, k)).join('') : `<p class="care-empty"><i class="fa-regular fa-circle-check"></i> ${empty}</p>`}</section>`;
+  const sec = (k, ic, t, empty, list, bulk) => `<section class="panel care-sec ${k}"><div class="panel-h"><h3><i class="fa-solid ${ic}"></i> ${t} <span class="cnt">${list.length}</span></h3>${bulk && list.length ? `<button class="btn btn-primary btn-sm" data-bulk="${k}"><i class="fa-solid fa-check-double"></i> Semua selesai dicuci</button>` : ''}</div>${list.length ? list.map((x) => row(x, k)).join('') : `<p class="care-empty"><i class="fa-regular fa-circle-check"></i> ${empty}</p>`}</section>`;
 
   function draw() {
     const q = DB.careQueue();
     const st = (ic, tone, l, v, d) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong>${d ? `<span class="d">${d}</span>` : ''}</div></div>`;
-    $('#careStats').innerHTML = st('fa-soap', 'blue', 'Perlu dicuci', q.cuci.length + ' unit', 'belum bisa diserahkan') + st('fa-screwdriver-wrench', 'red', 'Dalam perbaikan', q.perbaikan.length + ' unit', 'tidak dihitung di stok') + st('fa-calendar-check', 'gold', 'Perlu servis berkala', q.berkala.length + ' unit', `tiap ${every()}× disewa`);
-    $('#careBody').innerHTML = sec('cuci', 'fa-soap', 'Perlu dicuci / dibersihkan', 'Tidak ada antrian cuci.', q.cuci, true)
+    $('#careStats').innerHTML = st('fa-soap', 'blue', 'Dicuci', q.cuci.length + ' unit', 'tandai selesai bila sudah bersih') + st('fa-screwdriver-wrench', 'red', 'Diperbaiki', q.perbaikan.length + ' unit', 'tidak dihitung di stok') + (every() ? st('fa-calendar-check', 'gold', 'Perlu servis berkala', q.berkala.length + ' unit', `tiap ${every()}× disewa`) : '');
+    $('#careBody').innerHTML = sec('cuci', 'fa-soap', 'Sedang dicuci', 'Tidak ada antrian cuci.', q.cuci, true)
       + sec('perbaikan', 'fa-screwdriver-wrench', 'Dalam perbaikan', 'Tidak ada unit yang sedang diperbaiki.', q.perbaikan)
-      + sec('berkala', 'fa-calendar-check', 'Perlu servis berkala', 'Semua unit masih dalam jadwal perawatan.', q.berkala);
+      + (every() || q.berkala.length ? sec('berkala', 'fa-calendar-check', 'Perlu servis berkala', 'Semua unit masih dalam jadwal perawatan.', q.berkala) : ''); /* perawatan berkala nonaktif → bagian disembunyikan */
     Admin.refreshShell && Admin.refreshShell();
   }
   const split = (v) => v.split('|');

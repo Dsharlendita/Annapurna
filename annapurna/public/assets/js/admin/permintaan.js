@@ -6,6 +6,18 @@
   let tab = param('tab') || 'change';
   const st = DB.settings();
   $('#policy').innerHTML = `<i class="fa-solid fa-scale-balanced"></i><div><strong>Kebijakan pembatalan aktif</strong><ul>${st.cancelPolicy.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
+  /* Sel "Refund": status + metode (transfer: bank, no. rekening dengan tombol salin, atas nama · tunai: ambil di toko) */
+  function rfCell(b, c, L) {
+    const r = c.refund; const last = (b.refunds || []).slice(-1)[0];
+    let info = '';
+    if (r && r.method === 'transfer') info = `<small><i class="fa-solid fa-building-columns"></i> ${esc(r.bank || '-')}</small>`
+      + (r.account ? `<small><span class="mono">${esc(r.account)}</span><button type="button" class="copy-mini" data-copy="${esc(r.account)}" title="Salin nomor rekening"><i class="fa-regular fa-copy"></i> Salin</button></small>` : '')
+      + (r.holder ? `<small>a.n. ${esc(r.holder)}</small>` : '');
+    else if (r && r.method === 'tunai') info = '<small><i class="fa-solid fa-money-bill-wave"></i> Tunai, ambil di toko</small>';
+    else if (c.refundStatus === 'menunggu') info = '<small class="muted"><i class="fa-solid fa-circle-question"></i> Metode belum dipilih</small>';
+    if (last && c.refundStatus === 'selesai') info += `<small><i class="fa-brands fa-whatsapp"></i> ${last.waAt ? `Konfirmasi terkirim ${D.fmtDateTime(last.waAt)}` : 'Konfirmasi WA belum dikirim'}</small>`;
+    return `<div class="rf-cell"><span class="pill ${L[0]}">${L[1]}</span>${info}</div>`;
+  }
   function draw() {
     const B = DB.staffBookings();
     const changes = []; B.forEach((b) => (b.changes || []).forEach((c) => changes.push({ b, c })));
@@ -42,8 +54,8 @@
         ${cancels.map((b) => { const c = b.cancel || { refundStatus: 'tidak_perlu' }; const L = lbl[c.refundStatus] || lbl.tidak_perlu; return `<tr>
           <td>${c.at ? D.fmtDateTime(c.at) : '-'}<small>oleh ${c.by === 'admin' ? 'admin' : 'customer'}</small></td><td><strong>${NO(b)}</strong></td><td>${esc(b.customer.name)}<small>${esc(b.customer.phone)}</small></td>
           <td>${D.fmtRange(b.start, b.end)}</td><td style="max-width:200px">${esc(c.reason || '-')}</td><td class="num">${rupiah(Rules.paidTotal(b))}</td>
-          <td><span class="pill ${L[0]}">${L[1]}</span></td>
-          <td><div class="acts"><button class="btn btn-light btn-xs" data-open="${b.id}"><i class="fa-regular fa-file-lines"></i> Detail</button>${b.paymentStatus === 'refund_pending' ? `<button class="btn btn-gold btn-xs" data-refund="${b.id}"><i class="fa-solid fa-hand-holding-dollar"></i> Proses refund</button>` : ''}<a class="btn btn-light btn-xs" href="${Admin.custLink(b.customer)}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a></div></td></tr>`; }).join('')}</tbody></table></div>`
+          <td>${rfCell(b, c, L)}</td>
+          <td><div class="acts"><button class="btn btn-light btn-xs" data-open="${b.id}"><i class="fa-regular fa-file-lines"></i> Detail</button>${b.paymentStatus === 'refund_pending' ? `<button class="btn btn-gold btn-xs" data-refund="${b.id}"><i class="fa-solid fa-hand-holding-dollar"></i> Proses refund</button>${c.refund && c.refund.method === 'tunai' ? `<button class="btn btn-light btn-xs" data-rfready="${b.id}" title="Kabari customer bahwa DP bisa diambil di toko"><i class="fa-solid fa-store"></i> Kabari siap diambil</button>` : ''}` : ''}${c.refundStatus === 'selesai' && (b.refunds || []).length ? `<button class="btn btn-light btn-xs" data-rfwa="${b.id}" title="Kirim (ulang) bukti & konfirmasi refund lewat WhatsApp"><i class="fa-brands fa-whatsapp"></i> ${(b.refunds.slice(-1)[0] || {}).waAt ? 'Kirim ulang bukti' : 'Kirim bukti'}</button>` : ''}<a class="btn btn-light btn-xs" href="${Admin.custLink(b.customer)}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a></div></td></tr>`; }).join('')}</tbody></table></div>`
         : '<div class="panel empty-state"><div class="ic"><i class="fa-solid fa-ban"></i></div><h3>Belum ada pembatalan</h3><p>Booking yang dibatalkan akan tercatat di sini.</p></div>';
     }
   }
@@ -68,7 +80,12 @@
       else if (await Admin.BK.rejectChange(b, c)) { Admin.refreshShell(); draw(); }
     }
     if (rf) { if (await Admin.BK.refund(DB.booking(rf.dataset.refund))) { Admin.refreshShell(); draw(); } }
+    const cp = e.target.closest('[data-copy]'); if (cp) { UI.copyText(cp.dataset.copy, 'Nomor rekening tersalin.'); return; }
+    const rr = e.target.closest('[data-rfready]'); if (rr) { Admin.BK.refundReady(DB.booking(rr.dataset.rfready)); return; }
+    const rw = e.target.closest('[data-rfwa]'); if (rw) { const b = DB.booking(rw.dataset.rfwa); await Admin.BK.refundWa(b); return; }
   });
+  /* Status "konfirmasi WA terkirim" diperbarui saat staff kembali dari WhatsApp */
+  window.addEventListener('focus', () => { if (tab === 'cancel' && !document.querySelector('.modal')) draw(); });
   draw();
 })();
 

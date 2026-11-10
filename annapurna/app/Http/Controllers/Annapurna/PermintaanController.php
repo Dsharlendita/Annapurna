@@ -197,30 +197,62 @@ class PermintaanController extends Controller
 
     /**
      * Memproses pengembalian dana (refund) untuk booking yang dibatalkan.
+     * POST /api/admin/permintaan/refund/{bookingId}   (bookingId = id / booking_code / nota_no)
+     * multipart/form-data:
+     *   amount, status (selesai|hangus|tidak_perlu), reason (opsional),
+     *   refund_method (transfer|tunai), refund_bank, refund_account_number, refund_account_name,
+     *   transfer_ref (opsional), proof_file (foto bukti; wajib untuk transfer yang diselesaikan)
+     *   bank_account (lama, tetap diterima)
      */
-    public function actionRefund(Request $request, int $bookingId): JsonResponse
+    public function actionRefund(Request $request, string $bookingId): JsonResponse
     {
+        $booking = $this->findBooking($bookingId);
+        $existing = Refund::where('booking_id', $booking->id)->first();
+        $isDoneTransfer = $request->input('status') === 'selesai' && $request->input('refund_method', $existing?->method) === 'transfer';
+
         $request->validate([
             'amount' => 'required|integer|min:0',
-            'bank_account' => 'nullable|string|max:100',
-            'reason' => 'nullable|string',
             'status' => 'required|in:selesai,hangus,tidak_perlu',
+            'reason' => 'nullable|string',
+            'bank_account' => 'nullable|string|max:100',
+            'refund_method' => 'nullable|in:transfer,tunai',
+            'refund_bank' => 'nullable|required_if:refund_method,transfer|string|max:60',
+            'refund_account_number' => ['nullable', 'required_if:refund_method,transfer', 'regex:/^\d{6,30}$/'],
+            'refund_account_name' => 'nullable|required_if:refund_method,transfer|string|max:100',
+            'transfer_ref' => 'nullable|string|max:100',
+            'proof_file' => [($isDoneTransfer && ! $existing?->proof_file) ? 'required' : 'nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+        ], [
+            'proof_file.required' => 'Upload foto bukti transfer.',
+            'refund_account_number.regex' => 'Nomor rekening / HP e-wallet harus 6–30 digit angka.',
         ]);
 
-        $booking = Booking::findOrFail($bookingId);
-
-        return DB::transaction(function () use ($booking, $request) {
+        return DB::transaction(function () use ($booking, $request, $existing) {
             $status = $request->input('status');
             $amount = (int) $request->input('amount');
-            $bank = $request->input('bank_account');
-            $reason = $request->input('reason');
+            $method = $request->input('refund_method', $existing?->method);
+            $tf = $method === 'transfer';
+
+            $bank = $tf ? $request->input('refund_bank', $existing?->bank_name) : null;
+            $number = $tf ? $request->input('refund_account_number', $existing?->account_number) : null;
+            $holder = $tf ? $request->input('refund_account_name', $existing?->account_name) : null;
+
+            $proof = $existing?->proof_file;
+            if ($request->hasFile('proof_file')) {
+                $proof = $request->file('proof_file')->store('refunds', 'public');
+            }
 
             $refund = Refund::updateOrCreate(
                 ['booking_id' => $booking->id],
                 [
                     'amount' => $amount,
-                    'bank_account' => $bank,
-                    'reason' => $reason,
+                    'method' => $method,
+                    'bank_name' => $bank,
+                    'account_number' => $number,
+                    'account_name' => $holder,
+                    'bank_account' => $tf ? Refund::accountSummary($bank, $number, $holder) : $request->input('bank_account', $existing?->bank_account),
+                    'transfer_ref' => $request->input('transfer_ref', $existing?->transfer_ref),
+                    'proof_file' => $proof,
+                    'reason' => $request->input('reason', $existing?->reason),
                     'status' => $status,
                     'processed_by' => Auth::id(),
                     'processed_at' => now(),
@@ -228,18 +260,15 @@ class PermintaanController extends Controller
             );
 
             if ($status === 'selesai') {
-                $booking->update([
-                    'payment_status' => 'refunded',
-                ]);
+                $booking->update(['payment_status' => 'refunded']);
             } elseif ($status === 'hangus') {
-                $booking->update([
-                    'payment_status' => 'forfeited',
-                ]);
+                $booking->update(['payment_status' => 'forfeited']);
             }
 
+            $how = $method === 'tunai' ? 'tunai di toko' : ($tf ? "transfer ke {$refund->bank_account}" : 'metode tidak dicatat');
             Audit::log(
                 'keuangan',
-                "Memproses refund pembatalan booking #{$booking->booking_code} sebesar Rp " . number_format($amount, 0, ',', '.') . " ({$status})",
+                "Memproses refund pembatalan booking #{$booking->booking_code} sebesar Rp " . number_format($amount, 0, ',', '.') . " ({$status}, {$how})",
                 $booking
             );
 
@@ -249,5 +278,27 @@ class PermintaanController extends Controller
                 'refund' => $refund,
             ]);
         });
+    }
+
+    /**
+     * Menandai konfirmasi refund (foto bukti + pesan) sudah dikirim ke WhatsApp customer.
+     * POST /api/admin/permintaan/refund/{bookingId}/notified
+     */
+    public function notifyRefund(string $bookingId): JsonResponse
+    {
+        $booking = $this->findBooking($bookingId);
+        $refund = Refund::where('booking_id', $booking->id)->firstOrFail();
+        $refund->update(['notified_at' => now()]);
+
+        Audit::log('keuangan', "Mengirim konfirmasi refund booking #{$booking->booking_code} ke WhatsApp customer", $booking);
+
+        return response()->json(['ok' => true, 'msg' => 'Konfirmasi refund tercatat terkirim.', 'refund' => $refund]);
+    }
+
+    private function findBooking(string $id): Booking
+    {
+        return is_numeric($id)
+            ? Booking::findOrFail($id)
+            : Booking::where('booking_code', $id)->orWhere('nota_no', $id)->firstOrFail();
     }
 }

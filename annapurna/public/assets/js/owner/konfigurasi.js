@@ -9,13 +9,12 @@
     ['atribut', 'fa-ruler-combined', 'Atribut Barang', 'Ukuran, warna, kapasitas, dll. per kategori.'],
     ['status', 'fa-toggle-on', 'Kualitas Barang', 'Pilihan kualitas (Sangat Baik, Baik, …).'],
     ['rental', 'fa-calendar-check', 'Aturan Rental', 'DP, aturan durasi & harga paket, jam batas pengembalian.'],
-    ['beranda', 'fa-fire', 'Tampilan Beranda', 'Produk Rental Terlaris & tata cara sewa/beli.'],
+    ['beranda', 'fa-fire', 'Tampilan Beranda', 'Pratinjau Produk Terlaris & tata cara sewa/beli.'],
     ['nota', 'fa-receipt', 'Nota & Struk', 'Ukuran kertas struk kasir & pesan penutup.'],
     ['ketentuan', 'fa-file-contract', 'Halaman Ketentuan', 'Semua isi halaman Ketentuan di website: sewa, pembayaran, pembatalan, tektok, laundry, antar & kirim.'],
     ['pesan', 'fa-comment-dots', 'Template Pesan WhatsApp', 'Pesan otomatis ke customer: invoice, nota sewa, pengingat, laundry.'],
-    ['asisten', 'fa-comments', 'Asisten Trip (Tanya jawab)', 'Aturan JIKA–MAKA chatbot, kata kunci & jawaban, pertanyaan belum terjawab.'],
+    ['asisten', 'fa-comments', 'Asisten Trip (Tanya jawab AI)', 'Topik & jawaban yang dipakai chatbot AI, data toko yang boleh dipakai, pertanyaan belum terjawab.'],
     ['layanan', 'fa-jug-detergent', 'Laundry & Jasa Tenda', 'Harga laundry, estimasi selesai, ketentuan struk, tarif jasa tenda.'],
-    ['sesi', 'fa-user-clock', 'Sesi Staff', 'Logout otomatis (default nonaktif).'],
     ['batal', 'fa-rotate-left', 'Pembatalan & Refund', 'Batas H- dan persentase DP yang dikembalikan.'],
     ['denda', 'fa-gavel', 'Aturan Denda', 'Denda keterlambatan & kerusakan.'],
     ['stok', 'fa-soap', 'Perawatan & Stok', 'Wajib cuci, perawatan berkala, stok minimum.'],
@@ -23,6 +22,16 @@
     ['form', 'fa-list-check', 'Form & Field Staff', 'Isian wajib saat barang keluar & kembali.'],
     ['sop', 'fa-clipboard-list', 'SOP & Peraturan Staff', 'Standar kerja yang dibaca staff.'],
   ];
+  /* 16 bagian dikelompokkan jadi 5 menu; tiap bagian jadi tab di dalam kelompoknya. Isi & penyimpanan tiap bagian tidak berubah,
+     tautan lama ?s=<bagian> tetap berlaku. */
+  const GROUPS = [
+    ['barang', 'fa-boxes-stacked', 'Barang', 'Kategori, atribut & varian, kualitas, perawatan & stok.', ['kategori', 'atribut', 'status', 'stok']],
+    ['sewa', 'fa-calendar-check', 'Sewa & pembayaran', 'Aturan rental, denda, pembatalan & refund, laundry & jasa tenda, keuangan & ongkir.', ['rental', 'denda', 'batal', 'layanan', 'keuangan']],
+    ['tampilan', 'fa-display', 'Tampilan & dokumen', 'Beranda, nota & struk, halaman ketentuan.', ['beranda', 'nota', 'ketentuan']],
+    ['komunikasi', 'fa-comment-dots', 'Komunikasi', 'Template pesan WhatsApp & Asisten Trip (AI).', ['pesan', 'asisten']],
+    ['staff', 'fa-user-gear', 'Staff', 'Form & field staff, SOP & peraturan.', ['form', 'sop']],
+  ];
+  const groupOf = (k) => GROUPS.find((g) => g[4].includes(k)) || GROUPS[0];
   let cur = param('s') && SECTIONS.some((x) => x[0] === param('s')) ? param('s') : 'atribut';
   const S = () => DB.settings();
   const TYPE_LABEL = { pilihan: 'Pilihan', teks: 'Teks bebas', angka: 'Angka' };
@@ -39,7 +48,9 @@
   const saveBar = (id) => `<div class="cfg-save"><button class="btn btn-primary" id="${id}"><i class="fa-solid fa-floppy-disk"></i> Simpan perubahan</button><span class="muted">Perubahan langsung berlaku untuk staff dan website, serta tercatat di histori.</span></div>`;
 
   function nav() {
-    $('#cfgNav').innerHTML = SECTIONS.map(([k, ic, t, d]) => `<button class="${k === cur ? 'on' : ''}" data-s="${k}"><i class="fa-solid ${ic}"></i><span><b>${t}</b><small>${d}</small></span></button>`).join('');
+    const g0 = groupOf(cur);
+    $('#cfgNav').innerHTML = GROUPS.map(([g, ic, t, d, keys]) => `<button class="${g === g0[0] ? 'on' : ''}" data-s="${g === g0[0] ? cur : keys[0]}"><i class="fa-solid ${ic}"></i><span><b>${t}</b><small>${d}</small></span></button>`).join('');
+    $('#cfgTabs').innerHTML = g0[4].map((k) => { const sc = SECTIONS.find((x) => x[0] === k); return `<button type="button" role="tab" aria-selected="${k === cur}" class="${k === cur ? 'on' : ''}" data-s="${k}"><i class="fa-solid ${sc[1]}"></i> ${sc[2]}</button>`; }).join('');
   }
   function go(k) { const mn = $('#cfgMain'); mn.onclick = mn.oninput = mn.onchange = null; cur = k; history.replaceState(null, '', '?s=' + k); nav(); R[k](); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
@@ -131,7 +142,7 @@
       const prev = (k) => DB.waFill(cur[k], Object.assign({}, SAMPLE, k.startsWith('ld_') ? { no_nota: 'DRY/004/X/2026', rincian: '*NOTA LAUNDRY DRY/004/X/2026*\nTanggal terima: 21 Oktober 2026\n• 1× Tenda 2P Double Layer = Rp 30.000\n• 1× Sarung tangan = Rp 5.000\n*Total: Rp 35.000*\nDibayar saat pengambilan: Rp 35.000' } : k.startsWith('sale') || k === 'kasir_sale' ? { no_nota: 'ODR/008/X/2026', rincian: '• 1× Kursi Camping = Rp 185.000\nOngkir antar: Rp 20.000\n*Total: Rp 205.000* · Dibayar: Rp 205.000 · LUNAS' } : {}));
       const waHtml = (t) => esc(t).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(^|\s)_([^_\n]+)_/g, '$1<i>$2</i>');
       const groups = [...new Set(DB.WA_TPL.map((t) => t.group))];
-      const ICON = { Penjualan: 'fa-bag-shopping', Rental: 'fa-campground', Laundry: 'fa-jug-detergent' };
+      const ICON = { Penjualan: 'fa-bag-shopping', Rental: 'fa-campground', Laundry: 'fa-jug-detergent', Staff: 'fa-user-gear' };
       const card = (t) => { const changed = cur[t.key] !== t.def;
         return `<details class="tpl-card" data-tc="${t.key}" ${openKey === t.key ? 'open' : ''}><summary><span class="ic"><i class="fa-brands fa-whatsapp"></i></span><span class="t"><b>${esc(t.title)}</b><small>Dipakai di: ${esc(t.when)}</small></span>${changed ? '<span class="pill blue plain" data-chg>Diubah</span>' : '<span class="pill gray plain" data-chg>Bawaan</span>'}<i class="fa-solid fa-chevron-down muted"></i></summary>
           <div class="tpl-body"><div>
@@ -164,48 +175,42 @@
       };
       if (openKey) setTimeout(() => { const c = box.querySelector(`[data-tc="${openKey}"]`); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
     },
-    /* ---------- Asisten Trip: aturan chatbot JIKA (kata kunci) – MAKA (jawaban) ---------- */
+    /* ---------- Asisten Trip: basis pengetahuan chatbot AI (topik + jawaban) ----------
+       Chatbot memakai AI, bukan lagi aturan JIKA (kata kunci) – MAKA, jadi owner cukup menulis topik & jawabannya.
+       Catatan transisi: kolom `keys` dari aturan lama TIDAK ditampilkan, tapi tetap ikut tersimpan apa adanya
+       supaya Asisten Trip di website tetap jalan sampai chatbot AI di server siap. Topik baru tidak punya `keys`. */
     asisten() {
       let rules = DB.chatRules(); let sp = DB.chatSpecial(); let open = '';
-      const PRI = [['normal', 'Normal'], ['tinggi', 'Tinggi (diperiksa lebih dulu)']];
-      const keysOf = (r) => (r.keys || []).map((k) => DB.chatNorm(k)).filter(Boolean);
-      const conflicts = (r) => { const mine = new Set(keysOf(r)); return rules.filter((o) => o !== r && o.active !== false && r.active !== false).flatMap((o) => keysOf(o).filter((k) => mine.has(k)).map((k) => `"${k}" juga dipakai di ${o.title || 'aturan tanpa judul'}`)); };
       const grab = () => { $$('[data-ri]').forEach((el) => { const r = rules[+el.dataset.ri]; const k = el.dataset.k;
-        if (k === 'keys') r.keys = el.value.split(',').map((x) => x.trim()).filter(Boolean); else if (k === 'active') r.active = el.checked; else r[k] = el.value; });
+        if (k === 'active') r.active = el.checked; else r[k] = el.value; });
         $$('[data-sp]').forEach((el) => { sp[el.dataset.sp] = el.checked; }); };
-      const card = (r, i) => { const cf = conflicts(r);
-        return `<details class="cb-rule ${r.active === false ? 'off' : ''}" data-card="${i}" ${open === String(i) ? 'open' : ''}>
-          <summary><span class="cb-t"><b>${esc(r.title || 'Aturan baru')}</b><small>${esc((r.keys || []).slice(0, 6).join(', ') || 'belum ada kata kunci')}${(r.keys || []).length > 6 ? ', …' : ''}</small></span>
-            <span class="cb-tags">${r.builtin ? '<span class="pill gray plain">Bawaan</span>' : '<span class="pill blue plain">Buatan Owner</span>'}${r.priority === 'tinggi' ? '<span class="pill gold plain">Prioritas tinggi</span>' : ''}${r.active === false ? '<span class="pill red plain">Nonaktif</span>' : ''}${cf.length ? '<span class="pill red plain"><i class="fa-solid fa-triangle-exclamation"></i> Bentrok</span>' : ''}</span></summary>
+      const preview = (r) => { const t = String(r.answer || '').replace(/\s+/g, ' ').trim(); return t ? (t.length > 80 ? t.slice(0, 80) + '…' : t) : (r.builtin ? 'Jawaban otomatis bawaan' : 'Belum ada jawaban'); };
+      const card = (r, i) => `<details class="cb-rule ${r.active === false ? 'off' : ''}" data-card="${i}" ${open === String(i) ? 'open' : ''}>
+          <summary><span class="cb-t"><b>${esc(r.title || 'Topik baru')}</b><small>${esc(preview(r))}</small></span>
+            <span class="cb-tags">${r.builtin ? '<span class="pill gray plain">Bawaan</span>' : '<span class="pill blue plain">Buatan Owner</span>'}${r.active === false ? '<span class="pill red plain">Nonaktif</span>' : ''}</span></summary>
           <div class="cb-body">
-            <div class="grid-2"><div class="field"><label>Judul topik</label><input class="input" data-ri="${i}" data-k="title" value="${esc(r.title || '')}" placeholder="Contoh: Sewa untuk rombongan sekolah"></div>
-              <div class="field"><label>Prioritas</label><select class="select" data-ri="${i}" data-k="priority">${PRI.map(([v, l]) => `<option value="${v}" ${(r.priority || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
-            <div class="field"><label><b>JIKA</b> pertanyaan mengandung salah satu kata kunci (pisahkan dengan koma)</label><textarea class="input" rows="2" data-ri="${i}" data-k="keys" placeholder="sekolah, pramuka, study tour">${esc((r.keys || []).join(', '))}</textarea>
-              ${cf.length ? `<small style="color:var(--red)">${cf.slice(0, 3).map(esc).join(' · ')}</small>` : ''}</div>
-            <div class="field"><label><b>MAKA</b> tampilkan jawaban</label><textarea class="input cb-ans" rows="4" data-ri="${i}" data-k="answer" placeholder="${r.builtin ? 'Kosongkan untuk memakai jawaban otomatis bawaan (selalu mengikuti pengaturan toko).' : 'Tulis jawaban. **tebal**, baris diawali - menjadi daftar, dan isian seperti {jam_buka} terisi otomatis.'}">${esc(r.answer || '')}</textarea>
+            <div class="field"><label>Topik / pertanyaan</label><input class="input" data-ri="${i}" data-k="title" value="${esc(r.title || '')}" placeholder="Contoh: Sewa untuk rombongan sekolah"></div>
+            <div class="field"><label>Jawaban</label><textarea class="input cb-ans" rows="4" data-ri="${i}" data-k="answer" placeholder="${r.builtin ? 'Kosongkan untuk memakai jawaban otomatis bawaan (selalu mengikuti pengaturan toko).' : 'Tulis jawaban/informasi untuk topik ini. **tebal**, baris diawali - menjadi daftar, dan isian seperti {jam_buka} terisi otomatis.'}">${esc(r.answer || '')}</textarea>
               ${r.builtin && !String(r.answer || '').trim() ? '<small class="muted">Memakai jawaban otomatis bawaan.</small>' : ''}</div>
             <div class="cb-row"><div class="field" style="margin:0"><label>Tombol di bawah jawaban</label><select class="select" data-ri="${i}" data-k="action">${DB.CHAT_ACTIONS.map(([v, l]) => `<option value="${v}" ${(r.action || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
               <label class="cb-sw"><input type="checkbox" data-ri="${i}" data-k="active" ${r.active === false ? '' : 'checked'}> Aktif</label>
               <span class="cb-acts">${r.builtin ? (String(r.answer || '').trim() ? `<button type="button" class="btn btn-light btn-xs" data-reset="${i}">Pakai jawaban bawaan</button>` : '') : `<button type="button" class="btn btn-light btn-xs" data-del="${i}"><i class="fa-solid fa-trash-can"></i> Hapus</button>`}</span></div>
-          </div></details>`; };
+          </div></details>`;
       const draw = () => {
         const miss = DB.chatMisses();
-        $('#cfgMain').innerHTML = head('Asisten Trip – Tanya jawab', 'Chatbot memakai aturan <b>JIKA</b> pertanyaan mengandung kata kunci <b>MAKA</b> tampilkan jawaban. Tambah atau ubah aturan di sini; perubahan langsung dipakai Asisten Trip di website. Fitur Rencanakan trip (sistem rekomendasi) tidak diatur di sini.')
-          + `<div class="cfg-block"><h3><i class="fa-solid fa-flask"></i> Coba tanya</h3>
-              <div class="cb-test"><input class="input" id="cbQ" placeholder="Contoh: bisa sewa untuk acara sekolah?"><button type="button" class="btn btn-primary btn-sm" id="cbTry">Coba</button></div><div id="cbOut"></div>
-              <small class="muted">Uji memakai aturan di layar (termasuk yang belum disimpan). Aturan khusus berbasis data (nomor nota, produk, trip) diuji langsung di website.</small></div>
-            <div class="cfg-block"><h3><i class="fa-solid fa-list-check"></i> Aturan JIKA–MAKA <small class="muted" style="font-weight:500">${rules.filter((r) => r.active !== false).length} aktif dari ${rules.length}</small></h3>
-              <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Urutan pemeriksaan: nomor nota → aturan <b>prioritas tinggi</b> → aturan khusus berbasis data → aturan <b>prioritas normal</b> (skor kata kunci tertinggi) → bila tidak ada yang cocok, diarahkan ke admin dan dicatat di "Pertanyaan belum terjawab".</p>
+        $('#cfgMain').innerHTML = head('Asisten Trip – Tanya jawab AI', 'Asisten Trip memakai <b>chatbot AI</b> yang memahami pertanyaan customer dengan bahasa sehari-hari. Tulis topik dan jawabannya di sini sebagai bahan pengetahuan chatbot. Fitur Rencanakan trip (sistem rekomendasi) tidak diatur di sini.')
+          + `<div class="cfg-block"><h3><i class="fa-solid fa-book-open"></i> Topik &amp; jawaban <small class="muted" style="font-weight:500">${rules.filter((r) => r.active !== false).length} aktif dari ${rules.length}</small></h3>
+              <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Chatbot menjawab berdasarkan topik yang aktif. Bila pertanyaan di luar semua topik, customer diarahkan ke admin dan pertanyaannya dicatat di "Pertanyaan belum terjawab".</p>
               <div class="cb-list">${rules.map(card).join('')}</div>
-              <button type="button" class="btn btn-light btn-sm" id="cbAdd"><i class="fa-solid fa-plus"></i> Tambah aturan</button>
+              <button type="button" class="btn btn-light btn-sm" id="cbAdd"><i class="fa-solid fa-plus"></i> Tambah topik</button>
               <div class="cb-ph"><b>Isian otomatis untuk jawaban</b> (klik untuk menyisipkan): ${DB.CHAT_PH.map(([k, l]) => `<button type="button" class="chip" data-ph="${k}" title="${esc(l)}">${k}</button>`).join(' ')}</div></div>
-            <div class="cfg-block"><h3><i class="fa-solid fa-database"></i> Aturan khusus berbasis data</h3>
-              <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Jawabannya dihitung dari data stok, harga, dan pesanan sehingga tidak bisa diubah teksnya, tetapi bisa dinonaktifkan.</p>
+            <div class="cfg-block"><h3><i class="fa-solid fa-database"></i> Data toko yang boleh dipakai chatbot</h3>
+              <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Jawaban untuk hal berikut dihitung langsung dari data stok, harga, dan pesanan. Matikan bila chatbot tidak boleh menjawabnya.</p>
               <div class="cb-sp">${DB.CHAT_SPECIAL.map(([k, l]) => `<label class="cb-sw"><input type="checkbox" data-sp="${k}" ${sp[k] !== false ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
             <div class="cfg-block"><h3><i class="fa-solid fa-circle-question"></i> Pertanyaan belum terjawab <small class="muted" style="font-weight:500">${miss.length}</small></h3>
               ${miss.length ? `<div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>Pertanyaan customer</th><th class="num">Ditanyakan</th><th>Terakhir</th><th class="num">Aksi</th></tr></thead><tbody>
-                ${miss.slice(0, 30).map((m) => `<tr><td>${esc(m.text)}</td><td class="num">${m.count}×</td><td>${D.fmtDateTime(m.last)}</td><td><div class="acts"><button type="button" class="btn btn-primary btn-xs" data-mk="${esc(m.key)}">Jadikan aturan</button><button type="button" class="btn btn-light btn-xs" data-ign="${esc(m.key)}">Abaikan</button></div></td></tr>`).join('')}
-                </tbody></table></div>` : '<p class="muted" style="font-size:13px">Belum ada. Pertanyaan customer yang tidak cocok dengan aturan mana pun akan muncul di sini.</p>'}</div>
+                ${miss.slice(0, 30).map((m) => `<tr><td>${esc(m.text)}</td><td class="num">${m.count}×</td><td>${D.fmtDateTime(m.last)}</td><td><div class="acts"><button type="button" class="btn btn-primary btn-xs" data-mk="${esc(m.key)}">Jadikan topik</button><button type="button" class="btn btn-light btn-xs" data-ign="${esc(m.key)}">Abaikan</button></div></td></tr>`).join('')}
+                </tbody></table></div>` : '<p class="muted" style="font-size:13px">Belum ada. Pertanyaan customer yang belum bisa dijawab chatbot akan muncul di sini.</p>'}</div>
             ${saveBar('saveCb')}`;
       };
       draw();
@@ -215,33 +220,24 @@
       if (box._cbT) box.removeEventListener('toggle', box._cbT, true);
       box._cbT = (e) => { const d = e.target.closest && e.target.closest('[data-card]'); if (d && d.open) open = d.dataset.card; };
       box.addEventListener('toggle', box._cbT, true);
+      const newRule = (extra) => Object.assign({ id: 'cr-' + Date.now().toString(36), title: '', answer: '', action: '', priority: 'normal', active: true, builtin: false }, extra || {});
       box.onclick = async (e) => {
         const t = e.target;
-        if (t.closest('#cbAdd')) { grab(); rules.push({ id: 'cr-' + Date.now().toString(36), title: '', keys: [], answer: '', action: '', priority: 'normal', active: true, builtin: false }); open = String(rules.length - 1); draw(); const c = box.querySelector(`[data-card="${open}"]`); if (c) { c.scrollIntoView({ block: 'center' }); c.querySelector('input').focus(); } return; }
-        const del = t.closest('[data-del]'); if (del) { grab(); const r = rules[+del.dataset.del]; if (!(await confirmBox({ title: `Hapus aturan ${r.title || ''}?`, text: 'Aturan dihapus setelah kamu menekan Simpan perubahan.', ok: 'Hapus', danger: true }))) return; rules.splice(+del.dataset.del, 1); open = ''; draw(); return; }
+        if (t.closest('#cbAdd')) { grab(); rules.push(newRule()); open = String(rules.length - 1); draw(); const c = box.querySelector(`[data-card="${open}"]`); if (c) { c.scrollIntoView({ block: 'center' }); c.querySelector('input').focus(); } return; }
+        const del = t.closest('[data-del]'); if (del) { grab(); const r = rules[+del.dataset.del]; if (!(await confirmBox({ title: `Hapus topik ${r.title || ''}?`, text: 'Topik dihapus setelah kamu menekan Simpan perubahan.', ok: 'Hapus', danger: true }))) return; rules.splice(+del.dataset.del, 1); open = ''; draw(); return; }
         const rs = t.closest('[data-reset]'); if (rs) { grab(); rules[+rs.dataset.reset].answer = ''; draw(); return; }
         const ph = t.closest('[data-ph]'); if (ph) { const ta = lastTa && document.body.contains(lastTa) ? lastTa : box.querySelector('details[open] .cb-ans'); if (!ta) { toast('Klik dulu kolom jawaban yang ingin diisi.', 'err'); return; } const p0 = ta.selectionStart || ta.value.length; ta.value = ta.value.slice(0, p0) + ph.dataset.ph + ta.value.slice(p0); ta.focus(); return; }
-        const mk = t.closest('[data-mk]'); if (mk) { grab(); const m = DB.chatMisses().find((x) => x.key === mk.dataset.mk); rules.push({ id: 'cr-' + Date.now().toString(36), title: m ? m.text.slice(0, 40) : 'Aturan baru', keys: m ? [m.key] : [], answer: '', action: '', priority: 'normal', active: true, builtin: false, fromMiss: mk.dataset.mk }); open = String(rules.length - 1); draw(); toast('Aturan baru dibuat dari pertanyaan. Rapikan kata kunci, tulis jawaban, lalu simpan.'); const c = box.querySelector(`[data-card="${open}"]`); if (c) c.scrollIntoView({ block: 'center' }); return; }
+        const mk = t.closest('[data-mk]'); if (mk) { grab(); const m = DB.chatMisses().find((x) => x.key === mk.dataset.mk); rules.push(newRule({ title: m ? m.text.slice(0, 60) : '', fromMiss: mk.dataset.mk })); open = String(rules.length - 1); draw(); toast('Topik baru dibuat dari pertanyaan. Rapikan judulnya, tulis jawaban, lalu simpan.'); const c = box.querySelector(`[data-card="${open}"]`); if (c) c.scrollIntoView({ block: 'center' }); return; }
         const ig = t.closest('[data-ign]'); if (ig) { DB.dismissChatMiss(ig.dataset.ign); grab(); draw(); return; }
-        if (t.closest('#cbTry')) {
-          grab(); const q = $('#cbQ').value.trim(); if (!q) return;
-          const saved = DB.settings().chatRules; const tmp = Object.assign({}, DB.settings(), { chatRules: rules });
-          /* uji tanpa menyimpan: pakai aturan di layar sementara */
-          const orig = DB.settings; DB.settings = () => tmp;
-          let hit; try { hit = DB.chatMatch(q, 'tinggi') || DB.chatMatch(q, 'normal'); } finally { DB.settings = orig; }
-          $('#cbOut').innerHTML = hit ? `<div class="cb-res ok"><div><small>Aturan terpakai</small><b>${esc(hit.rule.title || 'Aturan tanpa judul')}</b> · skor ${hit.score}${hit.rule.priority === 'tinggi' ? ' · prioritas tinggi' : ''}</div>
-              <div class="cb-ans-prev">${hit.rule.builtin && !String(hit.rule.answer || '').trim() ? '<i class="muted">Jawaban otomatis bawaan (mengikuti pengaturan toko).</i>' : DB.chatRender(hit.rule.answer)}</div></div>`
-            : '<div class="cb-res no"><b>Tidak ada aturan yang cocok.</b> Di website, pertanyaan ini akan diarahkan ke admin dan masuk daftar "Pertanyaan belum terjawab".</div>';
-          void saved; return;
-        }
         if (t.closest('#saveCb')) {
           grab();
-          const bad = rules.find((r) => r.active !== false && (!String(r.title || '').trim() || !(r.keys || []).length || (!r.builtin && !String(r.answer || '').trim())));
-          if (bad) { toast(`Lengkapi aturan "${bad.title || 'tanpa judul'}": judul, kata kunci, dan jawaban wajib diisi.`, 'err'); open = String(rules.indexOf(bad)); draw(); return; }
-          const clean = rules.map((r) => ({ id: r.id, title: String(r.title).trim(), keys: (r.keys || []).map((k) => k.trim().toLowerCase()).filter(Boolean), answer: String(r.answer || '').trim(), action: r.action || '', priority: r.priority === 'tinggi' ? 'tinggi' : 'normal', active: r.active !== false, builtin: !!r.builtin }));
+          const bad = rules.find((r) => r.active !== false && (!String(r.title || '').trim() || (!r.builtin && !String(r.answer || '').trim())));
+          if (bad) { toast(`Lengkapi topik "${bad.title || 'tanpa judul'}": topik dan jawaban wajib diisi.`, 'err'); open = String(rules.indexOf(bad)); draw(); return; }
+          /* keys lama dibawa apa adanya (tidak ditampilkan) agar Asisten Trip di website tetap jalan selama masa transisi */
+          const clean = rules.map((r) => Object.assign({ id: r.id, title: String(r.title).trim(), answer: String(r.answer || '').trim(), action: r.action || '', priority: r.priority === 'tinggi' ? 'tinggi' : 'normal', active: r.active !== false, builtin: !!r.builtin }, Array.isArray(r.keys) && r.keys.length ? { keys: r.keys } : {}));
           rules.filter((r) => r.fromMiss).forEach((r) => DB.dismissChatMiss(r.fromMiss));
           const next = Object.assign({}, S(), { chatRules: clean, chatSpecial: Object.assign({}, sp) });
-          cfgSave(next, 'Mengubah aturan Asisten Trip (tanya jawab)', [['chatRules', 'Aturan tanya jawab', (v) => `${(v || []).filter((r) => r.active !== false).length} aktif dari ${(v || []).length} aturan`], ['chatSpecial', 'Aturan khusus', (v) => Object.entries(v || {}).filter(([, on]) => !on).map(([k]) => k + ' nonaktif').join(', ') || 'semua aktif']]);
+          cfgSave(next, 'Mengubah topik Asisten Trip (tanya jawab AI)', [['chatRules', 'Topik tanya jawab', (v) => `${(v || []).filter((r) => r.active !== false).length} aktif dari ${(v || []).length} topik`], ['chatSpecial', 'Data toko untuk chatbot', (v) => Object.entries(v || {}).filter(([, on]) => !on).map(([k]) => k + ' nonaktif').join(', ') || 'semua aktif']]);
         }
       };
       box.oninput = null; box.onchange = null;
@@ -397,21 +393,31 @@
     beranda() {
       const hb = Object.assign({ mode: 'gabungan', days: 90, count: 6, onlyAvailable: true }, S().homeBest || {});
       const opt = (v, t, d) => `<label class="pk-opt"><input type="radio" name="mode" value="${v}" ${hb.mode === v ? 'checked' : ''}><span><i class="fa-solid ${v === 'otomatis' ? 'fa-chart-line' : v === 'manual' ? 'fa-hand-pointer' : 'fa-layer-group'}"></i><b>${t}</b><small>${d}</small></span></label>`;
-      const draw = () => {
-        const prev = DB.homeBest();
-        $('#hbPrev').innerHTML = prev.items.length ? prev.items.map((x, i) => `<li><span class="hb-n">${i + 1}</span><img loading="lazy" decoding="async" src="${UI.asset(x.p.img)}" alt=""><span class="hb-name">${esc(x.p.name)}</span>${x.pinned ? '<span class="pill gray plain">Disematkan</span>' : ''}<span class="hb-c">${x.n ? `${x.n}× disewa` : 'cadangan (rating)'}</span></li>`).join('') : '<li class="muted">Belum ada barang yang memenuhi.</li>';
+      /* Sematkan / lepas langsung dari sini (dulu lewat Data Barang). Maks. setengah dari jumlah tampil (6 → 3). */
+      const MAXPIN = Math.max(1, Math.floor((+(S().homeBest || {}).count || 6) / 2));
+      const rentProds = () => DB.products().filter((p) => p.active !== false && p.rent > 0);
+      const setPin = (id, on) => {
+        const p = DB.product(id); if (!p) return;
+        if (on && rentProds().filter((x) => x.featured).length >= MAXPIN) { toast(`Maksimal ${MAXPIN} barang disematkan. Lepas salah satu dulu.`, 'err'); return; }
+        p.featured = on; DB.saveProduct(p);
+        DB.audit({ type: 'konfigurasi', action: `${on ? 'Menyematkan' : 'Melepas sematan'} ${p.name} di beranda (Produk Rental Terlaris)` });
+        toast(on ? `${p.name} disematkan di beranda.` : `Sematan ${p.name} dilepas.`); draw();
       };
-      $('#cfgMain').innerHTML = head('Tampilan Beranda', 'Mengatur isi section "Produk Rental Terlaris" di beranda customer.') + `<div class="panel"><form id="hbf" novalidate>
-        <h4 class="cfg-sub" style="margin-top:0">Sumber data</h4>
-        <div class="pk-opts hb-modes">${opt('gabungan', 'Gabungan (disarankan)', 'Barang yang disematkan admin tampil dulu (maks. setengah), sisanya otomatis dari yang paling sering disewa.')}${opt('otomatis', 'Otomatis', 'Murni dari jumlah sewa. Judul: "Produk Rental Terlaris".')}${opt('manual', 'Manual', 'Hanya barang yang disematkan admin. Judul berubah jadi "Produk Pilihan Kami".')}</div>
-        <div class="grid-3" style="margin-top:14px">
-          <div class="field"><label>Periode hitung</label><select class="select" name="days">${[[30, '30 hari terakhir'], [90, '90 hari terakhir'], [0, 'Sepanjang waktu']].map(([v, l]) => `<option value="${v}" ${+hb.days === v ? 'selected' : ''}>${l}</option>`).join('')}</select><span class="hint">Booking yang dibatalkan tidak dihitung. Isi paket ikut dihitung per barang.</span></div>
-          <div class="field"><label>Jumlah barang tampil</label><select class="select" name="count">${[4, 6, 8].map((v) => `<option ${+hb.count === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-        </div>
-        <label class="chk-line"><input type="checkbox" name="onlyAvailable" ${hb.onlyAvailable ? 'checked' : ''}> Sembunyikan barang yang stoknya habis hari ini</label>
-        <p class="muted" style="font-size:12.5px;margin-top:6px"><i class="fa-solid fa-circle-info"></i> Sematkan barang lewat <b>Data Barang → Edit → "Sematkan di beranda"</b>. 3 barang teratas otomatis mendapat label <b>Terlaris</b>. Kartu "Barang paling sering disewa" di dashboard admin memakai periode yang sama.</p>
-        <h4 class="cfg-sub">Pratinjau (dengan pengaturan tersimpan)</h4><ol class="hb-prev" id="hbPrev"></ol>
-      </form></div>${saveBar('saveHb')}
+      const draw = () => {
+        const prev = DB.homeBest(); const pins = rentProds().filter((x) => x.featured); const full = pins.length >= MAXPIN;
+        $('#hbPins').innerHTML = `<div class="hb-pins-h"><b>Barang disematkan</b> <span class="muted">${pins.length} dari maks. ${MAXPIN}</span></div>`
+          + (pins.length > MAXPIN ? `<div class="notice amber hb-over"><i class="fa-solid fa-triangle-exclamation"></i><div>Ada <b>${pins.length}</b> barang disematkan, tapi beranda hanya menampilkan <b>${MAXPIN}</b> barang sematan (sisanya tidak tampil). Lepas yang tidak perlu dengan tombol ×.</div></div>` : '')
+          + (pins.length ? pins.map((p) => `<span class="hb-pin"><img src="${UI.asset(p.img)}" alt=""> ${esc(p.name)} <button type="button" class="icon-btn" data-unpin="${p.id}" title="Lepas sematan" aria-label="Lepas sematan ${esc(p.name)}"><i class="fa-solid fa-xmark"></i></button></span>`).join('') : '<span class="muted" style="font-size:13px">Belum ada. Tekan <b>Sematkan</b> di pratinjau atau pilih barang di bawah.</span>')
+          + `<div class="hb-add"><select class="select" id="hbPick" ${full ? 'disabled' : ''}><option value="">${full ? `Sudah ${MAXPIN} barang disematkan` : '+ Sematkan barang lain…'}</option>${rentProds().filter((p) => !p.featured).sort((a, b) => a.name.localeCompare(b.name)).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>`;
+        $('#hbPrev').innerHTML = prev.items.length ? prev.items.map((x, i) => `<li><span class="hb-n">${i + 1}</span><img loading="lazy" decoding="async" src="${UI.asset(x.p.img)}" alt=""><span class="hb-name">${esc(x.p.name)}</span>${x.pinned ? '<span class="pill gray plain">Disematkan</span>' : ''}<span class="hb-c">${x.n ? `${x.n}× disewa` : 'cadangan (rating)'}</span>
+          ${x.pinned ? `<button type="button" class="btn btn-light btn-xs" data-unpin="${x.p.id}"><i class="fa-solid fa-thumbtack-slash"></i> Lepas</button>` : `<button type="button" class="btn btn-light btn-xs" data-pin="${x.p.id}" ${full ? 'disabled title="Maksimal barang disematkan sudah tercapai"' : ''}><i class="fa-solid fa-thumbtack"></i> Sematkan</button>`}</li>`).join('') : '<li class="muted">Belum ada barang sewa.</li>';
+      };
+      $('#cfgMain').innerHTML = head('Tampilan Beranda', 'Mengatur isi section "Produk Rental Terlaris" di beranda customer.') + `<div class="panel">
+        <h4 class="cfg-sub" style="margin-top:0">Produk Rental Terlaris</h4>
+        <p class="muted" style="font-size:13px;margin:-4px 0 10px"><i class="fa-solid fa-wand-magic-sparkles"></i> Diatur otomatis: barang yang <b>disematkan</b> tampil lebih dulu, sisanya barang yang paling sering disewa. Barang yang stoknya habis hari ini disembunyikan.</p>
+        <div class="hb-pins" id="hbPins"></div>
+        <h4 class="cfg-sub">Pratinjau di beranda</h4><ol class="hb-prev" id="hbPrev"></ol>
+      </div>
       <div class="panel" style="margin-top:18px"><h4 class="cfg-sub" style="margin-top:0">Tata cara di beranda</h4>
         <p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Langkah yang tampil di section "Cara Sewa | Cara Beli" beranda. Minimal 2, maksimal 5 langkah.</p>
         <div class="seg biz-view" id="htTab"><button type="button" data-ht="sewa" class="active">Cara Sewa</button><button type="button" data-ht="beli">Cara Beli</button></div>
@@ -419,12 +425,8 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn btn-light btn-sm" id="htAdd"><i class="fa-solid fa-plus"></i> Tambah langkah</button><button type="button" class="btn btn-ghost btn-sm" id="htReset"><i class="fa-solid fa-rotate-left"></i> Kembalikan ke bawaan</button></div>
       </div>${saveBar('saveHt')}`;
       draw();
-      $('#saveHb').addEventListener('click', () => {
-        const E = $('#hbf').elements;
-        const next = Object.assign({}, S(), { homeBest: { mode: $('#hbf').querySelector('input[name="mode"]:checked').value, days: +E.days.value, count: +E.count.value, onlyAvailable: E.onlyAvailable.checked } });
-        const fmt = (v) => (v ? `${{ gabungan: 'Gabungan', otomatis: 'Otomatis', manual: 'Manual' }[v.mode] || v.mode}, ${+v.days ? v.days + ' hari' : 'semua waktu'}, ${v.count} barang` : '-');
-        cfgSave(next, 'Mengubah tampilan beranda (Produk Rental Terlaris)', [['homeBest', 'Produk Rental Terlaris', fmt]]);
-      });
+      $('#cfgMain').onclick = (e) => { const a = e.target.closest('[data-pin]'); if (a) { setPin(a.dataset.pin, true); return; } const r = e.target.closest('[data-unpin]'); if (r) setPin(r.dataset.unpin, false); };
+      $('#cfgMain').onchange = (e) => { if (e.target.id === 'hbPick' && e.target.value) setPin(e.target.value, true); };
       /* Editor tata cara sewa / beli */
       const ICONS = [['fa-calendar-days', 'Kalender'], ['fa-magnifying-glass', 'Cari'], ['fa-bag-shopping', 'Tas belanja'], ['fa-cart-shopping', 'Keranjang'], ['fa-clipboard', 'Form'], ['fa-credit-card', 'Pembayaran'], ['fa-qrcode', 'QRIS'], ['fa-receipt', 'Nota'], ['fa-box', 'Paket/kemas'], ['fa-store', 'Toko'], ['fa-person-hiking', 'Pendaki'], ['fa-campground', 'Tenda'], ['fa-rotate-left', 'Kembali'], ['fa-circle-check', 'Selesai']];
       const ht = JSON.parse(JSON.stringify(S().howto || {})); let htK = 'sewa';
@@ -520,14 +522,14 @@
         <div class="cat-checks" id="wc">${DB.categories(true).map((c) => `<label><input type="checkbox" value="${c.id}" ${wc.includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('')}</div>
         <h4 class="cfg-sub"><i class="fa-solid fa-calendar-check" style="color:var(--g600)"></i> Perawatan berkala & stok</h4>
         <div class="grid-2">
-          <div class="field"><label>Perawatan berkala setiap … kali disewa</label><input class="input" type="number" min="1" max="100" name="serviceEvery" value="${st.serviceEvery || 10}"><span class="hint">Pengecekan menyeluruh rutin (cek frame, lapisan anti air). Hanya pengingat — unit tetap bisa disewa.</span></div>
+          <div class="field"><label>Perawatan berkala setiap … kali disewa</label><input class="input" type="number" min="0" max="100" name="serviceEvery" value="${st.serviceEvery || 0}"><span class="hint"><b>0 = nonaktif</b> (bawaan). Isi angka bila ingin pengingat cek menyeluruh rutin (frame, lapisan anti air). Hanya pengingat — unit tetap bisa disewa.</span></div>
           <div class="field"><label>Stok minimum default barang jual</label><input class="input" type="number" min="0" name="minStockDefault" value="${st.minStockDefault ?? 2}"><span class="hint">Di bawah angka ini muncul di "Stok jual menipis".</span></div>
         </div>
         <div class="notice green"><i class="fa-solid fa-circle-info"></i><div>Saat ini: <b>${q.cuci.length}</b> unit perlu dicuci, <b>${q.perbaikan.length}</b> dalam perbaikan, <b>${q.berkala.length}</b> jatuh tempo perawatan berkala, <b>${DB.lowStock().length}</b> barang jual di bawah minimum. <a class="link" href="${Admin.A('perawatan')}">Buka Perawatan Unit</a></div></div>
       </form></div>${saveBar('saveStok')}`;
       $('#saveStok').addEventListener('click', () => {
         const F = $('#kf'), E = F.elements;
-        if (!validate(F, { serviceEvery: (v) => (!(+v >= 1) ? 'Minimal 1.' : '') })) return;
+        if (!validate(F, { serviceEvery: (v) => (!(+v >= 0) ? 'Isi 0 atau lebih.' : '') })) return;
         const washCats = $$('#wc input:checked').map((x) => x.value);
         cfgSave(Object.assign({}, S(), { serviceEvery: +E.serviceEvery.value, minStockDefault: Math.max(0, +E.minStockDefault.value || 0), washCats }), 'Mengubah aturan perawatan & stok',
           [['washCats', 'Wajib dicuci setiap kembali', (v) => (v || []).map(catName).join(', ') || '—'], ['serviceEvery', 'Perawatan berkala tiap … kali sewa'], ['minStockDefault', 'Stok minimum default']]);
@@ -575,21 +577,18 @@
       f.pickup = Object.assign({ note: 'opsional', photo: 'opsional', idCard: 'wajib', custom: [] }, f.pickup);
       f.return = Object.assign({ note: 'opsional', photo: 'opsional', custom: [] }, f.return);
       const BUILT = { pickup: [['idCard', 'Identitas jaminan (KTP/KTM/SIM)'], ['photo', 'Foto barang saat keluar'], ['note', 'Catatan']], return: [['photo', 'Foto kondisi barang'], ['note', 'Catatan pemeriksaan']] };
-      const FIX = { pickup: ['Kondisi barang saat keluar', 'Pelunasan diterima'], return: ['Tanggal & jam kembali', 'Kondisi barang', 'Biaya kerusakan'] };
+      /* Versi ringkas: Owner hanya mengatur isian bawaan (Wajib / Opsional / Sembunyikan). Tambah field sendiri ditiadakan;
+         "Kelengkapan sudah dicek" kini isian tetap. Field tambahan lama tidak dipakai lagi, datanya di booking lama tetap tampil. */
+      const FIX = { pickup: ['Unit yang diserahkan', 'Kelengkapan sudah dicek bersama customer', 'Pelunasan diterima'], return: ['Tanggal & jam kembali', 'Kondisi barang', 'Biaya kerusakan (bila ada)'] };
+      const oldCustom = (f.pickup.custom || []).length + (f.return.custom || []).length;
       const TYPES = [['teks', 'Teks'], ['angka', 'Angka'], ['pilihan', 'Pilihan'], ['centang', 'Centang (konfirmasi)'], ['foto', 'Foto']];
       const card = (k, t) => `<div class="panel form-cfg"><div class="panel-h"><h3>${t}</h3></div>
         <div class="fc-list">${FIX[k].map((n) => `<div class="fc-row"><span>${n}</span><span class="pill green plain">Selalu wajib</span></div>`).join('')}
         ${BUILT[k].map(([key, n]) => `<div class="fc-row"><span>${n}</span><div class="seg sm">${MODES.map(([m, l]) => `<button type="button" data-f="${k}|${key}|${m}" class="${f[k][key] === m ? 'active' : ''}">${l}</button>`).join('')}</div></div>`).join('')}</div>
-        <h4 class="cfg-sub">Field tambahan</h4>
-        <div class="fc-custom" id="cust-${k}">${f[k].custom.map((c, i) => `<div class="fc-crow" data-k="${k}" data-i="${i}">
-          <input class="input" data-cf="label" value="${esc(c.label)}" placeholder="Nama field, contoh: Nomor segel tas">
-          <select class="select" data-cf="type">${TYPES.map(([v, l]) => `<option value="${v}" ${c.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-          <input class="input" data-cf="options" value="${esc((c.options || []).join(', '))}" placeholder="Pilihan, pisahkan koma" ${c.type === 'pilihan' ? '' : 'hidden'}>
-          <label class="switch"><input type="checkbox" data-cf="required" ${c.required ? 'checked' : ''}><span></span> Wajib</label>
-          <button type="button" class="btn btn-light btn-xs" data-crmf="${k}|${i}" title="Keluarkan field"><i class="fa-solid fa-xmark"></i></button></div>`).join('') || '<p class="muted" style="font-size:13px">Belum ada field tambahan.</p>'}</div>
-        <button type="button" class="btn btn-light btn-sm" data-addf="${k}"><i class="fa-solid fa-plus"></i> Tambah field</button></div>`;
+        </div>`;
       const draw = () => { $('#formCards').innerHTML = card('pickup', '<i class="fa-solid fa-box-open" style="color:var(--g600)"></i> Barang keluar') + card('return', '<i class="fa-solid fa-rotate-left" style="color:var(--g600)"></i> Pengembalian barang'); };
-      $('#cfgMain').innerHTML = head('Form & Field Staff', 'Tentukan isian yang wajib diisi staff sesuai SOP toko. Foto barang bawaannya opsional karena staff lebih sering memakai komputer; ubah ke Wajib bila memang diperlukan.')
+      $('#cfgMain').innerHTML = head('Form & Field Staff', 'Atur isian di form Catat barang keluar & Proses pengembalian: Wajib, Opsional, atau Sembunyikan. Foto bawaannya opsional; ubah ke Wajib bila memang diperlukan (mis. saat sering ada kerusakan).')
+        + (oldCustom ? `<div class="notice" style="margin-bottom:14px"><i class="fa-solid fa-circle-info"></i><div>${oldCustom} field tambahan buatan sendiri tidak dipakai lagi di form staff. Data yang sudah tercatat di booking lama tetap tampil di detail booking.</div></div>` : '')
         + `<div class="grid-dash" style="grid-template-columns:1fr 1fr" id="formCards"></div>${saveBar('saveForm')}
           <div class="cfg-block" style="margin-top:18px"><h3><i class="fa-regular fa-id-card"></i> Jenis kartu identitas jaminan</h3>
             <p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Pilihan di kasir, catat barang keluar, dan checkout customer. Pilihan <b>Lainnya</b> (ketik manual, mis. Paspor) selalu tersedia.</p>
@@ -599,22 +598,13 @@
       const box = $('#formCards');
       box.addEventListener('click', (e) => {
         const b = e.target.closest('[data-f]'); if (b) { const [k, key, m] = b.dataset.f.split('|'); f[k][key] = m; draw(); return; }
-        const a = e.target.closest('[data-addf]'); if (a) { f[a.dataset.addf].custom.push({ id: 'f-' + Date.now().toString(36), label: '', type: 'teks', required: false }); draw(); return; }
-        const r = e.target.closest('[data-crmf]'); if (r) { const [k, i] = r.dataset.crmf.split('|'); f[k].custom.splice(+i, 1); draw(); }
-      });
-      box.addEventListener('input', (e) => {
-        const row = e.target.closest('.fc-crow'); if (!row) return; const c = f[row.dataset.k].custom[+row.dataset.i]; const key = e.target.dataset.cf;
-        if (key === 'label') c.label = e.target.value; if (key === 'required') c.required = e.target.checked;
-        if (key === 'options') c.options = lines(e.target.value);
-        if (key === 'type') { c.type = e.target.value; draw(); }
       });
       $('#saveIdT').addEventListener('click', () => { const L = [...new Set(lines($('#idTypes').value).filter((x) => !/^lain/i.test(x)))];
         if (!L.length) { toast('Isi minimal satu jenis identitas.', 'err'); return; }
         const old = DB.idTypes(); if (old.join('|') === L.join('|')) { toast('Tidak ada perubahan.'); return; }
         DB.saveConfig('idTypes', L, 'Mengubah jenis kartu identitas jaminan', [{ field: 'Jenis identitas', from: old.join(', '), to: L.join(', ') }]); toast('Jenis identitas disimpan.'); R.form(); });
       $('#saveForm').addEventListener('click', () => {
-        for (const k of ['pickup', 'return']) { f[k].custom = f[k].custom.filter((c) => c.label.trim()).map((c) => Object.assign({}, c, { label: c.label.trim() }));
-          if (f[k].custom.some((c) => c.type === 'pilihan' && !(c.options || []).length)) { toast('Field bertipe pilihan harus punya daftar pilihan.', 'err'); return; } }
+        for (const k of ['pickup', 'return']) f[k].custom = []; /* field tambahan ditiadakan */
         const old = S().forms || {}; const KL = { note: 'Catatan', photo: 'Foto', idCard: 'Identitas jaminan' }; const desc = (x) => { const o = x || {}; return [...Object.entries(o).filter(([k]) => k !== 'custom').map(([k, v]) => `${KL[k] || k}: ${v}`), ...(o.custom || []).map((c) => `+${c.label}${c.required ? '*' : ''}`)].join(', '); };
         const ch = [['pickup', 'Form barang keluar'], ['return', 'Form pengembalian']].filter(([k]) => desc(old[k]) !== desc(f[k])).map(([k, l]) => ({ field: l, from: desc(old[k]), to: desc(f[k]) }));
         if (!ch.length) { toast('Tidak ada perubahan.'); return; }
@@ -624,7 +614,7 @@
     /* ---------- SOP ---------- */
     sop() {
       const L = DB.sops();
-      $('#cfgMain').innerHTML = head('SOP & Peraturan Staff', 'Tampil di menu SOP staff, di dashboard (yang disematkan), dan otomatis muncul di form terkait (misalnya SOP pengembalian saat staff memproses pengembalian).', '<button class="btn btn-primary btn-sm" id="addSop"><i class="fa-solid fa-plus"></i> Tambah SOP</button>')
+      $('#cfgMain').innerHTML = head('SOP & Peraturan Staff', 'Tampil di menu SOP staff, di dashboard (yang disematkan), dan bisa dibuka lewat tautan “Lihat SOP” di form terkait (misalnya SOP pengembalian saat staff memproses pengembalian).', '<button class="btn btn-primary btn-sm" id="addSop"><i class="fa-solid fa-plus"></i> Tambah SOP</button>')
         + `<div class="sop-list">${L.map((x) => `<article class="sop-card ${x.active === false ? 'row-off' : ''}"><div class="sop-h"><span class="pill blue plain">${CTX[x.context] || x.context}</span>${x.pinned ? '<span class="pill amber plain"><i class="fa-solid fa-thumbtack"></i> Disematkan</span>' : ''}${x.active === false ? '<span class="pill gray plain">Diarsipkan</span>' : ''}</div>
           <h3>${esc(x.title)}</h3><p>${esc(x.body)}</p><div class="acts" style="justify-content:flex-start"><button class="btn btn-light btn-xs" data-sedit="${x.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-stoggle="${x.id}">${x.active === false ? 'Aktifkan' : 'Arsipkan'}</button></div></article>`).join('') || '<p class="muted">Belum ada SOP.</p>'}</div>`;
       $('#addSop').addEventListener('click', () => sopForm());
@@ -635,6 +625,12 @@
     const old = S(); const ch = fields.filter(([k]) => JSON.stringify(old[k]) !== JSON.stringify(next[k])).map(([k, l, f]) => ({ field: l, from: f ? f(old[k] ?? '') : String(old[k] ?? ''), to: f ? f(next[k]) : String(next[k]) }));
     if (!ch.length) { toast('Tidak ada perubahan.'); return; }
     DB.set('settings', next); DB.audit({ type: 'konfigurasi', action, changes: ch }); toast('Konfigurasi disimpan.'); R[cur]();
+    /* Kirim setiap pengaturan yang berubah ke server lewat endpoint yang sudah ada (POST api/owner/konfigurasi {key, value}).
+       Sebelumnya bagian-bagian yang memakai cfgSave hanya tersimpan di browser. */
+    if (window.Api) fields.filter(([k]) => JSON.stringify(old[k]) !== JSON.stringify(next[k])).forEach(([k, l]) => {
+      Api.post('api/owner/konfigurasi', { key: k, value: next[k], action, changes: ch.filter((c) => c.field === l) }, { redirectOn401: false })
+        .then((r) => { if (r && !r.ok && r.status && ![404, 405].includes(r.status)) toast(`"${l}" tersimpan, tetapi gagal dikirim ke server: ${r.msg}`, 'err'); });
+    });
   }
 
   function catForm(c) {
@@ -658,36 +654,48 @@
     const isNew = !a; a = a ? JSON.parse(JSON.stringify(a)) : { id: '', name: '', type: 'pilihan', values: [], variant: false, cats: [], required: false, active: true };
     const P = productsRaw(); const cats = DB.categories(true);
     const usedVals = (v) => P.filter((p) => (p.variant && p.variant.attrId === a.id && p.variant.options.some((o) => o.name === v)) || (p.attrs && p.attrs[a.id] === v)).length;
-    const m = modal({ title: isNew ? 'Tambah atribut barang' : `Edit atribut · ${esc(a.name)}`, size: 'lg', body: `<form id="af" novalidate>
-      <div class="grid-2"><div class="field"><label>Nama atribut</label><input class="input" name="aname" value="${esc(a.name)}" placeholder="Contoh: Ukuran, Warna, Kapasitas"></div>
-      <div class="field"><label>Tipe</label><select class="select" name="atype">${Object.entries(TYPE_LABEL).map(([k, l]) => `<option value="${k}" ${a.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select><span class="hint type-hint" id="typeHint"></span></div></div>
-      <div class="field" id="valF"><label>Nilai pilihan</label><div class="tag-input" id="tags"></div><input class="input" id="tagIn" placeholder="Ketik nilai lalu Enter (contoh: S, M, L, XL)"><span class="hint">Nilai yang sudah dipakai barang tidak bisa dikeluarkan.</span></div>
-      <div class="field"><label>Berlaku untuk kategori</label><div class="cat-checks">${cats.map((c) => `<label><input type="checkbox" value="${c.id}" ${(a.cats || []).includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('')}</div><span class="hint">Tidak dicentang semua = berlaku untuk semua kategori.</span></div>
-      <label class="chk-line" id="varF"><input type="checkbox" name="avariant" ${a.variant ? 'checked' : ''}> <span><b>Jadikan varian stok</b> — stok dihitung per nilai dan customer wajib memilih saat menyewa/membeli<small class="chk-help">Centang bila tiap nilai adalah unit fisik berbeda yang dipilih customer, mis. ukuran sepatu 39–43 atau ukuran jaket M/L/XL. Jangan dicentang untuk keterangan saja seperti kapasitas tenda.</small></span></label>
-      <label class="chk-line"><input type="checkbox" name="areq" ${a.required ? 'checked' : ''}> <span>Wajib diisi staff saat menambah / mengedit barang di kategori tersebut<small class="chk-help">Barang tidak bisa disimpan sebelum atribut ini diisi. Centang hanya bila semua barang di kategori itu pasti punya nilai ini (mis. ukuran sepatu di Footwear), bukan untuk kategori campuran seperti Fashion yang berisi topi & kacamata.</small></span></label>
+    /* Versi sederhana: 3 pertanyaan. Tipe selalu "pilihan" (atribut lama bertipe teks/angka tetap berlaku apa adanya).
+       "Wajib diisi staff" mengikuti jawaban nomor 3 (stok terpisah → wajib). */
+    const legacy = !isNew && a.type && a.type !== 'pilihan';
+    const allCats = !(a.cats || []).length;
+    const m = modal({ title: isNew ? 'Tambah atribut barang' : `Edit atribut · ${esc(a.name)}`, size: 'lg', body: `<form id="af" novalidate class="af-steps">
+      <div class="af-q"><div class="af-b"><b>1. Nama atribut & pilihannya</b>
+        <div class="field"><input class="input" name="aname" value="${esc(a.name)}" placeholder="Contoh: Ukuran sepatu"></div>
+        ${legacy ? `<p class="muted" style="font-size:12.5px">Atribut ini bertipe <b>${esc(TYPE_LABEL[a.type] || a.type)}</b> (diisi bebas per barang) dan tetap berlaku seperti sebelumnya.</p>` : `<div class="field" id="valF"><div class="tag-input" id="tags"></div><input class="input" id="tagIn" placeholder="Ketik pilihan lalu tekan Enter, contoh: 39, 40, 41"><span class="hint">Pilihan yang sudah dipakai barang tidak bisa dihapus.</span></div>`}
+      </div></div>
+      <div class="af-q"><div class="af-b"><b>2. Untuk kategori apa?</b>
+        <div class="af-seg" id="catMode"><button type="button" data-cm="all" class="${allCats ? 'on' : ''}">Semua kategori</button><button type="button" data-cm="some" class="${allCats ? '' : 'on'}">Kategori tertentu</button></div>
+        <div class="cat-checks" id="catBox" ${allCats ? 'hidden' : ''}>${cats.map((c) => `<label><input type="checkbox" value="${c.id}" ${(a.cats || []).includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('')}</div>
+      </div></div>
+      ${legacy ? '' : `<div class="af-q"><div class="af-b"><b>3. Apakah stoknya dihitung terpisah untuk setiap pilihan?</b>
+        <div class="pk-opts">
+          <label class="pk-opt"><input type="radio" name="avariant" value="1" ${a.variant ? 'checked' : ''}><span><i class="fa-solid fa-layer-group"></i><b>Ya, stok terpisah</b><small>Contoh: sepatu 40 dan 41 stoknya beda. Customer wajib memilih, staff wajib mengisi stok tiap pilihan.</small></span></label>
+          <label class="pk-opt"><input type="radio" name="avariant" value="0" ${a.variant ? '' : 'checked'}><span><i class="fa-solid fa-tag"></i><b>Tidak, hanya keterangan</b><small>Contoh: tipe tenda single / double layer. Tampil di halaman produk saja.</small></span></label>
+        </div></div></div>`}
       </form>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="aSave"><i class="fa-solid fa-floppy-disk"></i> Simpan atribut</button>' });
     const F = m.$('#af'), E = F.elements;
-    const TYPE_HELP = {
-      pilihan: '<b>Pilihan:</b> nilai dipilih dari daftar yang kamu buat di bawah, mis. S, M, L atau 2 orang, 4 orang. Penulisan jadi seragam dan bisa dijadikan varian stok.',
-      teks: '<b>Teks bebas:</b> staff mengetik sendiri isinya per barang, mis. Bahan "Nylon ripstop 420D". Cocok untuk keterangan yang berbeda-beda.',
-      angka: '<b>Angka:</b> hanya boleh diisi angka, mis. Berat 1,2 (kg) atau Powerbank 10000 (mAh). Tidak ada salah ketik huruf.',
-    };
+    let catAll = allCats;
+    m.$('#catMode').addEventListener('click', (e) => { const b = e.target.closest('[data-cm]'); if (!b) return; catAll = b.dataset.cm === 'all'; m.$$('#catMode button').forEach((x) => x.classList.toggle('on', x === b)); m.$('#catBox').hidden = catAll; });
     const drawTags = () => {
-      m.$('#typeHint').innerHTML = TYPE_HELP[E.atype.value] || '';
-      const pil = E.atype.value === 'pilihan'; m.$('#valF').hidden = !pil; m.$('#varF').hidden = !pil; if (!pil) E.avariant.checked = false;
-      m.$('#tags').innerHTML = a.values.map((v, i) => { const u = a.id ? usedVals(v) : 0; return `<span class="tag">${esc(v)}${u ? `<small>${u}</small>` : `<button type="button" data-tr="${i}" aria-label="Keluarkan ${esc(v)}">×</button>`}</span>`; }).join('') || '<span class="muted" style="font-size:12.5px">Belum ada nilai.</span>';
+      if (!m.$('#tags')) return;
+      m.$('#tags').innerHTML = a.values.map((v, i) => { const u = a.id ? usedVals(v) : 0; return `<span class="tag">${esc(v)}${u ? `<small>${u}</small>` : `<button type="button" data-tr="${i}" aria-label="Keluarkan ${esc(v)}">×</button>`}</span>`; }).join('') || '<span class="muted" style="font-size:12.5px">Belum ada pilihan.</span>';
     };
-    const addTags = () => { lines(m.$('#tagIn').value).forEach((v) => { if (!a.values.some((x) => x.toLowerCase() === v.toLowerCase())) a.values.push(v); }); m.$('#tagIn').value = ''; drawTags(); };
-    m.$('#tagIn').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTags(); } });
-    m.$('#tagIn').addEventListener('blur', addTags);
-    m.$('#tags').addEventListener('click', (e) => { const b = e.target.closest('[data-tr]'); if (b) { a.values.splice(+b.dataset.tr, 1); drawTags(); } });
-    E.atype.addEventListener('change', drawTags); drawTags();
+    const addTags = () => { if (!m.$('#tagIn')) return; lines(m.$('#tagIn').value).forEach((v) => { if (!a.values.some((x) => x.toLowerCase() === v.toLowerCase())) a.values.push(v); }); m.$('#tagIn').value = ''; drawTags(); };
+    if (m.$('#tagIn')) {
+      m.$('#tagIn').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTags(); } });
+      m.$('#tagIn').addEventListener('blur', addTags);
+      m.$('#tags').addEventListener('click', (e) => { const b = e.target.closest('[data-tr]'); if (b) { a.values.splice(+b.dataset.tr, 1); drawTags(); } });
+    }
+    drawTags();
     m.$('#aSave').addEventListener('click', () => {
       addTags();
       if (!validate(F, { aname: (v) => (v.length < 2 ? 'Isi nama atribut.' : DB.attributes(true).some((x) => x.id !== a.id && x.name.toLowerCase() === v.toLowerCase()) ? 'Nama atribut sudah ada.' : '') })) return;
-      if (E.atype.value === 'pilihan' && !a.values.length) { toast('Isi minimal satu nilai pilihan.', 'err'); return; }
-      const next = Object.assign({}, a, { id: a.id || 'at-' + Date.now().toString(36), name: E.aname.value.trim(), type: E.atype.value, values: E.atype.value === 'pilihan' ? a.values : [],
-        cats: m.$$('.cat-checks input:checked').map((x) => x.value), variant: E.atype.value === 'pilihan' && E.avariant.checked, required: E.areq.checked });
+      if (!legacy && !a.values.length) { toast('Isi minimal satu pilihan (ketik lalu Enter).', 'err'); m.$('#tagIn').focus(); return; }
+      const pickedCats = catAll ? [] : m.$$('.cat-checks input:checked').map((x) => x.value);
+      if (!catAll && !pickedCats.length) { toast('Pilih minimal satu kategori, atau pilih "Semua kategori".', 'err'); return; }
+      const isVar = !legacy && (F.querySelector('input[name="avariant"]:checked') || {}).value === '1';
+      const next = Object.assign({}, a, { id: a.id || 'at-' + Date.now().toString(36), name: E.aname.value.trim(), type: legacy ? a.type : 'pilihan', values: legacy ? [] : a.values,
+        cats: pickedCats, variant: isVar, required: legacy ? !!a.required : isVar });
       const all = DB.attributes(true); const i = all.findIndex((x) => x.id === next.id); const old = i >= 0 ? all[i] : null;
       if (old && old.variant && !next.variant && P.some((p) => p.variant && p.variant.attrId === old.id)) { toast('Atribut ini masih dipakai sebagai varian stok barang, tidak bisa diubah jadi atribut biasa.', 'err'); return; }
       if (i >= 0) all[i] = next; else all.push(next);
@@ -720,6 +728,7 @@
   }
 
   $('#cfgNav').addEventListener('click', (e) => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); });
+  $('#cfgTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); });
   $('#cfgMain').addEventListener('click', async (e) => {
     const t = e.target;
     const al = t.closest('[data-addline]'); if (al) { $('#' + al.dataset.addline).insertAdjacentHTML('beforeend', lineRow('', al.dataset.ph)); $('#' + al.dataset.addline).lastElementChild.querySelector('textarea').focus(); return; }

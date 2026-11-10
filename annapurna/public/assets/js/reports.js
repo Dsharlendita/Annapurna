@@ -294,9 +294,9 @@
       const invite = m.kind === 'staff_invite';
       return shell(`<p>Halo <strong>${esc(d.name)}</strong>,</p>
         <p>${invite ? `Akun staff Anda di <strong>${esc(st.storeName)}</strong> telah dibuat oleh Owner (<strong>${esc(d.by)}</strong>).` : `Owner (<strong>${esc(d.by)}</strong>) telah mengatur ulang kata sandi akun staff Anda.`}</p>
-        <table class="mail-tbl">${row('Nama toko', esc(st.storeName))}${row('Nama akun', esc(d.name))}${row('Email akun', esc(d.email))}${row('Role', esc(roleLabel(d.role)))}${row('Kata sandi sementara', `<code>${esc(d.tempPassword)}</code>`)}${row('Link website', `<a href="${url('masuk')}">${esc(url('masuk'))}</a>`)}</table>
+        <table class="mail-tbl">${row('Nama toko', esc(st.storeName))}${row('Nama akun', esc(d.name))}${row('Email akun', esc(d.email))}${row('Role', esc(roleLabel(d.role)))}${d.ownerSetPw ? row('Kata sandi', 'Diberikan langsung oleh Owner') : row('Kata sandi sementara', `<code>${esc(d.tempPassword)}</code>`)}${row('Link website', `<a href="${url('masuk')}">${esc(url('masuk'))}</a>`)}</table>
         <p><strong>Cara masuk:</strong></p>
-        <ol><li>Buka link website di atas.</li><li>Masuk dengan email akun dan kata sandi sementara.</li><li>Sistem akan meminta Anda membuat kata sandi baru saat pertama login.</li><li>Jangan bagikan kata sandi kepada siapa pun.</li></ol>
+        <ol><li>Buka link website di atas.</li>${d.ownerSetPw ? `<li>Masuk dengan email akun dan kata sandi yang diberikan Owner.</li>${d.mustChange ? '<li>Sistem akan meminta Anda membuat kata sandi baru saat pertama login.</li>' : ''}` : '<li>Masuk dengan email akun dan kata sandi sementara.</li><li>Sistem akan meminta Anda membuat kata sandi baru saat pertama login.</li>'}<li>Jangan bagikan kata sandi kepada siapa pun.</li></ol>
         <p class="mail-note">Akun ini dibuat oleh Owner ${esc(st.storeName)}. Semua aktivitas di panel admin tercatat otomatis di histori sistem.</p>
         <p><a class="mail-btn" href="${url('masuk')}">Masuk ke panel</a></p>`);
     }
@@ -314,7 +314,7 @@
     const st = DB.settings(); const d = m.data || {};
     if (m.kind === 'monthly_report') { const s = d.summary || {};
       return `Rekap laporan operasional bulan ${monthName(d.period)} telah dibuat dan disimpan pada Google Drive.\n\nTotal transaksi rental: ${s.rental}\nTotal penjualan: ${s.penjualan}\nTotal pemasukan: ${rupiah(s.pemasukan)}\nTotal pengeluaran: ${rupiah(s.pengeluaran)}\nBarang keluar: ${s.keluar}\nBarang kembali: ${s.kembali}\nPembatalan: ${s.batal}\nPergantian barang: ${s.ganti}\nAktivitas staff: ${s.aktivitas}\n\nFolder: ${d.folder}\n${url('owner/integrasi?folder=' + d.period)}`; }
-    return `Halo ${d.name},\n\n${m.kind === 'staff_invite' ? `Akun staff Anda di ${st.storeName} telah dibuat oleh Owner (${d.by}).` : `Kata sandi akun staff Anda telah diatur ulang oleh Owner (${d.by}).`}\n\nNama toko: ${st.storeName}\nNama akun: ${d.name}\nEmail akun: ${d.email}\nRole: ${roleLabel(d.role)}\nKata sandi sementara: ${d.tempPassword}\nLink website: ${url('masuk')}\n\nCara masuk:\n1. Buka link website di atas.\n2. Masuk dengan email dan kata sandi sementara.\n3. Buat kata sandi baru saat pertama login.\n\nAkun ini dibuat oleh Owner ${st.storeName}.`;
+    return `Halo ${d.name},\n\n${m.kind === 'staff_invite' ? `Akun staff Anda di ${st.storeName} telah dibuat oleh Owner (${d.by}).` : `Kata sandi akun staff Anda telah diatur ulang oleh Owner (${d.by}).`}\n\nNama toko: ${st.storeName}\nNama akun: ${d.name}\nEmail akun: ${d.email}\nRole: ${roleLabel(d.role)}\n${d.ownerSetPw ? 'Kata sandi: diberikan langsung oleh Owner' : `Kata sandi sementara: ${d.tempPassword}`}\nLink website: ${url('masuk')}\n\nCara masuk:\n1. Buka link website di atas.\n2. Masuk dengan email dan kata sandi ${d.ownerSetPw ? 'yang diberikan Owner' : 'sementara'}.\n${!d.ownerSetPw || d.mustChange ? '3. Buat kata sandi baru saat pertama login.\n' : ''}\nAkun ini dibuat oleh Owner ${st.storeName}.`;
   }
   function mailModal(m) {
     const mailto = `mailto:${encodeURIComponent(m.to)}?subject=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(mailText(m))}`;

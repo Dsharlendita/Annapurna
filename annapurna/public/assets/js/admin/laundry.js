@@ -7,6 +7,8 @@
   const { DB, STATUS, D, rupiah, Laundry, Svc } = Ann;
   const { $, $$, esc, param, toast, pill, bindExport } = UI;
   Admin.init('laundry', 'Laundry');
+  /* Fungsi ini hilang di versi sebelumnya → halaman Laundry kosong (ReferenceError: inTab is not defined) */
+  const inTab = (o, k) => (k === 'semua' ? true : k === 'aktif' ? ['diterima', 'dicuci', 'siap'].includes(o.status) : o.status === k);
   const TABS = [['aktif', 'Sedang berjalan'], ['diterima', 'Diterima'], ['dicuci', 'Dicuci'], ['siap', 'Siap'], ['selesai', 'Selesai'], ['dibatalkan', 'Dibatalkan'], ['semua', 'Semua']];
   const ACTIVE = ['diterima', 'dicuci', 'siap'];
   let tab = param('tab') || 'aktif';

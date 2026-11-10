@@ -49,9 +49,8 @@
         ${due ? `<button type="button" class="btn btn-gold btn-xs" data-ldpay="${o.id}"><i class="fa-solid fa-cash-register"></i> Bayar</button>` : ''}
         ${o.status === 'siap' ? `<button type="button" class="btn btn-primary btn-xs" data-lddone="${o.id}"><i class="fa-solid fa-circle-check"></i> Sudah diambil</button>` : Laundry.FLOW[o.status] ? `<button type="button" class="btn btn-primary btn-xs" data-ldnext="${o.id}"><i class="fa-solid ${Laundry.FLOW[o.status][1]}"></i> ${Laundry.FLOW[o.status][2]}</button>` : ''}
         <button type="button" class="btn btn-light btn-xs" data-lddet="${o.id}">Detail</button></div>`; };
-    $('#kDates').innerHTML = `<div class="k-ldq"><div class="k-ldq-h"><span><i class="fa-solid fa-jug-detergent"></i> Laundry berjalan (${L.length}) · ambil &amp; bayar</span><a class="link" href="${UI.url('admin/laundry')}" style="font-size:12.5px">Buka menu Laundry</a></div>
-      ${L.length ? L.slice(0, 6).map(row).join('') + (L.length > 6 ? `<p class="muted" style="font-size:12.5px">+${L.length - 6} lainnya di menu Laundry.</p>` : '') : '<p class="muted" style="font-size:13px">Tidak ada laundry yang sedang berjalan.</p>'}
-      <p class="muted" style="font-size:12.5px;margin-top:8px">Laundry baru: pilih barang di bawah, isi data customer, lalu simpan.</p></div>`;
+    /* Kasir hanya MENERIMA laundry baru. Proses (mulai dicuci, siap diambil, bayar, sudah diambil) cukup di menu Laundry. */
+    $('#kDates').innerHTML = `<div class="k-ldq k-ldq-mini"><span><i class="fa-solid fa-jug-detergent"></i> Pilih barang di bawah, isi data customer, lalu simpan.${L.length ? ` <span class="muted">${L.length} laundry sedang berjalan diproses di menu Laundry.</span>` : ''}</span><a class="btn btn-light btn-xs" href="${UI.url('admin/laundry')}">Buka menu Laundry <i class="fa-solid fa-arrow-right"></i></a></div>`;
   }
   $('#kDates').addEventListener('click', async (e) => {
     const refresh = () => { drawLaundryQueue(); Admin.refreshShell(); };
@@ -262,7 +261,9 @@
   const num = (v) => +String(v || '').replace(/[^\d]/g, '') || 0;
 
   /* ---------- Simpan ---------- */
-  function save() {
+  let saving = false;
+  async function save() {
+    if (saving) return;
     const t = totals();
     S.name = $('#kName').value.trim(); S.phone = $('#kPhone').value.trim(); S.note = $('#kNote').value.trim();
     const optCust = S.mode === 'buy'; /* penjualan: nama & WA opsional · sewa & laundry: wajib */
@@ -363,8 +364,10 @@
     }
     Rules.recalc(b); if (b.paymentStatus === 'dp_paid') b.dp = t.svc ? t.rentNow : t.payNow;
 
-    // Kirim sewa offline ke database server Laravel
-    Api.try('POST', 'api/booking', {
+    // Kirim sewa offline ke database server Laravel — DITUNGGU, supaya kode booking & ID server sudah ada
+    // sebelum barang dicatat keluar (endpoint pickup butuh ID server; mencegah booking tercatat ganda)
+    saving = true;
+    const sv = await Api.try('POST', 'api/booking', {
       customer_name: customer.name,
       customer_phone: customer.phone,
       customer_email: customer.email || null,
@@ -384,22 +387,25 @@
         size: it.size || null,
         price_per_day: it.pricePerDay,
       })),
-    }).then((sv) => {
-      if (sv && sv.ok && sv.data && sv.data.booking) {
-        b.id = sv.data.booking.booking_code || b.id;
-        b.booking_code = sv.data.booking.booking_code;
-        b.nota_no = sv.data.booking.nota_no;
-        b.notaNo = sv.data.booking.nota_no;
-        DB.saveBooking(b);
-      }
     });
+    if (sv && sv.ok && sv.data && sv.data.booking) {
+      b.id = sv.data.booking.booking_code || b.id;
+      b.booking_code = sv.data.booking.booking_code;
+      b.nota_no = sv.data.booking.nota_no;
+      b.notaNo = sv.data.booking.nota_no;
+      if (sv.data.booking.id) b.serverId = sv.data.booking.id;
+      /* Uang yang diterima di kasir dicatat SEKALI ke server lewat endpoint pelunasan yang sudah ada
+         (api/admin/booking/{kode}/settle). Form barang keluar berikutnya mengirim 0 karena sudah lunas/terbayar. */
+      if (t.payNow > 0) Api.post(`api/admin/booking/${encodeURIComponent(b.id)}/settle`, { payment_amount: t.payNow, payment_method: `Kasir · ${S.method}`, settle_later: false, settle_disc_amount: 0 }, { redirectOn401: false }).catch(() => {});
+    }
 
     DB.saveBooking(b);
     reset(); /* form langsung kosong setelah tersimpan (mencegah tersimpan dua kali) */
     DB.audit({ type: 'rental', action: `Kasir: sewa offline ${NO(b)} · ${Admin.itemsText(b)} · ${D.fmtRange(b.start, b.end)} · dibayar ${rupiah(t.payNow)} (${S.method})`, ref: b.id });
     /* Ambil sekarang: buka Catat barang keluar. Bila jendela itu ditutup tanpa disimpan, booking tetap tercatat (Dikonfirmasi & lunas)
        dan barang bisa dicatat keluar nanti dari menu Barang Keluar & Kembali. */
-    if (S.pickup === 'now') { let ok = false; Admin.BK.pickup(DB.booking(b.id), () => { ok = true; done(DB.booking(b.id), 'rent'); });
+    /* fromKasir: identitas & pembayaran sudah diisi di kasir → jendela berikutnya hanya konfirmasi serah terima */
+    if (S.pickup === 'now') { let ok = false; Admin.BK.pickup(DB.booking(b.id), () => { ok = true; done(DB.booking(b.id), 'rent'); }, { fromKasir: true });
       const watch = setInterval(() => { if (ok) { clearInterval(watch); return; } if (!document.querySelector('.modal')) { clearInterval(watch); done(DB.booking(b.id), 'rent'); } }, 400); }
     else done(DB.booking(b.id), 'rent');
   }
@@ -499,21 +505,27 @@
     const sv = e.target.closest('[data-sv]'); if (sv) { S.svcTents = Math.max(1, Math.min(tentMax(), S.svcTents + +sv.dataset.sv)); drawBill(); return; }
     const mm = e.target.closest('[data-m]'); if (mm) { S.method = mm.dataset.m; drawBill(); return; }
     const r = e.target.closest('[data-r]'); if (r) { S.received = +r.dataset.r; drawBill(); return; }
-    if (e.target.closest('#kSave')) save();
+    if (e.target.closest('#kSave')) { pressSave = false; save().finally(() => { saving = false; }); }
     if (e.target.closest('#kReset')) reset();
   });
   $('#kBill').addEventListener('input', (e) => {
     if (e.target.id === 'kName') S.name = e.target.value; if (e.target.id === 'kPhone') S.phone = e.target.value; if (e.target.id === 'kNote') S.note = e.target.value;
     if (e.target.id === 'kSvcAddr') S.svcAddr = e.target.value;
   });
+  /* Tombol Simpan ditekan langsung setelah mengetik (mis. Uang diterima): event "change" terjadi di antara
+     mousedown & click. Kalau panel digambar ulang saat itu, klik pertama hilang → staff harus menekan dua kali.
+     Maka saat Simpan sedang ditekan, nilai tetap disimpan tetapi panel tidak digambar ulang. */
+  let pressSave = false;
+  $('#kBill').addEventListener('pointerdown', (e) => { pressSave = !!e.target.closest('#kSave'); }, true);
+  const redraw = () => { if (!pressSave) drawBill(); };
   $('#kBill').addEventListener('change', (e) => {
     /* Ganti alasan: punya besaran bawaan → mode % terisi; tidak punya → mode Rp dikosongkan (mencegah salah ketik 3000 di mode %) */
-    if (e.target.id === 'kdReason') { S.dReason = e.target.value; const r = DB.discReasons().find((x) => x.name === S.dReason); if (r && r.pct !== '') { S.dType = 'pct'; S.dVal = String(r.pct); } else { S.dType = 'rp'; S.dVal = ''; } drawBill(); if (S.dReason === '__lain') $('#kdText').focus(); else if (S.dType === 'rp' && $('#kdVal')) $('#kdVal').focus(); }
-    if (e.target.id === 'kdVal') { S.dVal = String(num(e.target.value) || ''); drawBill(); }
+    if (e.target.id === 'kdReason') { S.dReason = e.target.value; const r = DB.discReasons().find((x) => x.name === S.dReason); if (r && r.pct !== '') { S.dType = 'pct'; S.dVal = String(r.pct); } else { S.dType = 'rp'; S.dVal = ''; } redraw(); if (S.dReason === '__lain') $('#kdText').focus(); else if (S.dType === 'rp' && $('#kdVal')) $('#kdVal').focus(); }
+    if (e.target.id === 'kdVal') { S.dVal = String(num(e.target.value) || ''); redraw(); }
     if (e.target.id === 'kdText') { S.dText = e.target.value; }
-    if (e.target.id === 'kRecv') { S.received = num(e.target.value); drawBill(); }
-    if (e.target.id === 'kDp') { S.dpAmt = num(e.target.value); drawBill(); }
-    if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); drawBill(); }
+    if (e.target.id === 'kRecv') { S.received = num(e.target.value); redraw(); }
+    if (e.target.id === 'kDp') { S.dpAmt = num(e.target.value); redraw(); }
+    if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); redraw(); }
     if (e.target.id === 'kLdEst') S.ldEst = e.target.value >= T ? e.target.value : T;
     if (e.target.id === 'kSvcTime') S.svcTime = e.target.value; if (e.target.id === 'kSvcBack') S.svcBack = e.target.value;
   });

@@ -4573,3 +4573,25 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   body[data-page="home"] .hero-lead { -webkit-line-clamp: 2 !important; font-size: 14px; opacity: .92; margin-bottom: 20px; }
   body[data-page="home"] .hero-search { margin-top: 0; box-shadow: 0 14px 30px -16px rgba(0, 0, 0, .55); }
 }
+
+/* =====================================================================
+   HP: hero beranda — judul & pengantar lebih kecil, rating di bawah pencarian,
+   keunggulan di kartu putih yang menempel di tepi bawah hero
+   ===================================================================== */
+.hero-perks-wrap, .hero-proof { display: none; }
+@media (max-width: 640px) {
+  body[data-page="home"] .hero-title { font-size: 31px !important; line-height: 1.1; }
+  body[data-page="home"] .hero-title .l2 { padding-left: .55em; }
+  body[data-page="home"] .hero-lead { font-size: 13px !important; line-height: 1.55; margin-top: 10px; margin-bottom: 16px; }
+  body[data-page="home"] .hero-inner { padding-top: 28px; padding-bottom: 54px; }
+  /* rating pelanggan */
+  body[data-page="home"] .hero-proof { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 6px 12px 6px 10px; border-radius: 999px; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .16); color: #fff; font-size: 12px; text-decoration: none; }
+  body[data-page="home"] .hero-proof b { font-weight: 800; }
+  body[data-page="home"] .hp-stars { display: inline-flex; gap: 1px; color: var(--gold); font-size: 10.5px; }
+  /* kartu keunggulan yang menempel */
+  .hero-perks-wrap { display: block; position: relative; z-index: 3; margin-top: -34px; }
+  .hero-perks-m { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 14px 30px -18px rgba(16, 39, 24, .45); }
+  .hero-perks-m li { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--ink); }
+  .hero-perks-m .ic { flex: 0 0 30px; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #fdf3d8; color: #8a5a00; font-size: 13px; border: 0; }
+  body[data-page="home"] .hero-perks-wrap + .section { padding-top: 26px; }
+}

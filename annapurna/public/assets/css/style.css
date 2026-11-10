@@ -4170,3 +4170,115 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
 .pw-remind { margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
 .pw-remind > div:not(.pw-remind-acts) { flex: 1; min-width: 240px; }
 .pw-remind-acts { display: flex; gap: 8px; }
+
+/* =====================================================================
+   BERANDA DI HP (≤ 640px) — padat & nyaman dipakai satu tangan.
+   Satu bagian yang menonjol: "Cara Sewa" sebagai JALUR PENDAKIAN (garis trek putus-putus,
+   4 pos bernomor). Bagian lain tenang: geser ke samping untuk daftar, lipat untuk info sekunder.
+   Laptop tidak berubah.
+   ===================================================================== */
+@media (max-width: 640px) {
+  body[data-page="home"] .section { padding-top: 34px; padding-bottom: 34px; }
+
+  /* Hero: keunggulan jadi 2 kolom kecil, catatan dekoratif disembunyikan */
+  body[data-page="home"] .hero-inner { padding-top: 26px; padding-bottom: 26px; }
+  body[data-page="home"] .hero-lead { font-size: 14px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  body[data-page="home"] .hero-perks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 18px; }
+  body[data-page="home"] .hero-perks li { max-width: none; font-size: 12px; gap: 8px; }
+  body[data-page="home"] .hero-note { display: none; }
+
+  /* Promo: kartu digeser ke samping */
+  body[data-page="home"] .promo-strip { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 8px; scrollbar-width: none; }
+  body[data-page="home"] .promo-strip::-webkit-scrollbar { display: none; }
+  body[data-page="home"] .promo-strip > * { flex: 0 0 86%; scroll-snap-align: start; }
+
+  /* Asisten Trip: banner ringkas — judul + kolom isian; contoh & penjelasan disembunyikan */
+  body[data-page="home"] .ai-plan-band { grid-template-columns: 1fr; gap: 12px; padding: 18px 16px; }
+  body[data-page="home"] .ai-plan-band h2 { font-size: 20px; margin: 6px 0 0; }
+  body[data-page="home"] .ai-plan-band p, body[data-page="home"] .ai-plan-band .ex { display: none; }
+  body[data-page="home"] .ai-band-ask { margin-top: 8px; font-size: 12.5px; }
+
+  /* ---- Cara Sewa / Cara Beli: jalur pendakian ---- */
+  body[data-page="home"] #cara-sewa .howto { display: block; }
+  body[data-page="home"] #cara-sewa .howto-intro { text-align: left; margin-bottom: 16px; }
+  body[data-page="home"] #cara-sewa .howto-intro .ms,
+  body[data-page="home"] #cara-sewa .howto-intro h3,
+  body[data-page="home"] #cara-sewa .howto-intro p,
+  body[data-page="home"] #cara-sewa .stroke,
+  body[data-page="home"] #cara-sewa .mtn { display: none !important; }
+  body[data-page="home"] #cara-sewa .howto-intro h2 { font-size: 24px; margin: 0 0 10px; }
+  body[data-page="home"] .steps[data-how-steps] { display: block !important; position: relative; margin: 0; padding: 4px 0 4px 0; list-style: none; }
+  body[data-page="home"] .steps[data-how-steps][hidden] { display: none !important; }
+  /* garis trek putus-putus yang menghubungkan pos 1 → 4 */
+  body[data-page="home"] .steps[data-how-steps]::before { content: ""; position: absolute; left: 17px; top: 22px; bottom: 22px; border-left: 2px dashed var(--g500); opacity: .55; }
+  body[data-page="home"] .steps[data-how-steps] .step-arrow { display: none !important; }
+  body[data-page="home"] .steps[data-how-steps] .step { text-align: left; position: relative; }
+  body[data-page="home"] .steps[data-how-steps] .step + .step-arrow + .step, body[data-page="home"] .steps[data-how-steps] .step ~ .step { margin-top: 6px; }
+  body[data-page="home"] .steps[data-how-steps] .step a { display: grid; grid-template-columns: 36px minmax(0, 1fr) 14px; column-gap: 14px; align-items: center; padding: 10px 12px 10px 0; border-radius: 14px; color: inherit; text-decoration: none; }
+  body[data-page="home"] .steps[data-how-steps] .step a::after { content: "\f054"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 11px; color: var(--muted); grid-column: 3; grid-row: 1 / span 2; }
+  body[data-page="home"] .steps[data-how-steps] .step a:active { background: var(--g50); }
+  body[data-page="home"] .steps[data-how-steps] .blob { grid-column: 1; grid-row: 1 / span 2; width: 36px !important; height: 36px !important; margin: 0 !important; border-radius: 50% !important; background: var(--g700) !important; color: #fff; box-shadow: 0 0 0 4px var(--cream); transform: none !important; }
+  body[data-page="home"] .steps[data-how-steps] .blob i { display: none; }
+  body[data-page="home"] .steps[data-how-steps] .blob .num { position: static !important; inset: auto !important; width: auto; height: auto; background: none !important; color: #fff !important; font-size: 15px; font-weight: 800; box-shadow: none !important; }
+  body[data-page="home"] .steps[data-how-steps] .step:last-child .blob { background: var(--gold) !important; }
+  body[data-page="home"] .steps[data-how-steps] .step:last-child .blob .num { color: var(--g900) !important; }
+  body[data-page="home"] .steps[data-how-steps] .step h4 { grid-column: 2; margin: 0; font-size: 15px; }
+  body[data-page="home"] .steps[data-how-steps] .step p { grid-column: 2; margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; }
+
+  /* ---- Layanan (laundry, jasa tenda, …): kartu ringkas yang digeser ---- */
+  body[data-page="home"] .svc-head p { display: none; }
+  body[data-page="home"] .svc-card { border-radius: 18px; }
+  body[data-page="home"] .svc-visual { min-height: 0; padding: 16px 16px 14px; }
+  body[data-page="home"] .svc-visual img { height: 78%; max-width: 38%; opacity: .9; }
+  body[data-page="home"] .svc-visual .v-tx { max-width: 64%; }
+  body[data-page="home"] .svc-visual h3 { font-size: 17px; }
+  body[data-page="home"] .svc-visual p { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  body[data-page="home"] .svc-body { display: none; }
+  body[data-page="home"] .svc-foot { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  body[data-page="home"] .svc-note { display: none; }
+
+  /* Ajakan penutup mengulang isi hero → disembunyikan di HP */
+  body[data-page="home"] #cta { display: none; }
+
+  /* ---- Testimoni: ringkasan rating + satu kartu yang digeser ---- */
+  body[data-page="home"] #testimoni { padding: 34px 0 40px !important; }
+  body[data-page="home"] .testi-intro .mtn, body[data-page="home"] .testi-intro > p { display: none !important; }
+  body[data-page="home"] .testi-intro h2 { font-size: 24px; }
+  body[data-page="home"] .testi-track { grid-auto-columns: 86%; margin: 0 -16px; padding: 2px 16px 8px; }
+
+  /* ---- Footer (semua halaman): Menu & Kontak bisa dilipat ---- */
+  .footer-grid { grid-template-columns: 1fr; gap: 0; padding: 30px 0 18px; }
+  .footer-grid > div:first-child p { font-size: 13px; margin: 8px 0 14px; }
+  .footer details.f-col { border-top: 1px solid rgba(255, 255, 255, .14); }
+  .footer details.f-col > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
+  .footer details.f-col > summary::-webkit-details-marker { display: none; }
+  .footer details.f-col > summary::after { content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 12px; opacity: .7; transition: transform .2s; }
+  .footer details.f-col[open] > summary::after { transform: rotate(180deg); }
+  .footer details.f-col > summary h5 { margin: 0; }
+  .footer details.f-col > ul { padding-bottom: 12px; }
+  .footer-grid > div:last-child { border-top: 1px solid rgba(255, 255, 255, .14); padding-top: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .footer-grid > div:last-child h5 { margin: 0; }
+  .footer .f-deco { display: none; }
+}
+/* Laptop: kolom footer tetap terbuka & judulnya bukan tombol */
+@media (min-width: 641px) {
+  .footer details.f-col > summary { list-style: none; pointer-events: none; }
+  .footer details.f-col > summary::-webkit-details-marker { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .footer details.f-col > summary::after { transition: none; } }
+@media (max-width: 640px) {
+  /* Asisten Trip: isian & tombol tidak melebar keluar layar */
+  body[data-page="home"] .ai-plan-band { min-width: 0; }
+  body[data-page="home"] .ai-plan-band > * { min-width: 0; }
+  body[data-page="home"] .ai-plan-form .row { display: grid !important; grid-template-columns: 1fr; gap: 8px; }
+  body[data-page="home"] .ai-plan-form .row input { width: 100%; min-width: 0; }
+  body[data-page="home"] .ai-plan-form .row .btn { width: 100%; justify-content: center; }
+  body[data-page="home"] .ai-band-ask { white-space: normal; text-align: left; line-height: 1.4; }
+}
+@media (max-width: 640px) {
+  /* Testimoni: di HP cukup digeser — tombol panah disembunyikan, jarak dirapatkan */
+  body[data-page="home"] #testiNav { display: none !important; }
+  body[data-page="home"] .testi { gap: 12px; }
+  body[data-page="home"] .testi-score { margin-top: 10px; }
+  body[data-page="home"] .testi-track > * { min-height: 0; }
+}

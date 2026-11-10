@@ -848,3 +848,6 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 4. Login kode verifikasi (OTP) & buat kata sandi untuk akun dari checkout tanpa login.
 5. Format unit fisik saat barang keluar; diskon manual kasir; pembayaran DP kasir "diambil nanti".
 6. Google Drive & rekap otomatis; chatbot AI (`api/chat`, `api/ai/rencana`).
+
+## C.36 Beranda di HP lebih ringkas (FE saja) — 10 Nov 2026
+- Hanya CSS (≤ 640px, `body[data-page="home"]`) + footer di `site.js` (kolom Menu & Kontak jadi `<details>`, dilipat di HP). Tampilan laptop tidak berubah. Tinggi beranda HP ±8.200 → ±5.250 px.

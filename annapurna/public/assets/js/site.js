@@ -144,12 +144,12 @@
           <img class="flogo" src="${asset('assets/img/logo-white.png')}" alt="Annapurna Adventure">
           <p>Annapurna Adventure Shop &amp; Rental. Sewa mudah, harga bersahabat, kenangan tak terlupakan. Teman terbaik setiap petualanganmu!</p>
         </div>
-        <div>
-          <h5>Menu</h5>
+        <details class="f-col" open>
+          <summary><h5>Menu</h5></summary>
           <ul>${LINKS.map((l) => `<li><a href="${url(l.href)}">${l.label}</a></li>`).join('')}<li><a href="${url('./#layanan')}">Jasa Tenda</a></li><li><a href="${url('kontak#cek-pesanan')}">Cek Status Pesanan</a></li></ul>
-        </div>
-        <div>
-          <h5>Kontak</h5>
+        </details>
+        <details class="f-col" open>
+          <summary><h5>Kontak</h5></summary>
           <ul class="kontak">
             <li><i class="fa-solid fa-wand-magic-sparkles"></i><button type="button" class="link-btn f-ai" data-ai-open>Tanya Asisten Trip (instan, 24 jam)</button></li>
             <li><i class="fa-brands fa-whatsapp"></i><a href="${waLink()}" target="_blank" rel="noopener">${esc(st.phone)}</a></li>
@@ -158,7 +158,7 @@
             <li><i class="fa-solid fa-envelope"></i><a href="mailto:${st.email}">${esc(st.email)}</a></li>
             <li><i class="fa-solid fa-location-dot"></i><a href="${url('kontak#lokasi')}">${esc(st.address)}</a></li>
           </ul>
-        </div>
+        </details>
         <div>
           <h5>Ikuti Kami</h5>
           <div class="soc">
@@ -172,6 +172,8 @@
     </footer>
     <button class="to-top" id="toTop" aria-label="Kembali ke atas"><i class="fa-solid fa-arrow-up"></i></button>`;
     $('#toTop').addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));
+    /* HP: kolom Menu & Kontak di footer dilipat (tekan judulnya untuk membuka) supaya footer tidak terlalu panjang */
+    if (matchMedia('(max-width: 640px)').matches) document.querySelectorAll('.footer details.f-col').forEach((d) => { d.open = false; });
   }
 
   /* Akun dibuat otomatis saat checkout → tawarkan buat kata sandi (opsional) */

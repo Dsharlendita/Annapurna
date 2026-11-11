@@ -4604,3 +4604,4 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
 .kb-note { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 10px; padding: 9px 11px; border-radius: 10px; background: var(--g50); border: 1px solid var(--g100); color: var(--ink-2); font-size: 12.5px; line-height: 1.5; }
 .kb-note i { color: var(--g600); margin-top: 3px; font-size: 12px; }
 .kb-note b { color: var(--g800); }
+.inv-refund span { color: var(--red); } .inv-refund i { font-size: 11px; margin-right: 2px; }

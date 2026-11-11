@@ -863,3 +863,4 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 - HP: baris rating di bawah pencarian hero dihapus.
 - HP: hero final = judul + pengantar utuh + pencarian. Rating & kartu keunggulan dihapus (permintaan), 4 poin keunggulan tetap tampil di laptop.
 - Kasir: catatan penjelasan pembayaran (Diambil sekarang = lunas; Diambil nanti: DP minimal x%, boleh lebih, sisa saat ambil; atau Lunas).
+- Refund tampil di invoice (Riwayat pembayaran: tanggal, metode, nominal) & nota bergambar (cap DIBATALKAN · DP DIKEMBALIKAN, baris Dikembalikan + total). Nomor rekening disamarkan 4 digit terakhir. Data dari booking.refunds (tidak ada perubahan backend).

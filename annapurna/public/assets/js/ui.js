@@ -1304,7 +1304,8 @@
     txt(`#${NO(b)}`, TX, 82, { w: 800, z: 16, c: '#15311f', a: 'right' });
     txt(`Tanggal: ${D.fmtDate(D.today(), true)}`, TX, 102, { c: '#6b7a70', z: 13, a: 'right' });
     const PS = { unpaid: ['BELUM DIBAYAR', '#b7791f'], dp_verifying: ['MENUNGGU VERIFIKASI', '#2b5aa8'], dp_paid: ['DP DIBAYAR', '#b7791f'], lunas: ['LUNAS', '#1f4d2f'] };
-    const stamp = bill.late ? [`TERLAMBAT ${bill.late} MALAM`, '#b42318'] : bill.dueToday ? ['JATUH TEMPO HARI INI', '#b7791f'] : opts.booking && PS[b.paymentStatus] ? PS[b.paymentStatus] : bill.sisa ? ['BELUM LUNAS', '#b7791f'] : ['LUNAS', '#1f4d2f'];
+    const cancelled = b.status === 'dibatalkan'; const RF = (b.refunds || []).filter((r) => +r.amount > 0); const rfTotal = RF.reduce((a, r) => a + (+r.amount || 0), 0);
+    const stamp = cancelled ? [rfTotal ? 'DIBATALKAN · DP DIKEMBALIKAN' : 'DIBATALKAN', '#b42318'] : bill.late ? [`TERLAMBAT ${bill.late} MALAM`, '#b42318'] : bill.dueToday ? ['JATUH TEMPO HARI INI', '#b7791f'] : opts.booking && PS[b.paymentStatus] ? PS[b.paymentStatus] : bill.sisa ? ['BELUM LUNAS', '#b7791f'] : ['LUNAS', '#1f4d2f'];
     c.save(); c.translate(TX - 100, 152); c.rotate(-0.1); c.font = f(800, 14); const sw = c.measureText(stamp[0]).width + 30;
     c.strokeStyle = stamp[1]; c.lineWidth = 3; rrect(-sw / 2, -18, sw, 34, 7, null, stamp[1]); c.fillStyle = stamp[1]; c.textAlign = 'center'; c.fillText(stamp[0], 0, 5); c.restore();
     rrect(QX, 28, 132, 146, 12, '#fff', '#e6e1d6');
@@ -1365,16 +1366,23 @@
     if (b.discount && +b.discount.amount) kv(DB.discLabel(b.discount).slice(0, 44), '− ' + rupiah(b.discount.amount), { rc: '#1f4d2f', w: 700 });
     if (b.settleDisc && +b.settleDisc.amount) kv(`Diskon pelunasan (${String(b.settleDisc.reason || '').slice(0, 26)})`, '− ' + rupiah(b.settleDisc.amount), { rc: '#1f4d2f', w: 700 });
     kv(CI.ok.length ? 'Total sewa (baru)' : 'Total sewa', rupiah(b.total), { w: 700 });
-    kv('Sudah dibayar', rupiah(bill.paid), { rc: '#2f6b43', w: 700 });
+    const paidGross = (b.payments || []).reduce((a, p0) => a + (+p0.amount || 0), 0);
+    kv('Sudah dibayar', rupiah(cancelled ? paidGross : bill.paid), { rc: '#2f6b43', w: 700 });
     if (pendingPay(b)) kv('Menunggu verifikasi', rupiah(pendingPay(b)), { c: '#9aa39d', rc: '#9aa39d' });
-    kv('Sisa sewa', rupiah(bill.sisa));
-    if (bill.late) kv('Denda keterlambatan', rupiah(bill.fine), { rc: '#b42318', w: 700 });
+    /* Refund: kapan, berapa, dan lewat apa (rekening disamarkan) */
+    RF.forEach((r, i) => {
+      kv(RF.length > 1 ? `Dikembalikan (${i + 1})` : 'Dikembalikan', '− ' + rupiah(r.amount), { rc: '#b42318', w: 700, gap: 20 });
+      txt(`${D.fmtDate(String(r.at).slice(0, 10))}${refundVia(r) ? ' · ' + refundVia(r) : ''}`, LX, y, { z: 12, c: '#8a958d' }); y += 26;
+    });
+    if (!cancelled) kv('Sisa sewa', rupiah(bill.sisa));
+    if (bill.late && !cancelled) kv('Denda keterlambatan', rupiah(bill.fine), { rc: '#b42318', w: 700 });
     line(LX, y - 12, RX, y - 12, '#d8d2c4', 1, [4, 4]); y += 10;
     const pre = ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'].includes(b.status);
-    kv(pre ? 'Sisa dibayar saat ambil' : 'Total dibayar saat kembali', rupiah(bill.due), { z: 17, w: 800, c: bill.late ? '#b42318' : '#15311f', gap: 34 });
+    if (cancelled) kv(rfTotal ? 'Total dikembalikan' : 'Booking dibatalkan', rfTotal ? rupiah(rfTotal) : '-', { z: 17, w: 800, c: '#b42318', gap: 34 });
+    else kv(pre ? 'Sisa dibayar saat ambil' : 'Total dibayar saat kembali', rupiah(bill.due), { z: 17, w: 800, c: bill.late ? '#b42318' : '#15311f', gap: 34 });
     /* catatan bawah */
-    y += 8; rrect(P, y, W - P * 2, 52, 10, bill.late ? '#fdf3f2' : '#f1f7f2');
-    txt(bill.late ? 'Denda bertambah setiap malam keterlambatan. Mohon segera kembalikan barang ke toko.' : ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'].includes(b.status) ? 'Bawa nota ini dan kartu identitas asli saat mengambil barang di toko.' : 'Mohon kembalikan barang tepat waktu agar tidak dikenakan denda keterlambatan.', P + 16, y + 22, { z: 12.5, w: 600, c: bill.late ? '#8f2a1d' : '#1f4d2f' });
+    y += 8; rrect(P, y, W - P * 2, 52, 10, bill.late || cancelled ? '#fdf3f2' : '#f1f7f2');
+    txt(cancelled ? (rfTotal ? 'Booking ini dibatalkan. DP sudah dikembalikan sesuai rincian di atas.' : 'Booking ini dibatalkan.') : bill.late ? 'Denda bertambah setiap malam keterlambatan. Mohon segera kembalikan barang ke toko.' : ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'].includes(b.status) ? 'Bawa nota ini dan kartu identitas asli saat mengambil barang di toko.' : 'Mohon kembalikan barang tepat waktu agar tidak dikenakan denda keterlambatan.', P + 16, y + 22, { z: 12.5, w: 600, c: bill.late ? '#8f2a1d' : '#1f4d2f' });
     txt(`Batas pengembalian pukul ${String(st.returnTime || '22:00').replace(':', '.')} WIB · ${st.hours || ''}`, P + 16, y + 41, { z: 12, c: '#6b7a70' });
     /* potong tinggi kanvas pas dengan isi */
     const endH = Math.min(H, Math.ceil(y + 52 + 30));
@@ -1867,6 +1875,14 @@
     const acc = [r.bank, r.account].filter(Boolean).join(' ');
     return `Transfer${acc ? ` ke ${acc}` : ''}${r.holder ? ` a.n. ${r.holder}` : ''}`;
   }
+  /* Label refund untuk invoice & nota (nomor rekening disamarkan: hanya 4 digit terakhir) */
+  function refundTitle(r) { return /kelebihan/i.test((r && r.ref) || '') ? 'Pengembalian kelebihan bayar' : 'Refund DP'; }
+  function refundVia(r) {
+    if (!r || !r.method) return '';
+    if (r.method === 'tunai') return 'Tunai di toko';
+    const acc = String(r.account || '').replace(/\D/g, '');
+    return `Transfer${r.bank ? ' ' + r.bank : ''}${acc ? ' ••' + acc.slice(-4) : ''}`;
+  }
   /* Data dari form → isian FormData / JSON untuk server */
   const refundPayload = (r) => (r && r.method ? { refund_method: r.method, refund_bank: r.method === 'transfer' ? r.bank || '' : '', refund_account_number: r.method === 'transfer' ? r.account || '' : '', refund_account_name: r.method === 'transfer' ? r.holder || '' : '' } : {});
   /* Salin teks ke clipboard (dengan cadangan untuk browser lama / non-HTTPS) */
@@ -1919,5 +1935,5 @@
     document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement !== cur) hide(); }, 80));
     window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
   })();
-  window.UI = { ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();

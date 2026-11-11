@@ -862,3 +862,4 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 - HP: hero beranda — judul & pengantar lebih kecil, rating pelanggan (DB.ratingSummary) di bawah pencarian, 4 keunggulan di kartu putih yang menempel di tepi bawah hero. Tombol Sewa/Beli/Laundry tetap disembunyikan di HP.
 - HP: baris rating di bawah pencarian hero dihapus.
 - HP: hero final = judul + pengantar utuh + pencarian. Rating & kartu keunggulan dihapus (permintaan), 4 poin keunggulan tetap tampil di laptop.
+- Kasir: catatan penjelasan pembayaran (Diambil sekarang = lunas; Diambil nanti: DP minimal x%, boleh lebih, sisa saat ambil; atau Lunas).

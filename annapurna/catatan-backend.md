@@ -841,26 +841,57 @@ Tidak ada perubahan file backend di bagian ini. FE hanya memakai endpoint yang S
 - **Restock** (satu barang & beberapa barang) kini memanggil `POST api/admin/products/{id}/restock` `{qty, unit_cost, kind: rent|sale, size, supplier, restock_date, note}` — satu panggilan per barang. Server mencatat stok/unit, pengeluaran "Pembelian Barang", dan riwayat restock. 404 (barang hanya ada di perangkat) diabaikan.
 - **Konfigurasi**: semua bagian yang memakai `cfgSave` (Asisten AI, Perawatan & Stok, Form & Field, Tampilan Beranda, dll.) kini mengirim setiap key yang berubah ke `POST api/owner/konfigurasi {key, value, action, changes}`. Catatan: validasi `value => required` menolak array kosong (mis. `washCats: []`); pertimbangkan `present` agar nilai kosong bisa disimpan.
 
-## Ringkasan yang BELUM tersambung karena endpoint belum ada (untuk backend)
-1. Data Barang: tambah/edit barang, koreksi stok, sematkan di beranda (`is_featured`), aturan cuci per barang (`wash`), status unit/perawatan (cuci/perbaikan/aktifkan).
-2. Tolak bukti pembayaran (booking & penjualan).
-3. Customer mengajukan perpanjangan / ganti barang.
-4. Login kode verifikasi (OTP) & buat kata sandi untuk akun dari checkout tanpa login.
-5. Format unit fisik saat barang keluar; diskon manual kasir; pembayaran DP kasir "diambil nanti".
-6. Google Drive & rekap otomatis; chatbot AI (`api/chat`, `api/ai/rencana`).
+## C.36 Tampilan HP (FE saja, tidak ada perubahan backend) — 10 Nov 2026
+- Beranda: hero = judul + pengantar + pencarian (tombol Sewa/Beli/Laundry & 4 keunggulan hanya di laptop); Cara Sewa jadi "jalur pendakian"; promo & etalase produk digeser ke samping; footer dilipat (Menu & Kontak). Tinggi ±10.700 → ±4.600 px.
+- Kartu produk ringkas (2 per layar), seluruh kartu bisa ditekan untuk membuka detail; detail produk tanpa menu bawah (cukup bar Sewa/Beli).
+- Menu bawah didesain ulang (dok hijau hutan, menu aktif emas + penanda puncak gunung); ruang menu/bar bawah dipindah ke dalam footer.
+- Asisten Trip: lembar dari bawah dengan tombol X, latar gelap, tombol Kembali Android menutup jendela.
+- Kasir: kategori satu baris, tanggal berdampingan, 12 barang + "Tampilkan lebih banyak", bar ringkasan transaksi, catatan penjelasan DP / lunas.
+- Halaman admin: kartu angka & ringkasan 2 kolom; tabel 10 baris per halaman di HP (laptop 20).
+- Laundry: langkah jadi jalur pendakian, keunggulan sejajar 3 kolom.
+- Audit 27 halaman di lebar 390px: tidak ada yang melebar ke samping; teks minimal 11px; area sentuh ±36–40px.
 
-## C.36 Beranda di HP lebih ringkas (FE saja) — 10 Nov 2026
-- Hanya CSS (≤ 640px, `body[data-page="home"]`) + footer di `site.js` (kolom Menu & Kontak jadi `<details>`, dilipat di HP). Tampilan laptop tidak berubah. Tinggi beranda HP ±8.200 → ±5.250 px.
-- Lanjutan (HP): kartu produk ringkas di semua halaman (gambar 4:3, 2 kartu per layar; tinggi kartu ±470 → ±310 px), footer menyesuaikan ukuran layar setiap saat (HP tertutup, laptop terbuka), tombol "ke atas" disembunyikan di HP, tombol Asisten Trip memudar saat layar digeser.
-- Asisten Trip di HP: jendela jadi lembar dari bawah (±84% tinggi layar) dengan latar gelap; tombol X selalu terlihat (dulu kepala jendela terpotong 76px di atas layar). Tutup lewat X, ketuk latar gelap, atau tombol Kembali Android (`history.pushState`). Laptop tidak berubah.
-- Audit tampilan HP menyeluruh (17 halaman customer + 10 halaman admin, lebar 390px): tidak ada yang melebar ke samping. Teks minimal 11px, area sentuh tombol kecil diperbesar (±36–40px), menu bawah tidak tampil di detail produk (cukup bar Sewa/Beli), label "Paling laris" paket tidak terpotong.
-- HP: semua ringkasan angka (kartu stat, Transaksi/Stok di Dashboard, Keuangan, Laporan) jadi 2 kolom ringkas; kasir 3 barang per baris; tabel bawaan 10 baris per halaman di HP (laptop 20).
-- HP: langkah laundry jadi jalur pendakian (sama dengan Cara Sewa di beranda), ±900 → ±295 px.
-- Kasir di HP: kategori satu baris, tanggal berdampingan, 12 barang + "Tampilkan lebih banyak", bar ringkasan transaksi di bawah layar, rincian barang 2 baris (sebelumnya tombol uang cepat melebarkan halaman jadi 431px). Kartu produk: seluruh kartu bisa ditekan untuk membuka detail (tautan judul diperluas), dengan efek tekan.
-- HP: menu bawah didesain ulang (dok hijau hutan, menu aktif = batu emas + penanda puncak gunung). Ruang untuk menu/bar bawah dipindah ke dalam footer (tidak ada lagi area kosong di bawah footer). Keunggulan di judul Laundry sejajar 3 kolom.
-- HP: hero beranda dirapikan (judul + 2 baris pengantar + pencarian); tombol Sewa/Beli/Laundry & 4 poin keunggulan disembunyikan di HP (duplikat menu bawah / dijelaskan di bawah). Hero ±720 → ±400 px.
-- HP: hero beranda — judul & pengantar lebih kecil, rating pelanggan (DB.ratingSummary) di bawah pencarian, 4 keunggulan di kartu putih yang menempel di tepi bawah hero. Tombol Sewa/Beli/Laundry tetap disembunyikan di HP.
-- HP: baris rating di bawah pencarian hero dihapus.
-- HP: hero final = judul + pengantar utuh + pencarian. Rating & kartu keunggulan dihapus (permintaan), 4 poin keunggulan tetap tampil di laptop.
-- Kasir: catatan penjelasan pembayaran (Diambil sekarang = lunas; Diambil nanti: DP minimal x%, boleh lebih, sisa saat ambil; atau Lunas).
-- Refund tampil di invoice (Riwayat pembayaran: tanggal, metode, nominal) & nota bergambar (cap DIBATALKAN · DP DIKEMBALIKAN, baris Dikembalikan + total). Nomor rekening disamarkan 4 digit terakhir. Data dari booking.refunds (tidak ada perubahan backend).
+## C.37 Refund tampil di invoice & nota (FE saja) — 10 Nov 2026
+- Invoice → Riwayat pembayaran menampilkan baris refund (tanggal, "Refund DP · Transfer BCA ••7890" / "Tunai di toko", − nominal).
+- Nota bergambar: cap "DIBATALKAN · DP DIKEMBALIKAN", baris "Dikembalikan" + tanggal & metode, "Total dikembalikan".
+- Nomor rekening disamarkan (4 digit terakhir). Data diambil dari `booking.refunds` → lihat kontrak data di C.38.
+
+## C.38 Penggabungan dengan commit Aji `0013c27` (booking dari database) — PERLU DIBACA SEBELUM MERGE
+Branch `revisi-alur-fe` dikerjakan dari `a49a8fb`, sebelum commit `0013c27`. *(Catatan ini disusun dari pesan commit & daftar file `0013c27`, bukan dari isi kodenya — mohon dicek ulang nama controller/endpoint-nya.)* Saat `git pull` muncul 5 conflict: `PermintaanController.php`, `routes/web.php`, `config/app.php`, `public/assets/js/admin.js`, `public/assets/js/pages/pesanan.js` (auto-merge: `data.js`, `checkout.js`, `admin/booking.js` — tetap perlu dicek logikanya).
+
+**Fitur yang dobel — saran: pakai versi `0013c27`, buang versi branch ini**
+| Fitur | Versi `0013c27` (pakai) | Versi branch ini (buang) |
+|---|---|---|
+| Batal booking customer & admin (aturan H-n di server) | `OrderController` | `BookingCancelController.php` + 2 route `.../batal` |
+| ID `RNT-…` ditolak endpoint int | diperbaiki di server | diakali di FE dengan `serverId` (boleh dibiarkan, tidak bentrok) |
+
+**Yang hanya ada di branch ini — tetap dipakai, tapi perlu disambungkan ke versi `0013c27`**
+1. Endpoint batal customer di `OrderController` perlu menerima & menyimpan pilihan refund customer: `refund_method` (`transfer`|`tunai`), `refund_bank`, `refund_account_number`, `refund_account_name` (kolom dari migrasi `2026_11_09_000001_add_refund_method_to_refunds_table.php`).
+2. `PermintaanController@actionRefund` (versi branch ini) menerima kode booking + foto bukti + metode, dan `notifyRefund`. Gabungkan dengan perubahan refund-dicatat-pengeluaran di `0013c27` (jangan sampai pengeluaran tercatat dua kali).
+3. Kata sandi staff dari Owner (`StaffController@store/resetPassword`, email tanpa kata sandi) — tidak bentrok dengan `0013c27`.
+4. Tombol "Tolak bukti" penjualan & booking di FE: sambungkan ke endpoint tolak DP yang dibuat di `0013c27`.
+
+**Kontrak data untuk `OrderPresenter` (supaya fitur FE tampil saat booking dibaca dari MySQL)**
+- `refunds[]`: `{ at, amount, method, bank, account, holder, ref }` → baris refund di invoice/nota & isian otomatis Proses refund.
+- `cancel`: `{ at, by: 'customer'|'admin', reason, refundable, refundStatus, refund: { method, bank, account, holder } }` → pesan pembatalan & jendela refund.
+- `payments[]`: `{ at, amount, type: 'DP'|'Lunas'|'Pelunasan'|'Perpanjangan', via }`; `paymentStatus`: `unpaid|dp_verifying|dp_paid|lunas|refund_pending|refunded`.
+- `out.extra[]` (barang keluar) memuat `{ label: 'Kelengkapan sudah dicek bersama customer', value: 'Ya', type: 'centang' }`.
+- Produk: `featured` (↔ `products.is_featured`), `wash` (true/false/null, aturan cuci per barang — belum ada kolomnya).
+
+## RINGKASAN UNTUK BACKEND — endpoint yang BELUM ada (FE sudah siap / tersimpan di browser saja)
+| No | Fitur | Endpoint yang dibutuhkan | Catatan |
+|---|---|---|---|
+| 1 | **Data Barang** (paling besar) | tambah / edit barang, koreksi stok, status unit (cuci / perbaikan / aktif / nonaktif), sematkan (`is_featured`), aturan cuci (`wash`) | Restock **sudah** tersambung ke `products/{id}/restock` |
+| 2 | Tolak bukti bayar **penjualan** | mis. `POST api/admin/sales/{id}/tolak` | Booking: pakai endpoint tolak DP dari `0013c27` |
+| 3 | Pengajuan perpanjangan / ganti barang **dari customer** | `POST api/booking/{kode}/perpanjang`, `.../ganti` | Persetujuan admin sudah ada (`permintaan/extend|change/{id}/action`) |
+| 4 | Login kode verifikasi (OTP) & buat kata sandi akun dari checkout | `api/masuk/kode`, `api/masuk/verifikasi`, `api/akun/buat-sandi` | Kontrak di C.27 |
+| 5 | Format unit fisik saat barang keluar | sepakati format `unit_ids` di `/pickup` | C.27 |
+| 6 | Diskon manual kasir | `storeBooking` menerima `discount_amount` + `discount_reason` | saat ini hanya `promo_code` |
+| 7 | Google Drive & rekap otomatis | login Google, scheduler, upload, email, arsip/hapus data setelah upload berhasil | FE masih simulasi |
+| 8 | Asisten Trip (chatbot AI) | `api/chat`, `api/ai/rencana` | FE punya cadangan lokal |
+| 9 | Validasi `api/owner/konfigurasi` | ubah `value => required` jadi `present` | supaya daftar kosong (mis. `washCats: []`) bisa disimpan |
+
+## File backend yang diubah di branch `revisi-alur-fe` (perlu review)
+- Baru: `app/Http/Controllers/Annapurna/BookingCancelController.php` (dobel dengan `0013c27` → lihat C.38), `database/migrations/2026_11_09_000001_add_refund_method_to_refunds_table.php`
+- Diubah: `PermintaanController.php`, `StaffController.php`, `app/Models/Refund.php`, `app/Mail/StaffAccountCreated.php`, `app/Mail/StaffPasswordReset.php`, `resources/views/emails/staff-account-created.blade.php`, `resources/views/emails/staff-password-reset.blade.php`, `routes/web.php`, `config/app.php` (hanya `ASSET_VERSION`)
+- Setelah merge: `php artisan migrate` lalu `php artisan optimize:clear`.

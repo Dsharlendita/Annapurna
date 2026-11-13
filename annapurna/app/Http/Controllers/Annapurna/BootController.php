@@ -82,9 +82,9 @@ class BootController extends Controller
         return $this->js([
             'scope' => 'public',
             'settings' => FeData::settings(false),
-            'categories' => Category::orderBy('name')->get()->map(fn ($c) => FeData::toFeCategory($c))->all(),
-            'products' => Product::orderBy('id')->get()->map(fn ($p) => FeData::toFeProduct($p, false))->all(),
-            'packages' => Package::with('items')->orderBy('id')->get()->map(fn ($k) => FeData::toFePackage($k))->all(),
+            'categories' => Category::orderBy('sort_order')->orderBy('name')->get()->map(fn ($c) => FeData::toFeCategory($c))->all(),
+            'products' => Product::orderBy('sort_order')->orderBy('id')->get()->map(fn ($p) => FeData::toFeProduct($p, false))->all(),
+            'packages' => Package::with('items')->orderBy('sort_order')->orderBy('id')->get()->map(fn ($k) => FeData::toFePackage($k))->all(),
             'promos' => Promo::orderBy('id')->get()->map(fn ($p) => FeData::toFePromo($p))->all(),
             'reviews' => Review::with(['booking', 'sale'])->where('is_visible', true)->latest('id')->get()->map(fn ($r) => FeData::toFeReview($r))->all(),
             // Data staff yang mungkin tertinggal dari data demo di browser pengunjung dibersihkan
@@ -100,7 +100,7 @@ class BootController extends Controller
         return $this->js([
             'scope' => 'staff',
             'settings' => $isOwner ? FeData::settings(true) : [],
-            'products' => Product::orderBy('id')->get()->map(fn ($p) => FeData::toFeProduct($p, true))->all(),
+            'products' => Product::orderBy('sort_order')->orderBy('id')->get()->map(fn ($p) => FeData::toFeProduct($p, true))->all(),
             'reviews' => Review::with(['booking', 'sale'])->latest('id')->get()->map(fn ($r) => FeData::toFeReview($r))->all(),
             'customerMeta' => (object) FeData::customerMeta(),   // objek {email: …}, bukan array kosong []
             'expenses' => $manual->where('type', 'expense')->map(fn ($f) => FeData::toFeFinance($f))->values()->all(),

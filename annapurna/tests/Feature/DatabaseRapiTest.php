@@ -95,6 +95,10 @@ class DatabaseRapiTest extends TestCase
         $this->assertSame(1, Payment::count());                    // contoh booking dengan DP
         $this->assertSame(6, \App\Models\Category::where('is_active', true)->count());
         $this->assertTrue(\App\Models\Package::find('pk-2p')->is_popular);
+        // Sama dengan data contoh tampilan: urutan kategori, nama promo, testimoni beranda
+        $this->assertSame(['tenda', 'tas', 'footwear', 'fashion', 'outdoor', 'cooking'], \App\Models\Category::orderBy('sort_order')->pluck('id')->all());
+        $this->assertSame('Hemat Hari Kerja', \App\Models\Promo::where('code', 'WEEKDAY15')->value('name'));
+        $this->assertSame(3, \App\Models\Review::where('is_featured', true)->count());
         $this->assertSame(1147000, Product::find('jl-1')->cost_price);
     }
 }

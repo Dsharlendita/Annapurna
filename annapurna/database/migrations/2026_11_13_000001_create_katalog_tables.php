@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('id', 50)->primary();                       // slug, mis. 'tenda', 'carrier'
             $table->string('name');
             $table->string('img')->nullable();
+            $table->unsignedInteger('sort_order')->default(0);         // urutan tampil di website
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
@@ -45,6 +46,7 @@ return new class extends Migration
             $table->string('badge')->nullable();                       // 'Populer', 'Best Seller'
             $table->boolean('is_featured')->default(false);
             $table->boolean('is_active')->default(true);
+            $table->unsignedInteger('sort_order')->default(0);         // urutan tampil di katalog
 
             // Detail produk
             $table->text('description')->nullable();
@@ -100,6 +102,7 @@ return new class extends Migration
             $table->unsignedInteger('people_max')->nullable();
             $table->string('type')->default('camping');
             $table->boolean('is_popular')->default(false);             // label "Populer" di halaman paket
+            $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

@@ -23,6 +23,7 @@ class Package extends Model
         'people_max',
         'type',
         'is_popular',
+        'sort_order',
         'is_active',
     ];
 

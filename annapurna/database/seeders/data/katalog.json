@@ -5,36 +5,42 @@
             "id": "tenda",
             "name": "Tenda",
             "img": "assets/img/wa/cat-tenda.jpg",
+            "sort_order": 1,
             "is_active": true
         },
         {
             "id": "tas",
             "name": "Tas Backpack / Rucksack",
             "img": "assets/img/wa/cat-tas.jpg",
+            "sort_order": 2,
             "is_active": true
         },
         {
             "id": "footwear",
             "name": "Footwear",
             "img": "assets/img/wa/cat-footwear.jpg",
+            "sort_order": 3,
             "is_active": true
         },
         {
             "id": "fashion",
             "name": "Fashion",
             "img": "assets/img/wa/cat-fashion.jpg",
+            "sort_order": 4,
             "is_active": true
         },
         {
             "id": "outdoor",
             "name": "Outdoor Equipment",
             "img": "assets/img/wa/cat-outdoor.jpg",
+            "sort_order": 5,
             "is_active": true
         },
         {
             "id": "cooking",
             "name": "Cooking Equipment",
             "img": "assets/img/wa/cat-cooking.jpg",
+            "sort_order": 6,
             "is_active": true
         }
     ],
@@ -58,6 +64,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 1,
             "description": "Tenda kapasitas 2 orang dengan double layer (lapisan ganda). Tahan air dan angin, sirkulasi udara baik sehingga nyaman dipakai, serta mudah dipasang dan dibawa.",
             "specs": [
                 "Kapasitas 2 orang",
@@ -102,6 +109,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 2,
             "description": "Tenda kapasitas 4 orang dengan double layer (lapisan ganda). Tahan air dan angin, sirkulasi udara baik sehingga nyaman dipakai, serta mudah dipasang dan dibawa.",
             "specs": [
                 "Kapasitas 4 orang",
@@ -146,6 +154,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 3,
             "description": "Tenda kapasitas 4-5 orang dengan double layer (lapisan ganda). Tahan air dan angin, sirkulasi udara baik sehingga nyaman dipakai, serta mudah dipasang dan dibawa.",
             "specs": [
                 "Kapasitas 4-5 orang",
@@ -190,6 +199,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 4,
             "description": "Tenda kapasitas 6 orang dengan double layer (lapisan ganda). Tahan air dan angin, sirkulasi udara baik sehingga nyaman dipakai, serta mudah dipasang dan dibawa.",
             "specs": [
                 "Kapasitas 6 orang",
@@ -234,6 +244,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 5,
             "description": "Tas hydropack ringan & ergonomis untuk tektok dan trail running, menjaga cairan tetap tersedia di setiap perjalanan.",
             "specs": [
                 "Ringan & ergonomis",
@@ -273,6 +284,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 6,
             "description": "Daypack untuk perjalanan singkat atau pendakian tanpa menginap.",
             "specs": [
                 "Ringan",
@@ -311,6 +323,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 7,
             "description": "Carrier kelas standar kapasitas 40-50 liter untuk pendakian singkat.",
             "specs": [
                 "Kapasitas 40-50 L",
@@ -351,6 +364,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 8,
             "description": "Carrier kelas standar kapasitas 60 liter, pas untuk pendakian 2–3 hari.",
             "specs": [
                 "Kapasitas 60 L",
@@ -391,6 +405,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 9,
             "description": "Carrier kelas standar kapasitas 70-80 liter untuk perjalanan panjang / ekspedisi.",
             "specs": [
                 "Kapasitas 70-80 L",
@@ -431,6 +446,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 10,
             "description": "Carrier kelas medium kapasitas 40-50 liter dengan backsystem lebih nyaman.",
             "specs": [
                 "Kapasitas 40-50 L",
@@ -471,6 +487,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 11,
             "description": "Carrier kelas medium kapasitas 60 liter dengan backsystem lebih nyaman.",
             "specs": [
                 "Kapasitas 60 L",
@@ -511,6 +528,7 @@
             "badge": "Premium",
             "is_featured": false,
             "is_active": true,
+            "sort_order": 12,
             "description": "Carrier premium merek Osprey untuk kenyamanan maksimal di perjalanan panjang.",
             "specs": [
                 "Merek Osprey",
@@ -549,6 +567,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 13,
             "description": "Cover bag / rain cover untuk melindungi tas dari hujan.",
             "specs": [
                 "Pelindung tas dari hujan"
@@ -586,6 +605,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 14,
             "description": "Sandal gunung dengan strap kuat dan sol anti slip, nyaman di camping ground.",
             "specs": [
                 "Strap kuat",
@@ -649,6 +669,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 15,
             "description": "Sepatu hiking standar yang nyaman dipakai, sol kuat anti selip, siap menemani setiap langkah petualanganmu.",
             "specs": [
                 "Sol kuat anti selip",
@@ -712,6 +733,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 16,
             "description": "Sepatu trekking model low-cut, ringan untuk jalur trekking.",
             "specs": [
                 "Model low-cut",
@@ -775,6 +797,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 17,
             "description": "Sepatu hiking model mid-cut dengan pelindung mata kaki untuk jalur berbatu.",
             "specs": [
                 "Model mid-cut",
@@ -838,6 +861,7 @@
             "badge": "Premium",
             "is_featured": false,
             "is_active": true,
+            "sort_order": 18,
             "description": "Sepatu trail premium Salomon / Hoka: ringan, nyaman & kuat. Cocok untuk semua medan, anti slip & cepat kering.",
             "specs": [
                 "Ringan, nyaman & kuat",
@@ -902,6 +926,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 19,
             "description": "Jaket gunung standar, melindungi dari angin & hujan. Bahan ringan, hangat, dan tahan cuaca.",
             "specs": [
                 "Melindungi dari angin & hujan",
@@ -957,6 +982,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 20,
             "description": "Jaket windbreaker ringan untuk menahan angin di jalur pendakian.",
             "specs": [
                 "Menahan angin",
@@ -1012,6 +1038,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 21,
             "description": "Jaket anti UV untuk melindungi kulit dari sinar matahari.",
             "specs": [
                 "Perlindungan sinar UV"
@@ -1066,6 +1093,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 22,
             "description": "Jaket puffer gembung standar, hangat untuk suhu dingin di gunung.",
             "specs": [
                 "Hangat",
@@ -1121,6 +1149,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 23,
             "description": "Jaket puffer hangat untuk anak-anak.",
             "specs": [
                 "Ukuran anak",
@@ -1159,6 +1188,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 24,
             "description": "Jaket insulated untuk menahan dingin.",
             "specs": [
                 "Lapisan insulasi",
@@ -1214,6 +1244,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 25,
             "description": "Jaket gorpcore: melindungi dari angin & hujan, bahan ringan, hangat, dan tahan cuaca.",
             "specs": [
                 "Melindungi dari angin & hujan",
@@ -1269,6 +1300,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 26,
             "description": "Jaket puffer gembung kelas premium, sangat hangat untuk suhu dingin.",
             "specs": [
                 "Kelas premium",
@@ -1324,6 +1356,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 27,
             "description": "Sarung tangan untuk menjaga tangan tetap hangat.",
             "specs": [
                 "Menjaga tangan tetap hangat"
@@ -1361,6 +1394,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 28,
             "description": "Celana cargo outdoor dengan banyak kantong.",
             "specs": [
                 "Banyak kantong"
@@ -1398,6 +1432,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 29,
             "description": "Kacamata sport standar: melindungi mata dari sinar UV, debu, & angin. Jarak pandang lebih jernih & nyaman.",
             "specs": [
                 "Melindungi dari UV, debu & angin"
@@ -1435,6 +1470,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 30,
             "description": "Kacamata gorpcore: melindungi mata dari sinar UV, debu, & angin. Jarak pandang lebih jernih & nyaman.",
             "specs": [
                 "Melindungi dari UV, debu & angin"
@@ -1472,6 +1508,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 31,
             "description": "Topi outdoor untuk melindungi kepala dari panas.",
             "specs": [
                 "Melindungi dari panas"
@@ -1509,6 +1546,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 32,
             "description": "Sleeping bag hangat dan selalu dicuci bersih setelah disewa.",
             "specs": [
                 "Hangat",
@@ -1547,6 +1585,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 33,
             "description": "Trekking pole standar: bantu jaga keseimbangan, mengurangi beban lutut, lebih stabil di medan terjal.",
             "specs": [
                 "Jaga keseimbangan",
@@ -1585,6 +1624,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 34,
             "description": "Trekking pole model Z ultralight: ringan, bisa dilipat ringkas, lebih stabil di medan terjal.",
             "specs": [
                 "Ultralight",
@@ -1623,6 +1663,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 35,
             "description": "Matras alas tidur di dalam tenda.",
             "specs": [
                 "Alas tidur"
@@ -1660,6 +1701,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 36,
             "description": "Headlamp: penerangan maksimal saat malam, praktis & hemat energi.",
             "specs": [
                 "Praktis",
@@ -1698,6 +1740,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 37,
             "description": "Lampu gantung untuk penerangan di dalam tenda.",
             "specs": [
                 "Bisa digantung di tenda"
@@ -1735,6 +1778,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 38,
             "description": "Flysheet ukuran 2 × 3 meter untuk naungan / pelindung hujan.",
             "specs": [
                 "Ukuran 2 × 3 m"
@@ -1772,6 +1816,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 39,
             "description": "Flysheet ukuran 3 × 3 meter untuk naungan / pelindung hujan.",
             "specs": [
                 "Ukuran 3 × 3 m"
@@ -1809,6 +1854,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 40,
             "description": "Hammock untuk bersantai di area camping.",
             "specs": [
                 "Untuk bersantai"
@@ -1846,6 +1892,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 41,
             "description": "Kursi lipat camping yang ringkas dibawa.",
             "specs": [
                 "Bisa dilipat"
@@ -1883,6 +1930,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 42,
             "description": "Meja lipat camping yang ringkas dibawa.",
             "specs": [
                 "Bisa dilipat"
@@ -1920,6 +1968,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 43,
             "description": "Tripod untuk dokumentasi foto & video.",
             "specs": [
                 "Untuk kamera / HP"
@@ -1957,6 +2006,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 44,
             "description": "Powerbank kapasitas 10.000 mAh.",
             "specs": [
                 "Kapasitas 10.000 mAh"
@@ -1994,6 +2044,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 45,
             "description": "Powerbank kapasitas 20.000 mAh.",
             "specs": [
                 "Kapasitas 20.000 mAh"
@@ -2031,6 +2082,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 46,
             "description": "Cooking set / nesting DS200 untuk masak di camping.",
             "specs": [
                 "Nesting DS200"
@@ -2068,6 +2120,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 47,
             "description": "Nesting TNI / cooking set DS300, muat untuk masak rombongan.",
             "specs": [
                 "Nesting TNI / DS300"
@@ -2105,6 +2158,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 48,
             "description": "Grill pan ukuran kecil untuk BBQ.",
             "specs": [
                 "Ukuran kecil"
@@ -2142,6 +2196,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 49,
             "description": "Grill pan ukuran sedang untuk BBQ.",
             "specs": [
                 "Ukuran sedang"
@@ -2179,6 +2234,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 50,
             "description": "Grill pan ukuran besar untuk BBQ rombongan.",
             "specs": [
                 "Ukuran besar"
@@ -2216,6 +2272,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 51,
             "description": "Kompor kotak camping portable yang ringkas.",
             "specs": [
                 "Portable",
@@ -2254,6 +2311,7 @@
             "badge": null,
             "is_featured": true,
             "is_active": true,
+            "sort_order": 52,
             "description": "Kompor koper grill (BBQ) gratis koper pelindung. Cocok untuk BBQ dan masak di camping.",
             "specs": [
                 "Gratis koper",
@@ -2292,6 +2350,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 53,
             "description": "Capitan / jepitan daging untuk BBQ.",
             "specs": [
                 "Untuk BBQ"
@@ -2329,6 +2388,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 54,
             "description": "Tenda dome kapasitas 4 orang dengan double layer dan flysheet waterproof 3000mm. Rangka alloy ringan, cepat dipasang dalam 10 menit.",
             "specs": [
                 "Kapasitas 4 orang",
@@ -2372,6 +2432,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 55,
             "description": "Tenda ultralight untuk 2 orang, favorit pendaki solo dan berdua. Muat masuk carrier dengan mudah.",
             "specs": [
                 "Kapasitas 2 orang",
@@ -2412,6 +2473,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 56,
             "description": "Tenda 4 orang merek Eiger dengan double layer, frame aluminium, dan vestibule luas untuk menyimpan carrier.",
             "specs": [
                 "Kapasitas 4 orang",
@@ -2455,6 +2517,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 57,
             "description": "Carrier 60 liter dengan backsystem adjustable, rain cover, dan banyak kantong. Cocok untuk pendakian 2–4 hari.",
             "specs": [
                 "Kapasitas 60 L",
@@ -2497,6 +2560,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 58,
             "description": "Daypack 40 liter untuk tektok dan pendakian satu hari. Ringan dengan ventilasi punggung.",
             "specs": [
                 "Kapasitas 40 L",
@@ -2539,6 +2603,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 59,
             "description": "Sepatu hiking model mid dengan pelindung mata kaki, sol karet bergerigi, dan lapisan anti air.",
             "specs": [
                 "Model mid-cut",
@@ -2610,6 +2675,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 60,
             "description": "Sandal gunung dengan strap kuat dan sol empuk. Nyaman untuk di camping ground atau menyeberang sungai.",
             "specs": [
                 "Strap webbing + velcro",
@@ -2677,6 +2743,7 @@
             "badge": "Baru",
             "is_featured": false,
             "is_active": true,
+            "sort_order": 61,
             "description": "Jaket outer 2 lapis anti air dan angin dengan hoodie yang bisa dilepas. Cocok untuk pendakian dan cuaca hujan.",
             "specs": [
                 "Waterproof 5000mm",
@@ -2740,6 +2807,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 62,
             "description": "Jaket polar hangat untuk lapisan tengah atau dipakai santai di camping ground saat malam.",
             "specs": [
                 "Bahan polar tebal",
@@ -2803,6 +2871,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 63,
             "description": "Sleeping bag polar dengan lapisan dalam lembut, nyaman untuk suhu 10–18°C.",
             "specs": [
                 "Suhu nyaman 10–18°C",
@@ -2843,6 +2912,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 64,
             "description": "Sleeping bag bentuk mummy untuk gunung dengan suhu dingin, lengkap dengan hoodie dan resleting dua arah.",
             "specs": [
                 "Suhu ekstrem -5°C",
@@ -2883,6 +2953,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 65,
             "description": "Matras tiup ringan dengan bantal terintegrasi. Menjaga badan tetap hangat dari tanah.",
             "specs": [
                 "Tebal 6 cm",
@@ -2923,6 +2994,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 66,
             "description": "Matras foam lipat model telur. Tidak perlu ditiup dan tahan tusukan.",
             "specs": [
                 "Model egg-crate",
@@ -2963,6 +3035,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 67,
             "description": "Kursi lipat dengan sandaran tinggi dan tempat gelas. Kokoh menahan beban hingga 120 kg, bisa dilipat ringkas ke dalam tas.",
             "specs": [
                 "Beban maks. 120 kg",
@@ -3003,6 +3076,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 68,
             "description": "Kursi director dengan sandaran tangan, nyaman untuk bersantai lama di area camping ground.",
             "specs": [
                 "Sandaran tangan",
@@ -3043,6 +3117,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 69,
             "description": "Lentera camping dengan cahaya hangat dan tiga mode terang. Baterai isi ulang tahan hingga 12 jam.",
             "specs": [
                 "3 mode cahaya",
@@ -3083,6 +3158,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 70,
             "description": "Lentera LED gaya klasik dengan dimmer. Aman dipakai di dalam tenda.",
             "specs": [
                 "Dimmer",
@@ -3123,6 +3199,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 71,
             "description": "Kompor gas portable dengan koper, api stabil dan hemat gas. Dilengkapi pengaman tekanan gas otomatis.",
             "specs": [
                 "Gas kaleng 230 g",
@@ -3163,6 +3240,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 72,
             "description": "Paket kompor koper dengan nesting 3 panci, wajan, dan sendok. Praktis untuk masak bareng di camping.",
             "specs": [
                 "Kompor koper",
@@ -3203,6 +3281,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 73,
             "description": "Gas kaleng untuk kompor portable / kompor koper grill. Dijual satuan.",
             "specs": [
                 "Untuk kompor portable",
@@ -3241,6 +3320,7 @@
             "badge": null,
             "is_featured": false,
             "is_active": true,
+            "sort_order": 74,
             "description": "Gas kaleng untuk kompor portable / kompor koper grill, disewakan per malam. Termasuk dalam Paket BBQ 2 & 3.",
             "specs": [
                 "Untuk kompor portable",
@@ -6562,6 +6642,7 @@
             "people_max": 2,
             "type": "tenda",
             "is_popular": true,
+            "sort_order": 1,
             "is_active": true
         },
         {
@@ -6577,6 +6658,7 @@
             "people_max": 4,
             "type": "tenda",
             "is_popular": false,
+            "sort_order": 2,
             "is_active": true
         },
         {
@@ -6592,6 +6674,7 @@
             "people_max": 5,
             "type": "tenda",
             "is_popular": false,
+            "sort_order": 3,
             "is_active": true
         },
         {
@@ -6607,6 +6690,7 @@
             "people_max": 6,
             "type": "tenda",
             "is_popular": false,
+            "sort_order": 4,
             "is_active": true
         },
         {
@@ -6622,6 +6706,7 @@
             "people_max": 20,
             "type": "bbq",
             "is_popular": false,
+            "sort_order": 5,
             "is_active": true
         },
         {
@@ -6637,6 +6722,7 @@
             "people_max": 20,
             "type": "bbq",
             "is_popular": true,
+            "sort_order": 6,
             "is_active": true
         },
         {
@@ -6652,6 +6738,7 @@
             "people_max": 20,
             "type": "bbq",
             "is_popular": false,
+            "sort_order": 7,
             "is_active": true
         },
         {
@@ -6667,6 +6754,7 @@
             "people_max": 1,
             "type": "tektok",
             "is_popular": false,
+            "sort_order": 8,
             "is_active": true
         },
         {
@@ -6682,6 +6770,7 @@
             "people_max": 1,
             "type": "tektok",
             "is_popular": false,
+            "sort_order": 9,
             "is_active": true
         }
     ],
@@ -6875,72 +6964,197 @@
     "promos": [
         {
             "code": "WEEKDAY15",
-            "name": null,
-            "description": null,
+            "name": "Hemat Hari Kerja",
+            "description": "Diskon 15% sewa alat bila tanggal ambil Senin–Kamis.",
             "discount_type": "persen",
             "discount_value": 15,
             "applies_to": "rent",
             "min_order": 0,
-            "max_discount": null,
-            "valid_from": null,
-            "valid_until": "2026-12-04",
-            "quota": 0,
-            "weekday_only": false,
+            "valid_from": "2026-11-03",
+            "valid_until": "2027-01-12",
+            "quota": 100,
+            "used_count": 7,
+            "weekday_only": true,
             "show_on_home": true,
             "is_active": true
         },
         {
             "code": "ANNAPURNA10",
-            "name": null,
-            "description": null,
+            "name": "Diskon Petualang",
+            "description": "Potongan 10% untuk sewa & belanja minimal Rp200.000.",
             "discount_type": "persen",
             "discount_value": 10,
-            "applies_to": "rent",
+            "applies_to": "all",
             "min_order": 200000,
-            "max_discount": null,
-            "valid_from": null,
-            "valid_until": "2026-11-04",
-            "quota": 0,
+            "valid_from": "2026-10-14",
+            "valid_until": "2026-12-13",
+            "quota": 50,
+            "used_count": 12,
             "weekday_only": false,
             "show_on_home": true,
             "is_active": true
         },
         {
             "code": "GASKEUN",
-            "name": null,
-            "description": null,
+            "name": "Potongan Belanja",
+            "description": "Potongan Rp10.000 untuk belanja alat minimal Rp100.000.",
             "discount_type": "nominal",
             "discount_value": 10000,
-            "applies_to": "rent",
+            "applies_to": "buy",
             "min_order": 100000,
-            "max_discount": null,
-            "valid_from": null,
-            "valid_until": "2026-10-30",
-            "quota": 0,
+            "valid_from": "2026-11-08",
+            "valid_until": "2026-12-08",
+            "quota": 30,
+            "used_count": 3,
             "weekday_only": false,
-            "show_on_home": true,
+            "show_on_home": false,
             "is_active": true
         }
     ],
     "settings": {
         "store_name": "Annapurna Adventure",
         "phone": "+62 896 3469 6969",
-        "whatsapp": 6289634696969,
+        "whatsapp": "6289634696969",
         "email": "annapurnaadv@gmail.com",
-        "address": "Jl. Kampus No. 8-9 Grendeng, Purwokerto, Jawa Tengah, Indonesia",
+        "address": "Jl. Kampus No. 8-9, Kelurahan Grendeng, Kec. Purwokerto Utara, Kab. Banyumas",
         "hours": "Setiap hari, 09.00 – 22.00 WIB",
         "dp_percent": 50,
         "banks": [
             {
                 "bank": "BCA",
-                "number": "1234567890",
-                "holder": "Annapurna Adventure"
+                "number": "0462165976",
+                "holder": "Muhamad Nasikun"
+            },
+            {
+                "bank": "Mandiri",
+                "number": "900.001593.150.5",
+                "holder": "Muhamad Nasikun"
+            },
+            {
+                "bank": "BNI",
+                "number": "0396885037",
+                "holder": "Muhamad Nasikun"
             },
             {
                 "bank": "BRI",
-                "number": "0987 6543 2100 123",
-                "holder": "Annapurna Adventure"
+                "number": "3120 0103 4920 532",
+                "holder": "Muhamad Nasikun"
             }
         ]
-    }
+    },
+    "reviews": [
+        {
+            "ref": null,
+            "customer_name": "Rizky Amalia",
+            "customer_email": "rizky@mail.com",
+            "customer_label": "Pendaki, Purwokerto",
+            "avatar": "assets/img/avatar1.jpg",
+            "rating": 5,
+            "comment": "Peralatannya lengkap dan masih bagus banget. Proses sewanya juga gampang. Nanti pasti sewa lagi!",
+            "product_ids": [
+                "tnd-4",
+                "oe-kursi"
+            ],
+            "is_visible": true,
+            "is_featured": true,
+            "featured_order": 0,
+            "reply": null,
+            "seen": true,
+            "created_at": "2026-10-04T12:15:00.000Z"
+        },
+        {
+            "ref": null,
+            "customer_name": "Andi Pratama",
+            "customer_email": "andi@mail.com",
+            "customer_label": "Mahasiswa, UIN",
+            "avatar": "assets/img/avatar2.jpg",
+            "rating": 5,
+            "comment": "Harga terjangkau, pelayanannya ramah. Sangat membantu untuk trip camping bareng teman-teman.",
+            "product_ids": [
+                "oe-kursi",
+                "ck-kompor"
+            ],
+            "is_visible": true,
+            "is_featured": true,
+            "featured_order": 1,
+            "reply": null,
+            "seen": true,
+            "created_at": "2026-10-11T12:15:00.000Z"
+        },
+        {
+            "ref": null,
+            "customer_name": "Salsabila Nur Aini",
+            "customer_email": "salsa@mail.com",
+            "customer_label": "Camper, Cilacap",
+            "avatar": "assets/img/avatar3.jpg",
+            "rating": 5,
+            "comment": "Tenda dan sleeping bag nya bersih, kualitas oke. Rekomendasi banget buat yang cari rental alat camping di Purwokerto!",
+            "product_ids": [
+                "tnd-2",
+                "oe-sb"
+            ],
+            "is_visible": true,
+            "is_featured": true,
+            "featured_order": 2,
+            "reply": "Terima kasih Salsabila, ditunggu petualangan berikutnya!",
+            "seen": true,
+            "created_at": "2026-10-17T12:15:00.000Z"
+        },
+        {
+            "ref": "RNT-1009",
+            "customer_name": "Fajar Nugroho",
+            "customer_email": "fajar@mail.com",
+            "customer_label": "Penyewa",
+            "avatar": null,
+            "rating": 5,
+            "comment": "Daypack enak dipakai, headlamp-nya terang dan awet baterainya. Admin fast respon di WhatsApp.",
+            "product_ids": [
+                "tas-day",
+                "oe-headlamp"
+            ],
+            "is_visible": true,
+            "is_featured": false,
+            "featured_order": 0,
+            "reply": null,
+            "seen": false,
+            "created_at": "2026-11-06T12:15:00.000Z"
+        },
+        {
+            "ref": "ORD-2006",
+            "customer_name": "Putri Anjani",
+            "customer_email": "putri@mail.com",
+            "customer_label": "Pembeli",
+            "avatar": null,
+            "rating": 4,
+            "comment": "Sleeping bag dan lampu sesuai foto. Sempat antre sebentar waktu ambil di toko, tapi pelayanannya ramah.",
+            "product_ids": [
+                "jl-3",
+                "jl-6"
+            ],
+            "is_visible": true,
+            "is_featured": false,
+            "featured_order": 0,
+            "reply": "Terima kasih masukannya, Kak Putri! Sekarang kami tambah satu petugas di jam ramai supaya pengambilan lebih cepat.",
+            "seen": false,
+            "created_at": "2026-11-09T12:15:00.000Z"
+        },
+        {
+            "ref": "ORD-2005",
+            "customer_name": "Tegar Prakoso",
+            "customer_email": "tegar@mail.com",
+            "customer_label": "Pembeli",
+            "avatar": null,
+            "rating": 3,
+            "comment": "Kompor & cooking set oke, cuma kotaknya agak penyok. Semoga packing ke depan lebih rapi.",
+            "product_ids": [
+                "jl-11"
+            ],
+            "is_visible": true,
+            "is_featured": false,
+            "featured_order": 0,
+            "reply": null,
+            "seen": false,
+            "created_at": "2026-11-13T12:15:00.000Z"
+        }
+    ]
 }

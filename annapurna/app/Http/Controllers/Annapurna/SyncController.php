@@ -104,6 +104,9 @@ class SyncController extends Controller
             }
             $attrs = FeData::fromFeCategory($x);
             $attrs['img'] = $this->storeImage($attrs['img'], 'categories');
+            if (! Category::whereKey($attrs['id'])->exists()) {
+                $attrs['sort_order'] = (int) Category::max('sort_order') + 1;
+            }
             Category::updateOrCreate(['id' => $attrs['id']], $attrs);
         }
         foreach ($removed as $id) {
@@ -126,7 +129,7 @@ class SyncController extends Controller
                 continue;
             }
             if (! Category::whereKey($x['cat'])->exists()) {
-                Category::create(['id' => $x['cat'], 'name' => Str::headline($x['cat'])]);
+                Category::create(['id' => $x['cat'], 'name' => Str::headline($x['cat']), 'sort_order' => (int) Category::max('sort_order') + 1]);
             }
             $attrs = FeData::fromFeProduct($x);
             $attrs['img'] = $this->storeImage($attrs['img'], 'products');
@@ -136,7 +139,7 @@ class SyncController extends Controller
             if ($p && isset($x['_stockFrom']) && is_numeric($x['_stockFrom'])) {
                 $attrs['stock'] = max(0, (int) $p->stock + ($attrs['stock'] - (int) $x['_stockFrom']));
             }
-            $p ? $p->update($attrs) : Product::create($attrs);
+            $p ? $p->update($attrs) : Product::create($attrs + ['sort_order' => (int) Product::max('sort_order') + 1]);
         }
         foreach ($removed as $id) {
             // Produk yang pernah dipakai transaksi hanya dinonaktifkan agar nota lama tetap utuh

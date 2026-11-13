@@ -33,6 +33,7 @@ class Product extends Model
         'badge',
         'is_featured',
         'is_active',
+        'sort_order',
         'description',
         'specs',
         'attrs',

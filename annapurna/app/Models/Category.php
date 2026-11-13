@@ -14,6 +14,7 @@ class Category extends Model
         'id',
         'name',
         'img',
+        'sort_order',
         'is_active',
     ];
 

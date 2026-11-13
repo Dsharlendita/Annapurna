@@ -56,6 +56,15 @@ class AuthController extends Controller
             ]);
         }
 
+        // Akun dibuat lewat Google dan belum pernah membuat kata sandi sendiri
+        if ($user->password_set === false) {
+            $msg = 'Akun ini dibuat dengan Google. Klik "Masuk dengan Google", lalu buat kata sandi di halaman Profil bila ingin masuk memakai kata sandi.';
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'field' => 'password', 'msg' => $msg], 422);
+            }
+            throw ValidationException::withMessages(['password' => $msg]);
+        }
+
         if (!Auth::attempt(['email' => $user->email, 'password' => $credentials['password']], $request->boolean('remember', true))) {
             if ($user->isStaff()) {
                 ActivityLog::record(

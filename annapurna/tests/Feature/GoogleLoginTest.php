@@ -58,6 +58,12 @@ class GoogleLoginTest extends TestCase
         $this->assertSame(['customer', 'g-123', false], [$u->role, $u->google_id, $u->password_set]);
         $this->assertNotNull($u->email_verified_at);
 
+        // Mencoba masuk dengan kata sandi → diarahkan ke tombol Google, bukan "kata sandi salah"
+        auth()->logout();
+        $this->postJson('/masuk', ['email' => 'sari@gmail.com', 'password' => 'tebak123'])
+            ->assertStatus(422)->assertJsonPath('field', 'password')->assertSee('Masuk dengan Google');
+        $this->actingAs($u);
+
         // Membuat kata sandi pertama kali tanpa kata sandi lama, setelah itu kata sandi lama wajib
         $this->postJson('/akun/kata-sandi', ['password' => 'baru123', 'password_confirmation' => 'baru123'])->assertOk();
         $this->assertTrue($u->fresh()->password_set);

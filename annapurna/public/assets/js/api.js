@@ -123,7 +123,29 @@
     return r;
   }
 
+  /* ---------- Kode verifikasi lewat email (dibuat & dicek server) ----------
+     purpose: 'login' (masuk dengan kode) | 'reset' (lupa kata sandi) */
+  const code = {
+    send: (identifier, purpose) => request('POST', 'api/kode/kirim', { identifier, purpose }, { redirectOn401: false }),
+    check: (identifier, purpose, kode, next) => request('POST', 'api/kode/cek', { identifier, purpose, code: kode, next: next || '' }, { redirectOn401: false }),
+    newPassword: (password) => request('POST', 'api/kode/sandi-baru', { password, password_confirmation: password }, { redirectOn401: false }),
+    /* Isian kode + tombol kirim ulang (aktif setelah hitung mundur) */
+    field(id, info) {
+      const esc = window.UI ? UI.esc : (s) => s;
+      return `<p class="muted" style="font-size:13px;margin:10px 0">Kode 6 digit dikirim ke <b>${esc(info.dest || 'email akunmu')}</b>, berlaku ${info.minutes || 10} menit. Belum masuk? Cek folder <b>Spam</b>.</p>
+        <div class="field"><label for="${id}">Kode verifikasi</label><input class="input otp-in" id="${id}" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••"></div>
+        <button type="button" class="btn btn-light btn-sm" id="${id}Re" disabled>Kirim ulang kode</button>`;
+    },
+    countdown(btn, seconds) {
+      if (!btn) return;
+      let s = seconds || 60; const label = 'Kirim ulang kode';
+      btn.disabled = true; btn.textContent = `${label} (${s})`;
+      const t = setInterval(() => { s -= 1; if (!document.body.contains(btn)) { clearInterval(t); return; } if (s <= 0) { clearInterval(t); btn.disabled = false; btn.textContent = label; } else btn.textContent = `${label} (${s})`; }, 1000);
+    },
+  };
+
   window.Api = {
+    code,
     changePassword,
     request,
     get: (path, opts) => request('GET', path, null, opts),

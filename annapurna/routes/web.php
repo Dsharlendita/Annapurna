@@ -19,9 +19,17 @@ use App\Http\Controllers\Annapurna\ReturnController;
 use App\Http\Controllers\Annapurna\ReviewController;
 use App\Http\Controllers\Annapurna\StaffController;
 use App\Http\Controllers\Annapurna\SyncController;
+use App\Http\Controllers\Annapurna\VerificationController;
 use App\Models\EmailLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Kode verifikasi lewat email: masuk dengan kode & lupa kata sandi (tanpa login, dibatasi 10x/menit per IP)
+Route::middleware('throttle:10,1')->controller(VerificationController::class)->group(function () {
+    Route::post('/api/kode/kirim', 'send')->name('api.kode.kirim');
+    Route::post('/api/kode/cek', 'verify')->name('api.kode.cek');
+    Route::post('/api/kode/sandi-baru', 'newPassword')->name('api.kode.sandi-baru');
+});
 
 // Data server untuk tampilan (dimuat di layout sebelum skrip halaman)
 Route::get('/boot.js', [BootController::class, 'public'])->name('boot');

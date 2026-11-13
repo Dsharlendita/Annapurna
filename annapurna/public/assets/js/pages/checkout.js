@@ -202,13 +202,15 @@
     const m = UI.modal({ title: 'Kamu sudah punya akun', body: `<p style="font-size:14px;margin-bottom:12px">${r.by === 'email' ? 'Email' : 'Nomor WhatsApp'} ini sudah terdaftar atas nama <strong>${esc(r.user.name)}</strong>. Masuk dulu untuk melanjutkan — isi keranjangmu tetap aman.</p>
       <div class="seg" id="lfTab" style="margin-bottom:14px"><button type="button" class="active" data-t="code">Kode verifikasi</button><button type="button" data-t="pw">Kata sandi</button></div>
       <div id="lfBody"></div>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="lfOk">Masuk &amp; lanjutkan</button>' });
-    /* Akun yang hanya ada di server tidak bisa memakai kode verifikasi lokal: langsung tampilkan kata sandi */
-    let mode = DB.accountStatus({ email: r.user.email }).status === 'exists' ? 'code' : 'pw', sent = null;
+    /* Kode verifikasi dikirim server ke email akun (Api.code); kata sandi tetap bisa dipakai */
+    let mode = 'code', sent = null;
     const draw = () => {
       m.$$('#lfTab button').forEach((b) => b.classList.toggle('active', b.dataset.t === mode));
       m.$('#lfBody').innerHTML = mode === 'pw' ? `<div class="field"><label>Kata sandi</label><input class="input" type="password" id="lfPw" autocomplete="current-password"></div>`
-        : `<button type="button" class="btn btn-light btn-sm" id="lfSend"><i class="fa-solid fa-paper-plane"></i> ${sent ? 'Kirim ulang kode' : 'Kirim kode verifikasi'}</button>${sent ? `<p class="muted" style="font-size:13px;margin:10px 0">Kode 6 digit dikirim ke ${esc(sent.dest)}. <span class="otp-demo">Kode: <b>${sent.code}</b></span></p><div class="field"><label>Kode verifikasi</label><input class="input otp-in" id="lfCode" inputmode="numeric" maxlength="6" placeholder="••••••"></div>` : ''}`;
-      const sb = m.$('#lfSend'); if (sb) sb.addEventListener('click', () => { const x = DB.sendLoginCode(r.user.email); if (!x.ok) { toast(x.msg, 'err'); return; } sent = x; draw(); m.$('#lfCode').focus(); });
+        : sent ? Api.code.field('lfCode', sent) : `<button type="button" class="btn btn-light btn-sm" id="lfSend"><i class="fa-solid fa-paper-plane"></i> Kirim kode verifikasi ke email</button>`;
+      const sendCode = async (btn) => { const x = await Api.busy(btn, () => Api.code.send(r.user.email, 'login'), 'Mengirim…'); if (!x) return; if (!x.ok) { toast(x.msg, 'err'); return; } sent = x.raw; draw(); Api.code.countdown(m.$('#lfCodeRe'), sent.resendIn); m.$('#lfCode').focus(); };
+      const sb = m.$('#lfSend'); if (sb) sb.addEventListener('click', (ev) => sendCode(ev.currentTarget));
+      const rb = m.$('#lfCodeRe'); if (rb) rb.addEventListener('click', (ev) => sendCode(ev.currentTarget));
     };
     m.$('#lfTab').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { mode = b.dataset.t; draw(); } });
     draw();
@@ -220,7 +222,12 @@
         if (!s) return;
         res = s.ok && s.raw && s.raw.user ? { ok: true, user: DB.adoptSession(s.raw.user) } : { ok: false, msg: s.msg };
       }
-      else { if (!sent) { toast('Kirim kode verifikasi dulu.', 'err'); return; } res = DB.verifyLoginCode((m.$('#lfCode') || {}).value || ''); }
+      else {
+        if (!sent) { toast('Kirim kode verifikasi dulu.', 'err'); return; }
+        const s = await Api.busy(m.$('#lfOk'), () => Api.code.check(r.user.email, 'login', (m.$('#lfCode') || {}).value || ''), 'Memeriksa…');
+        if (!s) return;
+        res = s.ok && s.raw && s.raw.user ? { ok: true, user: DB.adoptSession(s.raw.user) } : { ok: false, msg: s.msg };
+      }
       if (!res.ok) { toast(res.msg || 'Gagal masuk.', 'err'); return; }
       user = DB.session(); m.close();
       if (DB.blockedContact(user.email, F.phone)) { blockedNotice(); return; }

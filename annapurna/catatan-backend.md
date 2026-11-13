@@ -971,3 +971,37 @@ php artisan optimize:clear
 **Tes:** `IntegrasiTampilanTest` (13) + uji lapisan sinkronisasi di Node (11) + uji Chrome menyeluruh (owner/admin/customer/pengunjung, 30+ halaman tanpa error JS). Total tes PHP: 44.
 
 **Belum tersambung (backlog):** jejak audit (`audit` lokal vs `activity_logs`), kode login OTP (`loginCode`, masih dibuat di browser), arsip & pembersihan bulanan (`archives`, `cleanupReq`, `customerArchive`), kotak keluar email (`outbox`), daftar penjualan untuk admin, unit fisik per barang, permintaan perpanjangan/ganti barang dari customer.
+
+
+## C.42 Kode verifikasi lewat email (masuk dengan kode & lupa kata sandi) — 13 Nov 2026 (Aji)
+
+**Setelah pull:** cukup `php artisan migrate` (tabel baru `login_codes`, tidak menghapus data).
+
+**Dulu:** kode 6 digit dibuat di browser dan **ditampilkan di layar** ("Kode: 123456"). Siapa pun bisa masuk sebagai siapa pun, dan sesinya hanya ada di browser (server tidak menganggap login).
+
+**Sekarang:**
+- Server membuat kode, menyimpannya teracak, dan mengirimnya ke **email akun** (Gmail toko). Kode tidak pernah dikirim ke browser.
+- Berlaku 10 menit, sekali pakai, hangus setelah 5x salah. Kirim ulang paling cepat 60 detik, maksimal 5 kode/jam per akun, dan endpoint dibatasi 10 permintaan/menit per IP.
+- Isian boleh email **atau** nomor WhatsApp. Kode tetap dikirim ke email akun. Pengiriman lewat WhatsApp belum ada (butuh layanan gateway).
+- *Masuk dengan kode*: khusus customer, hasilnya sesi Laravel asli. *Lupa kata sandi*: customer & Owner. Admin diminta menghubungi Owner. Setelah kata sandi diganti, semua sesi lama akun itu dikeluarkan lalu langsung masuk.
+- Akun kasir tanpa email asli (`…@annapurna.local`) → pesan "hubungi toko lewat WhatsApp".
+
+**Endpoint:** `POST /api/kode/kirim {identifier, purpose: login|reset}`, `POST /api/kode/cek {identifier, purpose, code}`, `POST /api/kode/sandi-baru {password, password_confirmation}`.
+**FE:** `Api.code.send / check / newPassword / field / countdown` di `api.js`; dipakai `masuk.js` (lupa kata sandi, masuk dengan kode) dan `checkout.js` ("Kamu sudah punya akun"). `DB.sendLoginCode` / `DB.verifyLoginCode` dihapus.
+
+**Mengaktifkan Gmail** (di `.env` masing-masing, jangan di-commit):
+```
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=annapurnaadv@gmail.com
+MAIL_PASSWORD="xxxx xxxx xxxx xxxx"   # App Password 16 huruf
+MAIL_FROM_ADDRESS="annapurnaadv@gmail.com"
+MAIL_FROM_NAME="Annapurna Adventure"
+```
+Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `storage/logs/laravel.log`, cukup untuk mencoba di laptop.
+
+**Catatan:** email staff (akun baru / reset oleh Owner) memakai antrean. Dengan `QUEUE_CONNECTION=database` email itu baru terkirim kalau `php artisan queue:work` dijalankan. Untuk laptop, pakai `QUEUE_CONNECTION=sync`.
+
+**Tes:** `VerifikasiKodeTest` (6) + uji Chrome (lupa kata sandi → kata sandi baru → masuk; masuk dengan kode). Total 50 tes PHP lulus.

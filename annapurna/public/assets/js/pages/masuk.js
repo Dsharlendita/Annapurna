@@ -6,31 +6,43 @@
   if (next) $('#toRegister').href = 'daftar?next=' + encodeURIComponent(next);
   $$('.toggle-pw').forEach((b) => b.addEventListener('click', () => { const i = b.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; b.innerHTML = `<i class="fa-regular fa-eye${i.type === 'text' ? '-slash' : ''}"></i>`; }));
   $$('[data-demo]').forEach((b) => b.addEventListener('click', () => { const [e, p] = b.dataset.demo.split('|'); $('#email').value = e; $('#password').value = p; }));
+  /* Lupa kata sandi: kode dikirim server ke email akun → kata sandi baru → langsung masuk */
   $('#forgot').addEventListener('click', (e) => {
     e.preventDefault();
     const m = modal({ title: 'Atur ulang kata sandi', body: `<ol class="fg-steps"><li class="on">Verifikasi</li><li>Kata sandi baru</li></ol>
-      <div id="fgA"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Masukkan email atau nomor WhatsApp akunmu. Kami kirim kode verifikasi 6 digit.</p>
+      <div id="fgA"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Masukkan email atau nomor WhatsApp akunmu. Kami kirim kode verifikasi 6 digit ke <b>email akunmu</b>.</p>
         <div class="field"><label for="fgId">Email atau nomor WhatsApp</label><input class="input" id="fgId" value="${esc($('#email').value || '')}" placeholder="nama@email.com / 08xxxxxxxxxx"></div><div id="fgCodeBox"></div></div>
       <div id="fgB" hidden><div class="field"><label for="fgPw">Kata sandi baru</label><input class="input" type="password" id="fgPw" autocomplete="new-password"><span class="hint">Minimal 6 karakter.</span></div>
         <div class="field"><label for="fgPw2">Ulangi kata sandi</label><input class="input" type="password" id="fgPw2" autocomplete="new-password"></div></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="fgGo">Kirim kode</button>' });
-    let step = 0, sent = null;
-    m.$('#fgGo').addEventListener('click', () => {
+    let step = 0, ident = '';
+    const go = m.$('#fgGo');
+    const send = async (btn) => {
+      const r = await Api.busy(btn, () => Api.code.send(ident, 'reset'), 'Mengirim…'); if (!r) return false;
+      if (!r.ok) { m.$('#fgId').classList.add('err'); toast(r.msg, 'err'); return false; }
+      m.$('#fgCodeBox').innerHTML = Api.code.field('fgCode', r.raw);
+      Api.code.countdown(m.$('#fgCodeRe'), r.raw.resendIn);
+      m.$('#fgCodeRe').addEventListener('click', (ev) => send(ev.currentTarget));
+      m.$('#fgCode').focus(); return true;
+    };
+    go.addEventListener('click', async () => {
       if (step === 0) {
-        const r = Ann.DB.sendLoginCode(m.$('#fgId').value); if (!r.ok) { m.$('#fgId').classList.add('err'); toast(r.msg, 'err'); return; }
-        sent = r; step = 1; m.$('#fgGo').textContent = 'Verifikasi';
-        m.$('#fgCodeBox').innerHTML = `<p class="muted" style="font-size:13px">Kode dikirim ke ${esc(r.dest)}. <span class="otp-demo">Kode: <b>${r.code}</b></span></p><div class="field"><label for="fgCode">Kode verifikasi</label><input class="input otp-in" id="fgCode" inputmode="numeric" maxlength="6" placeholder="••••••"></div>`;
-        m.$('#fgCode').focus(); return;
+        ident = m.$('#fgId').value.trim(); if (!ident) { m.$('#fgId').classList.add('err'); toast('Isi email atau nomor WhatsApp.', 'err'); return; }
+        if (await send(go)) { step = 1; m.$('#fgId').readOnly = true; go.textContent = 'Verifikasi'; }
+        return;
       }
       if (step === 1) {
-        const v = Ann.DB.verifyLoginCode(m.$('#fgCode').value); if (!v.ok) { m.$('#fgCode').classList.add('err'); toast(v.msg, 'err'); return; }
-        step = 2; m.$('#fgA').hidden = true; m.$('#fgB').hidden = false; m.$$('.fg-steps li')[1].classList.add('on'); m.$('#fgGo').textContent = 'Simpan & masuk'; m.$('#fgPw').focus(); return;
+        const v = await Api.busy(go, () => Api.code.check(ident, 'reset', m.$('#fgCode').value), 'Memeriksa…'); if (!v) return;
+        if (!v.ok) { m.$('#fgCode').classList.add('err'); toast(v.msg, 'err'); return; }
+        step = 2; m.$('#fgA').hidden = true; m.$('#fgB').hidden = false; m.$$('.fg-steps li')[1].classList.add('on'); go.textContent = 'Simpan & masuk'; m.$('#fgPw').focus(); return;
       }
       const a = m.$('#fgPw').value, b = m.$('#fgPw2').value;
       if (a.length < 6) { m.$('#fgPw').classList.add('err'); toast('Kata sandi minimal 6 karakter.', 'err'); return; }
       if (a !== b) { m.$('#fgPw2').classList.add('err'); toast('Kata sandi tidak sama.', 'err'); return; }
-      Ann.DB.setOwnPassword(a); m.close(); toast('Kata sandi baru tersimpan. Kamu sudah masuk.');
-      const nx = new URLSearchParams(location.search).get('next'); setTimeout(() => (location.href = UI.url(nx || './')), 500);
+      const r = await Api.busy(go, () => Api.code.newPassword(a), 'Menyimpan…'); if (!r) return;
+      if (!r.ok) { toast(r.msg, 'err'); return; }
+      DB.adoptSession(r.raw.user); m.close(); toast('Kata sandi baru tersimpan. Kamu sudah masuk.');
+      setTimeout(() => (location.href = next ? UI.url(next) : r.raw.redirect || UI.url('./')), 500);
     });
   });
   const form = $('#loginForm');
@@ -54,24 +66,34 @@
     setTimeout(() => { location.href = data.redirect || (next ? next : DB.isStaff(data.user) ? DB.panelHome(data.user) : './'); }, 450);
   });
 
-  /* Masuk tanpa kata sandi: kode verifikasi */
+  /* Masuk tanpa kata sandi: kode verifikasi dikirim server ke email akun (khusus customer) */
   const ob = document.getElementById('otpBtn');
   if (ob) ob.addEventListener('click', () => {
-    const m = UI.modal({ title: 'Masuk dengan kode verifikasi', body: `<p class="muted" style="font-size:13.5px;margin-bottom:12px">Cocok untuk akun yang dibuat otomatis saat checkout. Kode dikirim ke WhatsApp atau email kamu.</p>
-      <div class="field"><label>Email atau nomor WhatsApp</label><input class="input" id="otpId" placeholder="nama@email.com / 08xxxxxxxxxx"></div><div id="otpStep"></div>`,
+    const m = UI.modal({ title: 'Masuk dengan kode verifikasi', body: `<p class="muted" style="font-size:13.5px;margin-bottom:12px">Cocok untuk akun yang dibuat otomatis saat checkout. Kode dikirim ke <b>email akunmu</b>.</p>
+      <div class="field"><label for="otpId">Email atau nomor WhatsApp</label><input class="input" id="otpId" placeholder="nama@email.com / 08xxxxxxxxxx"></div><div id="otpStep"></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="otpGo">Kirim kode</button>' });
-    let sent = null;
-    m.$('#otpGo').addEventListener('click', () => {
-      if (!sent) {
-        const r = Ann.DB.sendLoginCode(m.$('#otpId').value); if (!r.ok) { UI.toast(r.msg, 'err'); return; }
-        sent = r; m.$('#otpGo').textContent = 'Masuk';
-        m.$('#otpStep').innerHTML = `<p class="muted" style="font-size:13px">Halo ${UI.esc(r.name.split(' ')[0])}! Kode dikirim ke ${UI.esc(r.dest)}. <span class="otp-demo">Kode: <b>${r.code}</b></span></p><div class="field"><label>Kode verifikasi</label><input class="input otp-in" id="otpCode" inputmode="numeric" maxlength="6" placeholder="••••••"></div>`;
-        m.$('#otpCode').focus(); return;
+    let ident = '';
+    const go = m.$('#otpGo');
+    const send = async (btn) => {
+      const r = await Api.busy(btn, () => Api.code.send(ident, 'login'), 'Mengirim…'); if (!r) return false;
+      if (!r.ok) { m.$('#otpId').classList.add('err'); UI.toast(r.msg, 'err'); return false; }
+      m.$('#otpStep').innerHTML = `<p style="font-size:13.5px;margin-top:10px">Halo ${UI.esc(String(r.raw.name || '').split(' ')[0])}!</p>` + Api.code.field('otpCode', r.raw);
+      Api.code.countdown(m.$('#otpCodeRe'), r.raw.resendIn);
+      m.$('#otpCodeRe').addEventListener('click', (ev) => send(ev.currentTarget));
+      m.$('#otpCode').focus(); return true;
+    };
+    go.addEventListener('click', async () => {
+      if (!ident) {
+        const id = m.$('#otpId').value.trim(); if (!id) { m.$('#otpId').classList.add('err'); UI.toast('Isi email atau nomor WhatsApp.', 'err'); return; }
+        ident = id;
+        if (await send(go)) { m.$('#otpId').readOnly = true; go.textContent = 'Masuk'; } else ident = '';
+        return;
       }
-      const v = Ann.DB.verifyLoginCode(m.$('#otpCode').value); if (!v.ok) { UI.toast(v.msg, 'err'); return; }
-      UI.toast(`Selamat datang, ${v.user.name.split(' ')[0]}!`);
-      const nx = new URLSearchParams(location.search).get('next');
-      setTimeout(() => (location.href = UI.url(nx || './')), 400);
+      const v = await Api.busy(go, () => Api.code.check(ident, 'login', m.$('#otpCode').value, next), 'Memeriksa…'); if (!v) return;
+      if (!v.ok) { m.$('#otpCode').classList.add('err'); UI.toast(v.msg, 'err'); return; }
+      DB.adoptSession(v.raw.user);
+      UI.toast(`Selamat datang, ${v.raw.user.name.split(' ')[0]}!`);
+      setTimeout(() => (location.href = v.raw.redirect || UI.url('./')), 400);
     });
   });
 })();

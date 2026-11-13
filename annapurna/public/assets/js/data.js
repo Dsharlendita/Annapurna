@@ -1774,24 +1774,7 @@
       return { status: 'created', user: r.user };
     },
     /* Masuk dengan kode verifikasi (OTP). Di frontend kode ditampilkan langsung; di backend dikirim via WhatsApp/email. */
-    sendLoginCode(identifier) {
-      const users = read('users', USERS); const id = String(identifier || '').trim().toLowerCase(); const ph = DB.normPhone(id);
-      const u = users.find((x) => x.email.toLowerCase() === id || (ph.length >= 9 && DB.normPhone(x.phone) === ph));
-      if (!u) return { ok: false, msg: 'Email atau nomor WhatsApp belum terdaftar.' };
-      if (isStaff(u)) return { ok: false, msg: 'Akun staff: minta Owner mengatur ulang kata sandi lewat Manajemen Staff.' };
-      if (u.status === 'nonaktif') return { ok: false, msg: 'Akun ini sedang dinonaktifkan.' };
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      write('loginCode', { uid: u.id, code, exp: Date.now() + 5 * 60000 });
-      const dest = /@/.test(id) ? u.email.replace(/^(.{2}).*(@.*)$/, '$1•••$2') : 'WhatsApp ••••' + String(u.phone).slice(-4);
-      return { ok: true, code, dest, name: u.name };
-    },
-    verifyLoginCode(code) {
-      const c = read('loginCode', null); if (!c || Date.now() > c.exp) return { ok: false, msg: 'Kode sudah kedaluwarsa. Kirim ulang kode.' };
-      if (String(code).trim() !== c.code) return { ok: false, msg: 'Kode tidak cocok.' };
-      const u = read('users', USERS).find((x) => x.id === c.uid); localStorage.removeItem(KEY('loginCode'));
-      const sess = { id: u.id, name: u.name, email: u.email, role: u.role, phone: u.phone, address: u.address, needsPassword: !!u.needsPassword, loginAt: nowStamp(), seen: {} };
-      write('session', sess); return { ok: true, user: sess };
-    },
+    /* Kode verifikasi login / lupa kata sandi sekarang dibuat, dikirim (email) & dicek server: lihat Api.code di api.js */
     setOwnPassword(pw) {
       const s = DB.session(); const users = read('users', USERS); const u = users.find((x) => x.id === s.id); if (!u) return false;
       Object.assign(u, { password: pwHash(pw), needsPassword: false }); write('users', users); write('session', Object.assign(s, { needsPassword: false })); return true;
@@ -2343,6 +2326,7 @@
   try { DB.expireUnpaid(); } catch (e) { /* abaikan */ }
   /* Tanggal sewa lama yang tersimpan permanen di localStorage dihapus (sekarang per sesi) */
   try { localStorage.removeItem(KEY('trip')); } catch (e) { /* abaikan */ }
+  try { localStorage.removeItem(KEY('loginCode')); } catch (e) { /* kode verifikasi lama dari versi sebelumnya */ }
   /* Revisi layanan: kategori pemasukan laundry, bongkar pasang & ongkir ditambahkan ke pengaturan yang sudah tersimpan */
   /* Data contoh laundry untuk penyimpanan lama (sebelum fitur laundry ada) */
   if (read('laundry', null) === null) write('laundry', seedLaundry());

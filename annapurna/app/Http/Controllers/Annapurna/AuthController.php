@@ -92,30 +92,12 @@ class AuthController extends Controller
             );
         }
 
-        $redirectUrl = match ($user->role) {
-            'owner' => route('owner.dashboard'),
-            'admin' => route('admin.dashboard'),
-            default => route('home'),
-        };
-
-        if ($request->filled('next')) {
-            $redirectUrl = $request->input('next');
-        }
+        $redirectUrl = \App\Support\AuthPayload::redirect($user, $request->filled('next') ? $request->input('next') : null);
 
         if ($request->wantsJson()) {
             return response()->json([
                 'ok' => true,
-                'user' => [
-                    'id' => 'u' . $user->id,
-                    'userId' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                    'status' => $user->status,
-                    'phone' => $user->phone ?? '',
-                    'address' => $user->address ?? '',
-                    'mustChangePw' => (bool)$user->must_change_password,
-                ],
+                'user' => \App\Support\AuthPayload::user($user),
                 'redirect' => $redirectUrl,
             ]);
         }

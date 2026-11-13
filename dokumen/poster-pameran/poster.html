@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Poster Pameran Annapurna 60x160 cm (v2)</title>
+<!--
+  Poster pameran 60 x 160 cm (X-banner), gaya editorial terang. 1px = 1 mm (kanvas 600 x 1600).
+  Render ulang:
+    node render.mjs poster.html poster-pameran-annapurna-60x160cm.jpg 600 1600 5.905625 92 150
+-->
+<style>
+  @font-face { font-family: 'Figtree'; font-weight: 500; src: url('aset/font/figtree-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 600; src: url('aset/font/figtree-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 700; src: url('aset/font/figtree-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 800; src: url('aset/font/figtree-latin-800-normal.woff2') format('woff2'); }
+
+  :root { --paper: #f4f1e8; --ink: #13261a; --ink2: #3d4c42; --green: #1f4d2f; --deep: #123020; --gold: #e5ad2c; --rule: #cfc9b8; }
+  html, body { margin: 0; width: 600px; height: 1600px; overflow: hidden; background: var(--paper); }
+  .poster { position: relative; width: 600px; height: 1600px; overflow: hidden; background: var(--paper); font-family: 'Figtree', sans-serif; color: var(--ink); }
+  .pad { position: absolute; left: 40px; right: 40px; }
+
+  /* Kepala: logo */
+  .logos { top: 38px; display: flex; align-items: center; gap: 16px; }
+  .logos img { display: block; mix-blend-mode: multiply; }
+  .logos .telu { height: 62px; } .logos .if { height: 48px; } .logos .aa { height: 40px; }
+  .logos .v { width: 1.5px; height: 40px; background: var(--rule); }
+  .logos .note { margin-left: auto; text-align: right; font-size: 11.5px; line-height: 1.4; font-weight: 600; color: var(--ink2); }
+  .logos .note b { display: block; font-size: 11px; letter-spacing: 1.8px; color: var(--green); }
+
+  /* Judul */
+  .title { top: 126px; border-top: 2.5px solid var(--ink); padding-top: 14px; }
+  .kicker { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--green); }
+  .big { margin: 10px 0 0; font-size: 86px; font-weight: 800; line-height: .88; letter-spacing: -3px; }
+  .big > span { display: flex; align-items: baseline; justify-content: space-between; }
+  .big strong { font-weight: 800; }
+  .big i { font-style: normal; color: var(--gold); }
+  .big small { font-size: 13px; line-height: 1.35; font-weight: 600; letter-spacing: 0; color: var(--ink2); text-align: right; width: 170px; }
+  .lead { margin-top: 14px; font-size: 19px; line-height: 1.4; font-weight: 500; color: var(--ink); max-width: 500px; }
+  .lead b { font-weight: 800; }
+
+  /* Pita hijau: tampilan website + anotasi */
+  .band { position: absolute; left: 0; right: 0; top: 508px; height: 350px; background: var(--deep); overflow: hidden; }
+  .browser { position: absolute; left: 36px; top: 30px; width: 372px; border-radius: 8px; background: #fff; transform: rotate(-2.5deg); box-shadow: 0 18px 34px rgba(0, 0, 0, .4); overflow: hidden; }
+  .browser .bar { height: 18px; background: #e9e6dc; display: flex; align-items: center; gap: 5px; padding: 0 9px; }
+  .browser .bar i { width: 6px; height: 6px; border-radius: 50%; background: #c8c2b2; }
+  .browser .bar em { margin-left: 10px; flex: 1; height: 9px; border-radius: 5px; background: #f7f5ef; }
+  .browser img { display: block; width: 100%; }
+  .phone { position: absolute; left: 424px; top: 34px; width: 124px; height: 258px; box-sizing: border-box; padding: 5px; border-radius: 21px; background: #0e1210; transform: rotate(4deg); box-shadow: 0 0 0 1.5px #56615a inset, 0 18px 30px rgba(0, 0, 0, .45); }
+  .phone .scr { position: relative; width: 114px; height: 248px; overflow: hidden; border-radius: 17px; background: #fff; }
+  .phone .scr img { width: 100%; display: block; }
+  .phone .island { position: absolute; top: 6px; left: 50%; width: 30px; height: 8px; margin-left: -15px; border-radius: 4px; background: #0b0d0c; }
+  .dot { position: absolute; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); color: var(--deep); font-size: 12px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 0 0 3px rgba(229, 173, 44, .35); }
+  .callout { position: absolute; font-size: 13px; line-height: 1.3; font-weight: 600; color: #f4f1e8; }
+  .callout b { color: var(--gold); }
+  .lead-line { position: absolute; height: 1.5px; background: var(--gold); transform-origin: 0 50%; }
+
+  /* Bagian bernomor */
+  .sec { border-top: 1.5px solid var(--ink); padding-top: 10px; }
+  .sec h3 { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 22px; font-weight: 800; }
+  .sec h3 em { font-style: normal; font-size: 13px; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
+  .stack { top: 876px; display: flex; flex-direction: column; gap: 14px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .two p { margin: 8px 0 0; font-size: 15px; line-height: 1.48; font-weight: 500; color: var(--ink2); }
+  .two p b { color: var(--ink); }
+
+  
+  .steps { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); position: relative; }
+  .steps::before { content: ''; position: absolute; left: 11px; right: 30px; top: 11px; height: 2px; background: var(--green); }
+  .step { position: relative; padding-right: 8px; }
+  .step b { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 4px; background: var(--green); color: var(--paper); font-size: 13px; font-weight: 800; position: relative; }
+  .step:last-child b { background: var(--gold); color: var(--deep); }
+  .step span { display: block; margin-top: 7px; font-size: 13px; line-height: 1.3; font-weight: 700; }
+  .step small { display: block; margin-top: 2px; font-size: 11px; line-height: 1.3; font-weight: 500; color: var(--ink2); }
+
+  
+  .list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  .list li { padding: 5px 0; border-bottom: 1px solid var(--rule); font-size: 14px; line-height: 1.3; font-weight: 500; color: var(--ink2); }
+  .list li b { display: block; font-size: 14.5px; font-weight: 800; color: var(--ink); }
+
+  /* Kaki: pengguna + kredit */
+  .foot { position: absolute; left: 0; right: 0; top: 1374px; bottom: 0; background: var(--green); color: var(--paper); }
+  .roles { position: absolute; left: 40px; right: 40px; top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .roles div { font-size: 12.5px; line-height: 1.35; font-weight: 500; color: rgba(244, 241, 232, .85); }
+  .roles b { display: block; font-size: 15px; font-weight: 800; color: var(--gold); margin-bottom: 2px; }
+  .credit { position: absolute; left: 40px; right: 40px; top: 76px; padding-top: 10px; border-top: 1px solid rgba(244, 241, 232, .3); display: flex; justify-content: space-between; gap: 20px; font-size: 11.5px; line-height: 1.4; font-weight: 600; color: rgba(244, 241, 232, .8); }
+  .credit b { color: var(--paper); }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <div class="pad logos">
+    <img class="telu" src="aset/logo-telkom-university.png" alt="Telkom University">
+    <span class="v"></span>
+    <img class="if" src="aset/logo-informatika.png" alt="Informatika">
+    <span class="v"></span>
+    <img class="aa" src="aset/logo-annapurna.png" alt="Annapurna Adventure">
+    <div class="note"><b>PROYEK MAHASISWA 2026</b>S1 Teknik Informatika<br>Telkom University Purwokerto</div>
+  </div>
+
+  <div class="pad title">
+    <div class="kicker"><span>Annapurna Adventure</span><span>Purwokerto</span></div>
+    <div class="big">
+      <span><strong>SEWA<i>.</i></strong><small>Tenda, carrier, sleeping bag, alat masak</small></span>
+      <span><strong>BELI<i>.</i></strong><small>Alat &amp; pakaian outdoor, diambil atau dikirim</small></span>
+      <span><strong>LAUNDRY<i>.</i></strong></span>
+    </div>
+    <div class="lead">Satu website untuk toko perlengkapan outdoor: pesan dari HP, <b>semua transaksi tercatat</b> di satu tempat.</div>
+  </div>
+
+  <div class="band">
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><em></em></div><img src="aset/layar-laptop-dashboard.jpg" alt=""></div>
+    <div class="phone"><div class="scr"><img src="aset/layar-hp-paket.png" alt=""><span class="island"></span></div></div>
+
+    <!-- anotasi 1: kartu laba bersih di dashboard -->
+    <div class="dot" style="left:252px;top:132px">1</div>
+    <!-- anotasi 2: harga paket 1/3/5 hari di HP -->
+    <div class="dot" style="left:534px;top:106px">2</div>
+    <div class="callout" style="left:40px;top:300px;width:250px"><b>1</b> Dashboard owner: laba bersih, pemasukan &amp; pengeluaran dihitung otomatis.</div>
+    <div class="callout" style="left:320px;top:300px;width:240px"><b>2</b> Tarif paket per malam, 3 hari &amp; 5 hari tampil di HP pelanggan.</div>
+  </div>
+
+  <div class="pad stack">
+  <div class="two">
+    <div class="sec"><h3><em>01</em> Masalah</h3>
+      <p>Data <b>sewa, penjualan, dan keuangan</b> dicatat manual di buku dan chat. Stok dan jadwal sewa sulit dipantau, untung-rugi dihitung sendiri.</p></div>
+    <div class="sec"><h3><em>02</em> Solusi</h3>
+      <p>Pelanggan pesan dan bayar dari HP. Staff mencatat <b>transaksi, stok, dan uang</b> di satu panel. Owner memantau untung-rugi kapan saja.</p></div>
+  </div>
+
+  <div class="flow sec">
+    <h3><em>03</em> Alur sewa</h3>
+    <div class="steps">
+      <div class="step"><b>1</b><span>Pilih alat &amp; tanggal</span><small>stok dicek per tanggal</small></div>
+      <div class="step"><b>2</b><span>Bayar DP</span><small>transfer / QRIS, unggah bukti</small></div>
+      <div class="step"><b>3</b><span>Verifikasi admin</span><small>booking dikonfirmasi</small></div>
+      <div class="step"><b>4</b><span>Ambil barang</span><small>pelunasan di toko</small></div>
+      <div class="step"><b>5</b><span>Kembalikan</span><small>cek kondisi &amp; denda</small></div>
+    </div>
+  </div>
+
+  <div class="feat sec">
+    <h3><em>04</em> Fitur utama</h3>
+    <ul class="list">
+      <li><b>Kasir toko</b>sewa, jual &amp; laundry dalam satu layar</li>
+      <li><b>Nota digital</b>dikirim lewat WhatsApp</li>
+      <li><b>Barang keluar–kembali</b>denda &amp; perawatan unit</li>
+      <li><b>Laporan keuangan</b>3 lini usaha + rekap bulanan</li>
+      <li><b>Promo &amp; ulasan</b>kode diskon, testimoni pelanggan</li>
+      <li><b>Asisten Trip</b>tanya-jawab untuk pelanggan</li>
+    </ul>
+  </div>
+  </div>
+
+  <div class="foot">
+    <div class="roles">
+      <div><b>Customer</b>Pilih alat, pesan, bayar, lihat nota &amp; beri ulasan</div>
+      <div><b>Staff</b>Kasir, verifikasi DP, barang keluar–kembali, laundry</div>
+      <div><b>Owner</b>Laporan untung-rugi, staff, promo &amp; aturan toko</div>
+    </div>
+    <div class="credit">
+      <span>Dikembangkan oleh mahasiswa <b>S1 Teknik Informatika</b><br>Fakultas Informatika · <b>Telkom University Purwokerto</b></span>
+      <span style="text-align:right">Mitra proyek<br><b>Annapurna Adventure Purwokerto</b></span>
+    </div>
+  </div>
+</div>
+<script>
+  const st = document.querySelector('.stack'), ft = document.querySelector('.foot');
+  ft.style.top = (st.offsetTop + st.offsetHeight + 16) + 'px';
+</script>
+</body>
+</html>

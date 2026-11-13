@@ -1,0 +1,1264 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poster Banner Pameran - Annapurna Adventure (Telkom University Purwokerto)</title>
+<!--
+  Banner Pameran Proyek S1 Teknik Informatika 60 x 160 cm (X-Banner / Roll Up)
+  Rombak Total: High-Contrast Modern Tech-Alpine Style, Zero AI Slop
+  Kanvas: 600 x 1600 px (1px = 1mm).
+-->
+<style>
+  @font-face {
+    font-family: 'Figtree';
+    font-weight: 500;
+    src: url('aset/font/figtree-latin-500-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Figtree';
+    font-weight: 600;
+    src: url('aset/font/figtree-latin-600-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Figtree';
+    font-weight: 700;
+    src: url('aset/font/figtree-latin-700-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Figtree';
+    font-weight: 800;
+    src: url('aset/font/figtree-latin-800-normal.woff2') format('woff2');
+  }
+
+  :root {
+    --bg-dark: #07150E;
+    --bg-card-dark: #0D2218;
+    --bg-light: #F4F6F2;
+    --surface-white: #FFFFFF;
+    
+    --brand-pine: #113622;
+    --brand-emerald: #10B981;
+    --brand-emerald-dark: #059669;
+    --brand-amber: #F59E0B;
+    --brand-gold: #E5A924;
+    --brand-crimson: #BA1A1A;
+    
+    --text-primary-dark: #0A1910;
+    --text-secondary-dark: #374A3D;
+    --text-primary-light: #F8FAF8;
+    --text-secondary-light: #A4B8AB;
+    --text-muted-light: #6E8576;
+    
+    --border-light: rgba(255, 255, 255, 0.12);
+    --border-dark: #D4DDD6;
+    --border-accent: rgba(16, 185, 129, 0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 600px;
+    height: 1600px;
+    overflow: hidden;
+    background: var(--bg-dark);
+    font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--text-primary-light);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .poster {
+    position: relative;
+    width: 600px;
+    height: 1600px;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 12%, #143825 0%, #0A1E14 45%, #05100B 100%);
+  }
+
+  /* Latar belakang aksen geometri & grid engineering */
+  .grid-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(to right, rgba(16, 185, 129, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  .accent-glow-top {
+    position: absolute;
+    top: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 500px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(245, 158, 11, 0.08) 40%, transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+  }
+
+  .accent-glow-mid {
+    position: absolute;
+    top: 520px;
+    right: -100px;
+    width: 380px;
+    height: 380px;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 65%);
+    filter: blur(50px);
+    pointer-events: none;
+  }
+
+  /* Padding Standar Sisi */
+  .inner {
+    padding: 0 32px;
+  }
+
+  /* ==========================================================================
+     ZONE 1: HEADER RESMI AKREDITASI & LOGO (TAMPIL EKSKLUSIF & BERSIH)
+     ========================================================================== */
+  .header-card {
+    position: relative;
+    margin: 24px 28px 0 28px;
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.2);
+  }
+
+  .header-logos {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-logos img.telu {
+    height: 48px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .header-logos .divider {
+    width: 1.5px;
+    height: 34px;
+    background: #D8DFD9;
+  }
+
+  .header-logos img.if {
+    height: 36px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .header-logos img.anna {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .header-badge {
+    text-align: right;
+    border-left: 2px solid #E2E8E4;
+    padding-left: 12px;
+  }
+
+  .header-badge .kicker-telu {
+    display: inline-block;
+    font-size: 8.5px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: var(--brand-crimson);
+    text-transform: uppercase;
+    background: #FDF2F2;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 2px;
+  }
+
+  .header-badge .inst-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: #122419;
+    line-height: 1.25;
+  }
+
+  .header-badge .sub-inst {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: #55685C;
+  }
+
+  /* ==========================================================================
+     ZONE 2: HERO TITLE & VALUE PROPOSITION
+     ========================================================================== */
+  .hero-sec {
+    margin-top: 18px;
+    text-align: center;
+    position: relative;
+  }
+
+  .hero-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #6EE7B7;
+    margin-bottom: 8px;
+  }
+
+  .hero-pill-badge .dot-live {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand-emerald);
+    box-shadow: 0 0 8px var(--brand-emerald);
+  }
+
+  .main-title-wrap {
+    margin-top: 2px;
+  }
+
+  .main-title {
+    font-size: 46px;
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -1.2px;
+    color: #FFFFFF;
+    text-transform: uppercase;
+  }
+
+  .main-title span.highlight {
+    color: var(--brand-gold);
+    display: inline-block;
+  }
+
+  .main-tagline {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.35;
+    font-weight: 700;
+    color: #E2ECE5;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .main-tagline span {
+    color: #FCD34D;
+  }
+
+  /* Komparasi Masalah vs Solusi (Card Bersebelahan, Padat & Jelas) */
+  .problem-solution-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .ps-card {
+    background: rgba(13, 34, 24, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 9px 12px;
+    text-align: left;
+    backdrop-filter: blur(8px);
+  }
+
+  .ps-card.problem {
+    border-left: 3px solid #EF4444;
+  }
+
+  .ps-card.solution {
+    border-left: 3px solid var(--brand-emerald);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(13, 34, 24, 0.9) 100%);
+  }
+
+  .ps-card .ps-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .ps-card.problem .ps-head { color: #FCA5A5; }
+  .ps-card.solution .ps-head { color: #6EE7B7; }
+
+  .ps-card p {
+    font-size: 11px;
+    line-height: 1.35;
+    color: #D1DDD5;
+    font-weight: 500;
+  }
+
+  .ps-card p b {
+    color: #FFFFFF;
+    font-weight: 700;
+  }
+
+  /* ==========================================================================
+     ZONE 3: LIVE SYSTEM INTERFACE SHOWCASE (LAPTOP + DUAL PHONE)
+     ========================================================================== */
+  .showcase-sec {
+    position: relative;
+    margin-top: 16px;
+    height: 290px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Laptop Tengah */
+  .mockup-laptop {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 10px;
+    width: 370px;
+    z-index: 2;
+  }
+
+  .laptop-lid {
+    background: #1E2320;
+    border-radius: 10px 10px 0 0;
+    padding: 8px 8px 10px 8px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  }
+
+  .laptop-screen {
+    width: 354px;
+    height: 204px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: #000;
+    position: relative;
+  }
+
+  .laptop-screen img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top left;
+    display: block;
+  }
+
+  .laptop-base {
+    width: 420px;
+    height: 10px;
+    margin-left: -25px;
+    background: linear-gradient(180deg, #E2E6E3 0%, #A8B0AA 100%);
+    border-radius: 0 0 10px 10px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+    position: relative;
+  }
+
+  .laptop-base::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 3px;
+    background: #7D8580;
+    border-radius: 0 0 4px 4px;
+  }
+
+  /* Smartphone Kiri (Katalog Rental) */
+  .mockup-phone-left {
+    position: absolute;
+    left: 20px;
+    top: 28px;
+    width: 110px;
+    height: 228px;
+    background: #111412;
+    border-radius: 20px;
+    padding: 5px;
+    box-shadow: 0 18px 35px rgba(0, 0, 0, 0.75), 0 0 0 1.5px rgba(255, 255, 255, 0.2);
+    z-index: 3;
+    transform: rotate(-3deg);
+  }
+
+  .phone-screen {
+    width: 100px;
+    height: 218px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    position: relative;
+  }
+
+  .phone-screen img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .dynamic-island {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26px;
+    height: 6px;
+    background: #000;
+    border-radius: 4px;
+    z-index: 4;
+  }
+
+  /* Smartphone Kanan (Laundry & Paket) */
+  .mockup-phone-right {
+    position: absolute;
+    right: 20px;
+    top: 36px;
+    width: 110px;
+    height: 228px;
+    background: #111412;
+    border-radius: 20px;
+    padding: 5px;
+    box-shadow: 0 18px 35px rgba(0, 0, 0, 0.75), 0 0 0 1.5px rgba(255, 255, 255, 0.2);
+    z-index: 3;
+    transform: rotate(3deg);
+  }
+
+  /* Floating UI Badges */
+  .floating-badge {
+    position: absolute;
+    z-index: 5;
+    background: rgba(7, 21, 14, 0.92);
+    border: 1px solid var(--border-accent);
+    padding: 5px 10px;
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+  }
+
+  .floating-badge.fb-1 {
+    top: 225px;
+    left: 12px;
+  }
+
+  .floating-badge.fb-2 {
+    top: 15px;
+    right: 30px;
+  }
+
+  .floating-badge.fb-3 {
+    top: 232px;
+    right: 14px;
+  }
+
+  .fb-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--brand-emerald);
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .fb-text {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #F8FAF8;
+    line-height: 1.2;
+  }
+
+  .fb-text span {
+    display: block;
+    font-size: 8px;
+    color: var(--brand-gold);
+    font-weight: 600;
+  }
+
+  /* ==========================================================================
+     ZONE 4: PIPELINE ALUR TRANSAKSI END-TO-END (4 TAHAP TERSTRUKTUR)
+     ========================================================================== */
+  .flow-sec {
+    margin-top: 12px;
+    background: rgba(13, 34, 24, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+
+  .section-headline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .section-headline h3 {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .section-headline h3 .sec-badge {
+    background: var(--brand-gold);
+    color: #07150E;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .section-headline span.sub {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: #A4B8AB;
+  }
+
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    position: relative;
+  }
+
+  .flow-grid::before {
+    content: '';
+    position: absolute;
+    top: 13px;
+    left: 20px;
+    right: 20px;
+    height: 1.5px;
+    background: linear-gradient(90deg, #10B981, #F59E0B);
+    z-index: 1;
+  }
+
+  .flow-step {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+  }
+
+  .flow-step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin: 0 auto 6px;
+    background: #091910;
+    border: 2px solid var(--brand-emerald);
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+  }
+
+  .flow-step:last-child .flow-step-num {
+    border-color: var(--brand-gold);
+    color: var(--brand-gold);
+  }
+
+  .flow-step-title {
+    font-size: 10px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.25;
+    margin-bottom: 2px;
+  }
+
+  .flow-step-desc {
+    font-size: 8.5px;
+    line-height: 1.3;
+    color: #9BB0A2;
+  }
+
+  /* ==========================================================================
+     ZONE 5: BENTO-GRID 6 MODUL TEKNIKAL UTAMA (REAL ENGINEERING, ZERO AI SLOP)
+     ========================================================================== */
+  .modules-sec {
+    margin-top: 14px;
+  }
+
+  .bento-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .bento-card {
+    background: rgba(13, 34, 24, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    padding: 10px 11px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .bento-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--brand-emerald);
+    opacity: 0.8;
+  }
+
+  .bento-card.gold-border::before {
+    background: var(--brand-gold);
+  }
+
+  .bento-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+
+  .bento-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .bento-icon svg {
+    width: 13px;
+    height: 13px;
+    stroke: var(--brand-emerald);
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .bento-card.gold-border .bento-icon {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.35);
+  }
+
+  .bento-card.gold-border .bento-icon svg {
+    stroke: var(--brand-gold);
+  }
+
+  .bento-title {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.25;
+  }
+
+  .bento-desc {
+    font-size: 9.5px;
+    line-height: 1.35;
+    color: #B4C4B9;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .bento-desc b {
+    color: #F8FAF8;
+    font-weight: 700;
+  }
+
+  .bento-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #6EE7B7;
+    width: fit-content;
+  }
+
+  .bento-card.gold-border .bento-tag {
+    color: #FCD34D;
+  }
+
+  /* ==========================================================================
+     ZONE 6: MATRIKS AKSES 3 LEVEL ROLE & BISNIS DAMPAK
+     ========================================================================== */
+  .roles-sec {
+    margin-top: 14px;
+    background: #0B2016;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .role-box {
+    background: rgba(7, 21, 14, 0.6);
+    border-radius: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .role-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 4px;
+  }
+
+  .role-head .pill-role {
+    font-size: 9.5px;
+    font-weight: 800;
+    color: var(--brand-gold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .role-desc {
+    font-size: 8.8px;
+    line-height: 1.35;
+    color: #B2C2B6;
+  }
+
+  /* ==========================================================================
+     ZONE 7: ARSITEKTUR TECH STACK & QR CODE LIVE DEMO
+     ========================================================================== */
+  .tech-qr-sec {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 140px;
+    gap: 10px;
+  }
+
+  .tech-card {
+    background: rgba(13, 34, 24, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .tech-card-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #FFFFFF;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .tech-card-title span {
+    color: var(--brand-emerald);
+  }
+
+  .tech-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .tech-chip {
+    background: #08170F;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #D6E4DB;
+  }
+
+  .tech-metrics {
+    margin-top: 6px;
+    display: flex;
+    gap: 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+    padding-top: 6px;
+  }
+
+  .metric-item {
+    font-size: 8.5px;
+    color: #A0B2A5;
+    line-height: 1.25;
+  }
+
+  .metric-item b {
+    display: block;
+    font-size: 12px;
+    color: var(--brand-gold);
+    font-weight: 800;
+  }
+
+  /* QR Code Card */
+  .qr-card {
+    background: #FFFFFF;
+    border-radius: 12px;
+    padding: 8px 10px;
+    text-align: center;
+    color: #0A1910;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .qr-card img {
+    width: 82px;
+    height: 82px;
+    display: block;
+    border-radius: 6px;
+  }
+
+  .qr-label {
+    margin-top: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #0A1910;
+    line-height: 1.2;
+  }
+
+  .qr-sub {
+    font-size: 7.5px;
+    font-weight: 600;
+    color: #4B5E51;
+  }
+
+  /* ==========================================================================
+     ZONE 8: FOOTER INSTITUSI & KOLOFON PROYEK (OFFICIAL CREDENTIALS)
+     ========================================================================== */
+  .footer-colophon {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 88px;
+    background: #050E09;
+    border-top: 1.5px solid rgba(16, 185, 129, 0.35);
+    padding: 10px 32px 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .footer-left .academic-title {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #FFFFFF;
+    letter-spacing: 0.3px;
+  }
+
+  .footer-left .academic-inst {
+    font-size: 10px;
+    font-weight: 600;
+    color: #9BB0A2;
+  }
+
+  .footer-left .academic-inst b {
+    color: var(--brand-emerald);
+  }
+
+  .footer-right {
+    text-align: right;
+  }
+
+  .footer-right .partner-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--brand-gold);
+  }
+
+  .footer-right .partner-name {
+    font-size: 11px;
+    font-weight: 800;
+    color: #FFFFFF;
+  }
+
+  .footer-right .year-tag {
+    font-size: 9px;
+    font-weight: 600;
+    color: #84968B;
+  }
+</style>
+</head>
+<body>
+
+<div class="poster">
+  <div class="grid-pattern"></div>
+  <div class="accent-glow-top"></div>
+  <div class="accent-glow-mid"></div>
+
+  <!-- ==================== ZONE 1: INSTITUTIONAL BRAND HEADER ==================== -->
+  <header class="header-card">
+    <div class="header-logos">
+      <img class="telu" src="aset/logo-telkom-university.png" alt="Telkom University Purwokerto">
+      <span class="divider"></span>
+      <img class="if" src="aset/logo-informatika.png" alt="S1 Teknik Informatika">
+      <span class="divider"></span>
+      <img class="anna" src="aset/logo-annapurna.png" alt="Annapurna Adventure">
+    </div>
+    <div class="header-badge">
+      <span class="kicker-telu">EXPO TEKNOLOGI 2026</span>
+      <div class="inst-title">Telkom University Purwokerto</div>
+      <div class="sub-inst">S1 Teknik Informatika · Capstone Project</div>
+    </div>
+  </header>
+
+  <div class="inner">
+    <!-- ==================== ZONE 2: HERO & PROBLEM-SOLUTION ==================== -->
+    <section class="hero-sec">
+      <div class="hero-pill-badge">
+        <span class="dot-live"></span>
+        Sistem Informasi Manajemen &amp; E-Commerce Omnichannel
+      </div>
+      
+      <div class="main-title-wrap">
+        <h1 class="main-title">ANNAPURNA <span class="highlight">ADVENTURE</span></h1>
+      </div>
+
+      <p class="main-tagline">
+        Platform Terpadu <span>Rental Alat Outdoor</span>, <span>Kasir POS Toko</span>, &amp; <span>Laundry Perlengkapan Gunung</span>
+      </p>
+
+      <!-- Problem vs Solution Matrix -->
+      <div class="problem-solution-grid">
+        <div class="ps-card problem">
+          <div class="ps-head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Tantangan Operasional
+          </div>
+          <p>Catatan rental &amp; chat manual rawan <b>bentrok jadwal alat</b>, tidak ada tracking barcode seri fisik, dan pembukuan 3 lini bercampur tanpa HPP jelas.</p>
+        </div>
+
+        <div class="ps-card solution">
+          <div class="ps-head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Solusi Rekayasa Sistem
+          </div>
+          <p>Sistem web terintegrasi: <b>Kalender stok anti-bentrok</b>, pelacakan barcode serial unit (`TND4P0-01`), kasir POS, &amp; pembukuan laba-rugi otomatis.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ZONE 3: LIVE SYSTEM INTERFACE SHOWCASE ==================== -->
+    <section class="showcase-sec">
+      <!-- Phone Kiri: Katalog & Rental -->
+      <div class="mockup-phone-left">
+        <div class="phone-screen">
+          <div class="dynamic-island"></div>
+          <img src="aset/layar-hp-paket.png" alt="Katalog Sewa Paket Durasi">
+        </div>
+      </div>
+
+      <!-- Laptop Tengah: Dashboard Admin/Owner -->
+      <div class="mockup-laptop">
+        <div class="laptop-lid">
+          <div class="laptop-screen">
+            <img src="aset/layar-laptop-dashboard.jpg" alt="Dashboard Finansial & POS">
+          </div>
+        </div>
+        <div class="laptop-base"></div>
+      </div>
+
+      <!-- Phone Kanan: Layanan Laundry -->
+      <div class="mockup-phone-right">
+        <div class="phone-screen">
+          <div class="dynamic-island"></div>
+          <img src="aset/layar-hp-laundry.png" alt="Layanan Laundry Outdoor">
+        </div>
+      </div>
+
+      <!-- Floating Badges -->
+      <div class="floating-badge fb-1">
+        <div class="fb-icon">✓</div>
+        <div class="fb-text">
+          Stok Terkunci Otomatis
+          <span>Anti-Bentrok Jadwal</span>
+        </div>
+      </div>
+
+      <div class="floating-badge fb-2">
+        <div class="fb-icon">⚡</div>
+        <div class="fb-text">
+          Kasir POS Omnichannel
+          <span>Sewa · Retail · Laundry</span>
+        </div>
+      </div>
+
+      <div class="floating-badge fb-3">
+        <div class="fb-icon">Rp</div>
+        <div class="fb-text">
+          Laba-Rugi 3 Divisi
+          <span>Otomasi Jurnal Kas</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ZONE 4: END-TO-END WORKFLOW PIPELINE ==================== -->
+    <section class="flow-sec">
+      <div class="section-headline">
+        <h3><span class="sec-badge">PIPELINE</span> Alur Proses Operasional &amp; Transaksi</h3>
+        <span class="sub">Integrasi End-to-End Realtime</span>
+      </div>
+      <div class="flow-grid">
+        <div class="flow-step">
+          <div class="flow-step-num">1</div>
+          <div class="flow-step-title">Reservasi &amp; DP</div>
+          <div class="flow-step-desc">Pilih unit &amp; tanggal, validasi stok, upload QRIS.</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num">2</div>
+          <div class="flow-step-title">POS Kasir &amp; Nota</div>
+          <div class="flow-step-desc">Nomor nota unik urut via DB Transaction Lock.</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num">3</div>
+          <div class="flow-step-title">SOP Return &amp; Cek</div>
+          <div class="flow-step-desc">Inspeksi seri unit fisik, kalkulasi denda otomatis.</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num">4</div>
+          <div class="flow-step-title">Laporan Finansial</div>
+          <div class="flow-step-desc">Pemisahan arus kas &amp; laba bersih 3 lini bisnis.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ZONE 5: BENTO-GRID 6 MODUL REKAYASA SISTEM ==================== -->
+    <section class="modules-sec">
+      <div class="section-headline">
+        <h3><span class="sec-badge">FITUR</span> Modul Rekayasa Sistem Unggulan</h3>
+        <span class="sub">Berdasarkan Arsitektur Laravel &amp; MySQL</span>
+      </div>
+
+      <div class="bento-grid">
+        <!-- Modul 1 -->
+        <div class="bento-card">
+          <div class="bento-header">
+            <div class="bento-icon">
+              <svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Serialized Unit Tracking</div>
+            </div>
+          </div>
+          <div class="bento-desc">
+            Manajemen unit fisik ber-<b>kode serial unik</b> (misal `TND4P0-01`). Pelacakan siklus hidup: <i>Tersedia ➔ Disewa ➔ Inspeksi Fisik ➔ Perawatan</i>.
+          </div>
+          <div class="bento-tag">MODUL INVENTARIS FISIK</div>
+        </div>
+
+        <!-- Modul 2 -->
+        <div class="bento-card gold-border">
+          <div class="bento-header">
+            <div class="bento-icon">
+              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Dynamic Duration Pricing</div>
+            </div>
+          </div>
+          <div class="bento-desc">
+            Kalkulasi tarif sewa otomatis berdasarkan <b>paket durasi fleksibel</b> (1 Malam, 3 Hari 2 Malam, 5 Hari 4 Malam) plus mitigasi denda keterlambatan per hari.
+          </div>
+          <div class="bento-tag">TARIF FLEKSIBEL OTOMATIS</div>
+        </div>
+
+        <!-- Modul 3 -->
+        <div class="bento-card gold-border">
+          <div class="bento-header">
+            <div class="bento-icon">
+              <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Anti-Collision Document Sequence</div>
+            </div>
+          </div>
+          <div class="bento-desc">
+            Penerbitan nota resmi (`RNTL/...`, `ODR/...`, `DRY/...`) dengan <b>Database `lockForUpdate`</b> untuk menjamin integritas nomor nota saat transaksi bersamaan.
+          </div>
+          <div class="bento-tag">TRANSACTION LOCK ENGINE</div>
+        </div>
+
+        <!-- Modul 4 -->
+        <div class="bento-card">
+          <div class="bento-header">
+            <div class="bento-icon">
+              <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Omnichannel Kasir POS</div>
+            </div>
+          </div>
+          <div class="bento-desc">
+            Satu antarmuka kasir cepat untuk melayani <b>walk-in rental</b>, belanja retail outdoor, terima cucian laundry, dan konfirmasi bukti bayar DP transfer/QRIS.
+          </div>
+          <div class="bento-tag">POS MULTI-LAYANAN</div>
+        </div>
+
+        <!-- Modul 5 -->
+        <div class="bento-card">
+          <div class="bento-header">
+            <div class="bento-icon">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Multi-Line Cashflow &amp; COGS</div>
+            </div>
+          </div>
+          <div class="bento-desc">
+            Pemisahan pembukuan otomatis untuk <b>3 lini bisnis</b>: Lini Rental, Lini Belanja (HPP distributor), &amp; Lini Laundry/Umum dengan laporan laba bersih berkala.
+          </div>
+          <div class="bento-tag">PEMBUKUAN 3 DIVISI</div>
+        </div>
+
+        <!-- Modul 6 -->
+        <div class="bento-card gold-border">
+          <div class="bento-header">
+            <div class="bento-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Automated Background Cron</div>
+            </div>
+          </div>
+          <div class="bento-desc">
+            Scheduler pembatalan otomatis <b>booking unpaid (&gt;2 jam)</b> untuk me-release stok kembali, serta reminder WhatsApp untuk cucian laundry mengendap (&gt;3 hari).
+          </div>
+          <div class="bento-tag">BACKGROUND SCHEDULER</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ZONE 6: MATRIKS HAK AKSES PENGGUNA ==================== -->
+    <section class="roles-sec">
+      <div class="section-headline" style="margin-bottom: 4px;">
+        <h3><span class="sec-badge">AKSES</span> Matriks Hak Akses Pengguna Terintegrasi</h3>
+      </div>
+      <div class="roles-grid">
+        <div class="role-box">
+          <div class="role-head">
+            <span class="pill-role">1. Customer</span>
+          </div>
+          <div class="role-desc">Pilih durasi paket, cek stok tanggal riil, bayar DP, lacak pesanan &amp; terima nota digital WhatsApp.</div>
+        </div>
+        <div class="role-box">
+          <div class="role-head">
+            <span class="pill-role">2. Staff Kasir</span>
+          </div>
+          <div class="role-desc">Kasir POS multi-layanan, serah terima alat (pickup/return), verifikasi DP, dan update status laundry.</div>
+        </div>
+        <div class="role-box">
+          <div class="role-head">
+            <span class="pill-role">3. Owner Toko</span>
+          </div>
+          <div class="role-desc">Analitik performa keuangan 3 lini, laba-rugi bersih, restock distributor, manajemen staf &amp; promo.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ZONE 7: TECH SPECS & QR DEMO ==================== -->
+    <section class="tech-qr-sec">
+      <div class="tech-card">
+        <div>
+          <div class="tech-card-title">
+            <span>⚙</span> Spesifikasi Rekayasa Perangkat Lunak
+          </div>
+          <div class="tech-chips">
+            <span class="tech-chip">Laravel 12</span>
+            <span class="tech-chip">PHP 8.2</span>
+            <span class="tech-chip">MySQL 8 Relational</span>
+            <span class="tech-chip">Blade Engine</span>
+            <span class="tech-chip">RESTful API</span>
+            <span class="tech-chip">Crontab Schedulers</span>
+            <span class="tech-chip">WhatsApp Engine</span>
+          </div>
+        </div>
+        
+        <div class="tech-metrics">
+          <div class="metric-item">
+            <b>100%</b> Data Terpusat
+          </div>
+          <div class="metric-item">
+            <b>0 Konflik</b> Jadwal Sewa
+          </div>
+          <div class="metric-item">
+            <b>3 Lini</b> Pembukuan Otomatis
+          </div>
+        </div>
+      </div>
+
+      <!-- QR Code Live Demo -->
+      <div class="qr-card">
+        <img src="aset/qr-demo.png" alt="Scan QR Code Demo">
+        <div class="qr-label">Live Demo</div>
+        <div class="qr-sub">Scan Repositori Proyek</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ==================== ZONE 8: OFFICIAL FOOTER ==================== -->
+  <footer class="footer-colophon">
+    <div class="footer-left">
+      <div class="academic-title">Program Studi S1 Teknik Informatika</div>
+      <div class="academic-inst">Fakultas Informatika · <b>Telkom University Purwokerto</b></div>
+    </div>
+    <div class="footer-right">
+      <div class="partner-label">Mitra Industri</div>
+      <div class="partner-name">Annapurna Adventure Purwokerto</div>
+      <div class="year-tag">Tahun Akademik 2026</div>
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>
+

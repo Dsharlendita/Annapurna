@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Banner Sosialisasi Vertikal 60x160 cm</title>
+<!--
+  Banner vertikal 60 x 160 cm (ukuran X-banner). Satuan: 1px = 1 mm (kanvas 600 x 1600).
+  Ubah teks di bagian "ISI BANNER", lalu render ulang:
+    node render.mjs banner-vertikal.html banner-sosialisasi-60x160cm-vertikal.jpg 600 1600 5.905625 92 150
+  (150 dpi -> hasil 3543 x 9449 px)
+-->
+<style>
+  @font-face { font-family: 'Figtree'; font-weight: 500; src: url('aset/font/figtree-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 600; src: url('aset/font/figtree-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 700; src: url('aset/font/figtree-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 800; src: url('aset/font/figtree-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Kaushan Script'; font-weight: 400; src: url('aset/font/kaushan-script-latin-400-normal.woff2') format('woff2'); }
+
+  :root {
+    --g950: #102718; --g900: #15311f; --g800: #1b3f28; --g700: #1f4d2f; --g600: #2b6340; --g500: #3d7e55;
+    --g200: #cfe0d2; --g100: #e7f0e8; --cream: #f6f4ee; --ink: #17261c; --ink2: #3a4a3f;
+    --gold: #f2c14e; --gold2: #e5ad2c;
+  }
+  html, body { margin: 0; width: 600px; height: 1600px; overflow: hidden; background: var(--cream); }
+  .banner { position: relative; width: 600px; height: 1600px; overflow: hidden; background: var(--cream); font-family: 'Figtree', sans-serif; color: var(--ink); }
+  .layer { position: absolute; inset: 0; width: 600px; height: 1600px; }
+
+  /* ---------- Logo ---------- */
+  .logos { position: absolute; left: 48px; top: 56px; display: flex; align-items: center; gap: 20px; }
+  .logos .telu { height: 86px; }
+  .logos .sep { width: 2px; height: 62px; background: #c9cfc8; }
+  .logos .aa { height: 64px; }
+
+  /* ---------- Judul ---------- */
+  .title { position: absolute; left: 48px; top: 206px; width: 510px; }
+  .title .bar { width: 60px; height: 7px; background: var(--gold2); border-radius: 4px; margin-bottom: 14px; }
+  .title h1 { margin: 0; font-weight: 800; font-size: 86px; line-height: .92; letter-spacing: -1.4px; color: var(--g950); }
+  .title h2 { margin: 18px 0 0; font-weight: 700; font-size: 34px; line-height: 1.2; color: var(--g700); letter-spacing: -.2px; }
+  .title .script { margin: 12px 0 0; font-family: 'Kaushan Script', cursive; font-size: 50px; line-height: 1.18; color: var(--g600); }
+
+  /* ---------- Panel informasi ---------- */
+  .info { position: absolute; left: 0; right: 0; bottom: 0; height: 498px; background: var(--g950); }
+  .info::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--gold2); }
+  .info .items { position: absolute; left: 48px; right: 48px; top: 62px; display: grid; gap: 30px; }
+  .item { display: flex; align-items: center; gap: 18px; }
+  .item .ic { width: 62px; height: 62px; border-radius: 50%; border: 2.6px solid var(--gold); display: grid; place-items: center; flex: none; }
+  .item .ic svg { width: 30px; height: 30px; stroke: var(--gold); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .item small { display: block; font-size: 14px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: var(--gold); }
+  .item b { display: block; font-size: 31px; font-weight: 700; color: var(--cream); margin-top: 2px; line-height: 1.15; }
+  .credit { position: absolute; left: 48px; right: 48px; bottom: 74px; padding-top: 22px; border-top: 1.5px solid rgba(207, 224, 210, .28); font-size: 17px; font-weight: 600; line-height: 1.45; color: var(--g200); letter-spacing: .3px; }
+  .credit strong { color: var(--cream); font-weight: 700; }
+
+  /* ---------- Mockup laptop ---------- */
+  .laptop { position: absolute; left: 52px; top: 802px; width: 452px; }
+  .laptop .lid { position: relative; background: #1b201d; border-radius: 13px 13px 4px 4px; padding: 12px 12px 16px; box-shadow: 0 0 0 1.5px #2c332f inset; }
+  .laptop .lid::before { content: ''; position: absolute; top: 5px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #38403b; }
+  .laptop .screen { width: 428px; height: 257px; overflow: hidden; border-radius: 2px; background: #fff; }
+  .laptop .screen img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; }
+  .laptop .base { position: relative; width: 516px; height: 13px; margin-left: -32px; border-radius: 2px 2px 14px 14px; background: linear-gradient(#eef0ed, #c4c9c5 70%, #a9afab); }
+  .laptop .base::before { content: ''; position: absolute; top: 0; left: 50%; width: 78px; height: 5px; margin-left: -39px; border-radius: 0 0 7px 7px; background: #a3a9a5; }
+  .laptop .shadow { position: absolute; left: -24px; right: -24px; bottom: -8px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, .45); filter: blur(9px); z-index: -1; }
+
+  /* ---------- Mockup HP ---------- */
+  .phone { position: absolute; left: 418px; top: 822px; width: 132px; height: 274px; box-sizing: border-box; padding: 5px; border-radius: 24px; background: #0e1210; box-shadow: 0 0 0 2px #4a544e inset, 0 0 0 1px rgba(246, 244, 238, .25), 0 20px 30px rgba(0, 0, 0, .5); }
+  .phone::before { content: ''; position: absolute; right: -2.5px; top: 70px; width: 3px; height: 30px; border-radius: 0 2px 2px 0; background: #2b322e; }
+  .phone .scr { position: relative; width: 122px; height: 264px; overflow: hidden; border-radius: 19px; background: #f6f4ee; }
+  .phone .scr img { width: 100%; display: block; }
+  .phone .island { position: absolute; top: 6px; left: 50%; width: 34px; height: 9px; margin-left: -17px; border-radius: 5px; background: #0b0d0c; }
+</style>
+</head>
+<body>
+<div class="banner">
+
+  <!-- Garis kontur (motif peta topografi) di area krem -->
+  <svg class="layer" id="topoLight" viewBox="0 0 600 1600" aria-hidden="true"></svg>
+
+  <!-- Siluet pegunungan di belakang mockup -->
+  <svg class="layer" viewBox="0 0 600 1600" aria-hidden="true">
+    <defs>
+      <clipPath id="massClip"><path id="massPath" d="M0 820 L46 790 L92 742 L130 718 L170 676 L206 650 L236 690 L262 668 L300 628 L338 598 L366 636 L398 660 L436 632 L476 676 L520 700 L560 690 L600 712 L600 1200 L0 1200 Z"/></clipPath>
+      <linearGradient id="massFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#22543a"/><stop offset=".45" stop-color="#173823"/><stop offset="1" stop-color="#112a1a"/>
+      </linearGradient>
+    </defs>
+    <use href="#massPath" fill="url(#massFill)"/>
+    <g id="topoDark" clip-path="url(#massClip)"></g>
+    <path d="M0 1010 L60 980 L120 1000 L190 950 L250 976 L320 930 L390 962 L460 920 L530 950 L600 930 L600 1200 L0 1200 Z" fill="var(--g800)"/>
+    <path d="M300 628 L338 598 L366 636 L352 632 L338 644 L324 634 Z" fill="var(--cream)" opacity=".92"/>
+    <path d="M190 662 L206 650 L222 668 L210 666 L202 674 Z" fill="var(--cream)" opacity=".85"/>
+  </svg>
+
+  <!-- ===================== ISI BANNER ===================== -->
+  <div class="logos">
+    <img class="telu" src="aset/logo-telkom-university.png" alt="Telkom University">
+    <span class="sep"></span>
+    <img class="aa" src="aset/logo-annapurna.png" alt="Annapurna Adventure">
+  </div>
+
+  <div class="title">
+    <div class="bar"></div>
+    <h1>SOSIALISASI</h1>
+    <h2>Sistem Informasi Sewa,<br>Penjualan &amp; Laundry<br>Perlengkapan Outdoor</h2>
+    <p class="script">Annapurna Adventure<br>Purwokerto</p>
+  </div>
+
+  <div class="laptop">
+    <div class="lid"><div class="screen"><img src="aset/layar-laptop-dashboard.jpg" alt=""></div></div>
+    <div class="base"></div>
+    <div class="shadow"></div>
+  </div>
+
+  <div class="phone">
+    <div class="scr"><img src="aset/layar-hp-katalog.png" alt=""><span class="island"></span></div>
+  </div>
+
+  <div class="info">
+    <div class="items">
+      <div class="item">
+        <span class="ic"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
+        <span><small>Hari, tanggal</small><b>Kamis, 12 November 2026</b></span>
+      </div>
+      <div class="item">
+        <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
+        <span><small>Waktu</small><b>14.00 WIB</b></span>
+      </div>
+      <div class="item">
+        <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
+        <span><small>Tempat</small><b>[Tempat kegiatan]</b></span>
+      </div>
+    </div>
+    <div class="credit">Mahasiswa <strong>S1 Teknik Informatika</strong><br>Fakultas Informatika<br><strong>Telkom University Purwokerto</strong> · 2026</div>
+  </div>
+  <!-- =================== AKHIR ISI BANNER =================== -->
+</div>
+
+<script>
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function contours(svg, { cx, cy, sx = 1, sy = 1, r0, step, n, seed, stroke, width, opacity }) {
+    const R = rng(seed);
+    const waves = Array.from({ length: 5 }, (_, i) => ({ k: i + 2, a: (0.05 + R() * 0.07) / (1 + i * 0.6), p: R() * Math.PI * 2 }));
+    const ns = 'http://www.w3.org/2000/svg';
+    for (let j = 0; j < n; j++) {
+      const r = r0 + j * step;
+      const wob = Array.from({ length: 3 }, (_, i) => ({ k: i + 3, a: R() * 0.012, p: R() * Math.PI * 2 }));
+      const pts = [];
+      for (let t = 0; t < 180; t++) {
+        const th = t / 180 * Math.PI * 2;
+        let f = 1; waves.forEach((w) => { f += w.a * Math.sin(w.k * th + w.p); }); wob.forEach((w) => { f += w.a * Math.sin(w.k * th + w.p); });
+        pts.push([cx + Math.cos(th) * r * f * sx, cy + Math.sin(th) * r * f * sy]);
+      }
+      let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+      for (let i = 0; i < pts.length; i++) {
+        const p0 = pts[(i - 1 + pts.length) % pts.length], p1 = pts[i], p2 = pts[(i + 1) % pts.length], p3 = pts[(i + 2) % pts.length];
+        d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+      }
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d + 'Z'); path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', stroke); path.setAttribute('stroke-width', width); path.setAttribute('opacity', opacity);
+      svg.appendChild(path);
+    }
+  }
+  const light = document.getElementById('topoLight');
+  contours(light, { cx: 560, cy: 120, sx: 1.1, sy: 0.95, r0: 30, step: 22, n: 26, seed: 7, stroke: '#cfe0d2', width: 1.1, opacity: .75 });
+  contours(light, { cx: -40, cy: 560, sx: 1.2, sy: 0.9, r0: 40, step: 21, n: 16, seed: 23, stroke: '#cfe0d2', width: 1.1, opacity: .6 });
+  contours(document.getElementById('topoDark'), { cx: 320, cy: 760, sx: 1.25, sy: 0.85, r0: 26, step: 22, n: 26, seed: 41, stroke: '#244a32', width: 1.2, opacity: .9 });
+</script>
+</body>
+</html>

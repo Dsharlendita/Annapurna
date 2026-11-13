@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Poster Pameran Annapurna 60x160 cm</title>
+<!--
+  Poster pameran 60 x 160 cm (X-banner). Satuan: 1px = 1 mm (kanvas 600 x 1600).
+  Render ulang:
+    node render.mjs poster-v1-gelap.html poster-v1-gelap-60x160cm.jpg 600 1600 5.905625 92 150
+-->
+<style>
+  @font-face { font-family: 'Figtree'; font-weight: 500; src: url('aset/font/figtree-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 600; src: url('aset/font/figtree-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 700; src: url('aset/font/figtree-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Figtree'; font-weight: 800; src: url('aset/font/figtree-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Kaushan Script'; font-weight: 400; src: url('aset/font/kaushan-script-latin-400-normal.woff2') format('woff2'); }
+
+  :root {
+    --g950: #102718; --g900: #15311f; --g800: #1b3f28; --g700: #1f4d2f; --g600: #2b6340;
+    --g200: #cfe0d2; --cream: #f6f4ee; --gold: #f2c14e; --gold2: #e5ad2c;
+    --glass: rgba(246, 244, 238, .07); --line: rgba(207, 224, 210, .2);
+  }
+  html, body { margin: 0; width: 600px; height: 1600px; overflow: hidden; background: var(--g950); }
+  .poster { position: relative; width: 600px; height: 1600px; overflow: hidden; font-family: 'Figtree', sans-serif; color: var(--cream);
+    background: linear-gradient(180deg, #0f2417 0%, #15341f 34%, #133020 62%, #0d2014 100%); }
+  .layer { position: absolute; inset: 0; width: 600px; height: 1600px; }
+  .abs { position: absolute; left: 40px; right: 40px; }
+
+  /* Logo & label atas */
+  .logos { position: absolute; left: 40px; top: 40px; display: flex; align-items: center; gap: 14px; padding: 9px 16px; background: var(--cream); border-radius: 14px; }
+  .logos .telu { height: 50px; } .logos .sep { width: 1.5px; height: 38px; background: #c9cfc8; } .logos .aa { height: 38px; }
+  .tag { position: absolute; right: 40px; top: 50px; text-align: right; font-size: 12.5px; line-height: 1.4; font-weight: 600; color: var(--g200); letter-spacing: .3px; }
+  .tag b { display: block; color: var(--gold); font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; font-size: 11.5px; }
+
+  /* Judul */
+  .upper { top: 140px; display: flex; flex-direction: column; gap: 18px; }
+  .kicker { font-size: 13px; font-weight: 700; letter-spacing: 2.4px; color: var(--gold); text-transform: uppercase; }
+  h1 { margin: 6px 0 0; font-size: 84px; font-weight: 800; line-height: .92; letter-spacing: -1.5px; }
+  .script { font-family: 'Kaushan Script', cursive; font-size: 58px; line-height: 1.1; color: var(--gold); margin-top: -2px; }
+  h2 { margin: 10px 0 0; font-size: 24px; line-height: 1.22; font-weight: 700; color: var(--g200); }
+  .tagline { margin-top: 12px; padding-left: 12px; border-left: 4px solid var(--gold2); font-size: 18px; line-height: 1.35; font-weight: 600; }
+
+  .desc { font-size: 16px; line-height: 1.5; color: rgba(246, 244, 238, .86); font-weight: 500; }
+  .desc b { color: var(--cream); }
+
+  /* Mockup */
+  .laptop { position: absolute; left: 40px; top: 580px; width: 372px; }
+  .laptop .lid { position: relative; background: #1b201d; border-radius: 11px 11px 4px 4px; padding: 10px 10px 13px; box-shadow: 0 0 0 1.5px #3a443e inset, 0 18px 30px rgba(0, 0, 0, .45); }
+  .laptop .screen { width: 352px; height: 211px; overflow: hidden; border-radius: 2px; background: #fff; }
+  .laptop .screen img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; }
+  .laptop .base { width: 424px; height: 11px; margin-left: -26px; border-radius: 2px 2px 12px 12px; background: linear-gradient(#eef0ed, #c4c9c5 70%, #a9afab); position: relative; }
+  .laptop .base::before { content: ''; position: absolute; top: 0; left: 50%; width: 64px; height: 4px; margin-left: -32px; border-radius: 0 0 6px 6px; background: #a3a9a5; }
+  .phone { position: absolute; width: 106px; height: 222px; box-sizing: border-box; padding: 4.5px; border-radius: 19px; background: #0e1210;
+    box-shadow: 0 0 0 1.6px #56615a inset, 0 0 0 1px rgba(246, 244, 238, .22), 0 16px 26px rgba(0, 0, 0, .5); }
+  .phone .scr { position: relative; width: 97px; height: 213px; overflow: hidden; border-radius: 15px; background: var(--cream); }
+  .phone .scr img { width: 100%; display: block; }
+  .phone .island { position: absolute; top: 5px; left: 50%; width: 28px; height: 7px; margin-left: -14px; border-radius: 4px; background: #0b0d0c; }
+  .p1 { left: 368px; top: 566px; } .p2 { left: 458px; top: 604px; }
+
+  /* Kartu & judul bagian */
+  h3 { margin: 0; font-size: 27px; font-weight: 800; letter-spacing: -.3px; display: flex; align-items: center; gap: 12px; }
+  h3::after { content: ''; flex: 1; height: 2px; background: linear-gradient(90deg, var(--gold2), transparent); }
+  .glass { background: var(--glass); border: 1.4px solid var(--line); border-radius: 16px; }
+  .ic { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--gold); display: grid; place-items: center; flex: none; }
+  .ic svg { width: 20px; height: 20px; stroke: var(--gold); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+
+  .lower { top: 838px; display: flex; flex-direction: column; gap: 20px; }
+  .grid { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .f { display: flex; align-items: center; gap: 10px; padding: 9px 11px; min-height: 44px; }
+  .f span { font-size: 14.5px; line-height: 1.28; font-weight: 600; }
+
+  .why { padding: 16px 18px 18px; }
+  .why p { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: rgba(246, 244, 238, .9); font-weight: 500; }
+  .why h3 { font-size: 26px; }
+
+  
+  .users h3 { font-size: 24px; }
+  .ucols { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .u { padding: 12px 12px 13px; }
+  .u b { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; color: var(--gold); }
+  .u b svg { width: 18px; height: 18px; stroke: var(--gold); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .u small { display: block; margin-top: 5px; font-size: 13px; line-height: 1.35; color: rgba(246, 244, 238, .86); font-weight: 500; }
+  .foot { text-align: center; font-size: 13px; font-weight: 600; color: var(--g200); letter-spacing: .3px; }
+  .foot b { color: var(--cream); }
+</style>
+</head>
+<body>
+<div class="poster">
+  <svg class="layer" id="topo" viewBox="0 0 600 1600" aria-hidden="true"></svg>
+
+  <!-- Pegunungan di belakang mockup -->
+  <svg class="layer" viewBox="0 0 600 1600" aria-hidden="true">
+    <path d="M0 720 L48 690 L96 660 L140 640 L182 612 L214 596 L246 620 L278 602 L320 580 L352 562 L382 590 L414 606 L452 584 L494 614 L540 632 L600 620 L600 826 L0 826 Z" fill="#1d4a30" opacity=".9"/>
+    <path d="M320 580 L352 562 L382 590 L368 586 L352 596 L338 588 Z" fill="var(--cream)" opacity=".9"/>
+    <path d="M200 604 L214 596 L230 610 L218 608 L210 615 Z" fill="var(--cream)" opacity=".8"/>
+    <path d="M0 780 L70 752 L130 768 L200 736 L262 756 L330 726 L400 750 L470 724 L540 744 L600 732 L600 826 L0 826 Z" fill="#163a24"/>
+    <rect x="0" y="825" width="600" height="2" fill="var(--gold2)" opacity=".6"/>
+  </svg>
+
+  <!-- ===================== ISI POSTER ===================== -->
+  <div class="logos">
+    <img class="telu" src="aset/logo-telkom-university.png" alt="Telkom University">
+    <span class="sep"></span>
+    <img class="aa" src="aset/logo-annapurna.png" alt="Annapurna Adventure">
+  </div>
+  <div class="tag"><b>Proyek Mahasiswa</b>S1 Teknik Informatika<br>Telkom University Purwokerto</div>
+
+  <div class="abs upper"><div class="head">
+    <div class="kicker">Sistem informasi berbasis web</div>
+    <h1>Annapurna</h1>
+    <div class="script">Adventure</div>
+    <h2>Website Sewa, Penjualan &amp; Laundry<br>Perlengkapan Outdoor</h2>
+    <div class="tagline">Pesan dari HP, semua transaksi<br>tercatat rapi di satu tempat.</div>
+  </div>
+
+  <div class="desc">
+    <b>Annapurna Adventure</b> adalah toko perlengkapan outdoor di Purwokerto dengan tiga layanan: sewa alat, jual alat, dan laundry perlengkapan outdoor. Website ini menggantikan buku catatan dan chat manual.
+  </div></div>
+
+  <div class="laptop">
+    <div class="lid"><div class="screen"><img src="aset/layar-laptop-dashboard.jpg" alt=""></div></div>
+    <div class="base"></div>
+  </div>
+  <div class="phone p1"><div class="scr"><img src="aset/layar-hp-katalog.png" alt=""><span class="island"></span></div></div>
+  <div class="phone p2"><div class="scr"><img src="aset/layar-hp-paket.png" alt=""><span class="island"></span></div></div>
+
+  <div class="abs lower"><div class="feat">
+    <h3>Fitur Utama</h3>
+    <div class="grid">
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15l2 2 4-4"/></svg></span><span>Booking sewa online + cek stok per tanggal</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg></span><span>Tarif otomatis: per malam, 3 hari &amp; 5 hari</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg></span><span>Bayar DP via transfer/QRIS + unggah bukti</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="10" rx="2"/><path d="M7 10V5h10v5M7 14h2M11 14h2M15 14h2M7 17h10"/></svg></span><span>Kasir toko untuk sewa, jual &amp; laundry</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span>Barang keluar–kembali, denda &amp; perawatan unit</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6"/></svg></span><span>Nota digital &amp; pesan WhatsApp ke pelanggan</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span>Laporan keuangan 3 lini usaha + rekap bulanan</span></div>
+      <div class="f glass"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 11h.01M12 11h.01M15 11h.01"/></svg></span><span>Asisten Trip untuk tanya-jawab pelanggan</span></div>
+    </div>
+  </div>
+
+  <div class="why glass">
+    <h3>Kenapa dibuat?</h3>
+    <p>Sebelumnya, data sewa, penjualan, dan keuangan Annapurna Adventure masih dicatat manual. Kini pelanggan bisa memesan dan membayar sendiri dari HP, staff mencatat transaksi, stok, dan uang di satu tempat, dan owner bisa melihat untung-rugi toko kapan saja.</p>
+  </div>
+
+  <div class="users">
+    <h3>Dipakai oleh</h3>
+    <div class="ucols">
+      <div class="u glass"><b><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Customer</b><small>Pilih alat, pesan, bayar, lihat nota &amp; beri ulasan</small></div>
+      <div class="u glass"><b><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8 17h8"/></svg>Staff</b><small>Kasir, verifikasi DP, barang keluar–kembali, laundry</small></div>
+      <div class="u glass"><b><svg viewBox="0 0 24 24"><path d="M3 18h18M5 18l-1-9 5 4 3-7 3 7 5-4-1 9"/></svg>Owner</b><small>Laporan untung-rugi, staff, promo &amp; aturan toko</small></div>
+    </div>
+  </div>
+    <div class="foot">Mitra proyek: <b>Annapurna Adventure Purwokerto</b> · 2026</div>
+  </div>
+  <!-- =================== AKHIR ISI POSTER =================== -->
+</div>
+
+<script>
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function contours(svg, { cx, cy, sx = 1, sy = 1, r0, step, n, seed, stroke, width, opacity }) {
+    const R = rng(seed);
+    const waves = Array.from({ length: 5 }, (_, i) => ({ k: i + 2, a: (0.05 + R() * 0.07) / (1 + i * 0.6), p: R() * Math.PI * 2 }));
+    for (let j = 0; j < n; j++) {
+      const r = r0 + j * step;
+      const wob = Array.from({ length: 3 }, (_, i) => ({ k: i + 3, a: R() * 0.012, p: R() * Math.PI * 2 }));
+      const pts = [];
+      for (let t = 0; t < 180; t++) {
+        const th = t / 180 * Math.PI * 2;
+        let f = 1; waves.forEach((w) => { f += w.a * Math.sin(w.k * th + w.p); }); wob.forEach((w) => { f += w.a * Math.sin(w.k * th + w.p); });
+        pts.push([cx + Math.cos(th) * r * f * sx, cy + Math.sin(th) * r * f * sy]);
+      }
+      let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+      for (let i = 0; i < pts.length; i++) {
+        const p0 = pts[(i - 1 + pts.length) % pts.length], p1 = pts[i], p2 = pts[(i + 1) % pts.length], p3 = pts[(i + 2) % pts.length];
+        d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+      }
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d + 'Z'); path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', stroke); path.setAttribute('stroke-width', width); path.setAttribute('opacity', opacity);
+      svg.appendChild(path);
+    }
+  }
+  const topo = document.getElementById('topo');
+  contours(topo, { cx: 560, cy: 260, sx: 1.1, sy: 0.95, r0: 26, step: 22, n: 24, seed: 7, stroke: '#2f6244', width: 1.1, opacity: .55 });
+  contours(topo, { cx: 40, cy: 1300, sx: 1.2, sy: 0.9, r0: 30, step: 22, n: 26, seed: 23, stroke: '#2f6244', width: 1.1, opacity: .45 });
+</script>
+</body>
+</html>

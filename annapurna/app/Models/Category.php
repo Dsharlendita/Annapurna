@@ -14,13 +14,13 @@ class Category extends Model
         'id',
         'name',
         'img',
-        'active',
+        'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'active' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 

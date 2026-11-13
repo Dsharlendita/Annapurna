@@ -33,7 +33,9 @@ class ApiController extends Controller
      */
     public function categories(): JsonResponse
     {
-        $categories = Category::where('active', true)->get();
+        // Kunci 'active' tetap dikirim untuk tampilan lama (kolom DB: is_active)
+        $categories = Category::where('is_active', true)->get()
+            ->map(fn (Category $c) => $c->toArray() + ['active' => $c->is_active]);
         return response()->json(['ok' => true, 'data' => $categories]);
     }
 
@@ -315,7 +317,6 @@ class ApiController extends Controller
                 'delivery_mode' => $validated['delivery_mode'] ?? 'ambil',
                 'notes' => $validated['notes'] ?? null,
                 'guarantee_type' => $request->input('guarantee_type'),
-                'is_walk_in' => $isWalkIn,
                 'expired_at' => $isWalkIn ? null : now()->addHours($payWindowHours),
             ]);
 
@@ -410,7 +411,6 @@ class ApiController extends Controller
                 'status' => $isWalkIn ? 'selesai' : 'menunggu_pembayaran',
                 'payment_status' => $isWalkIn ? 'paid' : 'unpaid',
                 'channel' => $isWalkIn ? 'offline' : 'online',
-                'is_walk_in' => $isWalkIn,
                 'delivery_mode' => $validated['delivery_mode'] ?? 'ambil',
                 'notes' => $validated['notes'] ?? null,
                 'expired_at' => $isWalkIn ? null : now()->addHours($payWindowHours),
@@ -490,6 +490,7 @@ class ApiController extends Controller
             'sale_id' => $sale?->id,
             'payment_type' => $request->input('payment_type'),
             'amount' => $request->input('amount'),
+            'payment_method' => 'Transfer',
             'bank_name' => $request->input('bank_name'),
             'proof_file' => $path,
             'status' => 'pending',
@@ -604,17 +605,7 @@ class ApiController extends Controller
 
             // Jika ada pembayaran yang diterima saat pelunasan
             if ($payAmt > 0) {
-                Payment::create([
-                    'booking_id' => $booking->id,
-                    'payment_type' => 'Pelunasan',
-                    'amount' => $payAmt,
-                    'bank_name' => $validated['payment_method'] ?? 'Kasir · Tunai',
-                    'status' => 'verified',
-                    'paid_at' => now(),
-                    'verified_by' => Auth::id(),
-                    'verified_at' => now(),
-                    'notes' => 'Pelunasan di kasir',
-                ]);
+                $booking->payments()->create(Payment::receivedInStore($payAmt, 'Pelunasan', $validated['payment_method'] ?? 'Tunai', Auth::id(), 'Pelunasan di kasir'));
 
                 // Uang yang diterima kasir wajib masuk buku kas (sebelumnya hanya tercatat sebagai pembayaran)
                 \App\Models\Finance::create([

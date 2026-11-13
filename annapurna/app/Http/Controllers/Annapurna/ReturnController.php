@@ -100,17 +100,7 @@ class ReturnController extends Controller
             $this->assignUnits($booking, $validated['unit_ids'] ?? []);
 
             if ($payNow > 0) {
-                Payment::create([
-                    'booking_id' => $booking->id,
-                    'payment_type' => 'Pelunasan',
-                    'amount' => $payNow,
-                    'bank_name' => $validated['payment_method'] ?? 'Tunai',
-                    'status' => 'verified',
-                    'paid_at' => now(),
-                    'verified_by' => $user?->id,
-                    'verified_at' => now(),
-                    'notes' => 'Pelunasan saat barang keluar / pickup',
-                ]);
+                $booking->payments()->create(Payment::receivedInStore($payNow, 'Pelunasan', $validated['payment_method'] ?? 'Tunai', $user?->id, 'Pelunasan saat barang keluar / pickup'));
 
                 Finance::create([
                     'finance_code' => Finance::generateCode('income'),
@@ -213,22 +203,12 @@ class ReturnController extends Controller
 
             $booking->status = 'selesai';
             if ($totalFine > 0) {
-                $booking->fine_amount = ($booking->fine_amount ?? 0) + $totalFine;
+                // Nilai denda tersimpan di booking_returns.total_fine; total booking ikut naik
                 $booking->total_amount = ($booking->total_amount ?? 0) + $totalFine;
             }
 
             if ($payFine > 0) {
-                Payment::create([
-                    'booking_id' => $booking->id,
-                    'payment_type' => 'Denda',
-                    'amount' => $payFine,
-                    'bank_name' => $validated['payment_method'] ?? 'Tunai',
-                    'status' => 'verified',
-                    'paid_at' => now(),
-                    'verified_by' => $user?->id,
-                    'verified_at' => now(),
-                    'notes' => 'Pembayaran denda & kerusakan',
-                ]);
+                $booking->payments()->create(Payment::receivedInStore($payFine, 'Denda', $validated['payment_method'] ?? 'Tunai', $user?->id, 'Pembayaran denda & kerusakan'));
 
                 Finance::create([
                     'finance_code' => Finance::generateCode('income'),

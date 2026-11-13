@@ -8,7 +8,7 @@ use App\Models\Finance;
 use App\Models\LaundryCategory;
 use App\Models\LaundryItem;
 use App\Models\LaundryOrder;
-use App\Models\LaundryPayment;
+use App\Models\Payment;
 use App\Models\LaundryStatusLog;
 use App\Support\Audit;
 use Carbon\Carbon;
@@ -55,7 +55,7 @@ class LaundryController extends Controller
 
         // Hitung statistik bulanan
         $currentMonth = now()->format('Y-m');
-        $monthlyIncome = LaundryPayment::where('paid_at', 'like', "{$currentMonth}%")->sum('amount');
+        $monthlyIncome = Payment::whereNotNull('laundry_order_id')->where('status', 'verified')->where('paid_at', 'like', "{$currentMonth}%")->sum('amount');
 
         $unpaidTotal = LaundryOrder::where('status', '!=', 'dibatalkan')
             ->where('payment_status', '!=', 'paid')
@@ -207,14 +207,7 @@ class LaundryController extends Controller
             // Jika ada pembayaran sekarang (DP / Lunas)
             if ($payNow > 0) {
                 $payType = $payNow >= $total ? 'Lunas' : 'DP';
-                $order->payments()->create([
-                    'payment_type' => $payType,
-                    'amount' => $payNow,
-                    'payment_method' => $validated['payment_method'] ?? 'Tunai',
-                    'paid_at' => now(),
-                    'received_by' => $user?->id,
-                    'notes' => "Pembayaran {$payType} di kasir saat input order",
-                ]);
+                $order->payments()->create(Payment::receivedInStore($payNow, $payType, $validated['payment_method'] ?? 'Tunai', $user?->id, "Pembayaran {$payType} di kasir saat input order"));
 
                 // Otomatis bukukan ke kas lini umum/laundry
                 Finance::create([
@@ -343,14 +336,7 @@ class LaundryController extends Controller
         $user = Auth::user();
         $amount = (int) $validated['amount'];
 
-        $payment = $order->payments()->create([
-            'payment_type' => 'Pelunasan',
-            'amount' => $amount,
-            'payment_method' => $validated['payment_method'],
-            'paid_at' => now(),
-            'received_by' => $user?->id,
-            'notes' => $validated['notes'] ?? 'Pelunasan sisa tagihan laundry',
-        ]);
+        $payment = $order->payments()->create(Payment::receivedInStore($amount, 'Pelunasan', $validated['payment_method'], $user?->id, $validated['notes'] ?? 'Pelunasan sisa tagihan laundry'));
 
         $totalPaid = $order->paid_amount;
         if ($totalPaid >= $order->total_amount) {

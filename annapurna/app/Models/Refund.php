@@ -15,7 +15,6 @@ class Refund extends Model
         'bank_name',
         'account_number',
         'account_name',
-        'bank_account',    // ringkasan lama: "BCA 1234567890 a.n. Nama"
         'transfer_ref',
         'proof_file',      // foto bukti transfer / serah terima (disk public)
         'reason',
@@ -42,7 +41,12 @@ class Refund extends Model
         return $this->proof_file ? Storage::disk('public')->url($this->proof_file) : null;
     }
 
-    /** Ringkasan rekening untuk kolom lama `bank_account`. */
+    /** Ringkasan rekening, mis. "BCA 1234567890 a.n. Budi" (dihitung, tidak disimpan). */
+    public function getBankAccountAttribute(): ?string
+    {
+        return $this->method === 'transfer' ? self::accountSummary($this->bank_name, $this->account_number, $this->account_name) : null;
+    }
+
     public static function accountSummary(?string $bank, ?string $number, ?string $name): ?string
     {
         $s = trim(implode(' ', array_filter([$bank, $number])) . ($name ? " a.n. {$name}" : ''));

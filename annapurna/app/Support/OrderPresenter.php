@@ -44,7 +44,7 @@ class OrderPresenter
             'at' => self::stamp($p->verified_at ?? $p->paid_at ?? $p->created_at),
             'amount' => (int) $p->amount,
             'type' => $p->payment_type,
-            'via' => $p->bank_name,
+            'via' => $p->bank_name ?: $p->payment_method,
             'verified' => true,
         ])->all();
     }
@@ -73,7 +73,7 @@ class OrderPresenter
     public static function booking(Booking $b): array
     {
         $ret = $b->returnLog;
-        $fine = max((int) $b->fine_amount, (int) ($ret->total_fine ?? 0));
+        $fine = (int) ($ret->total_fine ?? 0);
         $settle = (int) $b->settle_disc_amount;
         $refundStatus = match ($b->payment_status) {
             'refund_pending' => 'menunggu',

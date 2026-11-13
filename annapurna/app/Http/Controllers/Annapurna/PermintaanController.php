@@ -167,17 +167,7 @@ class PermintaanController extends Controller
 
                 // Jika sudah dibayar lunas sekarang
                 if ($isPaid && $ext->cost > 0) {
-                    Payment::create([
-                        'booking_id' => $booking->id,
-                        'payment_type' => 'Perpanjangan',
-                        'amount' => $ext->cost,
-                        'status' => 'verified',
-                        'paid_at' => now(),
-                        'verified_by' => Auth::id(),
-                        'verified_at' => now(),
-                        'notes' => 'Pembayaran perpanjangan sewa ' . $ext->days . ' hari',
-                        'bank_name' => 'Tunai',
-                    ]);
+                    $booking->payments()->create(Payment::receivedInStore($ext->cost, 'Perpanjangan', 'Tunai', Auth::id(), 'Pembayaran perpanjangan sewa ' . $ext->days . ' hari'));
 
                     // Uang yang diterima wajib masuk buku kas
                     Finance::create([
@@ -234,7 +224,6 @@ class PermintaanController extends Controller
      *   amount, status (selesai|hangus|tidak_perlu), reason (opsional),
      *   refund_method (transfer|tunai), refund_bank, refund_account_number, refund_account_name,
      *   transfer_ref (opsional), proof_file (foto bukti; wajib untuk transfer yang diselesaikan)
-     *   bank_account (lama, tetap diterima)
      */
     public function actionRefund(Request $request, string $bookingId): JsonResponse
     {
@@ -246,7 +235,6 @@ class PermintaanController extends Controller
             'amount' => 'required|integer|min:0',
             'status' => 'required|in:selesai,hangus,tidak_perlu',
             'reason' => 'nullable|string',
-            'bank_account' => 'nullable|string|max:100',
             'refund_method' => 'nullable|in:transfer,tunai',
             'refund_bank' => 'nullable|required_if:refund_method,transfer|string|max:60',
             'refund_account_number' => ['nullable', 'required_if:refund_method,transfer', 'regex:/^\d{6,30}$/'],
@@ -297,7 +285,6 @@ class PermintaanController extends Controller
                     'bank_name' => $bank,
                     'account_number' => $number,
                     'account_name' => $holder,
-                    'bank_account' => $tf ? Refund::accountSummary($bank, $number, $holder) : $request->input('bank_account', $existing?->bank_account),
                     'transfer_ref' => $request->input('transfer_ref', $existing?->transfer_ref),
                     'proof_file' => $proof,
                     'reason' => $request->input('reason', $existing?->reason),

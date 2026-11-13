@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingService;
 use App\Models\Finance;
-use App\Models\ServicePayment;
+use App\Models\Payment;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -166,13 +166,7 @@ class BookingServiceController extends Controller
 
             // Jika ada pembayaran biaya jasa / ongkir
             if ($payNow > 0) {
-                $service->payments()->create([
-                    'amount' => $payNow,
-                    'payment_method' => $validated['payment_method'] ?? 'Tunai',
-                    'paid_at' => now(),
-                    'received_by' => $user?->id,
-                    'notes' => "Pembayaran layanan {$validated['service_mode']}",
-                ]);
+                $service->payments()->create(Payment::receivedInStore($payNow, 'Layanan', $validated['payment_method'] ?? 'Tunai', $user?->id, "Pembayaran layanan {$validated['service_mode']}"));
 
                 // Biaya jasa tenda & ongkir sewa masuk ke keuangan lini Rental
                 Finance::create([
@@ -216,13 +210,7 @@ class BookingServiceController extends Controller
         $user = Auth::user();
         $amount = (int) $validated['amount'];
 
-        $payment = $service->payments()->create([
-            'amount' => $amount,
-            'payment_method' => $validated['payment_method'],
-            'paid_at' => now(),
-            'received_by' => $user?->id,
-            'notes' => $validated['notes'] ?? 'Pelunasan biaya layanan',
-        ]);
+        $payment = $service->payments()->create(Payment::receivedInStore($amount, 'Layanan', $validated['payment_method'], $user?->id, $validated['notes'] ?? 'Pelunasan biaya layanan'));
 
         // Catat ke keuangan lini rental
         Finance::create([

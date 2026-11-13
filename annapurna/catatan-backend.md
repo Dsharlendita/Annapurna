@@ -918,3 +918,30 @@ Saran C.38 diikuti. Ringkasnya, untuk FE:
 **Verifikasi DP booking** — pakai `POST /api/admin/booking/{kode}/verifikasi` (`terima`/`tolak`). `syncVerify` (per `serverPaymentId`) tetap dipakai untuk penjualan.
 
 **Lain-lain**: file kosong `git` di root dihapus. `ASSET_VERSION` = `20261113.1`. Tes otomatis: `tests/Feature/RefundMethodTest.php` (7 tes) + 20 tes lama, semua lulus.
+
+
+## C.40 Database dirapikan — 13 Nov 2026 (Aji)
+
+**Wajib dijalankan setelah pull** (database lokal dibuat ulang; isinya data contoh):
+```
+php artisan migrate:fresh --seed
+php artisan optimize:clear
+```
+
+**Migrasi**: 15 file tambal-sulam → 8 file, satu per bagian (akun, katalog, sewa, penjualan, laundry, pembayaran, keuangan, sistem). Penjelasan + ERD: `docs/DATABASE.md`.
+
+**Yang berubah di tabel**
+- `laundry_payments` dan `service_payments` **dihapus** → semua masuk `payments` (kolom baru `laundry_order_id`, `booking_service_id`, `payment_method`). `payment_type` tambah `Lunas` dan `Layanan`. Bentuk JSON pembayaran laundry ke FE tetap (`paid_at`, `amount`, `payment_type`, `payment_method`).
+- `payments.payment_method` = Tunai / Transfer / QRIS; `bank_name` hanya untuk nama bank. Presenter `via` = bank, kalau kosong metode.
+- `bookings.fine_amount` dihapus → denda hanya di `booking_returns.total_fine` (presenter `fine` membaca dari sana).
+- `bookings.is_walk_in` & `sales.is_walk_in` dihapus → cukup `channel = offline`. Parameter `is_walk_in: true` dari kasir **tetap diterima** API.
+- `refunds.bank_account` dihapus → `$refund->bank_account` sekarang dihitung dari bank + nomor + nama.
+- `categories.active` → `is_active`. API `/api/kategori` tetap mengirim kunci `active` juga.
+
+**Pengaturan Owner sekarang benar-benar dipakai server.** `Setting` menyimpan nama kunci dalam snake_case; `dpPercent`/`cancelDays`/`refundPercent`/`durRules` dari `konfigurasi.js` otomatis jadi `dp_percent`/`cancel_days`/… Sebelumnya tersimpan tapi tidak pernah dibaca. `value` boleh daftar kosong.
+
+**Seeder**: katalog awal sekarang dari `database/seeders/data/katalog.json` (14 kategori, 91 produk dengan ID yang sama dengan `data.js`, 485 unit, 11 paket, 3 promo, pengaturan toko). `AnnapurnaSeeder` diganti `KatalogSeeder` + `ContohTransaksiSeeder`; `LaundrySeeder` ikut dipanggil.
+
+**Tes**: `tests/Feature/DatabaseRapiTest.php` (4 tes) — total 31 tes lulus.
+
+**Belum** (data yang masih hanya di browser, lihat daftar di laporan Aji): pengeluaran/pemasukan manual, notifikasi, catatan & blacklist pelanggan, katalog/promo/ulasan dari server, arsip bulanan.

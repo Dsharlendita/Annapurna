@@ -25,13 +25,11 @@ class Booking extends Model
         'discount_reason',
         'settle_disc_amount',
         'settle_disc_reason',
-        'fine_amount',
         'total_amount',
         'dp_amount',
         'payment_method',
         'status',
         'channel',
-        'is_walk_in',
         'cancel_at',
         'cancel_reason',
         'cancel_auto',
@@ -55,12 +53,10 @@ class Booking extends Model
             'subtotal' => 'integer',
             'discount_amount' => 'integer',
             'settle_disc_amount' => 'integer',
-            'fine_amount' => 'integer',
             'total_amount' => 'integer',
             'dp_amount' => 'integer',
             'settle_later' => 'boolean',
             'piutang_amount' => 'integer',
-            'is_walk_in' => 'boolean',
             'cancel_auto' => 'boolean',
             'cancel_at' => 'datetime',
             'expired_at' => 'datetime',
@@ -75,7 +71,6 @@ class Booking extends Model
     {
         return $query->where(function ($q) {
             $q->where('channel', 'offline')
-                ->orWhere('is_walk_in', true)
                 ->orWhere(function ($sub) {
                     $sub->where('channel', 'online')
                         ->where(function ($inner) {

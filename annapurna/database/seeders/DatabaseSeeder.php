@@ -43,6 +43,6 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        $this->call(AnnapurnaSeeder::class);
+        $this->call([KatalogSeeder::class, LaundrySeeder::class, ContohTransaksiSeeder::class]);
     }
 }

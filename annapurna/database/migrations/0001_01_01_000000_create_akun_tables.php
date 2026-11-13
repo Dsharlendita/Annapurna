@@ -4,10 +4,15 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * 01 · AKUN
+ * Semua pengguna sistem (owner, admin/staff, customer) beserta sesi login.
+ */
 return new class extends Migration
 {
     public function up(): void
     {
+        // Pengguna: owner, admin (staff toko), dan customer
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -16,8 +21,9 @@ return new class extends Migration
             $table->text('address')->nullable();
             $table->enum('role', ['owner', 'admin', 'customer'])->default('customer')->index();
             $table->enum('status', ['aktif', 'nonaktif'])->default('aktif')->index();
+            $table->boolean('auto_created')->default(false);          // akun customer yang dibuat otomatis dari kasir
             $table->boolean('must_change_password')->default(false);
-            $table->foreignId('created_by')->nullable()->index();
+            $table->foreignId('created_by')->nullable()->index();     // owner yang membuat akun staff
             $table->timestamp('last_login_at')->nullable();
             $table->timestamp('last_logout_at')->nullable();
             $table->timestamp('email_verified_at')->nullable();
@@ -44,8 +50,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };

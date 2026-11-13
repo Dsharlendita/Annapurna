@@ -66,7 +66,7 @@ class LaundryOrder extends Model
 
     public function payments(): HasMany
     {
-        return $this->hasMany(LaundryPayment::class)->orderBy('id', 'asc');
+        return $this->hasMany(Payment::class)->orderBy('id', 'asc');
     }
 
     public function getPaidAmountAttribute(): int

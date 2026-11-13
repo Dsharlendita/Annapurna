@@ -43,6 +43,6 @@ class BookingService extends Model
 
     public function payments(): HasMany
     {
-        return $this->hasMany(ServicePayment::class);
+        return $this->hasMany(Payment::class);
     }
 }

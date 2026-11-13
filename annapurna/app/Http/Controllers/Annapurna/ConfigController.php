@@ -38,7 +38,7 @@ class ConfigController extends Controller
     {
         $validated = $request->validate([
             'key' => 'required|string|max:100',
-            'value' => 'required',
+            'value' => 'present',   // boleh 0 / daftar kosong (mis. semua aturan dihapus)
             'action' => 'nullable|string',
             'changes' => 'nullable|array',
         ]);

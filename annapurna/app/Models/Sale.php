@@ -23,7 +23,6 @@ class Sale extends Model
         'payment_method',
         'status',
         'channel',
-        'is_walk_in',
         'cancel_at',
         'cancel_reason',
         'cancel_auto',
@@ -39,7 +38,6 @@ class Sale extends Model
             'subtotal' => 'integer',
             'discount_amount' => 'integer',
             'total_amount' => 'integer',
-            'is_walk_in' => 'boolean',
             'cancel_auto' => 'boolean',
             'cancel_at' => 'datetime',
             'expired_at' => 'datetime',
@@ -53,7 +51,6 @@ class Sale extends Model
     {
         return $query->where(function ($q) {
             $q->where('channel', 'offline')
-                ->orWhere('is_walk_in', true)
                 ->orWhere(function ($sub) {
                     $sub->where('channel', 'online')
                         ->where(function ($inner) {

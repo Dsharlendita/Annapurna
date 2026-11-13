@@ -119,7 +119,8 @@ class StaffController extends Controller
 
     /**
      * POST /api/owner/staff
-     * Menambahkan akun staf baru dengan kata sandi sementara.
+     * Menambahkan akun Admin / Staff baru. Kata sandi awal dibuat Owner
+     * (password + password_confirmation); mustChangePw menentukan wajib ganti saat login pertama.
      */
     public function store(Request $request): JsonResponse
     {
@@ -127,8 +128,13 @@ class StaffController extends Controller
             'name' => ['required', 'string', 'min:3', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'role' => ['required', Rule::in(['admin', 'owner'])],
+            // Owner hanya boleh membuat akun Admin / Staff
+            'role' => ['nullable', Rule::in(['admin'])],
             'status' => ['nullable', Rule::in(['aktif', 'nonaktif'])],
+            // Kata sandi awal dibuat Owner (bukan dibuat sistem)
+            'password' => ['required', 'string', 'min:8', 'max:100', 'regex:/[A-Za-z]/', 'regex:/\d/', 'not_regex:/\s/', 'confirmed'],
+            'mustChangePw' => ['nullable', 'boolean'],
+            'must_change_password' => ['nullable', 'boolean'],
             'send_email' => ['nullable', 'boolean'],
             'sendEmail' => ['nullable', 'boolean'],
         ], [
@@ -137,22 +143,25 @@ class StaffController extends Controller
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email belum benar.',
             'email.unique' => 'Email ini sudah terdaftar.',
-            'role.required' => 'Pilih role staf (Admin atau Owner).',
+            'role.in' => 'Owner hanya bisa membuat akun Admin / Staff.',
+            'password.required' => 'Buat kata sandi untuk staff.',
+            'password.min' => 'Kata sandi minimal 8 karakter.',
+            'password.regex' => 'Kata sandi harus berisi huruf dan angka.',
+            'password.not_regex' => 'Kata sandi tidak boleh berisi spasi.',
+            'password.confirmed' => 'Ulangi kata sandi belum sama.',
         ]);
 
-        // Generate kata sandi sementara 10 karakter acak
-        $tempPassword = Str::password(10, letters: true, numbers: true, symbols: false);
-
         $currentUser = Auth::user();
+        $mustChange = $request->has('mustChangePw') ? $request->boolean('mustChangePw') : $request->boolean('must_change_password', true);
 
         $user = User::create([
             'name' => trim($validated['name']),
             'email' => strtolower(trim($validated['email'])),
             'phone' => isset($validated['phone']) ? trim($validated['phone']) : null,
-            'role' => $validated['role'],
+            'role' => 'admin',
             'status' => $validated['status'] ?? 'aktif',
-            'password' => $tempPassword, // otomatis di-hash oleh casts User model
-            'must_change_password' => true,
+            'password' => $validated['password'], // otomatis di-hash oleh casts User model
+            'must_change_password' => $mustChange,
             'created_by' => $currentUser?->id,
         ]);
 
@@ -168,7 +177,8 @@ class StaffController extends Controller
 
         if ($shouldSend) {
             try {
-                Mail::to($user->email)->send(new StaffAccountCreated($user, $currentUser ?? $user, $tempPassword));
+                // Kata sandi TIDAK ikut dikirim lewat email: Owner memberikannya langsung ke staff
+                Mail::to($user->email)->send(new StaffAccountCreated($user, $currentUser ?? $user, null, $mustChange));
 
                 EmailLog::create([
                     'kind' => 'staff_invite',
@@ -198,8 +208,6 @@ class StaffController extends Controller
         return response()->json([
             'ok' => true,
             'user' => $this->formatUser($user),
-            'temp' => $tempPassword,
-            'temp_password' => $tempPassword,
             'mail' => $mailStatus,
         ], 201);
     }
@@ -218,14 +226,21 @@ class StaffController extends Controller
             'name' => ['required', 'string', 'min:3', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:20'],
-            'role' => ['nullable', Rule::in(['admin', 'owner'])],
             'status' => ['nullable', Rule::in(['aktif', 'nonaktif'])],
         ]);
+
+        // Role tidak bisa diubah dari Manajemen Staff (tidak ada pilihan Owner).
+        if ($request->filled('role') && $request->input('role') !== $user->role) {
+            return response()->json([
+                'ok' => false,
+                'msg' => 'Role tidak bisa diubah dari Manajemen Staff.',
+            ], 422);
+        }
 
         $isSelf = ($currentUser && $currentUser->id === $user->id);
 
         // Aturan: Minimal harus ada 1 Owner aktif
-        $targetRole = $isSelf ? $user->role : ($validated['role'] ?? $user->role);
+        $targetRole = $user->role;
         $targetStatus = $isSelf ? $user->status : ($validated['status'] ?? $user->status);
 
         if ($user->role === 'owner' && $user->status === 'aktif') {
@@ -246,9 +261,6 @@ class StaffController extends Controller
         }
 
         if (!$isSelf) {
-            if (isset($validated['role'])) {
-                $user->role = $validated['role'];
-            }
             if (isset($validated['status'])) {
                 $user->status = $validated['status'];
             }
@@ -360,11 +372,26 @@ class StaffController extends Controller
         }
         RateLimiter::hit($throttleKey, 3600);
 
-        // Generate kata sandi baru 10 karakter acak
-        $tempPassword = Str::password(10, letters: true, numbers: true, symbols: false);
+        // Kata sandi baru dibuat Owner (password + password_confirmation). Bila tidak dikirim, sistem membuat
+        // kata sandi sementara acak seperti sebelumnya (kompatibel dengan pemanggil lama).
+        $ownerSet = $request->filled('password');
+        if ($ownerSet) {
+            $request->validate([
+                'password' => ['required', 'string', 'min:8', 'max:100', 'regex:/[A-Za-z]/', 'regex:/\d/', 'not_regex:/\s/', 'confirmed'],
+            ], [
+                'password.min' => 'Kata sandi minimal 8 karakter.',
+                'password.regex' => 'Kata sandi harus berisi huruf dan angka.',
+                'password.not_regex' => 'Kata sandi tidak boleh berisi spasi.',
+                'password.confirmed' => 'Ulangi kata sandi belum sama.',
+            ]);
+        }
+        $tempPassword = $ownerSet ? null : Str::password(10, letters: true, numbers: true, symbols: false);
+        $mustChange = $ownerSet
+            ? ($request->has('mustChangePw') ? $request->boolean('mustChangePw') : $request->boolean('must_change_password', true))
+            : true;
 
-        $user->password = $tempPassword;
-        $user->must_change_password = true;
+        $user->password = $ownerSet ? $request->input('password') : $tempPassword;
+        $user->must_change_password = $mustChange;
         $user->remember_token = Str::random(60);
         $user->save();
 
@@ -378,8 +405,12 @@ class StaffController extends Controller
         );
 
         $mailStatus = ['status' => 'terkirim'];
-        try {
-            Mail::to($user->email)->send(new StaffPasswordReset($user, $currentUser ?? $user, $tempPassword));
+        $sendMail = $ownerSet ? $request->boolean('sendEmail', $request->boolean('send_email', false)) : true;
+        if (!$sendMail) {
+            $mailStatus = ['status' => 'tidak_dikirim'];
+        } else try {
+            // Kata sandi buatan Owner TIDAK dikirim lewat email (diberikan langsung ke staff)
+            Mail::to($user->email)->send(new StaffPasswordReset($user, $currentUser ?? $user, $tempPassword, $mustChange));
 
             EmailLog::create([
                 'kind' => 'password_reset',
@@ -403,12 +434,12 @@ class StaffController extends Controller
             ];
         }
 
-        return response()->json([
+        return response()->json(array_filter([
             'ok' => true,
             'temp' => $tempPassword,
             'temp_password' => $tempPassword,
             'mail' => $mailStatus,
-        ]);
+        ], fn ($v) => $v !== null));
     }
 
     /**

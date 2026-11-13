@@ -177,7 +177,7 @@
       desc: 'Topi outdoor untuk melindungi kepala dari panas.', specs: ['Melindungi dari panas'] }),
 
     /* ---------- Kategori Outdoor Equipment ---------- */
-    R('oe-sb', 'Sleeping Bag', 'outdoor', 'wa/oe-sb.jpg', [10000, 18000, 25000], 24, { sku: 'OE-SB', featured: true,
+    R('oe-sb', 'Sleeping Bag', 'outdoor', 'wa/oe-sb.jpg', [10000, 18000, 25000], 24, { sku: 'OE-SB', featured: true, wash: true,
       desc: 'Sleeping bag hangat dan selalu dicuci bersih setelah disewa.', specs: ['Hangat', 'Selalu dicuci bersih'] }),
     R('oe-tp', 'Trekking Pole (Standar)', 'outdoor', 'wa/oe-tp.jpg', [15000, 27000, 38000], 10, { sku: 'OE-TP',
       desc: 'Trekking pole standar: bantu jaga keseimbangan, mengurangi beban lutut, lebih stabil di medan terjal.', specs: ['Jaga keseimbangan', 'Mengurangi beban lutut'] }),
@@ -475,7 +475,7 @@
     returnTime: '22:00',
     lateAfterReturnTime: true,
     maxRentDays: 14,
-    serviceEvery: 10,
+    serviceEvery: 0, /* perawatan berkala bawaan nonaktif (bisa dinyalakan Owner) */
     refundPercent: 100,
     damageRules: [
       'Kerusakan ringan (sobek kecil, resleting macet): biaya perbaikan sesuai nota servis.',
@@ -523,7 +523,7 @@
     ],
     /* ---------- Konfigurasi sistem (diatur Owner) ---------- */
     /* Kategori yang unitnya wajib dicuci / dibersihkan setiap selesai disewa ("sewa bersih, kembali kotor biar kami yang membersihkan") */
-    washCats: ['tenda', 'tas', 'footwear', 'fashion', 'outdoor', 'cooking'],
+    washCats: ['tenda'], /* bawaan hanya tenda; barang lain bisa diatur per barang (p.wash) */
     attributes: [
       { id: 'at-ukuran', name: 'Ukuran pakaian', type: 'pilihan', values: ['S', 'M', 'L', 'XL', 'XXL'], variant: true, cats: ['fashion'], required: false, active: true },
       { id: 'at-sepatu', name: 'Ukuran sepatu (EU)', type: 'pilihan', values: ['38', '39', '40', '41', '42', '43', '44', '45'], variant: true, cats: ['footwear'], required: false, active: true },
@@ -543,12 +543,12 @@
       out: ['Wifi / Internet', 'Listrik & Air', 'Gaji Staff', 'Sewa Tempat', 'Promosi', 'Operasional', 'Keperluan Usaha Lainnya', 'Deterjen & Kebutuhan Laundry', 'Bensin Antar-Jemput Sewa', 'Kebutuhan Rental Lainnya', 'Perawatan Alat', 'Perbaikan Barang', 'Kemasan Barang Jual', 'Pembelian Barang'],
     },
     forms: {
-      pickup: { note: 'opsional', photo: 'opsional', idCard: 'wajib', custom: [{ id: 'f-kelengkapan', label: 'Kelengkapan sudah dicek bersama customer', type: 'centang', required: true }] },
+      pickup: { note: 'opsional', photo: 'opsional', idCard: 'wajib', custom: [] }, /* "Kelengkapan sudah dicek" kini isian tetap di form barang keluar */
       return: { note: 'opsional', photo: 'opsional', custom: [] },
     },
     sops: [
       { id: 'sop-1', title: 'Pemeriksaan barang keluar', context: 'barang_keluar', pinned: true, body: 'Periksa kelengkapan barang bersama customer sebelum diserahkan (frame, pasak, flysheet, tas). Minta kartu identitas asli sebagai jaminan dan pastikan sisa pembayaran sudah lunas.' },
-      { id: 'sop-2', title: 'Pemeriksaan barang kembali', context: 'pengembalian', pinned: true, body: 'Semua barang yang dikembalikan wajib diperiksa kondisi fisiknya (foto bila memungkinkan) sebelum status rental diselesaikan. Pilih hasil pemeriksaan per unit: kotor → "Perlu dicuci", rusak → "Rusak — perlu diperbaiki" dengan keterangan. Unit baru bisa disewakan lagi setelah ditandai bersih / selesai diperbaiki di menu Perawatan Unit.' },
+      { id: 'sop-2', title: 'Pemeriksaan barang kembali', context: 'pengembalian', pinned: true, body: 'Semua barang yang dikembalikan wajib diperiksa kondisi fisiknya (foto bila memungkinkan) sebelum status rental diselesaikan. Bila semua normal, pilih \"Semua kembali\". Bila ada yang rusak atau hilang, pilih \"Ada yang rusak / hilang\", ubah status unit yang bermasalah, lalu tulis keterangannya. Unit baru bisa disewakan lagi setelah ditandai bersih / selesai diperbaiki di menu Perawatan Unit.' },
       { id: 'sop-3', title: 'Pengingat pengembalian', context: 'umum', pinned: false, body: 'Kirim pengingat WhatsApp ke penyewa yang jadwal kembalinya hari ini paling lambat pukul 12.00. Untuk yang terlambat, hubungi setiap hari sampai barang kembali.' },
       { id: 'sop-4', title: 'Pembatalan & refund', context: 'pembatalan', pinned: false, body: 'Cek tanggal pembatalan terhadap batas H-refund. Refund ditransfer maksimal 2×24 jam dan nomor referensi transfer wajib dicatat.' },
     ],
@@ -563,6 +563,8 @@
     tgl_sewa: 'Periode sewa', tgl_ambil: 'Tanggal ambil', tgl_kembali: 'Tanggal kembali', jam_kembali: 'Jam batas kembali', lama: 'Lama sewa', status: 'Status pesanan',
     terlambat: 'Jumlah malam terlambat', denda: 'Total denda', total_bayar: 'Total dibayar saat kembali', estimasi: 'Estimasi selesai laundry',
     ekspedisi: 'Nama ekspedisi', resi: 'Nomor resi', pengantar: 'Nama staff pengantar', hp_pengantar: 'No. HP pengantar', penerima: 'Nama & HP penerima', alamat: 'Alamat tujuan',
+    email_login: 'Email login staff', kata_sandi: 'Kata sandi baru staff', link_login: 'Link halaman masuk', wajib_ganti: 'Kalimat pengingat ganti kata sandi',
+    jumlah_refund: 'Jumlah DP yang dikembalikan', rekening: 'Rekening tujuan refund (bank, nomor, atas nama)', ref_transfer: 'No. referensi transfer', tgl_refund: 'Tanggal & jam refund',
     nama_toko: 'Nama toko', alamat_toko: 'Alamat toko', jam_buka: 'Jam buka', wa_toko: 'Nomor WhatsApp toko',
   };
   const T_TAIL = '\n\nNota digital: {link_nota}\nAlamat toko: {alamat_toko} ({jam_buka}). Terima kasih!';
@@ -571,6 +573,12 @@
     { key: 'sale_nota', group: 'Penjualan', title: 'Kirim invoice penjualan', when: 'Penjualan → Detail → Hubungi customer',
       vars: ['nama', 'no_nota', 'tanggal', 'rincian', 'total', 'dibayar', 'sisa', 'pengiriman', 'link_nota'],
       def: 'Halo {nama}, berikut invoice pembelian dari {nama_toko}.\n\n*INVOICE {no_nota}*\nTanggal: {tanggal}\n{rincian}\n\n{pengiriman}\n\nInvoice digital: {link_nota}\nTerima kasih!' },
+    { key: 'sale_ready', group: 'Penjualan', title: 'Pesanan siap diambil di toko', when: 'Penjualan → Tandai siap diambil (ambil di toko)',
+      vars: ['nama_depan', 'no_nota', 'rincian', 'link_nota'],
+      def: 'Halo Kak {nama_depan}, pesanan *{no_nota}* sudah siap diambil di toko {nama_toko} ({alamat_toko}, {jam_buka}).\n\n{rincian}\n\nTunjukkan nomor pesanan ini saat mengambil ya.\nNota digital: {link_nota}' },
+    { key: 'sale_thanks', group: 'Penjualan', title: 'Terima kasih & minta ulasan', when: 'Penjualan → Serahkan barang (opsional)',
+      vars: ['nama_depan', 'no_nota', 'link_nota'],
+      def: 'Terima kasih Kak {nama_depan} sudah belanja di {nama_toko}! Pesanan *{no_nota}* sudah diserahkan.\n\nKalau berkenan, beri ulasan untuk barangnya ya, sangat membantu kami: {link_nota}' },
     { key: 'kasir_sale', group: 'Penjualan', title: 'Setelah transaksi jual di kasir', when: 'Kasir → Jual → Transaksi tersimpan',
       vars: ['nama', 'no_nota', 'total', 'dibayar', 'metode', 'rincian', 'link_nota'],
       def: 'Halo {nama}, terima kasih sudah berbelanja di {nama_toko}.\nNo. invoice: {no_nota}\n{rincian}\nDibayar {dibayar} ({metode})\n\nInvoice digital: {link_nota}' },
@@ -598,6 +606,18 @@
     { key: 'svc_nota', group: 'Rental', title: 'Nota layanan antar / jasa tenda diperbarui', when: 'Booking → Layanan → Simpan nota layanan',
       vars: ['nama', 'no_nota', 'rincian', 'link_nota'],
       def: 'Halo {nama}, nota {no_nota} sudah kami perbarui.\n{rincian}\n\nNota: {link_nota}' },
+    { key: 'staff_pw', group: 'Staff', title: 'Info login & kata sandi staff', when: 'Manajemen Staff → Tambah staff / Buat kata sandi baru → Kirim ke WhatsApp',
+      vars: ['nama_depan', 'email_login', 'kata_sandi', 'link_login', 'wajib_ganti'],
+      def: 'Halo {nama_depan}, berikut info login akun staff {nama_toko}:\n\nEmail: {email_login}\nKata sandi: *{kata_sandi}*\nMasuk di: {link_login}\n\n{wajib_ganti}\nJangan bagikan kata sandi ini ke siapa pun, dan hapus pesan ini setelah berhasil login ya.' },
+    { key: 'refund_tf', group: 'Rental', title: 'Refund DP sudah ditransfer', when: 'Pembatalan → Proses refund (transfer) → Simpan & kirim konfirmasi',
+      vars: ['nama_depan', 'no_nota', 'jumlah_refund', 'rekening', 'ref_transfer', 'tgl_refund'],
+      def: 'Halo Kak {nama_depan}, pengembalian DP pembatalan booking *{no_nota}* sebesar *{jumlah_refund}* sudah kami transfer ke rekening berikut:\n{rekening}\nNo. referensi: {ref_transfer}\n\nBukti transfer kami lampirkan di chat ini ya. Mohon dicek, dan kabari kami bila dana belum masuk dalam 1×24 jam.\n\nTerima kasih,\n{nama_toko}' },
+    { key: 'refund_cash_ready', group: 'Rental', title: 'Refund DP tunai siap diambil', when: 'Pembatalan → Kabari siap diambil (metode tunai)',
+      vars: ['nama_depan', 'no_nota', 'jumlah_refund'],
+      def: 'Halo Kak {nama_depan}, pengembalian DP pembatalan booking *{no_nota}* sebesar *{jumlah_refund}* sudah bisa diambil tunai di toko {nama_toko} ({alamat_toko}, {jam_buka}).\n\nMohon tunjukkan nomor booking ini & identitas saat mengambil ya. Terima kasih!' },
+    { key: 'refund_cash', group: 'Rental', title: 'Refund DP tunai sudah diserahkan', when: 'Pembatalan → Proses refund (tunai) → Simpan & kirim konfirmasi',
+      vars: ['nama_depan', 'no_nota', 'jumlah_refund', 'tgl_refund'],
+      def: 'Halo Kak {nama_depan}, pengembalian DP pembatalan booking *{no_nota}* sebesar *{jumlah_refund}* sudah kami serahkan secara tunai di toko pada {tgl_refund}. Bukti serah terima kami lampirkan di chat ini.\n\nTerima kasih,\n{nama_toko}' },
     { key: 'ld_diterima', group: 'Laundry', title: 'Laundry diterima', when: 'Kasir → Laundry tersimpan / Hubungi customer (status Diterima)',
       vars: ['nama', 'no_nota', 'estimasi', 'rincian', 'link_nota'],
       def: 'Halo {nama}, laundry Anda telah kami terima. Untuk estimasi selesainya di hari {estimasi}, tapi akan kami kabari lagi ya.' + LD_TAIL },
@@ -688,6 +708,14 @@
     const pl = tierPlan(t, days);
     if (!pl.parts.length) return `${days} malam`;
     return pl.parts.map((x) => (x.days === 1 ? `${x.n} malam` : x.n > 1 ? `${x.n}× ${x.name}` : x.name)).join(' + ');
+  }
+  /* Rincian harga per unit yang mudah dihitung customer, contoh:
+     "6 malam = Ekspedisi (5 hari) Rp100.000 + 1 malam Rp20.000". Kosong bila hanya tarif per malam biasa. */
+  function tierBreak(t, days) {
+    const pl = tierPlan(t, days);
+    if (!pl.parts.length || (pl.parts.length === 1 && pl.parts[0].days === 1)) return '';
+    const rp = (n) => 'Rp' + Number(n || 0).toLocaleString('id-ID');
+    return `${days} malam = ` + pl.parts.map((x) => (x.days === 1 ? `${x.n} malam × ${rp(x.price)}` : `${x.n > 1 ? x.n + '× ' : ''}${x.name} ${rp(x.price)}`)).join(' + ');
   }
   function packageTiers(pk, find) {
     if (!pk) return { d1: 0, d3: 0, d5: 0 };
@@ -1243,13 +1271,14 @@
         if (b && b.status === 'disewa' && b.end === today()) return { k: 'out', due: 'today', l: `Kembali hari ini · ${u.out}`, tone: 'amber', booking: u.out };
         return { k: 'out', l: `Disewa · ${u.out}`, tone: 'blue', booking: u.out };
       }
-      if (u.care === 'cuci') return { k: 'cuci', l: 'Perlu dicuci', tone: 'teal' };
-      if (u.care === 'perbaikan') return { k: 'perbaikan', l: 'Dalam perbaikan', tone: 'red' };
+      if (u.care === 'cuci') return { k: 'cuci', l: 'Dicuci', tone: 'teal' };
+      if (u.care === 'perbaikan') return { k: 'perbaikan', l: 'Diperbaiki', tone: 'red' };
       if (!condRentable(u.cond)) return { k: 'bad', l: u.cond, tone: 'red' };
-      return { k: 'siap', l: 'Siap disewa', tone: 'green' };
+      return { k: 'siap', l: 'Siap', tone: 'green' };
     },
     washCats: () => (read('settings', SETTINGS).washCats ?? SETTINGS.washCats),
-    needsWash: (p) => !!p && DB.washCats().includes(p.cat),
+    /* p.wash: true = selalu dicuci, false = tidak perlu, kosong = ikuti kategori */
+    needsWash: (p) => !!p && (p.wash === true || (p.wash !== false && DB.washCats().includes(p.cat))),
     setCare(pid, code, care, info) {
       const me = DB.session();
       const txt = care === 'cuci' ? 'Masuk antrian cuci' : `Dilaporkan rusak: ${info && info.issue ? info.issue : '-'} — masuk perbaikan`;
@@ -1275,7 +1304,7 @@
       }));
       return out;
     },
-    serviceDue(p, u) { const n = p.serviceEvery || DB.settings().serviceEvery || 10; return u.status === 'aktif' && u.sinceService >= n; },
+    serviceDue(p, u) { const n = +(p.serviceEvery || DB.settings().serviceEvery || 0); if (!n) return false; return u.status === 'aktif' && u.sinceService >= n; },
     updateUnit(pid, code, patch, action, extraChanges) {
       const all = read('products', PRODUCTS); const p = all.find((x) => x.id === pid); if (!p) return null;
       const u = (p.units || []).find((x) => x.code === code); if (!u) return null;
@@ -1754,13 +1783,16 @@
       const email = data.email.trim().toLowerCase();
       const dup = users.find((x) => x.email.toLowerCase() === email);
       if (dup) return { ok: false, field: 'email', msg: isStaff(dup) ? 'Email ini sudah terdaftar sebagai staff.' : 'Email ini sudah dipakai akun customer. Gunakan email lain.' };
-      const me = DB.session(); const temp = DB.tempPassword();
-      const u = { id: 'u' + Date.now(), name: data.name.trim(), email, phone: data.phone || '', address: '', role: data.role, status: data.status, password: pwHash(temp), mustChangePw: true, createdAt: nowStamp(), createdBy: me ? me.id : '' };
+      /* Kata sandi dibuat Owner (bukan dari sistem); akun baru selalu Admin / Staff */
+      const pw = String(data.password || '');
+      if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return { ok: false, field: 'spw', msg: 'Kata sandi minimal 8 karakter dan berisi huruf & angka.' };
+      const me = DB.session();
+      const u = { id: 'u' + Date.now(), name: data.name.trim(), email, phone: data.phone || '', address: '', role: 'admin', status: data.status, password: pwHash(pw), mustChangePw: data.mustChangePw !== false, createdAt: nowStamp(), createdBy: me ? me.id : '' };
       users.push(u); write('users', users);
       DB.audit({ type: 'staff', action: `Menambahkan staff ${u.name} (${ROLE_LABEL[u.role]})`, ref: u.id, changes: [{ field: 'Email', from: '', to: u.email }, { field: 'Role', from: '', to: ROLE_LABEL[u.role] }, { field: 'Status', from: '', to: u.status === 'aktif' ? 'Aktif' : 'Nonaktif' }] });
       let mail = null;
-      if (data.sendEmail) mail = DB.sendMail({ kind: 'staff_invite', to: u.email, subject: 'Anda telah ditambahkan sebagai Staff Annapurna Adventure Shop', data: { name: u.name, email: u.email, role: u.role, tempPassword: temp, by: me ? me.name : 'Owner' } });
-      return { ok: true, user: u, temp, mail };
+      if (data.sendEmail) mail = DB.sendMail({ kind: 'staff_invite', to: u.email, subject: 'Anda telah ditambahkan sebagai Staff Annapurna Adventure Shop', data: { name: u.name, email: u.email, role: u.role, ownerSetPw: true, mustChange: u.mustChangePw, by: me ? me.name : 'Owner' } });
+      return { ok: true, user: u, mail };
     },
     updateStaff(id, patch) {
       const users = read('users', USERS); const u = users.find((x) => x.id === id); if (!u) return { ok: false };
@@ -1774,8 +1806,16 @@
       }
       return { ok: true, user: u, changes: ch };
     },
-    resetStaffPassword(id) {
+    /* opts.password: kata sandi baru dibuat Owner (tidak dikirim lewat email). Tanpa opts: kata sandi sementara acak (cara lama). */
+    resetStaffPassword(id, opts = {}) {
       const users = read('users', USERS); const u = users.find((x) => x.id === id); if (!u) return null;
+      if (opts.password) {
+        u.password = pwHash(opts.password); u.mustChangePw = opts.mustChangePw !== false; write('users', users);
+        DB.audit({ type: 'staff', action: `Membuat kata sandi baru untuk staff ${u.name}`, ref: u.id });
+        const me0 = DB.session();
+        const mail0 = opts.sendEmail ? DB.sendMail({ kind: 'password_reset', to: u.email, subject: 'Kata sandi akun Staff Annapurna Adventure diganti', data: { name: u.name, email: u.email, role: u.role, ownerSetPw: true, mustChange: u.mustChangePw, by: me0 ? me0.name : 'Owner' } }) : null;
+        return { ok: true, mail: mail0 };
+      }
       const temp = DB.tempPassword(); u.password = pwHash(temp); u.mustChangePw = true; write('users', users);
       const me = DB.session();
       DB.audit({ type: 'staff', action: `Mengatur ulang kata sandi staff ${u.name}`, ref: u.id });
@@ -1858,7 +1898,7 @@
     productTiers,
     packageTiers: (pk) => packageTiers(typeof pk === 'string' ? DB.pkg(pk) : pk, (id) => DB.product(id)),
     tierPlan,
-    tierLabel,
+    tierLabel, tierBreak,
     DUR_DEFAULT, durRules, durBlocks,
     /* Harga 1 unit untuk lama sewa tertentu. src: produk, paket, atau baris booking. */
     unitPrice(src, days) {
@@ -2135,6 +2175,16 @@
     return null;
   };
   /* Label lama yang berupa klaim (Best Seller, Populer, Terlaris) dikosongkan; label admin di luar daftar juga dikosongkan */
+  /* Penyederhanaan perawatan (sekali saja): wajib cuci bawaan hanya Tenda (+ Sleeping Bag per barang), perawatan berkala nonaktif.
+     Hanya mengganti nilai yang masih sama persis dengan bawaan lama, jadi pengaturan yang sengaja diubah Owner tidak tersentuh. */
+  (function migrateCareV2() {
+    const st = read('settings', null); if (!st || st._careV2) return;
+    const OLD = ['tenda', 'tas', 'footwear', 'fashion', 'outdoor', 'cooking'];
+    if (Array.isArray(st.washCats) && st.washCats.length === OLD.length && OLD.every((c) => st.washCats.includes(c))) st.washCats = ['tenda'];
+    if (+st.serviceEvery === 10) st.serviceEvery = 0;
+    st._careV2 = true; write('settings', st);
+    const all = read('products', PRODUCTS); const sb = all.find((x) => x.id === 'oe-sb'); if (sb && sb.wash == null) { sb.wash = true; write('products', all); }
+  })();
   (function migrateBadges() {
     const all = read('products', PRODUCTS); let ch = false;
     all.forEach((p) => { if (p.badge && !DB.ADMIN_BADGES.includes(p.badge)) { p.badge = ''; ch = true; } });
@@ -2474,13 +2524,25 @@
     /* Link nota PENDEK (mis. https://annapurna.id/n/K7x2Q9) — butuh endpoint backend POST /api/nota-link (lihat catatan-backend.md C.9).
        Selama endpoint belum ada (404/405/offline), otomatis memakai link panjang seperti biasa dan tidak dicoba lagi di sesi ini. */
     _shortOff: false,
+    /* Semua link nota dipendekkan lewat endpoint yang sudah ada (POST api/nota-link → /n/{token}).
+       - Link pendek disimpan & dipakai ulang selama isi nota sama (tidak membuat token baru tiap kirim).
+       - Pemendek hanya dimatikan bila endpoint memang belum ada (404/405). Gangguan sesaat (offline, timeout, 419, 5xx)
+         tidak lagi mematikan pemendek untuk seluruh sesi; pengiriman berikutnya dicoba lagi. */
     async short(kind, id, code) {
       if (Share._shortOff || !window.Api || !code) return '';
+      const key = kind + '|' + id; let cache = {};
+      try { cache = JSON.parse(localStorage.getItem('ann_short') || '{}'); } catch (e) { cache = {}; }
+      const hit = cache[key]; if (hit && hit.code === code && hit.url) return hit.url;
       try {
-        const r = await window.Api.post('api/nota-link', { kind, id, payload: code }, { redirectOn401: false, timeout: 4000 });
-        if (r && r.ok && r.data && (r.data.url || r.data.token)) return r.data.url || new URL(window.UI.url('n/' + r.data.token), location.href).href;
-        if (!r || [0, 404, 405, 408, 419, 500].includes(r.status)) Share._shortOff = true;
-      } catch (e) { Share._shortOff = true; }
+        const r = await window.Api.post('api/nota-link', { kind, id, payload: code }, { redirectOn401: false, timeout: 5000 });
+        if (r && r.ok && r.data && (r.data.url || r.data.token)) {
+          const u = r.data.url || new URL(window.UI.url('n/' + r.data.token), location.href).href;
+          cache[key] = { code, url: u }; const ks = Object.keys(cache); if (ks.length > 300) delete cache[ks[0]];
+          try { localStorage.setItem('ann_short', JSON.stringify(cache)); } catch (e) { /* penyimpanan penuh: abaikan */ }
+          return u;
+        }
+        if (r && [404, 405].includes(r.status)) Share._shortOff = true;
+      } catch (e) { /* gangguan sesaat: coba lagi di pengiriman berikutnya */ }
       return '';
     },
     /* Link nota publik (sinkron). Bila belum di-ensure: pakai versi tidak terkompres (lebih panjang tapi tetap berfungsi). */

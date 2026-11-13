@@ -22,11 +22,12 @@
   }
   const A = (p) => url('admin/' + p), O = (p) => url('owner/' + p);
 
-  const bookingBadge = () => DB.bookings().filter((b) => b.status === 'menunggu_konfirmasi').length + pendingRequests().length;
+  /* Barang Keluar & Kembali + Perawatan unit kini jadi tab di menu Booking Rental → badge-nya ikut di sini */
+  const bookingBadge = () => DB.bookings().filter((b) => b.status === 'menunggu_konfirmasi' || (b.status === 'disewa' && b.end <= D.today())).length + pendingRequests().length;
+  const op = (id) => OPS.find((o) => o.id === id);
   const OPS = [
     { id: 'kasir', href: A('kasir'), icon: 'fa-cash-register', label: 'Kasir (offline)' },
     { id: 'booking', href: A('booking'), icon: 'fa-calendar-check', label: 'Booking Rental', cnt: bookingBadge },
-    { id: 'pengembalian', href: A('pengembalian'), icon: 'fa-right-left', label: 'Barang Keluar & Kembali', cnt: () => { const q = DB.careQueue(); return DB.bookings().filter((b) => b.status === 'disewa' && b.end <= D.today()).length + q.cuci.length + q.perbaikan.length; } },
     { id: 'barang', href: A('barang'), icon: 'fa-boxes-stacked', label: 'Data Barang' },
     { id: 'penjualan', href: A('penjualan'), icon: 'fa-bag-shopping', label: 'Penjualan', cnt: () => DB.sales().filter((s) => ['diproses', 'dikemas'].includes(s.status) || s.paymentStatus === 'verifying').length },
     { id: 'ulasan', href: A('ulasan'), icon: 'fa-star', label: 'Ulasan & Testimoni', cnt: () => DB.reviews().filter((r) => !r.seen).length },
@@ -35,8 +36,11 @@
   const MENU = isOwner ? [
     { id: 'owner-dashboard', href: O('dashboard'), icon: 'fa-gauge-high', label: 'Dashboard' },
     { fold: 'ops', label: 'Operasional', icon: 'fa-store', items: OPS },
-    { id: 'keuangan', href: A('keuangan'), icon: 'fa-wallet', label: 'Keuangan' },
-    { id: 'laporan', href: A('laporan'), icon: 'fa-file-lines', label: 'Laporan' },
+    /* Keuangan & Laporan dikelompokkan dalam satu grup (halamannya tetap terpisah) */
+    { fold: 'uang', label: 'Keuangan', icon: 'fa-wallet', items: [
+      { id: 'keuangan', href: A('keuangan'), icon: 'fa-receipt', label: 'Catatan keuangan' },
+      { id: 'laporan', href: A('laporan'), icon: 'fa-file-lines', label: 'Laporan' },
+    ] },
     { grp: 'Bisnis' },
     { id: 'owner-pelanggan', href: O('pelanggan'), icon: 'fa-address-book', label: 'Data Pelanggan' },
     { id: 'owner-promo', href: O('promo'), icon: 'fa-ticket', label: 'Promo & Diskon' },
@@ -47,17 +51,15 @@
   ] : [
     { id: 'dashboard', href: A('dashboard'), icon: 'fa-gauge-high', label: 'Dashboard' },
     { grp: 'Operasional' },
-    ...OPS.slice(0, 4),
-    OPS[6],
+    op('kasir'), op('booking'), op('barang'), op('laundry'),
     { grp: 'Pelanggan & Keuangan' },
-    OPS[4],
+    op('penjualan'),
     { id: 'keuangan', href: A('keuangan'), icon: 'fa-cash-register', label: 'Kas Harian' },
   ];
   /* Halaman yang digabung jadi tab: id halaman → id menu induk */
-  const PARENT = { kalender: 'booking', permintaan: 'booking', perawatan: 'pengembalian', 'owner-integrasi': 'laporan', pengaturan: isOwner ? 'owner-konfigurasi' : '', sop: '', ...(isOwner ? { dashboard: 'owner-dashboard' } : {}) };
+  const PARENT = { kalender: 'booking', permintaan: 'booking', perawatan: 'booking', pengembalian: 'booking', 'owner-integrasi': 'laporan', pengaturan: isOwner ? 'owner-konfigurasi' : '', sop: '', ...(isOwner ? { dashboard: 'owner-dashboard' } : {}) };
   const SUBTABS = {
-    pengembalian: [['pengembalian', 'Barang keluar & kembali', A('pengembalian'), 'fa-right-left'], ['perawatan', 'Perawatan unit', A('perawatan'), 'fa-soap', () => { const q = DB.careQueue(); return q.cuci.length + q.perbaikan.length; }]],
-    booking: [['booking', 'Daftar booking', A('booking'), 'fa-list'], ['kalender', 'Kalender', A('kalender'), 'fa-calendar-days', () => svcSchedule(D.today(), D.addDays(D.today(), 1)).length], ['permintaan', 'Permintaan', A('permintaan'), 'fa-arrows-rotate', () => pendingRequests().length]],
+    booking: [['booking', 'Daftar booking', A('booking'), 'fa-list'], ['kalender', 'Kalender', A('kalender'), 'fa-calendar-days', () => svcSchedule(D.today(), D.addDays(D.today(), 1)).length], ['permintaan', 'Permintaan', A('permintaan'), 'fa-arrows-rotate', () => pendingRequests().length], ['pengembalian', 'Keluar & kembali', A('pengembalian'), 'fa-right-left', () => DB.bookings().filter((b) => b.status === 'disewa' && b.end <= D.today()).length], ['perawatan', 'Perawatan unit', A('perawatan'), 'fa-soap', () => { const q = DB.careQueue(); return q.cuci.length + q.perbaikan.length; }]],
     ...(isOwner ? {
       'owner-dashboard': [['owner-dashboard', 'Ringkasan bisnis', O('dashboard'), 'fa-chart-line'], ['dashboard', 'Operasional hari ini', A('dashboard'), 'fa-sun']],
       laporan: [['laporan', 'Laporan', A('laporan'), 'fa-file-lines'], ['owner-integrasi', 'Rekap otomatis (Drive & Email)', O('integrasi'), 'fa-cloud-arrow-up']],
@@ -334,22 +336,30 @@
   function refreshShell() { if (shellState) renderShell(shellState.active, shellState.title); }
   document.addEventListener('click', (e) => { if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach((o) => o.classList.remove('open')); });
 
-  function forcePassword() {
-    const m = UI.modal({ locked: true, title: 'Buat kata sandi baru', body: `
-      <div class="notice" style="margin-bottom:14px"><i class="fa-solid fa-key"></i><div>Akun kamu dibuat oleh Owner dengan <strong>kata sandi sementara</strong>. Demi keamanan, ganti kata sandi sebelum mulai bekerja.</div></div>
+  /* Kata sandi dari Owner belum diganti staff: cukup PENGINGAT (tidak mengunci panel, tidak ada tombol yang mengeluarkan staff).
+     Pengingat muncul di atas halaman; "Nanti saja" menyembunyikannya sampai login berikutnya. */
+  function pwReminder() {
+    try { if (sessionStorage.getItem('ann_pw_later')) return; } catch (e) { /* abaikan */ }
+    const box = document.querySelector('.content'); if (!box || document.getElementById('pwRemind')) return;
+    box.insertAdjacentHTML('afterbegin', `<div class="notice pw-remind" id="pwRemind"><i class="fa-solid fa-key"></i><div><b>Kata sandi kamu masih kata sandi dari Owner.</b> Ganti dengan kata sandi buatanmu sendiri supaya hanya kamu yang tahu.</div>
+      <div class="pw-remind-acts"><button type="button" class="btn btn-primary btn-sm" id="pwNow"><i class="fa-solid fa-key"></i> Ganti sekarang</button><button type="button" class="btn btn-light btn-sm" id="pwLater">Nanti saja</button></div></div>`);
+    document.getElementById('pwLater').addEventListener('click', () => { try { sessionStorage.setItem('ann_pw_later', '1'); } catch (e) { /* abaikan */ } document.getElementById('pwRemind').remove(); });
+    document.getElementById('pwNow').addEventListener('click', changePasswordModal);
+  }
+  function changePasswordModal() {
+    const m = UI.modal({ title: 'Ganti kata sandi', body: `
       <form id="fpw" novalidate>
-        <div class="field"><label>Kata sandi sementara</label><input class="input" type="password" name="old" autocomplete="current-password"></div>
+        <div class="field"><label>Kata sandi sekarang <span class="opt">(yang diberikan Owner)</span></label><input class="input" type="password" name="old" autocomplete="current-password"></div>
         <div class="field"><label>Kata sandi baru</label><input class="input" type="password" name="npw" autocomplete="new-password"><span class="hint">Minimal 6 karakter.</span></div>
         <div class="field"><label>Ulangi kata sandi baru</label><input class="input" type="password" name="npw2" autocomplete="new-password"></div>
       </form>`,
-      foot: `<button class="btn btn-light" id="fpwOut">Keluar</button><button class="btn btn-primary" id="fpwOk"><i class="fa-solid fa-check"></i> Simpan kata sandi</button>` });
-    m.$('#fpwOut').addEventListener('click', () => UI.serverLogout(url('masuk')));
+      foot: `<button class="btn btn-light" data-close>Nanti saja</button><button class="btn btn-primary" id="fpwOk"><i class="fa-solid fa-check"></i> Simpan kata sandi</button>` });
     m.$('#fpwOk').addEventListener('click', async () => {
       const F = m.$('#fpw'), E = F.elements;
-      if (!UI.validate(F, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : v === E.old.value ? 'Harus berbeda dari kata sandi sementara.' : ''), npw2: (v) => (v !== E.npw.value ? 'Kata sandi tidak sama.' : '') })) return;
+      if (!UI.validate(F, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : v === E.old.value ? 'Harus berbeda dari kata sandi sekarang.' : ''), npw2: (v) => (v !== E.npw.value ? 'Kata sandi tidak sama.' : '') })) return;
       const r = await Api.busy(m.$('#fpwOk'), () => Api.changePassword(E.old.value, E.npw.value), 'Menyimpan…'); if (!r) return;
-      if (!r.ok) { if (r.field === 'old') UI.validate(F, { old: () => r.msg || 'Kata sandi sementara salah.' }); else UI.toast(r.msg, 'err'); return; }
-      me.mustChangePw = false; m.close(); toast('Kata sandi baru disimpan. Selamat bekerja!');
+      if (!r.ok) { if (r.field === 'old') UI.validate(F, { old: () => r.msg || 'Kata sandi sekarang salah.' }); else UI.toast(r.msg, 'err'); return; }
+      me.mustChangePw = false; m.close(); const rb = document.getElementById('pwRemind'); if (rb) rb.remove(); toast('Kata sandi baru disimpan.');
     });
   }
 
@@ -365,7 +375,7 @@
       DB.audit({ type: 'akses', action: `Membuka halaman ${title}` });
       const s2 = DB.session(); s2.seen = Object.assign(s2.seen || {}, { [key]: D.nowStamp() }); DB.set('session', s2);
     }
-    if (me.mustChangePw) forcePassword();
+    if (me.mustChangePw) pwReminder();
     /* Rekap bulanan berjalan saat panel dibuka siapa pun (admin/owner) pada/di atas tanggal kirim */
     if (window.Reports) Reports.autoMonthly();
     if (isOwner) setTimeout(() => cleanupNotice(active), 900);
@@ -376,7 +386,8 @@
      Aktivitas (klik, ketik, gulir) disimpan sebagai "terakhir aktif". Bila lewat batas (default 60 menit, diatur owner),
      sesi diakhiri & tercatat "Logout otomatis" dengan jam = aktivitas terakhir — jadi histori login selalu punya jam keluar. */
   function idleWatch() {
-    const min = +(DB.settings().idleLogoutMin ?? 0); if (!min) return;
+    /* Pengaturan Sesi Staff dihapus dari Konfigurasi → logout otomatis tidak dipakai lagi (nilai lama diabaikan supaya tidak ada yang bisa mematikannya) */
+    const min = 0; if (!min) return;
     const K = 'ann_lastActive_' + me.id;
     const expired = () => { const last = +localStorage.getItem(K) || 0; return last && Date.now() - last > min * 60e3 ? last : 0; };
     const kick = (last) => { DB.logout({ auto: true, idleMin: min, at: new Date(last).toISOString() }); localStorage.removeItem(K); location.href = UI.url('masuk?idle=1'); };
@@ -431,6 +442,8 @@
   }
 
   const val = (r) => (typeof r === 'string' && r !== '-' ? r : '');
+  /* Foto (data URL) → Blob PNG, supaya bisa disalin ke clipboard / dilampirkan di jendela WhatsApp */
+  const dataUrlToPng = (src) => new Promise((res) => { const img = new Image(); img.onload = () => { const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); c.toBlob((bl) => res(bl), 'image/png'); }; img.onerror = () => res(null); img.src = src; });
   const log = (x, text, type, action, changes) => {
     x.history = x.history || []; x.history.push({ at: D.nowStamp(), text: `${text} (${me.name})` });
     DB.audit({ type: type || 'edit', action: action || `${text} — ${x.id}`, ref: x.id, changes });
@@ -438,6 +451,12 @@
   const chg = (field, from, to) => [{ field, from, to }];
   const rl = (k) => STATUS.rental[k].label, sl = (k) => STATUS.sale[k].label;
   const sisa = (b) => Math.max(0, b.total - Rules.paidTotal(b));
+  /* Sambungan ke endpoint backend yang sudah ada.
+     - serverPaymentId: dari respons api/pembayaran/upload → api/admin/pembayaran/{id}/verifikasi
+     - serverId: ID angka booking dari respons api/booking → endpoint pickup / return (yang menerima ID angka) */
+  const srvId = (x) => x.serverId || x.id;
+  const syncVerify = (x, label) => { if (!window.Api || !x.serverPaymentId) return;
+    Api.post(`api/admin/pembayaran/${x.serverPaymentId}/verifikasi`, {}, { redirectOn401: false }).then((r) => { if (r && !r.ok && r.status && ![404, 405, 422].includes(r.status)) toast(`${label} tersimpan, tetapi gagal dikirim ke server: ${r.msg}`, 'err'); }); };
   /* ===================== Pelunasan sewa (revisi mitra) =====================
      Dipakai di Catat barang keluar, Catat barang kembali & Detail booking (diantar / bayar transfer).
      - Diskon pelunasan (mis. rating Google Maps) SEKALI per booking, maks. sebesar sisa sewa → mengurangi total sewa (pemasukan), bukan pengeluaran
@@ -554,24 +573,34 @@
 
   /* ---------- Form & SOP yang diatur Owner (Konfigurasi → Form & Field, SOP) ---------- */
   const SOP_CTX = { pickup: 'barang_keluar', return: 'pengembalian', cancel: 'pembatalan' };
+  /* SOP cukup jadi tautan bacaan di judul form (tanpa centang wajib) */
   function sopBox(k) {
     const L = DB.sops(SOP_CTX[k]).filter((x) => x.active !== false);
-    if (!L.length) return '';
-    return `<div class="sop-inline"><div class="si-h"><i class="fa-solid fa-clipboard-list"></i> SOP yang berlaku</div>${L.map((x) => `<details ${L.length === 1 ? 'open' : ''}><summary>${esc(x.title)}</summary><p>${esc(x.body)}</p></details>`).join('')}
-      <label class="chk-line"><input type="checkbox" data-sopok> Saya sudah mengikuti SOP di atas</label></div>`;
+    return L.length ? `<button type="button" class="link-btn sop-link" data-sop="${k}"><i class="fa-solid fa-clipboard-list"></i> Lihat SOP</button>` : '';
   }
-  function extraFields(k) {
-    const f = DB.formCfg(k); const req = (mode) => (mode === 'wajib' ? ' <span class="req">*</span>' : '');
-    let h = '';
-    if (f.photo !== 'sembunyi') h += `<div class="field"><label>${k === 'return' ? 'Foto kondisi barang' : 'Foto barang saat keluar'}${f.photo === 'wajib' ? req(f.photo) : ' <span class="opt">(opsional)</span>'}</label><div class="photo-up" data-photo><label class="btn btn-light btn-sm" style="cursor:pointer"><i class="fa-solid fa-camera"></i> ${matchMedia('(pointer: coarse)').matches ? 'Ambil / pilih foto' : 'Pilih foto'}<input type="file" accept="image/*" ${matchMedia('(pointer: coarse)').matches ? 'capture="environment"' : ''} hidden data-photoin></label>${f.photo === 'wajib' ? '' : '<small class="muted photo-skip">Boleh dilewati, tidak wajib.</small>'}<div class="photo-prev"></div></div></div>`;
-    (f.custom || []).forEach((c) => {
-      const lbl = `${esc(c.label)}${c.required ? ' <span class="req">*</span>' : ''}`;
-      if (c.type === 'centang') h += `<label class="chk-line"><input type="checkbox" data-cx="${c.id}"> ${lbl}</label>`;
-      else if (c.type === 'pilihan') h += `<div class="field"><label>${lbl}</label><select class="select" data-cx="${c.id}"><option value="">— Pilih —</option>${(c.options || []).map((o) => `<option>${esc(o)}</option>`).join('')}</select></div>`;
-      else if (c.type === 'foto') h += `<div class="field"><label>${lbl}</label><div class="photo-up" data-photo data-cx="${c.id}"><label class="btn btn-light btn-sm" style="cursor:pointer"><i class="fa-solid fa-camera"></i> Pilih foto<input type="file" accept="image/*" hidden data-photoin></label><div class="photo-prev"></div></div></div>`;
-      else h += `<div class="field"><label>${lbl}</label><input class="input" data-cx="${c.id}" ${c.type === 'angka' ? 'type="number"' : ''}></div>`;
-    });
-    return h;
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-sop]'); if (!t) return;
+    const L = DB.sops(SOP_CTX[t.dataset.sop]).filter((x) => x.active !== false);
+    modal({ title: 'SOP yang berlaku', body: L.map((x) => `<div class="sop-read"><b>${esc(x.title)}</b><p>${esc(x.body)}</p></div>`).join(''), foot: '<button class="btn btn-primary" data-close>Mengerti</button>' });
+  });
+  /* Isian tambahan form barang keluar / kembali.
+     Yang WAJIB (diatur Owner di Form & Field) tampil langsung; yang opsional dilipat di "+ Catatan / foto". */
+  function extraFields(k, note) {
+    const f = DB.formCfg(k); const touch = matchMedia('(pointer: coarse)').matches;
+    const req = ' <span class="req">*</span>', opt = ' <span class="opt">(opsional)</span>';
+    const noteH = (w) => `<div class="field"><label>${note.label}${w ? req : ''}</label><textarea class="textarea" id="${note.id}" rows="2" placeholder="${note.placeholder}"></textarea></div>`;
+    const photoH = (w) => `<div class="field"><label>${k === 'return' ? 'Foto kondisi barang' : 'Foto barang saat keluar'}${w ? req : ''}</label><div class="photo-up" data-photo><label class="btn btn-light btn-sm" style="cursor:pointer"><i class="fa-solid fa-camera"></i> ${touch ? 'Ambil / pilih foto' : 'Pilih foto'}<input type="file" accept="image/*" ${touch ? 'capture="environment"' : ''} hidden data-photoin></label><div class="photo-prev"></div></div></div>`;
+    const custH = (c) => { const lbl = `${esc(c.label)}${c.required ? req : ''}`;
+      if (c.type === 'centang') return `<label class="chk-line"><input type="checkbox" data-cx="${c.id}"> ${lbl}</label>`;
+      if (c.type === 'pilihan') return `<div class="field"><label>${lbl}</label><select class="select" data-cx="${c.id}"><option value="">— Pilih —</option>${(c.options || []).map((o) => `<option>${esc(o)}</option>`).join('')}</select></div>`;
+      if (c.type === 'foto') return `<div class="field"><label>${lbl}</label><div class="photo-up" data-photo data-cx="${c.id}"><label class="btn btn-light btn-sm" style="cursor:pointer"><i class="fa-solid fa-camera"></i> Pilih foto<input type="file" accept="image/*" hidden data-photoin></label><div class="photo-prev"></div></div></div>`;
+      return `<div class="field"><label>${lbl}</label><input class="input" data-cx="${c.id}" ${c.type === 'angka' ? 'type="number"' : ''}></div>`; };
+    const top = [], more = [];
+    if (note && f.note !== 'sembunyi') (f.note === 'wajib' ? top : more).push(noteH(f.note === 'wajib'));
+    if (f.photo !== 'sembunyi') (f.photo === 'wajib' ? top : more).push(photoH(f.photo === 'wajib'));
+    /* Field tambahan buatan Owner ditiadakan (Form & Field versi ringkas) */
+    const hasNP = (note && f.note === 'opsional') || f.photo === 'opsional';
+    return top.join('') + (more.length ? `<details class="more-box" data-more><summary><i class="fa-solid fa-plus"></i> ${hasNP ? 'Catatan / foto' : 'Isian tambahan'}${opt}</summary><div class="more-in">${more.join('')}</div></details>` : '');
   }
   function bindExtras(m) {
     m.$$('[data-photoin]').forEach((inp) => inp.addEventListener('change', async () => {
@@ -586,7 +615,7 @@
     const main = m.$('[data-photo]:not([data-cx])'); const photo = main ? main.dataset.val || '' : '';
     if (main && f.photo === 'wajib' && !photo) { errs.push('foto'); main.classList.add('err'); }
     const extra = [];
-    (f.custom || []).forEach((c) => {
+    [].forEach((c) => {
       const el = m.$(`[data-cx="${c.id}"]`); if (!el) return;
       const v = c.type === 'centang' ? (el.checked ? 'Ya' : '') : c.type === 'foto' ? el.dataset.val || '' : el.value.trim();
       if (c.required && !v) { errs.push(c.label); el.classList.add('err'); }
@@ -628,44 +657,61 @@
   }
   function unitPicker(b) {
     const needs = unitNeeds(b); if (!needs.length) return '';
-    return `<div class="mini-sec"><h4>Unit yang diserahkan</h4><p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Centang nomor unit fisik yang diberikan ke customer. Unit yang belum dicuci, sedang diperbaiki, atau sedang disewa tidak bisa dipilih.</p>${needs.map((x, k) => {
+    return `<div class="mini-sec up-wrap" data-upwrap hidden><h4>Pilih unit lain</h4><p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Centang nomor unit fisik yang diberikan ke customer. Unit yang sedang disewa atau diperbaiki tidak bisa dipilih; unit berstatus <b>Dicuci</b> boleh dipilih bila sudah bersih.</p>${needs.map((x, k) => {
       const cand = (x.p.units || []).filter((u) => u.status === 'aktif' && (!x.size || u.size === x.size));
       const free = cand.filter((u) => DB.unitReady(u)).sort((a, c) => a.sinceService - c.sinceService);
       const pre = new Set(free.slice(0, x.n).map((u) => u.code));
       return `<div class="unit-pick" data-need="${k}" data-n="${x.n}"><div class="up-h"><b>${esc(x.label)}</b><span class="muted">pilih ${x.n} unit</span></div><div class="up-grid">${cand.map((u) => { const ok = DB.unitReady(u); const due = DB.serviceDue(x.p, u); const st = DB.unitState(u);
-        return `<label class="up-u ${ok ? '' : 'no'}" title="${esc(u.notes || '')}"><input type="checkbox" value="${u.code}" data-pid="${x.p.id}" ${pre.has(u.code) ? 'checked' : ''} ${ok ? '' : 'disabled'}><span><b>${u.code}</b><small>${ok ? esc(u.cond) : esc(st.l)}${due && ok ? ' · jatuh tempo perawatan' : ''}</small></span></label>`; }).join('')}</div></div>`;
+        const wash = !ok && st.k === 'cuci'; /* masih tercatat dicuci: boleh dipilih bila staff memastikan sudah bersih */
+        return `<label class="up-u ${ok ? '' : wash ? 'wash' : 'no'}" title="${esc(u.notes || '')}"><input type="checkbox" value="${u.code}" data-pid="${x.p.id}" ${wash ? 'data-wash="1"' : ''} ${pre.has(u.code) ? 'checked' : ''} ${ok || wash ? '' : 'disabled'}><span><b>${u.code}</b><small>${ok ? esc(u.cond) : esc(st.l)}${due && ok ? ' · jatuh tempo perawatan' : ''}</small></span></label>`; }).join('')}</div></div>`;
     }).join('')}</div>`;
+  }
+  /* Ringkasan unit yang sudah dipilih otomatis; daftar lengkap hanya dibuka lewat "Ganti unit" */
+  function unitSummaryField(b) {
+    if (!unitNeeds(b).length) return '';
+    return `<div class="field"><label>Unit diserahkan <span class="opt">(dipilih otomatis)</span></label><div class="up-sum" data-upsum></div><button type="button" class="link-btn up-tg" data-uptoggle>Ganti unit</button></div>`;
+  }
+  function bindUnitSummary(m) {
+    const wrap = m.$('[data-upwrap]'), sum = m.$('[data-upsum]'), tg = m.$('[data-uptoggle]'); if (!wrap || !sum) return;
+    const short = () => [...wrap.querySelectorAll('[data-need]')].some((bx) => bx.querySelectorAll('input:checked').length !== +bx.dataset.n);
+    const draw = () => { const codes = [...wrap.querySelectorAll('input:checked')].map((i) => i.value);
+      sum.innerHTML = (codes.length ? codes.map((c) => `<code>${esc(c)}</code>`).join('') : '<small class="muted">Belum ada unit dipilih</small>') + (short() ? '<small class="up-warn"><i class="fa-solid fa-triangle-exclamation"></i> Jumlah unit belum pas, pilih di daftar.</small>' : ''); };
+    const set = (open) => { wrap.hidden = !open; tg.textContent = open ? 'Tutup daftar unit' : 'Ganti unit'; };
+    tg.addEventListener('click', () => set(wrap.hidden));
+    wrap.addEventListener('change', draw); draw();
+    if (short()) set(true);
   }
   function readUnitPicks(m, b) {
     const needs = unitNeeds(b); const picks = {};
     for (let k = 0; k < needs.length; k++) {
       const box = m.$(`[data-need="${k}"]`); const sel = [...box.querySelectorAll('input:checked')];
-      if (sel.length !== needs[k].n) { box.classList.add('err'); toast(`Pilih tepat ${needs[k].n} unit untuk ${needs[k].label}.`, 'err'); return null; }
+      if (sel.length !== needs[k].n) { const w = m.$('[data-upwrap]'); if (w) { w.hidden = false; const tg = m.$('[data-uptoggle]'); if (tg) tg.textContent = 'Tutup daftar unit'; } box.classList.add('err'); toast(`Pilih tepat ${needs[k].n} unit untuk ${needs[k].label}.`, 'err'); return null; }
       box.classList.remove('err');
       (picks[needs[k].i] = picks[needs[k].i] || []).push(...sel.map((x) => ({ pid: x.dataset.pid, code: x.value })));
     }
     return picks;
   }
-  const RES = [['siap', 'Bersih, siap disewa lagi'], ['cuci', 'Perlu dicuci / dibersihkan'], ['perbaikan', 'Rusak — perlu diperbaiki'], ['hilang', 'Hilang / tidak kembali']];
+  /* Hasil pemeriksaan per unit — hanya dibuka bila ada yang rusak / hilang. Bawaan: dicuci (kategori wajib cuci) atau siap disewa. */
   function unitReturnRows(b) {
     const L = b.items.flatMap((it) => (it.units || []).map((u) => ({ ...u, name: it.name })));
     if (!L.length) return '';
-    return `<div class="mini-sec"><h4>Hasil pemeriksaan per unit</h4><p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Barang yang wajib dicuci sudah dipilih otomatis sesuai aturan Owner. Pilih <b>Rusak</b> bila ada yang sobek / patah agar masuk daftar perbaikan.</p><div class="ur-list">${L.map((u) => { const p = DB.product(u.pid); const wash = DB.needsWash(p); const def = wash ? 'cuci' : 'siap';
-      return `<div class="ur-row" data-urow="${u.code}"><span class="ur-name"><b>${u.code}</b><small>${esc(u.name)}${wash ? ' · <i class="fa-solid fa-soap"></i> wajib dicuci' : ''}</small></span>
-        <div class="ur-res">${RES.map(([k, l]) => `<label class="ur-opt ${k}"><input type="radio" name="ur-${u.code}" value="${k}" ${k === def ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
-        <input class="input ur-issue" data-uissue="${u.code}" placeholder="Jelaskan kerusakannya, contoh: flysheet sobek 5 cm di sisi kiri" hidden></div>`; }).join('')}</div></div>`;
+    return `<div class="ur-list"><p class="muted" style="font-size:12.5px;margin:0 0 8px">Ubah hanya unit yang bermasalah. Unit lain tetap normal${L.some((u) => DB.needsWash(DB.product(u.pid))) ? ' (yang wajib dicuci otomatis masuk antrean cuci)' : ''}.</p>${L.map((u) => { const wash = DB.needsWash(DB.product(u.pid)); const def = wash ? 'cuci' : 'siap';
+      return `<div class="ur-row" data-urow="${u.code}"><span class="ur-name"><b>${u.code}</b><small>${esc(u.name)}</small></span>
+        <select class="select ur-sel" data-ures data-def="${def}"><option value="${def}">Normal${wash ? ' · dicuci' : ''}</option>${wash ? '<option value="siap">Bersih, langsung siap disewa</option>' : '<option value="cuci">Perlu dicuci</option>'}<option value="perbaikan">Rusak, perlu diperbaiki</option><option value="hilang">Hilang / tidak kembali</option></select>
+        <input class="input ur-issue" data-uissue="${u.code}" placeholder="Jelaskan kerusakannya, contoh: flysheet sobek 5 cm di sisi kiri" hidden></div>`; }).join('')}</div>`;
   }
   function readUnitResults(m) {
     const out = {}; let bad = null;
-    m.$$('[data-urow]').forEach((row) => { const code = row.dataset.urow; const v = (row.querySelector('input[type=radio]:checked') || {}).value || 'siap'; const iss = row.querySelector('[data-uissue]').value.trim();
+    m.$$('[data-urow]').forEach((row) => { const code = row.dataset.urow; const v = row.querySelector('[data-ures]').value; const iss = row.querySelector('[data-uissue]').value.trim();
       if (v === 'perbaikan' && !iss) { row.querySelector('[data-uissue]').classList.add('err'); bad = bad || row; }
       out[code] = { res: v, issue: iss }; });
     if (bad) { toast('Jelaskan kerusakan unit yang dipilih "Rusak".', 'err'); bad.scrollIntoView({ behavior: 'smooth', block: 'center' }); return null; }
     return out;
   }
   function bindUnitResults(m, onChange) {
-    m.$$('[data-urow]').forEach((row) => row.addEventListener('change', () => { const v = (row.querySelector('input[type=radio]:checked') || {}).value; const iss = row.querySelector('[data-uissue]'); iss.hidden = v !== 'perbaikan'; if (!iss.hidden) iss.focus(); onChange && onChange(); }));
+    m.$$('[data-urow]').forEach((row) => row.addEventListener('change', (e) => { if (!e.target.matches('[data-ures]')) return; const iss = row.querySelector('[data-uissue]'); iss.hidden = e.target.value !== 'perbaikan'; if (!iss.hidden) iss.focus(); row.classList.toggle('bad', ['perbaikan', 'hilang'].includes(e.target.value)); onChange && onChange(); }));
   }
+  const resetUnitResults = (m) => m.$$('[data-urow]').forEach((row) => { const sel = row.querySelector('[data-ures]'); sel.value = sel.dataset.def; const iss = row.querySelector('[data-uissue]'); iss.value = ''; iss.hidden = true; row.classList.remove('bad'); });
   /* Pop-up setelah pengembalian: pengingat cuci & perbaikan */
   function afterReturnPopup(b, res) {
     const L = Object.entries(res || {}); const cuci = L.filter(([, r]) => r.res === 'cuci').map(([c]) => c); const fix = L.filter(([, r]) => r.res === 'perbaikan'); const lost = L.filter(([, r]) => r.res === 'hilang').map(([c]) => c);
@@ -724,40 +770,48 @@
       DB.notify(b.customer.email, 'Bukti pembayaran ditolak', `Bukti DP ${NO(b)} ditolak${val(r) ? ` (${val(r)})` : ''}. Silakan unggah ulang.`, `pembayaran?ids=${b.id}`);
       toast('Bukti pembayaran ditolak.'); return true;
     },
-    pickup(b, done) {
-      const due = sisa(b); const fc = DB.formCfg('pickup');
+    pickup(b, done, opt = {}) {
+      const due = sisa(b); const fc = DB.formCfg('pickup'); const fromKasir = !!opt.fromKasir;
       const m = modal({ title: `Catat barang keluar · ${NO(b)}`, size: 'lg', body: `${custFlag(b.customer)}
-        <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-box-open"></i><div>${esc(b.customer.name)} mengambil <strong>${esc(itemsText(b))}</strong> untuk ${D.fmtRange(b.start, b.end)}.</div></div>
+        <div class="notice green fx-head" style="margin-bottom:14px"><i class="fa-solid fa-box-open"></i><div>${esc(b.customer.name)} mengambil <strong>${esc(itemsText(b))}</strong> untuk ${D.fmtRange(b.start, b.end)}.${fromKasir ? `<br><small>Data customer${b.idType ? `, jaminan <b>${esc(b.idType)}</b>` : ''} &amp; pembayaran sudah dicatat di kasir. Tinggal cek kelengkapan lalu serahkan barang.</small>` : ''}</div>${sopBox('pickup')}</div>
         <div class="grid-2">
-          <div class="field"><label>Kondisi barang saat keluar</label><select class="select" id="oCond"><option>Baik</option><option>Sangat Baik</option><option>Baik (ada bekas pemakaian)</option></select></div>
-          ${fc.idCard === 'sembunyi' ? '' : UI.idField('oId', b.idType || '', { required: fc.idCard === 'wajib', label: 'Identitas jaminan', hint: b.idType ? `Dipilih customer saat booking: <b>${esc(b.idType)}</b>` : '' })}
+          ${fc.idCard === 'sembunyi' || fromKasir ? '' : UI.idField('oId', b.idType || '', { required: fc.idCard === 'wajib', label: 'Identitas jaminan', hint: b.idType ? `Dipilih customer saat booking: <b>${esc(b.idType)}</b>` : '' })}
+          ${unitSummaryField(b)}
         </div>
-        ${fc.note === 'sembunyi' ? '' : `<div class="field"><label>Catatan${fc.note === 'wajib' ? ' <span class="req">*</span>' : ''}</label><textarea class="textarea" id="oNote" placeholder="Contoh: frame lengkap, pasak 12 pcs"></textarea></div>`}
         ${unitPicker(b)}
-        ${extraFields('pickup')}${sopBox('pickup')}
-        <div id="stl"></div>
+        <label class="chk-line" id="oKelW"><input type="checkbox" id="oKel"> Kelengkapan sudah dicek bersama customer <span class="req">*</span></label>
+        ${extraFields('pickup', { id: 'oNote', label: 'Catatan', placeholder: 'Contoh: frame lengkap, pasak 12 pcs' })}
+        <div id="stl" ${fromKasir && !due ? 'hidden' : ''}></div>
         ${b.deposit ? `<label class="chk-line dep-line"><input type="checkbox" id="oDep"> <span><b>Jaminan ${rupiah(b.deposit)} sudah diterima</b><small>Dikembalikan saat barang kembali, bisa dipotong denda.</small></span></label>` : ''}
 `,
         foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="oSave"><i class="fa-solid fa-check"></i> Simpan &amp; tandai disewa</button>` });
-      bindExtras(m); UI.idBind(m.el, 'oId');
+      bindExtras(m); UI.idBind(m.el, 'oId'); bindUnitSummary(m);
+      m.$('#oKel').addEventListener('change', () => m.$('#oKelW').classList.remove('err'));
       const sb = settleBox(m, b, { stage: 'keluar' });
+      /* Kondisi umum saat keluar tidak ditanyakan lagi: kondisi sudah tercatat per unit, catatan untuk pengecualian */
+      const OUT_COND = 'Baik';
       m.$('#oSave').addEventListener('click', async () => {
         const st0 = sb.read(); if (!st0) return;
         if (b.deposit && !m.$('#oDep').checked) { toast(`Terima jaminan ${rupiah(b.deposit)} dulu sebelum barang keluar.`, 'err'); return; }
         const note = m.$('#oNote') ? m.$('#oNote').value.trim() : '';
-        if (fc.note === 'wajib' && !note) { m.$('#oNote').classList.add('err'); toast('Catatan wajib diisi.', 'err'); return; }
-        const idc = fc.idCard === 'sembunyi' ? { ok: true, value: '' } : UI.idRead(m.el, 'oId'); if (!idc.ok) return;
+        if (fc.note === 'wajib' && !note) { m.$('#oNote').classList.add('err'); m.$('#oNote').focus(); toast('Catatan wajib diisi.', 'err'); return; }
+        const idc = fromKasir ? { ok: true, value: b.idType || '' } : fc.idCard === 'sembunyi' ? { ok: true, value: '' } : UI.idRead(m.el, 'oId'); if (!idc.ok) return;
         const picks = readUnitPicks(m, b); if (!picks) return;
+        /* Unit yang masih tercatat "Dicuci" ikut dipilih → pastikan sudah bersih, lalu tandai selesai dicuci */
+        const washing = m.$$('[data-upwrap] input[data-wash]:checked');
+        if (washing.length && !m._washOk) { confirmBox({ title: 'Unit masih tercatat dicuci', text: `${washing.map((i) => i.value).join(', ')} masih berstatus Dicuci. Pastikan barangnya sudah bersih — unit akan ditandai selesai dicuci.`, ok: 'Sudah bersih, lanjut' }).then((ok) => { if (!ok) return; washing.forEach((i) => DB.finishCare(i.dataset.pid, i.value, {})); m._washOk = true; m.$('#oSave').click(); }); return; }
+        if (!m.$('#oKel').checked) { m.$('#oKelW').classList.add('err'); toast('Centang "Kelengkapan sudah dicek bersama customer" dulu.', 'err'); return; }
         const ex = readExtras(m, 'pickup'); if (!ex) return;
+        ex.extra.push({ label: 'Kelengkapan sudah dicek bersama customer', value: 'Ya', type: 'centang' });
         /* Simpan ke server dulu. Bila ditolak (mis. DP belum diverifikasi, unit sedang dipakai), tidak ada yang berubah. */
         /* Uang pelunasan TIDAK dikirim di sini: settleApply() di bawah sudah mengirimnya ke /settle (cegah tercatat dobel) */
         const okSrv = await Api.busy(m.$('#oSave'), () => srvBooking(b, 'pickup', {
-          condition: m.$('#oCond').value, notes: note, unit_ids: picks || {},
+          condition: OUT_COND, notes: note, unit_ids: picks || {},
         }, { merge: false }), 'Menyimpan…');
         if (!okSrv) return;
         DB.assignUnits(b, picks);
         const stCh = settleApply(b, st0, 'Pelunasan');
-        b.out = { at: D.nowStamp(), cond: m.$('#oCond').value, idCard: idc.value, by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: st0.pay ? st0.pay.amount : 0, payLater: st0.later, payLaterNote: st0.note || '', checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
+        b.out = { at: D.nowStamp(), cond: OUT_COND, idCard: idc.value, by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: st0.pay ? st0.pay.amount : 0, payLater: st0.later, payLaterNote: st0.note || '', checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
         if (b.deposit) b.depositIn = { at: D.nowStamp(), amount: b.deposit, by: me.name };
         b.paymentStatus = sisa(b) ? 'dp_paid' : 'lunas'; b.settleLater = !!st0.later; b.status = 'disewa';
         if (st0.later) b.history.push({ at: D.nowStamp(), text: `Sisa ${rupiah(sisa(b))} dibayar saat barang kembali${st0.note ? ' · ' + st0.note : ''} (${me.name})` });
@@ -769,35 +823,53 @@
     },
     processReturn(b, done) {
       const fc = DB.formCfg('return'); const stR = DB.settings(); const hasUnits = b.items.some((it) => (it.units || []).length); const nowT = new Date().toTimeString().slice(0, 5);
+      const anyWash = b.items.some((it) => (it.units || []).some((u) => DB.needsWash(DB.product(u.pid))));
       const m = modal({ title: `Proses pengembalian · ${NO(b)}`, size: 'lg', body: `
-        <div class="notice" style="margin-bottom:14px"><i class="fa-solid fa-rotate-left"></i><div>Jadwal kembali <strong>${D.fmtDate(b.end, true)}</strong>${stR.lateAfterReturnTime ? `, paling lambat pukul <strong>${esc(stR.returnTime)}</strong>` : ''}. Barang: ${esc(itemsText(b))}. Denda: ${esc(DB.lateFeeText())}.</div></div>
-        <div class="grid-3">
+        <div class="notice fx-head" style="margin-bottom:12px"><i class="fa-solid fa-rotate-left"></i><div>Jadwal kembali <strong>${D.fmtDate(b.end, true)}</strong>${stR.lateAfterReturnTime ? `, paling lambat pukul <strong>${esc(stR.returnTime)}</strong>` : ''}. Barang: ${esc(itemsText(b))}.<div style="margin-top:6px"><span class="pill plain" id="rLate"></span></div></div>${sopBox('return')}</div>
+        <p class="rt-when">Dicatat kembali: <b id="rWhen"></b> · <button type="button" class="link-btn" id="rWhenEd">ubah</button></p>
+        <div class="grid-2" id="rWhenBox" hidden>
           <div class="field"><label>Tanggal kembali</label><input class="input" type="date" id="rDate" value="${D.today()}" min="${b.start}"></div>
           <div class="field"><label>Jam kembali</label><input class="input" type="time" id="rTime" value="${nowT}"></div>
-          <div class="field" ${hasUnits ? 'hidden' : ''}><label>Kondisi setelah kembali</label><select class="select" id="rCond"><option>Baik</option><option>Kotor (perlu dicuci)</option><option>Rusak ringan</option><option>Rusak berat</option><option>Hilang sebagian</option></select></div>
         </div>
-        <div class="grid-2">
-          <div class="field"><label>Keterlambatan</label><input class="input" id="rLate" disabled></div>
-          <div class="field"><label>Biaya kerusakan / kehilangan (Rp)</label><input class="input" type="number" min="0" step="1000" id="rDmg" value="0"></div>
+        <div class="field"><label>Kondisi barang</label>
+          <div class="rt-seg" id="rMode"><button type="button" data-rc="ok" class="on"><i class="fa-solid fa-circle-check"></i> ${hasUnits ? (anyWash ? 'Semua kembali, dicuci seperti biasa' : 'Semua kembali, siap disewa lagi') : 'Semua kembali dalam kondisi baik'}</button><button type="button" data-rc="bad"><i class="fa-solid fa-triangle-exclamation"></i> ${hasUnits ? 'Ada yang rusak / hilang' : 'Ada yang kotor / rusak / hilang'}</button></div></div>
+        <input type="hidden" id="rCond" value="Baik">
+        <div class="rt-bad" id="rBad" hidden>
+          ${hasUnits ? unitReturnRows(b) : '<div class="field"><label>Kondisi setelah kembali</label><select class="select" id="rCondBad"><option>Kotor (perlu dicuci)</option><option>Rusak ringan</option><option>Rusak berat</option><option>Hilang sebagian</option></select></div>'}
+          <div class="field" style="max-width:280px"><label>Biaya kerusakan / kehilangan (Rp)</label><input class="input" type="number" min="0" step="1000" id="rDmg" value="0"></div>
+          ${(stR.damageRules || []).length ? `<details class="rule-box"><summary><i class="fa-solid fa-gavel"></i> Aturan kerusakan & kehilangan</summary><ul>${stR.damageRules.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></details>` : ''}
         </div>
-        ${fc.note === 'sembunyi' ? '' : `<div class="field"><label>Catatan pemeriksaan${fc.note === 'wajib' ? ' <span class="req">*</span>' : ''}</label><textarea class="textarea" id="rNote" placeholder="Contoh: flysheet sobek 5 cm di sisi kiri"></textarea></div>`}
-        ${extraFields('return')}${(stR.damageRules || []).length ? `<details class="rule-box"><summary><i class="fa-solid fa-gavel"></i> Aturan kerusakan & kehilangan</summary><ul>${stR.damageRules.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></details>` : ''}
-        ${unitReturnRows(b)}
-        ${sopBox('return')}
-        <div id="rSum"></div>
+        ${extraFields('return', { id: 'rNote', label: 'Catatan pemeriksaan', placeholder: 'Contoh: flysheet sobek 5 cm di sisi kiri' })}
         <span id="rPaidWrap" hidden></span>
         ${b.depositIn ? `<div class="dep-box" id="rDepBox"></div>` : ''}
         <div id="stl"></div>`,
         foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="rSave"><i class="fa-solid fa-check"></i> Selesaikan rental</button>` });
-      let sb = null;
-      const calc = () => { const r = calc0(); if (sb) sb.setExtra(r.rest != null ? r.rest : r.fine); return r; };
+      let sb = null; let bad = false;
+      /* Satu kotak ringkasan: denda telat & kerusakan ikut masuk kotak Pelunasan (labelnya menyesuaikan) */
+      const so = { stage: 'kembali', extraLabel: 'Denda & biaya kerusakan' };
+      const calc = () => { const r = calc0();
+        const parts = [r.lf ? `denda telat ${r.late} malam` : '', r.dmg ? 'biaya kerusakan' : ''].filter(Boolean);
+        so.extraLabel = (parts.length ? parts.join(' + ').replace(/^./, (c) => c.toUpperCase()) : 'Denda & biaya kerusakan') + (r.ded ? ` (setelah dipotong jaminan ${rupiah(r.ded)})` : '');
+        if (sb) sb.setExtra(r.rest != null ? r.rest : r.fine); return r; };
+      /* Kondisi umum: mode normal = Baik; mode bermasalah = dari pilihan (tanpa unit) atau dari hasil per unit */
+      const syncCond = () => {
+        let c = 'Baik';
+        if (bad) { if (hasUnits) { const v = m.$$('[data-ures]').map((x) => x.value); c = v.includes('hilang') ? 'Hilang sebagian' : v.includes('perbaikan') ? 'Rusak ringan' : v.includes('cuci') ? 'Kotor (perlu dicuci)' : 'Baik'; } else c = m.$('#rCondBad').value; }
+        else if (hasUnits && anyWash) c = 'Kotor (perlu dicuci)';
+        m.$('#rCond').value = c; };
+      const setMode = (isBad) => { bad = isBad; m.$$('#rMode [data-rc]').forEach((x) => x.classList.toggle('on', (x.dataset.rc === 'bad') === isBad)); m.$('#rBad').hidden = !isBad;
+        if (!isBad) { resetUnitResults(m); m.$('#rDmg').value = 0; }
+        const more = m.$('[data-more]'); if (more && m.$('#rNote') && more.contains(m.$('#rNote'))) { more.classList.toggle('req-on', isBad); if (isBad) more.open = true; }
+        syncCond(); calc(); };
+      m.$('#rMode').addEventListener('click', (e) => { const t = e.target.closest('[data-rc]'); if (t) setMode(t.dataset.rc === 'bad'); });
+      m.$('#rWhenEd').addEventListener('click', () => { m.$('#rWhenBox').hidden = false; m.$('#rWhenEd').parentElement.hidden = true; m.$('#rDate').focus(); });
       const calc0 = () => {
         const date = m.$('#rDate').value || D.today();
         const late = Rules.lateDays(b, date, m.$('#rTime').value); const lf = Rules.lateFee(b, late);
         const dmg = Math.max(0, +m.$('#rDmg').value || 0);
         if (/Rusak|Hilang/.test(m.$('#rCond').value) && !dmg) m.$('#rDmg').classList.add('err'); else m.$('#rDmg').classList.remove('err');
-        m.$('#rLate').value = late ? `${late} malam (denda ${rupiah(lf)})` : 'Tepat waktu';
-        m.$('#rSum').innerHTML = `<div class="kv"><span>Denda keterlambatan</span><span>${rupiah(lf)}</span></div><div class="kv"><span>Biaya kerusakan</span><span>${rupiah(dmg)}</span></div><div class="kv total"><span>Total denda</span><span>${rupiah(lf + dmg)}</span></div>`;
+        const lt = m.$('#rLate'); lt.textContent = late ? `Terlambat ${late} malam · denda ${rupiah(lf)}` : 'Tepat waktu'; lt.className = `pill plain ${late ? 'red' : 'green'}`;
+        m.$('#rWhen').textContent = `${D.fmtDate(date, true)}, ${m.$('#rTime').value || '-'}`;
         const dep = b.depositIn ? b.depositIn.amount : 0;
         if (dep) {
           const cut = m.$('#rCut') ? m.$('#rCut').checked : true; const fine0 = lf + dmg; const ded = cut ? Math.min(dep, fine0) : 0;
@@ -809,13 +881,17 @@
         m.$('#rPaidWrap').style.display = lf + dmg ? 'flex' : 'none';
         return { date, late, lf, dmg, fine: lf + dmg };
       };
-      ['#rDate', '#rTime', '#rCond', '#rDmg'].forEach((s) => { m.$(s).addEventListener('input', calc); m.$(s).addEventListener('change', calc); });
-      sb = settleBox(m, b, { stage: 'kembali', extraLabel: 'Denda & biaya kerusakan' });
-      calc(); bindExtras(m); bindUnitResults(m);
+      ['#rDate', '#rTime', '#rDmg'].forEach((s) => { m.$(s).addEventListener('input', calc); m.$(s).addEventListener('change', calc); });
+      if (m.$('#rCondBad')) m.$('#rCondBad').addEventListener('change', () => { syncCond(); calc(); });
+      sb = settleBox(m, b, so);
+      bindExtras(m); bindUnitResults(m, () => { syncCond(); calc(); }); syncCond(); calc();
       m.$('#rSave').addEventListener('click', async () => {
-        const r = calc(); const st0 = sb.read(); if (!st0) return;
+        syncCond(); const r = calc(); const st0 = sb.read(); if (!st0) return;
         const note = m.$('#rNote') ? m.$('#rNote').value.trim() : '';
-        if (fc.note === 'wajib' && !note) { m.$('#rNote').classList.add('err'); toast('Catatan pemeriksaan wajib diisi.', 'err'); return; }
+        if (bad && hasUnits && !m.$$('[data-ures]').some((x) => x.value !== x.dataset.def)) { toast('Ubah status unit yang bermasalah, atau pilih "Semua kembali".', 'err'); m.$('#rBad').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        /* Catatan wajib bila Owner mewajibkan, atau bila ada yang rusak / hilang */
+        const needNote = fc.note === 'wajib' || (bad && /Rusak|Hilang/.test(m.$('#rCond').value));
+        if (needNote && m.$('#rNote') && !note) { const mo = m.$('[data-more]'); if (mo) mo.open = true; m.$('#rNote').classList.add('err'); m.$('#rNote').focus(); toast('Tulis catatan pemeriksaan (apa yang rusak / hilang).', 'err'); return; }
         const ex = readExtras(m, 'return'); if (!ex) return;
         const t = m.$('#rTime').value || '12:00';
         const uc = hasUnits ? readUnitResults(m) : {}; if (!uc) return;
@@ -853,36 +929,125 @@
       const m = modal({ title: `Batalkan booking ${NO(b)}`, body: `
         <div class="field"><label>Alasan pembatalan</label><textarea class="textarea" id="cReason" placeholder="Contoh: permintaan customer via WhatsApp"></textarea></div>
         ${hasDp ? `<div class="notice ${refundable ? 'green' : 'red'}" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>Tanggal ambil ${D.fmtDate(b.start, true)} (${D.diffDays(D.today(), b.start)} hari lagi). Sesuai kebijakan H-${DB.settings().cancelDays}, DP <strong>${refundable ? 'dapat dikembalikan' : 'hangus'}</strong>.</div></div>
-        <div class="field"><label>Perlakuan DP (${rupiah(Rules.paidTotal(b))})</label><select class="select" id="cDp"><option value="refund" ${refundable ? 'selected' : ''}>Kembalikan DP (refund)</option><option value="forfeit" ${refundable ? '' : 'selected'}>DP hangus</option></select></div>` : ''}`,
+        <div class="field"><label>Perlakuan DP (${rupiah(Rules.paidTotal(b))})</label><select class="select" id="cDp"><option value="refund" ${refundable ? 'selected' : ''}>Kembalikan DP (refund)</option><option value="forfeit" ${refundable ? '' : 'selected'}>DP hangus</option></select></div>
+        <div id="cRf" ${refundable ? '' : 'hidden'}>${UI.refundFields({ holder: b.customer.name || '' }, { admin: true, optional: true })}</div>` : ''}`,
         foot: `<button class="btn btn-light" data-close>Kembali</button><button class="btn btn-danger" id="cOk">Batalkan booking</button>` });
+      if (hasDp) { UI.refundBind(m.el); m.$('#cDp').addEventListener('change', () => { m.$('#cRf').hidden = m.$('#cDp').value !== 'refund'; }); }
       m.$('#cOk').addEventListener('click', async () => {
         const reason = m.$('#cReason').value.trim(); if (!reason) { m.$('#cReason').classList.add('err'); m.$('#cReason').focus(); return; }
         const mode = hasDp ? m.$('#cDp').value : 'none';
+        /* Metode pengembalian (transfer/tunai) boleh dilengkapi nanti saat Proses refund */
+        let refund = null; if (mode === 'refund') { const rf = UI.refundRead(m.el, { optional: true }); if (!rf.ok) return; refund = rf.data; }
         const from = b.status;
-        const fresh = await Api.busy(m.$('#cOk'), () => srvBooking(b, 'batal', { reason, dp_mode: mode === 'forfeit' ? 'forfeit' : 'refund' }), 'Membatalkan…');
+        /* Simpan ke server dulu (server menghitung hak refund & mencatat metode pengembalian) */
+        const fresh = await Api.busy(m.$('#cOk'), () => srvBooking(b, 'batal', Object.assign({ reason, dp_mode: mode === 'forfeit' ? 'forfeit' : 'refund' }, UI.refundPayload(refund))), 'Membatalkan…');
         if (!fresh) return;
         b = fresh; b.status = 'dibatalkan';
-        b.cancel = { at: D.nowStamp(), reason, by: 'admin', refundable: mode === 'refund', refundStatus: mode === 'refund' ? 'menunggu' : mode === 'forfeit' ? 'hangus' : 'tidak_perlu' };
+        b.cancel = { at: D.nowStamp(), reason, by: 'admin', refundable: mode === 'refund', refundStatus: mode === 'refund' ? 'menunggu' : mode === 'forfeit' ? 'hangus' : 'tidak_perlu', ...(refund ? { refund } : {}) };
         if (hasDp) b.paymentStatus = mode === 'refund' ? 'refund_pending' : 'forfeited';
         log(b, `Booking dibatalkan admin: ${reason}`, 'pembatalan', `Membatalkan booking ${NO(b)}: ${reason}`, [{ field: 'Status booking', from: rl(from), to: rl('dibatalkan') }, ...(hasDp ? [{ field: 'Perlakuan DP', from: '', to: mode === 'refund' ? 'Dikembalikan (refund)' : 'Hangus' }] : [])]);
         DB.saveBooking(b);
-        DB.notify(b.customer.email, 'Booking dibatalkan', `${NO(b)} dibatalkan (${reason}).${mode === 'refund' ? ' DP akan dikembalikan maks. 2×24 jam.' : mode === 'forfeit' ? ' DP tidak dapat dikembalikan sesuai kebijakan.' : ''}`, `pesanan?tab=riwayat`);
+        DB.notify(b.customer.email, 'Booking dibatalkan', `${NO(b)} dibatalkan (${reason}).${mode === 'refund' ? (refund && refund.method === 'tunai' ? ' DP bisa diambil tunai di toko.' : ' DP akan dikembalikan maks. 2×24 jam.') : mode === 'forfeit' ? ' DP tidak dapat dikembalikan sesuai kebijakan.' : ''}`, `pesanan?tab=riwayat`);
         m.close(); toast('Booking dibatalkan.'); done && done();
       });
     },
+    /* Proses refund DP pembatalan:
+       - Transfer: rekening tujuan dari customer tampil dan bisa disalin (no. rekening, nama, jumlah), wajib upload foto bukti transfer.
+       - Tunai   : serahkan uang di toko, foto bukti serah terima opsional.
+       Setelah disimpan → jendela WhatsApp terbuka dengan foto bukti + pesan konfirmasi ke customer.
+       Server: POST api/admin/permintaan/refund/{kode} (multipart, termasuk proof_file). */
     async refund(b) {
       const amt = Rules.refundAmount(b); const pct = DB.settings().refundPercent ?? 100;
-      const r = await confirmBox({ title: `Kembalikan DP ${NO(b)}?`, text: `Transfer ${rupiah(amt)}${pct < 100 ? ` (${pct}% dari DP sesuai aturan refund)` : ''} ke rekening ${b.customer.name}, lalu konfirmasi di sini.${sopBox('cancel') ? '<br><br>' + DB.sops('pembatalan').filter((x) => x.active !== false).map((x) => `<b>SOP:</b> ${esc(x.body)}`).join('<br>') : ''}`, ok: 'Sudah ditransfer', input: { label: 'No. referensi transfer (opsional)' } });
-      if (r === false) return false;
-      /* Simpan ke server dulu (server menolak refund ganda / melebihi uang yang diterima, dan mencatat pengeluaran kas) */
-      const okSrv = await srvBooking(b, `api/admin/permintaan/refund/${encodeURIComponent(b.id)}`, { amount: amt, reason: val(r) || '', status: 'selesai' }, { merge: false });
-      if (!okSrv) return false;
-      b.refunds = b.refunds || []; b.refunds.push({ at: D.nowStamp(), amount: amt, ref: val(r) });
-      b.paymentStatus = 'refunded'; if (b.cancel) b.cancel.refundStatus = 'selesai';
-      log(b, `DP ${rupiah(amt)} dikembalikan`, 'refund', `Memproses refund DP ${NO(b)} sebesar ${rupiah(amt)}${val(r) ? ` (ref. ${val(r)})` : ''}`, chg('Status pembayaran', STATUS.payment.refund_pending.label, STATUS.payment.refunded.label));
-      DB.saveBooking(b);
-      DB.notify(b.customer.email, 'DP sudah dikembalikan', `Refund ${rupiah(amt)} untuk ${NO(b)} sudah ditransfer.`, `pesanan?tab=riwayat`);
-      toast('Refund tercatat.'); return true;
+      const c = b.cancel || {}; let rf = c.refund && c.refund.method ? Object.assign({}, c.refund) : null;
+      /* Pilihan customer (transfer + rekening / tunai) diisi otomatis. Bila tidak ada di perangkat ini (mis. customer membatalkan
+         dari HP-nya), ambil dari server lewat endpoint yang sudah ada: GET api/admin/permintaan → data.refunds[] */
+      if (!rf && window.Api) {
+        const r = await Api.get('api/admin/permintaan', { redirectOn401: false, timeout: 6000 });
+        const list = (r && r.ok && r.data && r.data.refunds) || [];
+        const ids = [b.id, b.booking_code, b.nota_no, b.notaNo, b.serverId].filter(Boolean).map(String);
+        const hit = list.find((x) => x.method && ((x.booking && [x.booking.booking_code, x.booking.nota_no, x.booking.id].map(String).some((v) => ids.includes(v))) || ids.includes(String(x.booking_id))));
+        if (hit) { rf = { method: hit.method, bank: hit.bank_name || '', account: hit.account_number || '', holder: hit.account_name || '' }; b.cancel = Object.assign(b.cancel || {}, { refund: rf }); DB.saveBooking(b); }
+      }
+      const needPick = !rf || (rf.method === 'transfer' && !(rf.bank && rf.account && rf.holder));
+      /* Pesan bila memang belum ada pilihan: bedakan pembatalan oleh admin (metode boleh dilengkapi nanti) & data lama */
+      const noPickMsg = c.by === 'admin' ? 'Pembatalan ini dicatat admin tanpa metode pengembalian. Tanyakan ke customer lewat WhatsApp, lalu isi di bawah.'
+        : 'Pembatalan ini dibuat sebelum ada pilihan metode pengembalian, jadi customer belum memilih. Tanyakan lewat WhatsApp, lalu isi di bawah.';
+      const copyRow = (label, value, cls, shown) => `<div class="rf-acc-row"><span>${label}</span><b class="${cls || ''}">${esc(shown || value || '-')}</b>${value ? `<button type="button" class="btn btn-light btn-xs" data-copy="${esc(String(value))}" data-copy-label="${esc(label)}"><i class="fa-regular fa-copy"></i> Salin</button>` : ''}</div>`;
+      const accCard = () => !rf ? '' : rf.method === 'tunai'
+        ? `<div class="notice"><i class="fa-solid fa-money-bill-wave"></i><div>Customer memilih <b>ambil tunai di toko</b>. Serahkan <b>${rupiah(amt)}</b> saat customer datang (cocokkan nomor booking <b>${esc(NO(b))}</b> & identitas), lalu foto bukti serah terima bila perlu.</div></div>`
+        : `<div class="rf-acc"><div class="rf-acc-row"><span>Bank / e-wallet</span><b>${esc(rf.bank)}</b></div>${copyRow('No. rekening', rf.account, 'mono')}${copyRow('Atas nama', rf.holder)}${copyRow('Jumlah transfer', String(amt), '', rupiah(amt))}</div>`;
+      return new Promise((resolve) => {
+        let settled = false; const finish = (v) => { if (!settled) { settled = true; resolve(v); } };
+        const m = modal({ title: `Proses refund DP · ${NO(b)}`, size: 'lg', body: `
+          <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-hand-holding-dollar"></i><div>Kembalikan <b>${rupiah(amt)}</b>${pct < 100 ? ` (${pct}% dari DP sesuai aturan refund)` : ''} ke <b>${esc(b.customer.name)}</b> · ${esc(b.customer.phone || '-')}.${c.reason ? `<br><small>Alasan batal: ${esc(c.reason)}</small>` : ''}</div></div>
+          <div id="rfInfo">${rf ? `<div class="rf-acc-h"><b>Pilihan customer: ${esc(rf.method === 'tunai' ? 'Tunai di toko' : 'Transfer')}</b>${needPick ? '' : '<button type="button" class="link-btn" id="rfEdit"><i class="fa-solid fa-pen"></i> Ubah metode / rekening</button>'}</div>${needPick ? '' : accCard()}` : `<div class="notice amber"><i class="fa-solid fa-circle-exclamation"></i><div>${noPickMsg}</div></div>`}</div>
+          <div id="rfPick" ${needPick ? '' : 'hidden'}>${UI.refundFields(Object.assign({ holder: b.customer.name || '' }, rf || {}), { admin: true })}</div>
+          <div class="field" style="margin-top:14px"><label id="rfProofLbl"></label>
+            <div class="rf-proof" id="rfProof"><div class="ph" id="rfPh"><i class="fa-regular fa-image"></i></div><div class="tx"><b id="rfPhT">Belum ada foto</b><span>JPG/PNG/WEBP, maks. 5 MB. Foto ini ikut dikirim ke customer lewat WhatsApp.</span>
+              <label class="btn btn-light btn-xs" style="cursor:pointer;justify-self:start"><i class="fa-solid fa-upload"></i> Pilih foto<input type="file" accept="image/jpeg,image/png,image/webp" id="rfFile" hidden></label></div></div>
+            <span class="error hidden" id="rfProofErr"></span></div>
+          <div class="field" id="rfRefF"><label>No. referensi transfer <span class="opt">(opsional)</span></label><input class="input" id="rfRef" maxlength="100" placeholder="Contoh: 2611091234567"></div>
+          ${sopBox('cancel')}`,
+          foot: `<button class="btn btn-light" data-close>Batal</button><button class="btn btn-wa" id="rfOk"><i class="fa-brands fa-whatsapp"></i> Simpan &amp; kirim konfirmasi</button>` });
+        UI.refundBind(m.el);
+        const curMethod = () => (m.$('#rfPick').hidden ? (rf && rf.method) : ((m.$('input[name="rfMethod"]:checked') || {}).value)) || '';
+        const syncMethod = () => { const t = curMethod() !== 'tunai';
+          m.$('#rfProofLbl').innerHTML = t ? 'Foto bukti transfer <span class="req" style="color:var(--red)">*</span>' : 'Foto bukti serah terima <span class="opt">(opsional)</span>';
+          m.$('#rfRefF').hidden = !t; };
+        syncMethod();
+        m.el.addEventListener('change', (e) => { if (e.target.name === 'rfMethod') syncMethod(); });
+        const ed = m.$('#rfEdit'); if (ed) ed.addEventListener('click', () => { m.$('#rfPick').hidden = false; ed.remove(); const card = m.$('#rfInfo .rf-acc, #rfInfo .notice'); if (card) card.remove(); syncMethod(); });
+        m.el.addEventListener('click', (e) => { const cp = e.target.closest('[data-copy]'); if (cp) UI.copyText(cp.dataset.copy, `${cp.dataset.copyLabel || 'Teks'} tersalin.`); });
+        let file = null, proof = '';
+        m.$('#rfFile').addEventListener('change', async (e) => { const f = e.target.files[0]; if (!f) return;
+          if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { toast('Format foto harus JPG, PNG, atau WEBP.', 'err'); e.target.value = ''; return; }
+          if (f.size > 5 * 1024 * 1024) { toast('Ukuran foto maksimal 5 MB.', 'err'); e.target.value = ''; return; }
+          try { proof = await UI.fileToDataURL(f, 1280); } catch (_) { toast('Foto tidak bisa dibaca. Coba foto lain.', 'err'); return; }
+          file = f; m.$('#rfPh').innerHTML = `<img src="${proof}" alt="Bukti refund">`; m.$('#rfPhT').textContent = f.name; m.$('#rfProof').classList.remove('err'); m.$('#rfProofErr').classList.add('hidden'); });
+        const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); finish(false); } }); obs.observe(document.body, { childList: true });
+        m.$('#rfOk').addEventListener('click', async () => {
+          let method = rf;
+          if (!m.$('#rfPick').hidden) { const r = UI.refundRead(m.el); if (!r.ok) return; method = r.data; }
+          if (method.method === 'transfer' && !file) { m.$('#rfProof').classList.add('err'); const er = m.$('#rfProofErr'); er.textContent = 'Upload foto bukti transfer dulu.'; er.classList.remove('hidden'); m.$('#rfProof').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+          const sop = m.$('[data-sopok]'); if (sop && !sop.checked) { toast('Centang konfirmasi SOP terlebih dahulu.', 'err'); sop.focus(); return; }
+          const ref = method.method === 'transfer' ? m.$('#rfRef').value.trim() : '';
+          /* Simpan ke server DULU: server menolak refund ganda / melebihi uang masuk dan mencatat pengeluaran kas.
+             Ditolak → tidak ada yang berubah, jendela tetap terbuka. Booking yang belum ada di server (404/405) tetap dicatat lokal. */
+          const fd = new FormData(); fd.append('amount', amt); fd.append('status', 'selesai'); fd.append('reason', ref);
+          Object.entries(UI.refundPayload(method)).forEach(([k, v]) => fd.append(k, v));
+          if (ref) fd.append('transfer_ref', ref); if (file) fd.append('proof_file', file);
+          const okSrv = await Api.busy(m.$('#rfOk'), () => srvBooking(b, `api/admin/permintaan/refund/${encodeURIComponent(b.id)}`, fd, { merge: false }), 'Menyimpan…');
+          if (!okSrv) return;
+          const entry = Object.assign({ at: D.nowStamp(), amount: amt, ref, by: me.name }, method, proof ? { proof } : {});
+          b.refunds = b.refunds || []; b.refunds.push(entry);
+          b.paymentStatus = 'refunded'; b.cancel = Object.assign(b.cancel || {}, { refundStatus: 'selesai', refund: method });
+          const how = UI.refundText(method, true);
+          log(b, `DP ${rupiah(amt)} dikembalikan · ${how}`, 'refund', `Memproses refund DP ${NO(b)} sebesar ${rupiah(amt)} (${how}${ref ? `, ref. ${ref}` : ''})`, chg('Status pembayaran', STATUS.payment.refund_pending.label, STATUS.payment.refunded.label));
+          DB.saveBooking(b);
+          DB.notify(b.customer.email, 'DP sudah dikembalikan', `Refund ${rupiah(amt)} untuk ${NO(b)} sudah ${method.method === 'tunai' ? 'diserahkan tunai di toko' : `ditransfer ke ${method.bank} ${method.account}`}.`, `pesanan?tab=riwayat`);
+          obs.disconnect(); m.close(); toast('Refund tercatat. Kirim konfirmasi ke customer lewat WhatsApp.');
+          finish(true);
+          setTimeout(() => BK.refundWa(b, entry), 260);
+        });
+      });
+    },
+    /* Kirim (ulang) foto bukti + pesan konfirmasi refund ke WhatsApp customer */
+    async refundWa(b, entry) {
+      const e = entry || (b.refunds || []).slice(-1)[0]; if (!e) { toast('Belum ada refund untuk booking ini.', 'err'); return; }
+      const key = e.method === 'tunai' ? 'refund_cash' : 'refund_tf';
+      const blob = e.proof ? await dataUrlToPng(e.proof) : null;
+      const nm = b.customer.name || 'Kak';
+      UI.waCompose({ title: `Konfirmasi refund · ${NO(b)}`, blob, name: `bukti-refund-${NO(b).replace(/\//g, '_')}.png`, phone: b.customer.phone, tplKey: key,
+        waLabel: `Kirim ke ${esc(nm.split(' ')[0])}`,
+        text: DB.waText(key, { nama: nm, nama_depan: nm.split(' ')[0], no_nota: NO(b), jumlah_refund: rupiah(e.amount), rekening: e.method === 'transfer' ? `${e.bank} ${e.account} a.n. ${e.holder}` : '', ref_transfer: e.ref || '', tgl_refund: D.fmtDateTime(e.at) }).split('\n').filter((l) => !/^[^:\n]{1,40}:\s*$/.test(l)).join('\n'),
+        note: blob ? '' : 'Belum ada foto bukti. Pesan tetap bisa dikirim tanpa lampiran.',
+        onSent: () => { e.waAt = D.nowStamp(); DB.saveBooking(b); if (window.Api) Api.post(`api/admin/permintaan/refund/${encodeURIComponent(b.id)}/notified`, {}, { redirectOn401: false }).catch(() => {}); } });
+    },
+    /* Metode tunai: kabari customer bahwa DP sudah bisa diambil di toko */
+    refundReady(b) {
+      const nm = b.customer.name || 'Kak';
+      UI.waCompose({ title: `Kabari DP siap diambil · ${NO(b)}`, phone: b.customer.phone, tplKey: 'refund_cash_ready', waLabel: `Kirim ke ${esc(nm.split(' ')[0])}`,
+        text: DB.waText('refund_cash_ready', { nama: nm, nama_depan: nm.split(' ')[0], no_nota: NO(b), jumlah_refund: rupiah(Rules.refundAmount(b)) }) });
     },
     approveChange(b, ch) {
       const res = DB.applyBookingChange(b, ch);
@@ -1001,7 +1166,7 @@
     const md = Svc.mode(b); const d = b.deliv || {}; const live = !['selesai', 'dibatalkan'].includes(b.status);
     /* Booking ambil di toko: tidak ada tombol layanan di sini (membingungkan). Layanan antar / jasa tenda dipilih customer saat checkout
        atau dicatat kasir; bila ada, bagian ini muncul lengkap dengan tombol Ubah layanan & Perbarui nota. */
-    if (md === 'ambil') return live && !['disewa'].includes(b.status) ? `<div class="svc-add"><div><b><i class="fa-solid fa-store"></i> Ambil di toko</b><small>Customer berubah pikiran ingin diantar atau dipasangkan tendanya?</small></div><button type="button" class="btn btn-light btn-sm" data-svcact="edit"><i class="fa-solid fa-plus"></i> Tambah layanan</button></div>` : '';
+    if (md === 'ambil') return ''; /* Tambah layanan antar / jasa tenda ada di menu Lainnya (footer Detail) */
     const rm = Svc.returnMode(b); const paid = Svc.paid(b); const tent = Svc.isTent(b);
     return `<div class="mini-sec"><h4>${esc(Svc.label(b))}</h4><div class="svc-box">
       <div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || '-')}</span></div>
@@ -1017,7 +1182,7 @@
         <div class="kv hl"><span>Sudah dibayar</span><span>${rupiah(bl.paid)}</span></div>
         ${bl.ongkirSet || bl.due ? `<div class="kv"><span>Sisa layanan</span><strong style="color:${bl.due ? 'var(--orange)' : 'var(--g700)'}">${bl.due ? rupiah(bl.due) : 'Lunas'}</strong></div>` : ''}
       </div>`; })()}
-      ${live ? `<div class="acts"><button type="button" class="btn btn-light btn-xs" data-svcact="edit"><i class="fa-solid fa-pen"></i> Ubah layanan</button><button type="button" class="btn btn-primary btn-xs" data-svcact="pay"><i class="fa-solid fa-motorcycle"></i> Atur pengantaran &amp; ongkir</button><a class="btn btn-wa btn-xs" href="${custLink(b.customer)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Chat customer</a></div>` : ''}
+      /* Detail hanya menampilkan informasi layanan; aksi ada di daftar booking (satu tombol) & menu Lainnya di footer */
     </div></div>`;
   }
   /* Ubah / atur layanan (dipakai juga untuk booking kasir & hasil kesepakatan WhatsApp) */
@@ -1311,6 +1476,7 @@
     if (act === 'swap') BK.storeChange(b, fin);
     if (act === 'extend') BK.extend(b, fin);
     if (act === 'svcpay') { svcPay(b, fin); return; }
+    if (act === 'svcedit') { svcEdit(b, () => { fin(); bookingModal(id, done); }); return; }
     if (act === 'settle') { settleModal(id, fin); return; }
     if (act === 'remind') { remindWa(b); fin(); }
   }
@@ -1369,12 +1535,33 @@
       </div>
       ${b.proof ? `<div class="mini-sec"><h4>Bukti pembayaran</h4><img class="proof-img" src="${asset(b.proof)}" alt="Bukti pembayaran"></div>` : b.status === 'menunggu_konfirmasi' ? '<div class="mini-sec"><h4>Bukti pembayaran</h4><p class="muted" style="font-size:13px">Bukti diunggah customer (contoh data demo tanpa gambar).</p></div>' : ''}
       ${pend.length ? `<div class="notice" style="margin-top:14px"><i class="fa-solid fa-arrows-rotate"></i><div>Ada ${pend.length} permintaan ganti barang menunggu. <a href="permintaan" style="font-weight:700;text-decoration:underline">Tinjau</a></div></div>` : ''}
-      ${b.cancel ? `<div class="notice red" style="margin-top:14px"><i class="fa-solid fa-ban"></i><div>Dibatalkan ${D.fmtDateTime(b.cancel.at)} — ${esc(b.cancel.reason)}. Refund: ${({ menunggu: 'menunggu diproses', selesai: 'sudah dikembalikan', hangus: 'DP hangus', tidak_perlu: 'tidak ada' })[b.cancel.refundStatus] || '-'}</div></div>` : ''}
+      ${b.cancel ? `<div class="notice red" style="margin-top:14px"><i class="fa-solid fa-ban"></i><div>Dibatalkan ${D.fmtDateTime(b.cancel.at)} — ${esc(b.cancel.reason)}. Refund: ${({ menunggu: 'menunggu diproses', selesai: 'sudah dikembalikan', hangus: 'DP hangus', tidak_perlu: 'tidak ada' })[b.cancel.refundStatus] || '-'}${b.cancel.refund && b.cancel.refund.method ? ` · ${esc(UI.refundText(b.cancel.refund, true))}` : ''}</div></div>` : ''}
       ${b.out ? outRetHtml(b, 'out') : ''}
       ${b.ret ? outRetHtml(b, 'ret') : ''}
       ${reqSection(b)}
       <details class="mini-sec hist-fold"><summary><h4>Riwayat booking (${(b.history || []).length})</h4></summary><ul class="timeline">${(b.history || []).slice().reverse().map((h) => `<li>${esc(h.text)}<small>${D.fmtDateTime(h.at)}</small></li>`).join('')}</ul></details>`,
-      foot: `<a class="btn btn-light" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a>${sisa(b) && ['dikonfirmasi', 'disewa', 'selesai'].includes(b.status) ? `<button type="button" class="btn btn-primary" data-bsettle><i class="fa-solid fa-cash-register"></i> Pelunasan ${rupiah(sisa(b))}</button><button type="button" class="btn btn-light" data-bdue><i class="fa-brands fa-whatsapp"></i> Tagih sisa</button>` : ''}<button type="button" class="btn btn-light" data-bprint title="Struk thermal ${UI.receiptPaper()} mm"><i class="fa-solid fa-print"></i> Struk</button><button type="button" class="btn btn-wa" data-bcontact><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>${acts.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic}"></i> ${l}</button>`).join('')}` });
+      /* Satu tombol utama sesuai tahap (verifikasi → keluar → kembali / refund / pelunasan piutang); aksi lain di menu "Lainnya" */
+      foot: (() => {
+        const ico = (ic) => (/fa-brands/.test(ic) ? ic : 'fa-solid ' + ic);
+        const main = acts.filter(([, , , c]) => c === 'btn-primary' || c === 'btn-gold');
+        const rest = acts.filter((x) => !main.includes(x));
+        const settleMain = sisa(b) && b.status === 'selesai';
+        const settleOk = sisa(b) && ['dikonfirmasi', 'disewa', 'selesai'].includes(b.status);
+        const item = (attr, ic, l, danger) => `<button type="button" class="fm-it ${danger ? 'danger' : ''}" ${attr}><i class="${ic}"></i> ${l}</button>`;
+        const menu = [
+          settleOk && !settleMain ? item('data-bsettle', 'fa-solid fa-cash-register', `Pelunasan ${rupiah(sisa(b))}`) : '',
+          settleOk ? item('data-bdue', 'fa-brands fa-whatsapp', 'Tagih sisa via WA') : '',
+          ...rest.map(([k, ic, l, c]) => item(`data-bact="${k}"`, ico(ic), l, c === 'btn-danger')),
+          !['selesai', 'dibatalkan'].includes(b.status) && (Svc.has(b) || b.status !== 'disewa') ? item('data-bact="svcedit"', 'fa-solid fa-truck-ramp-box', Svc.has(b) ? 'Ubah layanan antar / jasa tenda' : 'Tambah layanan antar / jasa tenda') : '',
+          `<a class="fm-it" href="${url('invoice?id=' + b.id)}"><i class="fa-solid fa-receipt"></i> Nota</a>`,
+          item(`data-bprint title="Struk thermal ${UI.receiptPaper()} mm"`, 'fa-solid fa-print', 'Cetak struk'),
+        ].filter(Boolean).join('');
+        return `<details class="foot-more"><summary class="btn btn-light"><i class="fa-solid fa-ellipsis"></i> Lainnya</summary><div class="fm-list">${menu}</div></details>
+          <button type="button" class="btn btn-wa" data-bcontact><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button>
+          ${settleMain ? `<button type="button" class="btn btn-primary" data-bsettle><i class="fa-solid fa-cash-register"></i> Pelunasan ${rupiah(sisa(b))}</button>` : ''}
+          ${main.map(([k, ic, l, c]) => `<button class="btn ${c}" data-bact="${k}"><i class="${ico(ic)}"></i> ${l}</button>`).join('')}`;
+      })() });
+    m.el.addEventListener('click', (e) => { const fm = m.$('.foot-more'); if (fm && fm.open && !fm.contains(e.target)) fm.open = false; });
     m.$$('[data-bact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); runBooking(btn.dataset.bact, id, done); }));
     m.$('[data-bprint]').addEventListener('click', () => UI.printStruk(DB.booking(id), 'rent'));
     if (m.$('[data-bsettle]')) m.$('[data-bsettle]').addEventListener('click', () => { m.close(); settleModal(id, done); });
@@ -1389,11 +1576,59 @@
   }
 
   const SALE_FLOW = { diproses: ['dikemas', 'fa-box', 'Tandai dikemas'], dikemas: ['siap_diambil', 'fa-store', 'Tandai siap diambil'], siap_diambil: ['selesai', 'fa-circle-check', 'Sudah diambil customer'] };
+  /* Ambil di toko: tidak perlu langkah "Dikemas" → Diproses langsung ke Siap diambil. Pesanan yang dikirim tetap lewat Dikemas. */
+  const saleNext = (s) => (s.status === 'diproses' && !saleDeliv(s) ? ['siap_diambil', 'fa-store', 'Tandai siap diambil'] : SALE_FLOW[s.status]);
+  /* Jendela "Cek pembayaran": bukti transfer + nominal + rekening tujuan. Hasil: true (sesuai) / 'reject' / false (batal) */
+  function checkSalePay(s) {
+    return new Promise((resolve) => {
+      let res = false;
+      const m = modal({ title: `Cek pembayaran · ${NO(s)}`, size: 'lg', body: `
+        <div class="cp-grid">
+          <div class="cp-proof">${s.proof ? `<a href="${s.proof}" target="_blank" rel="noopener" title="Perbesar"><img src="${s.proof}" alt="Bukti transfer"></a>` : '<div class="cp-noimg"><i class="fa-regular fa-image"></i> Bukti belum terlihat di perangkat ini</div>'}</div>
+          <div class="cp-info">
+            <div class="kv"><span>Customer</span><strong>${esc(s.customer.name)}</strong></div>
+            <div class="kv"><span>Harus dibayar</span><strong class="cp-amt">${rupiah(s.total)}</strong></div>
+            <div class="kv"><span>Ditransfer ke</span><span>${esc(s.method || '-')}</span></div>
+            <p class="muted" style="font-size:12.5px;margin-top:10px">Cocokkan nominal & rekening di bukti dengan mutasi rekening toko sebelum menekan <b>Pembayaran sesuai</b>.</p>
+            <div class="field" id="cpRejBox" hidden><label>Alasan menolak</label><input class="input" id="cpRej" placeholder="Contoh: nominal kurang / bukti tidak terbaca"></div>
+          </div>
+        </div>`,
+        foot: '<button class="btn btn-light danger-text" id="cpNo"><i class="fa-solid fa-xmark"></i> Tolak bukti</button><button class="btn btn-primary" id="cpOk"><i class="fa-solid fa-check"></i> Pembayaran sesuai</button>' });
+      const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); resolve(res); } }); obs.observe(document.body, { childList: true });
+      m.$('#cpOk').addEventListener('click', () => { res = true; m.close(); });
+      m.$('#cpNo').addEventListener('click', () => {
+        const box = m.$('#cpRejBox'); if (box.hidden) { box.hidden = false; m.$('#cpRej').focus(); m.$('#cpNo').innerHTML = '<i class="fa-solid fa-xmark"></i> Ya, tolak bukti'; return; }
+        const why = m.$('#cpRej').value.trim(); if (!why) { m.$('#cpRej').classList.add('err'); m.$('#cpRej').focus(); return; }
+        const from = s.status; s.paymentStatus = 'unpaid'; s.status = 'menunggu_pembayaran'; s.proof = null;
+        log(s, `Bukti pembayaran ditolak: ${why}`, 'penjualan', `Menolak bukti pembayaran ${NO(s)}: ${why}`, chg('Status pembayaran', 'Sedang diverifikasi', 'Belum dibayar'));
+        DB.saveSale(s); /* Backend belum punya endpoint tolak bukti (lihat catatan-backend C.27) */
+        DB.notify(s.customer.email, 'Bukti pembayaran ditolak', `${NO(s)}: ${why}. Silakan unggah ulang bukti yang benar.`, 'pesanan?tab=beli');
+        toast('Bukti pembayaran ditolak. Customer diminta mengunggah ulang.'); res = 'reject'; m.close();
+      });
+    });
+  }
+  /* Jendela "Serahkan barang" (ambil di toko): cocokkan nomor pesanan, nama & barang. Hasil: { thanks } atau null */
+  function handoverSale(s) {
+    return new Promise((resolve) => {
+      let res = null;
+      const m = modal({ title: `Serahkan barang · ${NO(s)}`, body: `
+        <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-hand-holding"></i><div>Cocokkan <b>nomor pesanan ${esc(NO(s))}</b> dan nama <b>${esc(s.customer.name)}</b> dengan yang ditunjukkan customer.</div></div>
+        <ul class="ho-items">${s.items.map((i) => `<li><span>${i.qty}×</span> ${esc(i.name)}${i.size ? ` <small class="muted">(${esc(i.size)})</small>` : ''}</li>`).join('')}</ul>
+        <label class="chk-line" style="margin-top:12px"><input type="checkbox" id="hoThanks" checked> <span>Kirim terima kasih + ajakan memberi ulasan lewat WhatsApp</span></label>`,
+        foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="hoOk"><i class="fa-solid fa-circle-check"></i> Barang sudah diserahkan</button>' });
+      const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); resolve(res); } }); obs.observe(document.body, { childList: true });
+      m.$('#hoOk').addEventListener('click', () => { res = { thanks: m.$('#hoThanks').checked }; m.close(); });
+    });
+  }
+  async function saleWa(s, key, title) {
+    await Ann.Share.ensure(s);
+    UI.waCompose({ title: `${title} · ${NO(s)}`, phone: s.customer.phone, tplKey: key, waLabel: `Kirim ke ${esc((s.customer.name || 'customer').split(' ')[0])}`, text: DB.waText(key, saleVars(s)) });
+  }
   function saleActions(s) {
     const a = [];
     if (s.paymentStatus === 'verifying') a.push(['spay', 'fa-circle-check', 'Verifikasi pembayaran', 'btn-primary']);
     if (s.status === 'menunggu_pembayaran' && s.paymentStatus === 'unpaid') a.push(['spay', 'fa-money-bill', 'Tandai sudah dibayar', 'btn-primary']);
-    if (s.paymentStatus === 'paid' && SALE_FLOW[s.status]) { const f = SALE_FLOW[s.status]; const dl = saleDeliv(s); a.push(['snext', dl && s.status === 'dikemas' ? 'fa-truck-fast' : f[1], dl ? { dikemas: 'Tandai siap diantar', siap_diambil: 'Sudah diterima customer' }[s.status] || f[2] : f[2], 'btn-primary']); }
+    if (s.paymentStatus === 'paid' && saleNext(s)) { const f = saleNext(s); const dl = saleDeliv(s); a.push(['snext', dl && s.status === 'dikemas' ? 'fa-truck-fast' : f[1], dl ? { dikemas: 'Tandai siap diantar', siap_diambil: 'Sudah diterima customer' }[s.status] || f[2] : f[2], 'btn-primary']); }
     if (['menunggu_pembayaran', 'diproses'].includes(s.status)) a.push(['scancel', 'fa-ban', 'Batalkan', 'btn-danger']);
     return a;
   }
@@ -1403,22 +1638,32 @@
     if (act === 'sdetail') return saleModal(id, done);
     if (act === 'sship') return saleShip(s, done);
     if (act === 'spay') {
-      if (!(await confirmBox({ title: `Verifikasi pembayaran ${NO(s)}?`, text: `${rupiah(s.total)} dari ${s.customer.name} sudah diterima.`, ok: 'Verifikasi' }))) return;
+      /* Ada bukti transfer → jendela "Cek pembayaran" (bukti, nominal, rekening tujuan) dengan pilihan Tolak / Sesuai */
+      if (s.paymentStatus === 'verifying') { const ok = await checkSalePay(s); if (ok === 'reject') { fin(); return; } if (!ok) return; }
+      else if (!(await confirmBox({ title: `Tandai ${NO(s)} sudah dibayar?`, text: `${rupiah(s.total)} dari ${s.customer.name} sudah diterima.`, ok: 'Sudah dibayar' }))) return;
       const short = s.items.filter((i) => DB.saleableStock(DB.product(i.productId), i.size) < i.qty);
       if (short.length) { toast(`Stok tidak cukup: ${short.map((i) => i.name).join(', ')}. Tambah stok dulu di Data Barang.`, 'err'); return; }
       DB.sellStock(s.items, 1);
       s.payments.push({ at: D.nowStamp(), amount: s.total, type: 'Pembayaran' }); s.paymentStatus = 'paid'; s.status = 'diproses';
+      syncVerify(s, 'Verifikasi pembayaran');
       log(s, 'Pembayaran diverifikasi, pesanan diproses', 'penjualan', `Memverifikasi pembayaran ${NO(s)} (${rupiah(s.total)})`, chg('Status pesanan', sl('menunggu_pembayaran'), sl('diproses'))); DB.saveSale(s);
       DB.notify(s.customer.email, 'Pembayaran diterima', `Pesanan ${NO(s)} sedang diproses.`, 'pesanan?tab=beli');
       toast('Pembayaran diverifikasi.'); fin();
     }
     if (act === 'snext') {
-      const [next] = SALE_FLOW[s.status];
+      const [next] = saleNext(s);
+      const pickupSale = !saleDeliv(s);
+      /* Ambil di toko → "Serahkan barang": cocokkan pesanan dulu, opsional kirim terima kasih + minta ulasan */
+      let thanks = false;
+      if (pickupSale && next === 'selesai') { const h = await handoverSale(s); if (!h) return; thanks = h.thanks; }
       const from = s.status; s.status = next;
       const txt = { dikemas: 'Pesanan dikemas', siap_diambil: saleDeliv(s) ? 'Pesanan siap diantar' : 'Pesanan siap diambil di toko', selesai: saleDeliv(s) ? 'Barang sudah diantar, pesanan selesai' : 'Barang sudah diambil, pesanan selesai' }[next];
       log(s, txt, 'penjualan', `Mengubah status pesanan ${NO(s)} menjadi ${sl(next)}`, chg('Status pesanan', sl(from), sl(next))); DB.saveSale(s);
       DB.notify(s.customer.email, txt, `${NO(s)}: ${txt.toLowerCase()}.${next === 'selesai' ? ' Beri ulasan untuk barang yang kamu beli, yuk!' : ''}`, next === 'selesai' ? `pesanan?tab=riwayat&review=${s.id}` : 'pesanan?tab=beli');
       toast(`${NO(s)}: ${STATUS.sale[next].label}.`); fin();
+      /* Kabari customer lewat WhatsApp (dulu hanya notifikasi di website) */
+      if (pickupSale && next === 'siap_diambil') setTimeout(() => saleWa(DB.sale(s.id), 'sale_ready', 'Kabari pesanan siap diambil'), 250);
+      if (thanks) setTimeout(() => saleWa(DB.sale(s.id), 'sale_thanks', 'Kirim terima kasih'), 250);
     }
     if (act === 'scancel') {
       const r = await confirmBox({ title: `Batalkan ${NO(s)}?`, text: s.paymentStatus === 'paid' ? 'Pembayaran customer perlu dikembalikan secara manual.' : 'Pesanan akan dibatalkan.', ok: 'Batalkan pesanan', danger: true, input: { label: 'Alasan pembatalan' } });
@@ -1456,7 +1701,7 @@
     return `<div class="sv-cell"><div class="sv-top"><span class="sv-k"><i class="fa-solid ${ic}"></i> ${top}</span>${bl.ongkirSet ? `<span class="sv-o">ongkir ${rupiah(bl.ongkir)}</span>` : ''}</div>
       <small class="sv-when">${when}</small>${who}
 ${pay}
-      ${live && s.paymentStatus === 'paid' ? `<button type="button" class="btn btn-light btn-xs" data-act="sship" data-id="${s.id}" style="justify-self:start"><i class="fa-solid fa-truck-ramp-box"></i> ${m ? 'Ubah pengiriman & ongkir' : 'Atur pengiriman & ongkir'}</button>` : ''}</div>`;
+      ${live && s.paymentStatus === 'paid' && bl.ongkirSet ? `<button type="button" class="btn btn-light btn-xs" data-act="sship" data-id="${s.id}" style="justify-self:start"><i class="fa-solid fa-truck-ramp-box"></i> Ubah pengiriman &amp; ongkir</button>` : ''}</div>`;
   }
   /* Kolom pembayaran penjualan: belanja (total, dibayar, sisa) + ongkir bila diantar */
   function salePayCell(s) {

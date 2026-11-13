@@ -181,6 +181,7 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
         Route::post('/permintaan/change/{id}/action', 'actionChange')->name('permintaan.change.action');
         Route::post('/permintaan/extend/{id}/action', 'actionExtend')->name('permintaan.extend.action');
         Route::post('/permintaan/refund/{bookingId}', 'actionRefund')->name('permintaan.refund.action');
+        Route::post('/permintaan/refund/{bookingId}/notified', 'notifyRefund')->name('permintaan.refund.notified');
     });
 
     // Pengiriman Penjualan Belanja & Pelunasan Kasir

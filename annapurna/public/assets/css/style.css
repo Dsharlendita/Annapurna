@@ -1929,6 +1929,14 @@ label.var-row { cursor: pointer; }
 .pf-nav button { border: 1px solid var(--line-2); background: #fff; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
 .pf-nav button:hover { border-color: var(--g600); color: var(--g700); }
 .pf-nav button i { color: var(--g600); }
+/* Form Tambah/Edit barang: kepala & kaki modal diam, hanya isi yang digulir → navigasi bagian menempel rapi di bawah judul (tidak menutupi judul/tombol tutup) */
+.modal-box.pf-modal { display: flex; flex-direction: column; overflow: hidden; }
+.modal-box.pf-modal > .modal-head, .modal-box.pf-modal > .modal-foot { flex-shrink: 0; position: static; }
+.modal-box.pf-modal > .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: 0; }
+.modal-box.pf-modal .pf-nav { top: 0; margin: 0 -22px 16px; padding: 10px 22px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-shadow: 0 6px 10px -10px rgba(16, 39, 24, .35); }
+.modal-box.pf-modal .pf-nav::-webkit-scrollbar { display: none; }
+.modal-box.pf-modal .pf-nav button { flex-shrink: 0; }
+.modal-box.pf-modal .pf-sec { scroll-margin-top: 64px; }
 /* Riwayat booking dilipat */
 .hist-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
 .hist-fold > summary::-webkit-details-marker { display: none; }
@@ -3904,3 +3912,696 @@ tr.u-grp em.green { background: #e3f3e8; color: #1f6b3a; } tr.u-grp em.blue { ba
   .invoice:not(.pdf-render) .inv-title .stamp { font-size: 9.5px; padding: 4px 8px; letter-spacing: .06em; }
   .invoice:not(.pdf-render) .inv-qr #invQr svg, .invoice:not(.pdf-render) .inv-qr img, .invoice:not(.pdf-render) .inv-qr canvas { width: 70px !important; height: 70px !important; }
 }
+
+/* ===== Pembatalan: metode pengembalian DP (Transfer / Tunai) — customer & admin ===== */
+.rf-box { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--cream); }
+.rf-box [hidden] { display: none !important; }
+.rf-q { font-weight: 700; font-size: 13.5px; margin: 0 0 8px; }
+.rf-q .req { color: var(--red); }
+.rf-q .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
+.rf-tf { margin-top: 12px; }
+.rf-tf .field { margin-bottom: 4px; }
+.rf-box > .notice { margin-top: 12px; }
+.rf-box .error { display: block; font-size: 12.5px; color: var(--red); margin-top: 8px; }
+.cx-reason .error { display: block; }
+/* Kartu rekening tujuan refund (admin) — tiap baris bisa disalin */
+.rf-acc { border: 1px solid var(--g200); background: var(--g50); border-radius: 12px; padding: 2px 14px; margin-bottom: 12px; }
+.rf-acc-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--g200); }
+.rf-acc-row:last-child { border-bottom: 0; }
+.rf-acc-row > span { color: var(--muted); font-size: 12.5px; min-width: 112px; }
+.rf-acc-row > b { flex: 1; font-size: 14.5px; word-break: break-all; }
+.rf-acc-row > b.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .05em; font-size: 15.5px; }
+.rf-acc-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 8px; }
+.rf-acc-h b { font-size: 13.5px; }
+/* Upload foto bukti refund */
+.rf-proof { display: flex; gap: 14px; align-items: center; padding: 12px; border: 1.5px dashed var(--line-2); border-radius: 12px; background: #fff; }
+.rf-proof.err { border-color: var(--red); }
+.rf-proof .ph { width: 92px; height: 92px; flex-shrink: 0; border-radius: 10px; background: var(--g50); display: grid; place-items: center; color: var(--g600); font-size: 26px; overflow: hidden; }
+.rf-proof .ph img { width: 100%; height: 100%; object-fit: cover; }
+.rf-proof .tx { display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.rf-proof .tx b { color: var(--ink); font-size: 13.5px; }
+/* Sel "Refund" di tabel Pembatalan */
+.rf-cell { display: grid; gap: 4px; justify-items: start; }
+.rf-cell small { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; line-height: 1.35; }
+.rf-cell small i { color: var(--g600); width: 14px; text-align: center; }
+.rf-cell .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .03em; }
+.copy-mini { border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 1px 6px; font-size: 11px; color: var(--g700); cursor: pointer; line-height: 1.6; }
+.copy-mini:hover { border-color: var(--g600); }
+@media (max-width: 640px) { .rf-acc-row { flex-wrap: wrap; } .rf-acc-row > span { min-width: 100%; } }
+
+/* ===== Manajemen Staff: kata sandi dibuat Owner, role tetap ===== */
+.role-fixed { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--cream); }
+.role-fixed small { color: var(--muted); font-size: 12.5px; line-height: 1.45; flex-basis: 100%; }
+.sf-pw { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sf-pw .chk-line { align-items: flex-start; }
+.sf-pw .chk-line input { margin-top: 4px; flex-shrink: 0; }
+.pw-wrap { position: relative; }
+.pw-wrap .input { padding-right: 44px; }
+.pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border: 0; background: none; border-radius: 8px; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.pw-eye:hover { color: var(--g700); background: var(--g50); }
+.pw-meter { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.pw-meter i { display: block; height: 4px; width: 0; max-width: 96px; border-radius: 4px; background: var(--line-2); transition: width .2s, background .2s; }
+.pw-meter.red i { background: var(--red); } .pw-meter.amber i { background: #d99a0b; } .pw-meter.green i { background: var(--g600); }
+.pw-meter b { font-weight: 600; }
+
+/* ===== Form Catat barang keluar & Proses pengembalian (versi ringkas) ===== */
+.fx-head { align-items: flex-start; }
+.fx-head > div { flex: 1; }
+.fx-head .sop-link { flex-shrink: 0; font-size: 12.5px; white-space: nowrap; }
+.sop-read { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+.sop-read:last-child { border-bottom: 0; }
+.sop-read p { margin: 4px 0 0; color: var(--ink-2); font-size: 13.5px; }
+.up-sum { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--cream); }
+.up-sum code { font-size: 12px; padding: 3px 8px; border-radius: 6px; background: #fff; border: 1px solid var(--line-2); }
+.up-warn { flex-basis: 100%; color: #8a5a00; font-size: 12px; }
+.up-tg { font-size: 12.5px; margin-top: 6px; }
+.up-wrap[hidden] { display: none !important; }
+.more-box { margin: 10px 0 4px; border: 1px dashed var(--line-2); border-radius: 12px; }
+.more-box > summary { list-style: none; cursor: pointer; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--g700); }
+.more-box > summary::-webkit-details-marker { display: none; }
+.more-box > summary i { font-size: 11px; margin-right: 4px; }
+.more-box[open] > summary i { transform: rotate(45deg); }
+.more-in { padding: 0 14px 6px; }
+.rt-when { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.rt-when b { color: var(--ink); }
+.rt-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rt-seg button { display: flex; gap: 8px; align-items: center; text-align: left; padding: 11px 12px; border: 1.5px solid var(--line-2); border-radius: 12px; background: #fff; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.rt-seg button i { color: var(--muted); }
+.rt-seg button.on { border-color: var(--g600); background: var(--g50); color: var(--g800); }
+.rt-seg button.on i { color: var(--g600); }
+.rt-seg button[data-rc="bad"].on { border-color: #d99a0b; background: #fbf5e2; color: #5d4a12; }
+.rt-seg button[data-rc="bad"].on i { color: #c98d0c; }
+.rt-bad { margin: 4px 0 8px; padding: 12px 14px; border: 1px solid #f0dfaa; border-radius: 12px; background: #fffaf0; }
+.rt-bad[hidden] { display: none !important; }
+.ur-list .ur-row { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 6px 10px; align-items: center; padding: 8px 0; border: 0; border-radius: 0; background: none; border-bottom: 1px dashed var(--line); }
+.ur-list .ur-row:last-child { border-bottom: 0; }
+.ur-list .ur-row .ur-issue { grid-column: 1 / -1; }
+.ur-list .ur-row.bad .ur-sel { border-color: var(--red); color: #7a2419; }
+@media (max-width: 640px) { .rt-seg { grid-template-columns: 1fr; } .ur-list .ur-row { grid-template-columns: 1fr; } }
+.up-tg { display: inline-block; justify-self: start; text-align: left; }
+.more-box.req-on > summary .opt { display: none; }
+
+/* ===== Checkout & pembayaran di HP: hanya satu bar bayar (tanpa menu bawah, Asisten Trip, tombol ke atas) ===== */
+body.flow-focus .ai-fab, body.flow-focus .ai-panel-launch, body.flow-focus .to-top { display: none !important; }
+@media (max-width: 768px) {
+  body.flow-focus { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  body.flow-focus .sticky-buy { bottom: calc(10px + env(safe-area-inset-bottom)); }
+}
+/* Pilihan rekening tujuan di halaman pembayaran */
+.pd-l { font-weight: 700; font-size: 13.5px; margin: 0 0 8px; }
+.pd-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pd-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1.5px solid var(--line-2); border-radius: 999px; background: #fff; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.pd-tabs button i { color: var(--muted); font-size: 12px; }
+.pd-tabs button.on { border-color: var(--g600); background: var(--g50); color: var(--g800); }
+.pd-tabs button.on i { color: var(--g600); }
+/* Halaman produk: ketentuan lengkap & kalender ketersediaan dilipat */
+.terms-fold > summary, .cal-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.terms-fold > summary::-webkit-details-marker, .cal-fold > summary::-webkit-details-marker { display: none; }
+.terms-fold .tf-chev, .cal-fold .tf-chev { color: var(--muted); transition: transform .2s; }
+.terms-fold[open] .tf-chev, .cal-fold[open] .tf-chev { transform: rotate(180deg); }
+.terms-fold .tf-in { margin-top: 14px; gap: 18px; }
+.terms-fold .tf-h { font-size: 14px; margin: 0 0 6px; }
+.cal-fold > summary { font-weight: 700; font-size: 14.5px; color: var(--g800); }
+.cal-fold[open] > summary { margin-bottom: 12px; }
+.cal-day { cursor: default; }
+.more-wrap { display: flex; justify-content: center; margin: 22px 0 6px; } .more-wrap .btn small { font-weight: 500; margin-left: 4px; }
+.x-quick { display: flex; gap: 8px; flex-wrap: wrap; }
+.x-quick button { padding: 8px 14px; border: 1.5px solid var(--line-2); border-radius: 999px; background: #fff; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.x-quick button.on { border-color: var(--g600); background: var(--g50); color: var(--g800); }
+/* Detail booking: satu tombol utama + menu "Lainnya" */
+.foot-more { position: relative; margin-right: auto; }
+.foot-more > summary { list-style: none; cursor: pointer; }
+.foot-more > summary::-webkit-details-marker { display: none; }
+.fm-list { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 5; min-width: 230px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 14px 30px -14px rgba(16, 39, 24, .45); display: grid; }
+.fm-it { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-align: left; cursor: pointer; text-decoration: none; }
+.fm-it i { width: 16px; text-align: center; color: var(--muted); }
+.fm-it:hover { background: var(--g50); color: var(--g800); }
+.fm-it.danger, .fm-it.danger i { color: var(--red); }
+.fm-it.danger:hover { background: #fcefed; }
+/* Dashboard: jadwal antar-jemput & jasa tenda 7 hari dilipat (tugas hari ini sudah ada di Perlu tindakan) */
+.fs-fold { margin: 18px 0; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.fs-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 18px; font-weight: 700; color: var(--g800); }
+.fs-fold > summary::-webkit-details-marker { display: none; }
+.fs-fold > summary span { flex: 1; }
+.fs-fold > summary i:first-child { color: var(--g600); margin-right: 6px; }
+.fs-fold .tf-chev { color: var(--muted); transition: transform .2s; }
+.fs-fold[open] .tf-chev { transform: rotate(180deg); }
+.fs-fold > .fs-grid { padding: 0 14px 14px; margin: 0; }
+.fs-fold[hidden] { display: none; }
+.k-ldq-mini { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; } .k-ldq-mini .muted { font-size: 12.5px; }
+.dur-break { display: block; margin-top: 3px; font-size: 12px; color: var(--g700); } .dur-break i { font-size: 11px; margin-right: 3px; }
+/* Konfigurasi: 5 kelompok di kiri, bagian sebagai tab di atas */
+.cfg-body { min-width: 0; }
+.cfg-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+.cfg-tabs button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: 0; border-radius: 10px; background: none; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.cfg-tabs button i { color: var(--g600); font-size: 12.5px; }
+.cfg-tabs button:hover { background: var(--g50); }
+.cfg-tabs button.on { background: var(--g700); color: #fff; }
+.cfg-tabs button.on i { color: #fff; }
+@media (max-width: 860px) { .cfg-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .cfg-tabs button { flex-shrink: 0; } }
+.chk-line.err { color: var(--red); } .chk-line.err input { outline: 2px solid var(--red); outline-offset: 1px; }
+
+/* ===== Jendela kirim WhatsApp (nota/konfirmasi): judul & tombol selalu terlihat, pesan jadi fokus ===== */
+.modal-box.wc-modal { display: flex; flex-direction: column; overflow: hidden; }
+.modal-box.wc-modal > .modal-head, .modal-box.wc-modal > .modal-foot { flex-shrink: 0; position: static; }
+.modal-box.wc-modal > .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.wc-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; align-items: start; }
+.wc-grid2.one { grid-template-columns: 1fr; }
+.wc-side { display: grid; gap: 8px; }
+.wc-side-l { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.wc-thumb { position: relative; display: block; height: 280px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--cream); }
+.wc-thumb img { width: 100%; display: block; }
+.wc-thumb span { position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(16, 39, 24, .78); color: #fff; font-size: 12px; font-weight: 600; }
+.wc-side-acts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+.modal-foot .wc-hint { margin-right: auto; display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink-2); max-width: 520px; line-height: 1.4; }
+.modal-foot .wc-hint i { color: var(--g600); }
+@media (max-width: 760px) { .wc-grid2 { grid-template-columns: 1fr; } .wc-thumb { height: 160px; } .modal-foot .wc-hint { flex-basis: 100%; max-width: none; } }
+/* Notifikasi kecil tidak boleh menutupi tombol X jendela: saat ada jendela terbuka, muncul di bawah */
+body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
+/* Tampilan Beranda: sematkan / lepas barang langsung dari pratinjau */
+.hb-pins { margin: 6px 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--cream); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.hb-pins-h { flex-basis: 100%; display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; }
+.hb-pins-h .muted { font-size: 12.5px; }
+.hb-pin { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 6px; border: 1px solid var(--g200); border-radius: 999px; background: #fff; font-size: 13px; font-weight: 600; }
+.hb-pin img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+.hb-pin .icon-btn { width: 26px; height: 26px; font-size: 12px; }
+.hb-add { flex-basis: 100%; margin-top: 4px; max-width: 360px; }
+.hb-prev li .btn { flex-shrink: 0; margin-left: 10px; }
+.hb-prev li { display: flex; align-items: center; gap: 10px; }
+.hb-prev li .hb-name { flex: 1; min-width: 0; }
+.hb-prev li img { width: 38px; height: 38px; flex-shrink: 0; }
+.sf-reset { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line-2); border-radius: 12px; font-size: 13.5px; }
+.sf-reset i { color: var(--muted); margin-top: 3px; }
+.sf-reset small { display: block; color: var(--muted); font-size: 12px; }
+/* Penjualan: cek pembayaran & serahkan barang */
+.cp-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 18px; align-items: start; }
+.cp-proof { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--cream); max-height: 380px; }
+.cp-proof img { width: 100%; display: block; }
+.cp-noimg { padding: 40px 14px; text-align: center; color: var(--muted); font-size: 13px; }
+.cp-amt { font-size: 18px; color: var(--g800); }
+.danger-text { color: var(--red) !important; }
+.ho-items { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.ho-items li { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+.ho-items li span { font-weight: 700; color: var(--g700); margin-right: 4px; }
+@media (max-width: 640px) { .cp-grid { grid-template-columns: 1fr; } }
+/* Tambah atribut: 3 pertanyaan */
+.af-steps { display: grid; gap: 16px; }
+.af-q { padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
+.af-q:last-child { border-bottom: 0; padding-bottom: 0; }
+.af-n { width: 28px; height: 28px; border-radius: 50%; background: var(--g700); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; margin-top: 1px; }
+.af-b > b { display: block; margin-bottom: 8px; font-size: 14.5px; }
+.af-b .field { margin-bottom: 6px; }
+.af-seg { display: inline-flex; gap: 6px; margin-bottom: 10px; }
+.af-seg button { padding: 7px 14px; border: 1.5px solid var(--line-2); border-radius: 999px; background: #fff; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.af-seg button.on { border-color: var(--g600); background: var(--g50); color: var(--g800); }
+.cat-checks[hidden] { display: none !important; }
+.hb-over { flex-basis: 100%; margin: 2px 0 4px; }
+
+/* ===== Data Barang: menu Restock, koreksi stok, restock beberapa barang ===== */
+.rs-menu { position: relative; display: inline-block; }
+.rs-menu > summary { list-style: none; cursor: pointer; }
+.rs-menu > summary::-webkit-details-marker { display: none; }
+.rs-menu .fm-list { top: calc(100% + 6px); bottom: auto; left: 0; right: auto; min-width: 260px; z-index: 70; }
+.rs-menu .fm-it small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; margin-left: auto; }
+.stk-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 12px; font-size: 13px; color: var(--ink-2); }
+.stk-acts span i { color: var(--g600); margin-right: 4px; }
+.ro-in, #stockF.ro .input { background: var(--cream); color: var(--ink-2); }
+.rs-sel-hidden { display: none !important; }
+.rs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rs-chips button { padding: 7px 12px; border: 1.5px solid var(--line-2); border-radius: 10px; background: #fff; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.rs-chips button small { font-weight: 500; color: var(--muted); margin-left: 2px; }
+.rs-chips button small::before { content: "("; } .rs-chips button small::after { content: ")"; }
+.rs-chips button small:empty { display: none; }
+.rs-chips button.on { border-color: var(--g600); background: var(--g50); color: var(--g800); }
+.ks-tbl { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ks-h, .ks-r { display: grid; grid-template-columns: minmax(0, 1fr) 90px 120px; gap: 10px; align-items: center; padding: 8px 12px; }
+.ks-h { background: var(--cream); font-size: 12px; font-weight: 700; color: var(--muted); }
+.ks-r { border-top: 1px solid var(--line); font-size: 14px; }
+.ks-r .input { padding: 7px 10px; }
+.rm-head, .rm-row { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 100px 150px 110px 34px; gap: 8px; align-items: center; }
+.rm-head { font-size: 12px; font-weight: 700; color: var(--muted); padding: 0 0 6px; margin-top: 6px; }
+.rm-row { margin-bottom: 8px; }
+.rm-row .select, .rm-row .input { padding: 8px 10px; font-size: 13.5px; }
+.rm-sub { font-size: 13px; font-weight: 700; text-align: right; }
+.rm-total { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--g50); font-size: 15px; }
+@media (max-width: 900px) { .rm-head { display: none; } .rm-row { grid-template-columns: 1fr 1fr; padding: 10px; border: 1px solid var(--line); border-radius: 12px; } .rm-sub { text-align: left; } }
+.lp-cat[hidden] { display: none !important; }
+/* Keranjang sewa & keranjang beli terpisah */
+.cart-tabs { display: flex; gap: 8px; margin: 0 0 18px; flex-wrap: wrap; }
+.cart-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1.5px solid var(--line-2); border-radius: 999px; background: #fff; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink-2); cursor: pointer; }
+.cart-tabs button span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--cream); font-size: 12px; }
+.cart-tabs button.on { border-color: var(--g700); background: var(--g700); color: #fff; }
+.cart-tabs button.on span { background: rgba(255, 255, 255, .2); }
+
+/* ===== HP: daftar barang & layanan di beranda / produk digeser ke samping (etalase), bukan ditumpuk ke bawah ===== */
+@media (max-width: 640px) {
+  #bestGrid, #shopGrid, #related, #svcGrid { display: flex !important; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 10px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  #bestGrid::-webkit-scrollbar, #shopGrid::-webkit-scrollbar, #related::-webkit-scrollbar, #svcGrid::-webkit-scrollbar { display: none; }
+  #bestGrid > *, #shopGrid > *, #related > * { flex: 0 0 62%; max-width: 62%; scroll-snap-align: start; }
+  #svcGrid > * { flex: 0 0 84%; max-width: 84%; scroll-snap-align: start; }
+}
+@media (max-width: 640px) {
+  /* Cara Sewa / Cara Beli: 2 kolom ringkas tanpa panah di HP */
+  .steps[data-how-steps] { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .steps[data-how-steps] .step-arrow { display: none !important; }
+  .steps[data-how-steps] .step p { font-size: 12.5px; }
+}
+/* Pengingat ganti kata sandi staff (tidak mengunci panel) */
+.pw-remind { margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+.pw-remind > div:not(.pw-remind-acts) { flex: 1; min-width: 240px; }
+.pw-remind-acts { display: flex; gap: 8px; }
+
+/* =====================================================================
+   BERANDA DI HP (≤ 640px) — padat & nyaman dipakai satu tangan.
+   Satu bagian yang menonjol: "Cara Sewa" sebagai JALUR PENDAKIAN (garis trek putus-putus,
+   4 pos bernomor). Bagian lain tenang: geser ke samping untuk daftar, lipat untuk info sekunder.
+   Laptop tidak berubah.
+   ===================================================================== */
+@media (max-width: 640px) {
+  body[data-page="home"] .section { padding-top: 34px; padding-bottom: 34px; }
+
+  /* Hero: keunggulan jadi 2 kolom kecil, catatan dekoratif disembunyikan */
+  body[data-page="home"] .hero-inner { padding-top: 26px; padding-bottom: 26px; }
+  body[data-page="home"] .hero-lead { font-size: 14px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  body[data-page="home"] .hero-perks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 18px; }
+  body[data-page="home"] .hero-perks li { max-width: none; font-size: 12px; gap: 8px; }
+  body[data-page="home"] .hero-note { display: none; }
+
+  /* Promo: kartu digeser ke samping */
+  body[data-page="home"] .promo-strip { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 8px; scrollbar-width: none; }
+  body[data-page="home"] .promo-strip::-webkit-scrollbar { display: none; }
+  body[data-page="home"] .promo-strip > * { flex: 0 0 86%; scroll-snap-align: start; }
+
+  /* Asisten Trip: banner ringkas — judul + kolom isian; contoh & penjelasan disembunyikan */
+  body[data-page="home"] .ai-plan-band { grid-template-columns: 1fr; gap: 12px; padding: 18px 16px; }
+  body[data-page="home"] .ai-plan-band h2 { font-size: 20px; margin: 6px 0 0; }
+  body[data-page="home"] .ai-plan-band p, body[data-page="home"] .ai-plan-band .ex { display: none; }
+  body[data-page="home"] .ai-band-ask { margin-top: 8px; font-size: 12.5px; }
+
+  /* ---- Cara Sewa / Cara Beli: jalur pendakian ---- */
+  body[data-page="home"] #cara-sewa .howto { display: block; }
+  body[data-page="home"] #cara-sewa .howto-intro { text-align: left; margin-bottom: 16px; }
+  body[data-page="home"] #cara-sewa .howto-intro .ms,
+  body[data-page="home"] #cara-sewa .howto-intro h3,
+  body[data-page="home"] #cara-sewa .howto-intro p,
+  body[data-page="home"] #cara-sewa .stroke,
+  body[data-page="home"] #cara-sewa .mtn { display: none !important; }
+  body[data-page="home"] #cara-sewa .howto-intro h2 { font-size: 24px; margin: 0 0 10px; }
+  body[data-page="home"] .steps[data-how-steps] { display: block !important; position: relative; margin: 0; padding: 4px 0 4px 0; list-style: none; }
+  body[data-page="home"] .steps[data-how-steps][hidden] { display: none !important; }
+  /* garis trek putus-putus yang menghubungkan pos 1 → 4 */
+  body[data-page="home"] .steps[data-how-steps]::before { content: ""; position: absolute; left: 17px; top: 22px; bottom: 22px; border-left: 2px dashed var(--g500); opacity: .55; }
+  body[data-page="home"] .steps[data-how-steps] .step-arrow { display: none !important; }
+  body[data-page="home"] .steps[data-how-steps] .step { text-align: left; position: relative; }
+  body[data-page="home"] .steps[data-how-steps] .step + .step-arrow + .step, body[data-page="home"] .steps[data-how-steps] .step ~ .step { margin-top: 6px; }
+  body[data-page="home"] .steps[data-how-steps] .step a { display: grid; grid-template-columns: 36px minmax(0, 1fr) 14px; column-gap: 14px; align-items: center; padding: 10px 12px 10px 0; border-radius: 14px; color: inherit; text-decoration: none; }
+  body[data-page="home"] .steps[data-how-steps] .step a::after { content: "\f054"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 11px; color: var(--muted); grid-column: 3; grid-row: 1 / span 2; }
+  body[data-page="home"] .steps[data-how-steps] .step a:active { background: var(--g50); }
+  body[data-page="home"] .steps[data-how-steps] .blob { grid-column: 1; grid-row: 1 / span 2; width: 36px !important; height: 36px !important; margin: 0 !important; border-radius: 50% !important; background: var(--g700) !important; color: #fff; box-shadow: 0 0 0 4px var(--cream); transform: none !important; }
+  body[data-page="home"] .steps[data-how-steps] .blob i { display: none; }
+  body[data-page="home"] .steps[data-how-steps] .blob .num { position: static !important; inset: auto !important; width: auto; height: auto; background: none !important; color: #fff !important; font-size: 15px; font-weight: 800; box-shadow: none !important; }
+  body[data-page="home"] .steps[data-how-steps] .step:last-child .blob { background: var(--gold) !important; }
+  body[data-page="home"] .steps[data-how-steps] .step:last-child .blob .num { color: var(--g900) !important; }
+  body[data-page="home"] .steps[data-how-steps] .step h4 { grid-column: 2; margin: 0; font-size: 15px; }
+  body[data-page="home"] .steps[data-how-steps] .step p { grid-column: 2; margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; }
+
+  /* ---- Layanan (laundry, jasa tenda, …): kartu ringkas yang digeser ---- */
+  body[data-page="home"] .svc-head p { display: none; }
+  body[data-page="home"] .svc-card { border-radius: 18px; }
+  body[data-page="home"] .svc-visual { min-height: 0; padding: 16px 16px 14px; }
+  body[data-page="home"] .svc-visual img { height: 78%; max-width: 38%; opacity: .9; }
+  body[data-page="home"] .svc-visual .v-tx { max-width: 64%; }
+  body[data-page="home"] .svc-visual h3 { font-size: 17px; }
+  body[data-page="home"] .svc-visual p { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  body[data-page="home"] .svc-body { display: none; }
+  body[data-page="home"] .svc-foot { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  body[data-page="home"] .svc-note { display: none; }
+
+  /* Ajakan penutup mengulang isi hero → disembunyikan di HP */
+  body[data-page="home"] #cta { display: none; }
+
+  /* ---- Testimoni: ringkasan rating + satu kartu yang digeser ---- */
+  body[data-page="home"] #testimoni { padding: 34px 0 40px !important; }
+  body[data-page="home"] .testi-intro .mtn, body[data-page="home"] .testi-intro > p { display: none !important; }
+  body[data-page="home"] .testi-intro h2 { font-size: 24px; }
+  body[data-page="home"] .testi-track { grid-auto-columns: 86%; margin: 0 -16px; padding: 2px 16px 8px; }
+
+  /* ---- Footer (semua halaman): Menu & Kontak bisa dilipat ---- */
+  .footer-grid { grid-template-columns: 1fr; gap: 0; padding-top: 28px; padding-bottom: 16px; } /* jarak kiri-kanan tetap dari .wrap */
+  .footer-grid > div:first-child p { font-size: 13px; margin: 8px 0 14px; }
+  .footer details.f-col { border-top: 1px solid rgba(255, 255, 255, .14); }
+  .footer details.f-col > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
+  .footer details.f-col > summary::-webkit-details-marker { display: none; }
+  .footer details.f-col > summary::after { content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 12px; opacity: .7; transition: transform .2s; }
+  .footer details.f-col[open] > summary::after { transform: rotate(180deg); }
+  .footer details.f-col > summary h5 { margin: 0; }
+  .footer details.f-col > ul { padding-bottom: 12px; }
+  .footer-grid > div:last-child { border-top: 1px solid rgba(255, 255, 255, .14); padding-top: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .footer-grid > div:last-child h5 { margin: 0; }
+  .footer .f-deco { display: none; }
+}
+/* Laptop: kolom footer tetap terbuka & judulnya bukan tombol */
+@media (min-width: 641px) {
+  .footer details.f-col > summary { list-style: none; pointer-events: none; }
+  .footer details.f-col > summary::-webkit-details-marker { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .footer details.f-col > summary::after { transition: none; } }
+@media (max-width: 640px) {
+  /* Asisten Trip: isian & tombol tidak melebar keluar layar */
+  body[data-page="home"] .ai-plan-band { min-width: 0; }
+  body[data-page="home"] .ai-plan-band > * { min-width: 0; }
+  body[data-page="home"] .ai-plan-form .row { display: grid !important; grid-template-columns: 1fr; gap: 8px; }
+  body[data-page="home"] .ai-plan-form .row input { width: 100%; min-width: 0; }
+  body[data-page="home"] .ai-plan-form .row .btn { width: 100%; justify-content: center; }
+  body[data-page="home"] .ai-band-ask { white-space: normal; text-align: left; line-height: 1.4; }
+}
+@media (max-width: 640px) {
+  /* Testimoni: di HP cukup digeser — tombol panah disembunyikan, jarak dirapatkan */
+  body[data-page="home"] #testiNav { display: none !important; }
+  body[data-page="home"] .testi { gap: 12px; }
+  body[data-page="home"] .testi-score { margin-top: 10px; }
+  body[data-page="home"] .testi-track > * { min-height: 0; }
+}
+
+/* =====================================================================
+   HP (≤ 640px): kartu produk ringkas — 2 kartu terlihat per layar, gambar 4:3,
+   info sekunder disembunyikan, seluruh kartu tetap bisa ditekan lewat gambar/judul.
+   ===================================================================== */
+@media (max-width: 640px) {
+  .prod-card { padding: 0 0 10px; border-radius: 14px; }
+  .prod-card .ph { aspect-ratio: 4 / 3 !important; }
+  .prod-card .ph img { object-fit: contain !important; padding: 6% !important; }
+  .prod-card .pc-badge { top: 6px; left: 6px; padding: 3px 8px; font-size: 10.5px; gap: 4px; }
+  .prod-card .pc-badge.adm { left: auto; right: 6px; }
+  .prod-card .bd { padding: 8px 10px 0; }
+  .prod-card .pc-top { margin: 0; }
+  .prod-card .pc-cat { font-size: 10px; letter-spacing: .04em; }
+  .prod-card h3 { font-size: 13.5px; line-height: 1.3; margin: 2px 0 4px; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .prod-card .pc-stars { display: flex; align-items: center; gap: 4px; margin: 0; }
+  .prod-card .pc-stars .stars { font-size: 10.5px; }
+  .prod-card .pc-rv { font-size: 11px; }
+  .prod-card .pc-stars.none { display: none; }
+  .prod-card .pc-price { margin: 6px 0 0; }
+  .prod-card .pc-price strong { font-size: 15px; }
+  .prod-card .pc-price small { font-size: 11.5px; }
+  .prod-card .pc-info, .prod-card .pc-detail { display: none !important; }
+  .prod-card .acts { margin-top: 8px; gap: 6px; }
+  .prod-card .acts .btn { min-height: 38px; padding: 8px 10px; font-size: 13px; border-radius: 10px; }
+  .prod-card .acts .pc-cart { width: 38px; flex: 0 0 38px; padding: 0; }
+  .prod-card .acts .btn-primary { flex: 1; }
+  .prod-card .pc-long { display: none; }
+  /* Etalase geser (beranda & "Alat lain"): 2 kartu terlihat + sedikit kartu ketiga sebagai tanda bisa digeser */
+  #bestGrid > *, #shopGrid > *, #related > * { flex: 0 0 44% !important; max-width: 44% !important; }
+
+  /* Tombol melayang: "ke atas" disembunyikan (ada menu bawah), Asisten Trip dikecilkan agar tidak menutupi tombol kartu */
+  .to-top { display: none !important; }
+  .ai-fab { transform: scale(.82); transform-origin: 100% 100%; right: 10px; }
+}
+@media (max-width: 640px) {
+  .ai-fab { transition: opacity .2s, transform .2s; }
+  body.is-scrolling .ai-fab { opacity: 0; pointer-events: none; transform: translateY(16px) scale(.82); }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) { .ai-fab { transition: none; } }
+
+/* =====================================================================
+   Asisten Trip di HP: lembar dari bawah (bukan layar penuh yang terdorong ke atas).
+   Dulu tinggi 100% + digeser 76px untuk menu bawah → kepala jendela & tombol X terpotong di luar layar.
+   ===================================================================== */
+.ai-backdrop { display: none; }
+@media (max-width: 640px) {
+  .ai-panel, body.has-bnav .ai-panel { left: 0; right: 0; top: auto; bottom: 0 !important; width: 100%; max-width: none; height: 84vh; height: 84dvh; max-height: none; border-radius: 22px 22px 0 0; z-index: 91; padding-bottom: env(safe-area-inset-bottom, 0px); transform: translateY(28px); box-shadow: 0 -18px 40px -16px rgba(16, 39, 24, .45); }
+  .ai-panel.open, body.has-bnav .ai-panel.open { transform: none; }
+  .ai-head { position: relative; padding-top: 22px; border-radius: 22px 22px 0 0; }
+  /* garis pegangan */
+  .ai-head::before { content: ""; position: absolute; top: 8px; left: 50%; width: 42px; height: 4px; margin-left: -21px; border-radius: 4px; background: rgba(255, 255, 255, .38); }
+  .ai-x { width: 40px; height: 40px; border-radius: 12px; }
+  .ai-close { background: rgba(255, 255, 255, .2); font-size: 17px; }
+  /* latar gelap di belakang lembar; diketuk = tutup */
+  .ai-backdrop { display: block; position: fixed; inset: 0; z-index: 90; background: rgba(16, 39, 24, .5); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  body.ai-open .ai-backdrop { opacity: 1; pointer-events: auto; }
+  body.ai-open { overflow: hidden; }
+  body.ai-open .bnav { visibility: hidden; }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) { .ai-backdrop, .ai-panel { transition: none; } }
+
+/* =====================================================================
+   HP: keterbacaan & ukuran sentuh (minimal teks 11px, area sentuh ±36px)
+   ===================================================================== */
+@media (max-width: 640px) {
+  /* teks minimal 11px */
+  .prod-card .pc-cat { font-size: 11px; }
+  .prod-card .pc-badge { font-size: 11px; }
+  .pk .pk-hot, .pk-hot { font-size: 11px !important; padding: 3px 8px !important; }
+  .cal-grid .dow { font-size: 11px; }
+  .cal-day small, .cal-day span { font-size: 10.5px !important; letter-spacing: -.02em; }
+  .k-pr small { font-size: 11px; }
+  /* area sentuh lebih besar */
+  .prod-card h3 a { display: block; padding: 3px 0; }
+  .svc-acts .btn, .svc-acts a.btn, .svc-foot .btn { min-height: 38px; padding: 8px 14px; font-size: 13px; }
+  .pk-more { min-height: 34px; padding: 6px 12px !important; }
+  .sec-head .link { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 4px; }
+  main nav[aria-label="Breadcrumb"] a, .crumbs a, .bc a { display: inline-block; padding: 8px 0; }
+  .pd-rate a, a.pd-rv, .rating-link { display: inline-block; padding: 8px 0; }
+  /* Halaman Tentang: kolom grid boleh menyusut → teks tidak terpotong di tepi kanan */
+  .ab-story-grid > * { min-width: 0; }
+}
+@media (max-width: 640px) { .meta a.link { display: inline-block; padding: 8px 0; } }
+@media (max-width: 640px) { .svc-link { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 4px; } }
+@media (max-width: 768px) {
+  /* Detail produk: bar beli turun ke paling bawah (tanpa menu bawah) */
+  body.pd-focus { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+  body.pd-focus .sticky-buy { bottom: calc(10px + env(safe-area-inset-bottom)); }
+  body.pd-focus .ai-fab { bottom: calc(96px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 640px) {
+  /* Paket: label "Paling laris" boleh keluar dari gambar kecil supaya tidak terpotong */
+  .pk-ph { overflow: visible !important; }
+  .pk-ph img { border-radius: 14px; }
+  .pk .pk-hot { left: -6px !important; top: -8px !important; white-space: nowrap; z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, .12); }
+}
+
+/* HP: kartu promo di beranda lebih kecil — 1 kartu + sebagian kartu berikutnya terlihat */
+@media (max-width: 640px) {
+  body[data-page="home"] #promo { padding: 4px 0 26px !important; }
+  body[data-page="home"] #promo .sec-head { margin-bottom: 12px; }
+  body[data-page="home"] #promo .sec-title.big { font-size: 22px; }
+  body[data-page="home"] .promo-strip > * { flex: 0 0 78%; }
+  body[data-page="home"] .promo-tile { gap: 12px; padding: 12px; border-radius: 16px; }
+  body[data-page="home"] .promo-tile::after { width: 110px; height: 110px; right: -30px; top: -30px; }
+  body[data-page="home"] .pt-val { min-width: 64px; padding: 6px; border-radius: 11px; font-size: 20px; line-height: 1.1; }
+  body[data-page="home"] .pt-val small { font-size: 10.5px; margin-top: 2px; letter-spacing: .03em; }
+  body[data-page="home"] .pt-bd { gap: 2px; }
+  body[data-page="home"] .pt-bd strong { font-size: 14px; }
+  body[data-page="home"] .pt-bd p { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  body[data-page="home"] .pt-bd small { font-size: 11px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  body[data-page="home"] .pt-code { margin-top: 6px; padding: 6px 10px; font-size: 12.5px; border-radius: 9px; min-height: 34px; }
+}
+@media (max-width: 640px) {
+  /* Etalase geser: kartu berhenti sejajar dengan isi halaman (tidak menempel ke tepi layar) */
+  body[data-page="home"] .promo-strip, #bestGrid, #shopGrid, #related, #svcGrid, body[data-page="home"] .testi-track { scroll-padding-inline: 16px; }
+}
+
+/* =====================================================================
+   HP (≤ 640px): kartu angka (stat) di semua halaman admin/owner jadi 2 kolom ringkas.
+   Dulu 1 kolom + ikon besar di atas → 4 angka memakan ±1.400px.
+   ===================================================================== */
+@media (max-width: 640px) {
+  .stat-grid, .content .stat-grid, .stat-grid.cols-3, .stat-grid.stat-5 { grid-template-columns: 1fr 1fr !important; gap: 8px; margin-bottom: 14px; }
+  .stat { flex-direction: row !important; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; }
+  .stat .ic { width: 32px; height: 32px; border-radius: 9px; font-size: 13px; }
+  .stat > div { min-width: 0; }
+  .stat small { font-size: 11.5px; line-height: 1.3; }
+  .stat strong, .stat-grid.stat-5 .stat strong { font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+  .stat > div > :last-child:not(strong):not(small:first-child) { font-size: 11px; line-height: 1.3; }
+  /* jumlah ganjil: kartu terakhir melebar penuh supaya tidak ada lubang */
+  .stat-grid > .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* HP: ringkasan angka lain juga 2 kolom ringkas (bukan 1 kartu per baris) */
+@media (max-width: 640px) {
+  /* Dashboard: Transaksi, Stok barang, Kondisi toko */
+  .mini-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .mini-grid > .stat:last-child:nth-child(odd), .mini-grid > *:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .mini-grid .stat .d, .stat .d { font-size: 11px; line-height: 1.3; display: block; }
+  /* Keuangan: pemasukan / pengeluaran / laba */
+  .sum-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; margin-bottom: 14px; }
+  .sum-grid > .sum-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .sum-card { padding: 11px 12px; border-radius: 14px; }
+  .sum-card small { font-size: 11.5px; }
+  .sum-card strong { font-size: 17px !important; }
+  .sum-card > :not(small):not(strong) { font-size: 11px; }
+  /* Laporan: ringkasan angka */
+  .rep-sum { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .rep-sum .rep-card { padding: 10px 12px; border-radius: 12px; }
+  .rep-sum .rep-card small { font-size: 11px; line-height: 1.3; display: block; }
+  .rep-sum .rep-card strong { font-size: 15px; }
+  .rep-sum .rep-card.key { grid-column: 1 / -1; }
+  /* Kasir: 3 kartu barang per baris */
+  .kasir-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px; }
+  .k-item { padding: 6px; gap: 2px; border-radius: 10px; }
+  .k-item img { aspect-ratio: 1 / 1; height: auto !important; }
+  .k-nm { font-size: 12px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .k-pr { font-size: 12px; }
+  .k-st { font-size: 11px; }
+}
+@media (max-width: 640px) { .mini-grid .stat > div { text-align: left !important; } .mini-grid .stat { align-items: center; } }
+
+/* HP: langkah laundry = jalur pendakian yang sama dengan "Cara Sewa" di beranda (4 pos bernomor di garis trek) */
+@media (max-width: 640px) {
+  .lp-steps-sec { padding: 14px 0 0; }
+  .lp-steps { display: block !important; position: relative; margin: 0; padding: 0; list-style: none; }
+  .lp-steps::before { content: ""; position: absolute; left: 17px; top: 24px; bottom: 24px; border-left: 2px dashed var(--g500); opacity: .55; }
+  .lp-steps li { position: relative; background: none; border: 0; border-radius: 0; padding: 8px 0 8px 50px; min-height: 52px; }
+  .lp-steps li + li { margin-top: 2px; }
+  .lp-steps .ic { display: none; }
+  .lp-steps .n { top: 8px; left: 0; right: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--g700); color: #fff; font-size: 15px; font-weight: 800; box-shadow: 0 0 0 4px var(--cream); }
+  .lp-steps li:last-child .n { background: var(--gold); color: var(--g900); }
+  .lp-steps h3 { font-size: 15px; margin: 0 0 2px; }
+  .lp-steps p { font-size: 12.5px; line-height: 1.45; }
+  .lp-main { padding-top: 22px; }
+}
+@media (max-width: 640px) { .lp-steps li { display: block !important; } .lp-steps h3, .lp-steps p { display: block; } }
+
+/* =====================================================================
+   Kasir di HP: ringkas & tanpa gulir bertumpuk
+   ===================================================================== */
+@media (max-width: 640px) {
+  body[data-page="admin-kasir"] .page-sub { display: none; }
+  /* kategori satu baris, digeser */
+  #kCats.kasir-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px 10px; padding: 0 14px; }
+  #kCats.kasir-chips::-webkit-scrollbar { display: none; }
+  #kCats.kasir-chips > * { flex: 0 0 auto; }
+  /* tanggal ambil & kembali berdampingan */
+  .kd-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+  .kd-row .kd-pick, .kd-row .kd-dur { grid-column: 1 / -1; }
+  .kd-row .kd-pick { display: flex; } .kd-row .kd-pick button { flex: 1; }
+  .kd-row .input { width: 100%; min-width: 0; }
+  .kd-row label { min-width: 0; }
+  .kd-info { font-size: 11.5px; margin: 6px 0 8px; }
+  /* daftar barang tanpa area gulir sendiri (tidak menjebak jempol) */
+  .kasir-grid { max-height: none !important; overflow: visible !important; }
+}
+/* bar ringkasan transaksi */
+.k-bar { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 150; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 16px; border-radius: 16px; background: var(--g900); color: #fff; box-shadow: 0 12px 30px -10px rgba(16, 39, 24, .55); }
+.k-bar[hidden] { display: none; }
+.k-bar-t { font-size: 14px; }
+.k-bar .btn { background: var(--gold); color: var(--g900); border-color: var(--gold); }
+@media (max-width: 900px) { body[data-page="admin-kasir"] .content { padding-bottom: 84px; } }
+
+/* Kartu produk: SELURUH kartu bisa ditekan untuk membuka detail (tautan judul diperluas menutupi kartu).
+   Tombol keranjang & Sewa/Beli tetap di atasnya dan berfungsi seperti biasa. */
+.prod-card { position: relative; }
+.prod-card h3 a::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.prod-card .acts, .prod-card .acts .btn, .prod-card .pc-cart, .prod-card .pc-badge { position: relative; z-index: 2; }
+.prod-card .pc-badge { position: absolute; }
+/* efek tekan di layar sentuh: kartu sedikit mengecil → terasa bisa dibuka */
+@media (hover: none) {
+  .prod-card { transition: transform .12s ease, box-shadow .12s ease; -webkit-tap-highlight-color: transparent; }
+  .prod-card:active:not(:has(.acts:active)) { transform: scale(.975); box-shadow: 0 2px 10px -4px rgba(16, 39, 24, .25); }
+}
+@media (prefers-reduced-motion: reduce) { .prod-card { transition: none; } .prod-card:active { transform: none; } }
+@media (max-width: 640px) {
+  /* Kasir: rincian transaksi tidak boleh melebarkan halaman */
+  .kasir, .kasir > * { min-width: 0; }
+  .kb-it { grid-template-columns: 38px minmax(0, 1fr) auto 28px; grid-template-rows: auto auto; row-gap: 6px; }
+  .kb-it > :first-child { grid-column: 1; grid-row: 1 / 3; align-self: start; }
+  .kb-it .kb-nm { grid-column: 2 / 4; grid-row: 1; }
+  .kb-it .qty { grid-column: 2; grid-row: 2; justify-self: start; }
+  .kb-it .kb-pr { grid-column: 3; grid-row: 2; justify-self: end; }
+  .kb-it > .icon-btn { grid-column: 4; grid-row: 1; justify-self: end; }
+  .kb-items { max-height: none; overflow: visible; }
+}
+@media (max-width: 640px) { .k-more { justify-content: center; margin-top: 4px; min-height: 40px; } .k-more small { font-weight: 500; margin-left: 4px; } }
+@media (max-width: 640px) { .k-nm { max-height: 2.5em; line-height: 1.25; } }
+
+/* =====================================================================
+   HP: menu bawah baru — dok hijau hutan, menu aktif = "batu" emas + penanda puncak gunung (dari logo)
+   ===================================================================== */
+@media (max-width: 768px) {
+  .bnav { left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); padding: 8px 4px 7px; border-radius: 26px;
+    background: linear-gradient(180deg, #21462e 0%, var(--g900) 100%); border: 1px solid rgba(255, 255, 255, .07);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: 0 18px 34px -16px rgba(16, 39, 24, .7), inset 0 1px 0 rgba(255, 255, 255, .06); }
+  .bnav a { color: rgba(246, 244, 238, .6); font-weight: 600; gap: 4px; }
+  .bnav a i { width: 42px; height: 30px; border-radius: 12px; font-size: 17px; color: inherit; background: transparent; box-shadow: none; }
+  .bnav a:not(.on):hover i, .bnav a:not(.on):focus-visible i { background: rgba(255, 255, 255, .08); color: var(--cream); }
+  .bnav a.on { color: var(--gold); font-weight: 800; }
+  .bnav a.on i { background: linear-gradient(160deg, var(--gold) 0%, var(--gold-2) 100%); color: var(--g900); box-shadow: 0 6px 14px -6px rgba(242, 193, 78, .7); transform: translateY(-1px); }
+  /* penanda puncak gunung di atas menu aktif */
+  .bnav a.on::before { content: ""; position: absolute; top: -9px; left: 50%; width: 16px; height: 7px; margin-left: -8px; background: var(--gold);
+    clip-path: polygon(0 100%, 34% 18%, 50% 46%, 66% 0, 100% 100%); }
+  .bnav a b { background: var(--orange); box-shadow: 0 0 0 2px var(--g900); }
+  .bnav a:active i { transform: scale(.9); }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) { .bnav a i { transition: none; } }
+
+/* Ruang untuk menu & bar bawah dipindah ke dalam footer → tidak ada lagi area kosong krem di bawah footer,
+   dan baris terakhir footer tidak tertutup bar. Halaman tanpa footer tetap memakai jarak lama. */
+@media (max-width: 768px) {
+  body.has-bnav:has(> .footer), body.has-bnav:has(footer.footer) { padding-bottom: 0 !important; }
+  body.has-bnav .footer { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  body.has-ld-sticky:has(footer.footer) { padding-bottom: 0 !important; }
+  body.has-ld-sticky .footer { padding-bottom: calc(172px + env(safe-area-inset-bottom)); }
+  body.pd-focus:has(footer.footer) { padding-bottom: 0 !important; }
+  body.pd-focus .footer { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  body.flow-focus:has(footer.footer) { padding-bottom: 0 !important; }
+  body.flow-focus .footer { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+}
+
+/* Laundry: tiga keunggulan di judul halaman sejajar dalam satu baris */
+@media (max-width: 640px) {
+  .lp-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; padding-top: 16px; }
+  .lp-facts li { flex-direction: column; align-items: center; text-align: center; gap: 6px; }
+  .lp-facts i { width: 34px; height: 34px; border-radius: 11px; font-size: 14px; }
+  .lp-facts b { font-size: 13px; line-height: 1.25; }
+  .lp-facts small { font-size: 11px; line-height: 1.3; display: block; }
+}
+@media (max-width: 768px) {
+  /* garis tepi emas tipis: dok tetap terlihat terpisah saat berada di atas footer yang sama gelapnya */
+  .bnav { border-color: rgba(242, 193, 78, .22); box-shadow: 0 18px 34px -16px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .12), inset 0 1px 0 rgba(255, 255, 255, .07); }
+}
+
+/* =====================================================================
+   HP: hero beranda dirapikan — cukup judul, 2 baris pengantar, dan kotak pencarian.
+   3 tombol (Sewa/Beli/Laundry) disembunyikan karena sama dengan menu bawah;
+   4 poin keunggulan disembunyikan (sudah dijelaskan di bagian bawah halaman).
+   ===================================================================== */
+@media (max-width: 640px) {
+  body[data-page="home"] .hero-links, body[data-page="home"] .hero-perks { display: none !important; }
+  body[data-page="home"] .hero-inner { padding-top: 34px; padding-bottom: 38px; }
+  body[data-page="home"] .hero-title { margin-bottom: 12px; }
+  body[data-page="home"] .hero-lead { -webkit-line-clamp: 2 !important; font-size: 14px; opacity: .92; margin-bottom: 20px; }
+  body[data-page="home"] .hero-search { margin-top: 0; box-shadow: 0 14px 30px -16px rgba(0, 0, 0, .55); }
+}
+
+/* =====================================================================
+   HP: hero beranda — judul & pengantar lebih kecil, rating di bawah pencarian,
+   keunggulan di kartu putih yang menempel di tepi bawah hero
+   ===================================================================== */
+.hero-perks-wrap, .hero-proof { display: none; }
+@media (max-width: 640px) {
+  body[data-page="home"] .hero-title { font-size: 31px !important; line-height: 1.1; }
+  body[data-page="home"] .hero-title .l2 { padding-left: .55em; }
+  body[data-page="home"] .hero-lead { font-size: 13px !important; line-height: 1.55; margin-top: 10px; margin-bottom: 16px; }
+  body[data-page="home"] .hero-inner { padding-top: 28px; padding-bottom: 54px; }
+  /* rating pelanggan */
+  body[data-page="home"] .hero-proof { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 6px 12px 6px 10px; border-radius: 999px; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .16); color: #fff; font-size: 12px; text-decoration: none; }
+  body[data-page="home"] .hero-proof b { font-weight: 800; }
+  body[data-page="home"] .hp-stars { display: inline-flex; gap: 1px; color: var(--gold); font-size: 10.5px; }
+  /* kartu keunggulan yang menempel */
+  .hero-perks-wrap { display: block; position: relative; z-index: 3; margin-top: -34px; }
+  .hero-perks-m { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 14px 30px -18px rgba(16, 39, 24, .45); }
+  .hero-perks-m li { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--ink); }
+  .hero-perks-m .ic { flex: 0 0 30px; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #fdf3d8; color: #8a5a00; font-size: 13px; border: 0; }
+  body[data-page="home"] .hero-perks-wrap + .section { padding-top: 26px; }
+}
+/* HP: hero final — judul, pengantar utuh (tanpa "…"), pencarian. Rating & kartu keunggulan dihapus. */
+@media (max-width: 640px) {
+  body[data-page="home"] .hero-lead { display: block !important; -webkit-line-clamp: unset !important; overflow: visible !important; margin-bottom: 18px; }
+  body[data-page="home"] .hero-inner { padding-bottom: 32px; }
+}
+/* Kasir: catatan penjelasan pembayaran (DP / lunas) */
+.kb-note { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 10px; padding: 9px 11px; border-radius: 10px; background: var(--g50); border: 1px solid var(--g100); color: var(--ink-2); font-size: 12.5px; line-height: 1.5; }
+.kb-note i { color: var(--g600); margin-top: 3px; font-size: 12px; }
+.kb-note b { color: var(--g800); }
+.inv-refund span { color: var(--red); } .inv-refund i { font-size: 11px; margin-right: 2px; }

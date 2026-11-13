@@ -11,11 +11,20 @@
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Nama toko</td><td style="border-bottom:1px solid #e4dfd4">Annapurna Adventure</td></tr>
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Nama akun</td><td style="border-bottom:1px solid #e4dfd4">{{ $staff->name }}</td></tr>
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Email akun</td><td style="border-bottom:1px solid #e4dfd4">{{ $staff->email }}</td></tr>
+          @if ($temporaryPassword)
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Kata sandi sementara</td><td style="border-bottom:1px solid #e4dfd4"><code>{{ $temporaryPassword }}</code></td></tr>
+          @else
+          <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Kata sandi</td><td style="border-bottom:1px solid #e4dfd4">Diberikan langsung oleh Owner</td></tr>
+          @endif
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Link website</td><td style="border-bottom:1px solid #e4dfd4"><a href="{{ $loginUrl }}">{{ $loginUrl }}</a></td></tr>
         </table>
         <p><strong>Cara masuk:</strong></p>
-        <ol><li>Buka link website di atas.</li><li>Masuk dengan email akun dan kata sandi sementara.</li><li>Buat kata sandi baru saat pertama login.</li><li>Jangan bagikan kata sandi kepada siapa pun.</li></ol>
+        <ol>
+          <li>Buka link website di atas.</li>
+          <li>Masuk dengan email akun dan kata sandi {{ $temporaryPassword ? 'sementara' : 'yang diberikan Owner' }}.</li>
+          @if ($temporaryPassword || $mustChange)<li>Buat kata sandi baru saat pertama login.</li>@endif
+          <li>Jangan bagikan kata sandi kepada siapa pun.</li>
+        </ol>
         <p style="font-size:12.5px;color:#6b766e">Akun ini dibuat oleh Owner Annapurna Adventure. Semua aktivitas di panel admin tercatat otomatis di histori sistem.</p>
         <p><a href="{{ $loginUrl }}" style="display:inline-block;background:#1f4d2f;color:#ffffff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:bold">Masuk ke panel</a></p>
       </td></tr>

@@ -104,29 +104,36 @@ class OrderController extends Controller
         });
     }
 
-    /** POST /api/admin/booking/{id}/batal  { reason, dp_mode: refund|forfeit } */
+    /**
+     * POST /api/admin/booking/{id}/batal
+     * { reason, dp_mode: refund|forfeit, refund_method?, refund_bank?, refund_account_number?, refund_account_name? }
+     * Metode pengembalian boleh dikosongkan admin dan dilengkapi saat Proses refund.
+     */
     public function adminCancel(Request $request, string $id): JsonResponse
     {
-        $v = $request->validate([
+        $v = $request->validate(array_merge([
             'reason' => 'required|string|max:255',
-            'dp_mode' => 'nullable|in:refund,forfeit',
-        ]);
+            'dp_mode' => 'nullable|in:refund,forfeit,none',
+        ], self::refundRules()), self::refundMessages());
 
         return $this->tx(function () use ($id, $v) {
             $b = $this->lockBooking($id);
             if (!in_array($b->status, self::ACTIVE, true)) {
                 throw new \DomainException("Booking berstatus {$b->status} tidak bisa dibatalkan.");
             }
-            $this->cancel($b, $v['reason'], ($v['dp_mode'] ?? 'refund') === 'refund', 'admin');
+            $this->cancel($b, $v['reason'], ($v['dp_mode'] ?? 'refund') !== 'forfeit', 'admin', $v);
 
             return $this->ok($b);
         });
     }
 
-    /** POST /api/pesanan/{id}/batal  { reason } — pembatalan oleh customer, aturan H-n dihitung di server. */
+    /**
+     * POST /api/pesanan/{id}/batal — pembatalan oleh customer, aturan H-n dihitung di server.
+     * { reason, refund_method (wajib bila DP dikembalikan): transfer|tunai, refund_bank, refund_account_number, refund_account_name }
+     */
     public function customerCancel(Request $request, string $id): JsonResponse
     {
-        $v = $request->validate(['reason' => 'required|string|max:255']);
+        $v = $request->validate(array_merge(['reason' => 'required|string|max:255'], self::refundRules()), self::refundMessages());
         $user = Auth::user();
 
         return $this->tx(function () use ($id, $v, $user) {
@@ -138,17 +145,27 @@ class OrderController extends Controller
             }
             $cancelDays = (int) Setting::get('cancel_days', 2);
             $refundable = now()->startOfDay()->diffInDays($b->start_date->copy()->startOfDay(), false) >= $cancelDays;
-            $this->cancel($b, $v['reason'], $refundable, 'customer');
+            if ($refundable && $this->hasDp($b) && empty($v['refund_method'])) {
+                throw new \DomainException('Pilih metode pengembalian DP: transfer atau tunai.');
+            }
+            $this->cancel($b, $v['reason'], $refundable, 'customer', $v);
 
             return $this->ok($b);
         });
     }
 
-    private function cancel(Booking $b, string $reason, bool $refund, string $by): void
+    private function hasDp(Booking $b): bool
     {
-        $pendingSum = (int) $b->payments()->where('status', 'pending')->sum('amount');
-        $paid = (int) $b->payments()->where('status', 'verified')->sum('amount');
-        $hasDp = $paid > 0 || in_array($b->payment_status, ['dp_verifying', 'dp_paid', 'lunas'], true);
+        return $b->payments()->whereIn('status', ['verified', 'pending'])->exists()
+            || in_array($b->payment_status, ['dp_verifying', 'dp_paid', 'lunas'], true);
+    }
+
+    private function cancel(Booking $b, string $reason, bool $refund, string $by, array $v = []): void
+    {
+        // Hak refund = uang masuk (terverifikasi + bukti yang belum sempat dicek) × persen refund
+        $received = (int) $b->payments()->whereIn('status', ['verified', 'pending'])->sum('amount');
+        $pct = max(0, min(100, (int) Setting::get('refund_percent', 100)));
+        $hasDp = $this->hasDp($b);
 
         $b->payments()->where('status', 'pending')->update(['status' => 'rejected', 'notes' => 'Booking dibatalkan']);
         $b->update(array_merge([
@@ -160,15 +177,45 @@ class OrderController extends Controller
         ], $hasDp ? ['payment_status' => $refund ? 'refund_pending' : 'forfeited'] : []));
 
         if ($hasDp) {
+            $method = $refund ? ($v['refund_method'] ?? null) : null;
+            $tf = $method === 'transfer';
             Refund::updateOrCreate(['booking_id' => $b->id], [
-                'amount' => $paid + $pendingSum,
+                'amount' => $refund ? (int) round($received * $pct / 100) : $received,
+                'method' => $method,
+                'bank_name' => $tf ? $v['refund_bank'] : null,
+                'account_number' => $tf ? $v['refund_account_number'] : null,
+                'account_name' => $tf ? $v['refund_account_name'] : null,
+                'bank_account' => $tf ? Refund::accountSummary($v['refund_bank'], $v['refund_account_number'], $v['refund_account_name']) : null,
                 'reason' => $reason,
                 'status' => $refund ? 'menunggu' : 'hangus',
+                'requested_by' => $by,
             ]);
         }
 
-        Audit::log('rental', ($by === 'admin' ? 'Membatalkan' : 'Customer membatalkan') . " booking {$this->ref($b)}: {$reason}"
-            . ($hasDp ? ($refund ? ' (DP dikembalikan)' : ' (DP hangus)') : ''), $b);
+        $how = $hasDp ? ($refund ? ' (DP dikembalikan' . (!empty($v['refund_method']) ? ", {$v['refund_method']}" : '') . ')' : ' (DP hangus)') : '';
+        Audit::log('rental', ($by === 'admin' ? 'Membatalkan' : 'Customer membatalkan') . " booking {$this->ref($b)}: {$reason}{$how}", $b);
+    }
+
+    /** Isian metode pengembalian DP (sama dengan form FE UI.refundFields). */
+    private static function refundRules(): array
+    {
+        return [
+            'refund_method' => 'nullable|in:transfer,tunai',
+            'refund_bank' => 'nullable|required_if:refund_method,transfer|string|max:60',
+            'refund_account_number' => ['nullable', 'required_if:refund_method,transfer', 'regex:/^\d{6,30}$/'],
+            'refund_account_name' => 'nullable|required_if:refund_method,transfer|string|max:100',
+        ];
+    }
+
+    private static function refundMessages(): array
+    {
+        return [
+            'reason.required' => 'Tulis alasan pembatalan.',
+            'refund_bank.required_if' => 'Isi nama bank / e-wallet tujuan.',
+            'refund_account_number.required_if' => 'Isi nomor rekening / HP e-wallet.',
+            'refund_account_number.regex' => 'Nomor rekening / HP e-wallet harus 6–30 digit angka.',
+            'refund_account_name.required_if' => 'Isi nama pemilik rekening.',
+        ];
     }
 
     private function lockBooking(string $id): Booking

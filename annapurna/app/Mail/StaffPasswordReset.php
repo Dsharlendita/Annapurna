@@ -20,7 +20,8 @@ class StaffPasswordReset extends Mailable implements ShouldQueue
     public function __construct(
         public User $staff,
         public User $owner,
-        public string $temporaryPassword
+        public ?string $temporaryPassword = null, // null = kata sandi dibuat Owner, tidak ikut dikirim
+        public bool $mustChange = true
     ) {}
 
     public function envelope(): Envelope

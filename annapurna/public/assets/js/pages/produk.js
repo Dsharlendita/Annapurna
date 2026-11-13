@@ -70,10 +70,10 @@
     <div class="card info-rent" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-circle-info"></i> Info penting sebelum ${p.rent ? 'sewa' : 'beli'}</div><ul class="ir-list">${infoRows.map(([ic, t, d]) => `<li><span class="ir-ic"><i class="fa-solid ${ic}"></i></span><div><b>${t}</b><small>${d}</small></div></li>`).join('')}</ul></div>
     ${alts.length ? `<div class="card alt-brands" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-code-compare"></i> Pilihan merek lain untuk ${esc(cat.name.toLowerCase())}</div><div class="alt-list">${alts.map((x) => `<a class="alt-it" href="produk?id=${x.id}"><img loading="lazy" decoding="async" src="${asset(x.img)}" alt=""><span><small>${esc(x.brand)}</small><b>${esc(x.name)}</b><em>${x.rent ? `${rupiah(x.rent)}/malam` : rupiah(x.price)}${x.attrs && x.attrs['at-kapasitas'] ? ` · ${esc(x.attrs['at-kapasitas'])}` : ''}</em></span></a>`).join('')}</div></div>` : ''}
     ${detailRows.length ? `<div class="card prod-detail" style="margin-top:36px"><div class="card-title"><i class="fa-solid fa-list-check"></i> Detail produk</div><table class="spec-tbl">${detailRows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table></div>` : ''}
-    <div class="grid-2" style="gap:18px;margin-top:${detailRows.length ? 18 : 36}px">
-      <div class="card" id="ketentuan"><div class="card-title"><i class="fa-solid fa-file-lines"></i> Ketentuan sewa</div><ul style="list-style:disc;padding-left:18px;color:var(--ink-2);font-size:14px">${st.rentalTerms.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}</ul></div>
-      <div class="card" style="margin-top:0"><div class="card-title"><i class="fa-solid fa-rotate-left"></i> Kebijakan pembatalan</div><ul style="list-style:disc;padding-left:18px;color:var(--ink-2);font-size:14px">${st.cancelPolicy.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}</ul></div>
-    </div>
+    <details class="card terms-fold" id="ketentuan" style="margin-top:${detailRows.length ? 18 : 36}px"><summary><span class="card-title" style="margin:0"><i class="fa-solid fa-file-lines"></i> Ketentuan lengkap &amp; kebijakan pembatalan</span><i class="fa-solid fa-chevron-down tf-chev"></i></summary>
+      <div class="grid-2 tf-in"><div><h4 class="tf-h">Ketentuan sewa</h4><ul style="list-style:disc;padding-left:18px;color:var(--ink-2);font-size:14px">${st.rentalTerms.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}</ul></div>
+        <div><h4 class="tf-h">Kebijakan pembatalan</h4><ul style="list-style:disc;padding-left:18px;color:var(--ink-2);font-size:14px">${st.cancelPolicy.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}</ul></div></div>
+    </details>
 
     <section class="card rv-sec" id="ulasan" style="margin-top:18px"></section>
 
@@ -233,7 +233,7 @@
   }));
 
   const sel = Object.assign({}, UI.tripDefault());
-  let viewMonth = new Date(); viewMonth.setDate(1);
+  let viewMonth = new Date(); viewMonth.setDate(1); let calOpen = false;
   function drawCal() {
     const cb = $('#calBox');
     if (!p.rent) { cb.classList.add('hidden'); return; }
@@ -249,19 +249,16 @@
       const a = Rules.availableOn(p.id, iso, null, DB.hasVariant(p) ? selSize : null);
       const cls = past ? 'past' : a <= 0 ? 'full' : a <= Math.max(1, Math.floor(p.stock * .3)) ? 'low' : 'ok';
       const inSel = mode === 'rent' && iso >= sel.start && iso <= sel.end;
-      cells += `<button class="cal-day ${cls} ${inSel ? 'sel' : ''}" data-d="${iso}" ${past ? 'disabled' : ''} aria-label="${D.fmtDate(iso)}: ${past ? 'lewat' : a + ' unit tersedia'}">${d}<small>${past ? '' : a <= 0 ? 'Penuh' : a + ' unit'}</small></button>`;
+      /* Kalender hanya informasi stok (tanggal dipilih lewat isian tanggal di atas) */
+      cells += `<span class="cal-day ${cls} ${inSel ? 'sel' : ''}" aria-label="${D.fmtDate(iso)}: ${past ? 'lewat' : a + ' unit tersedia'}">${d}<small>${past ? '' : a <= 0 ? 'Penuh' : a + ' unit'}</small></span>`;
     }
-    cb.innerHTML = `<div class="cal-head"><h3>Kalender ketersediaan</h3>
+    cb.innerHTML = `<details class="cal-fold" id="calFold" ${calOpen ? 'open' : ''}><summary><span><i class="fa-regular fa-calendar"></i> Lihat ketersediaan per tanggal</span><i class="fa-solid fa-chevron-down tf-chev"></i></summary><div class="cal-head"><h3>Kalender ketersediaan</h3>
         <div style="display:flex;gap:4px;align-items:center"><button class="icon-btn" id="calPrev" ${isCur ? 'disabled style="opacity:.3"' : ''} aria-label="Bulan sebelumnya"><i class="fa-solid fa-chevron-left"></i></button><strong style="min-width:130px;text-align:center">${D.BULAN_PANJANG[m]} ${y}</strong><button class="icon-btn" id="calNext" aria-label="Bulan berikutnya"><i class="fa-solid fa-chevron-right"></i></button></div></div>
       <div class="cal-grid">${D.HARI.map((h) => `<span class="dow">${h}</span>`).join('')}${cells}</div>
-      <div class="cal-legend" style="margin-top:12px"><span><i style="background:var(--g100);border:1px solid var(--g200)"></i>Tersedia</span><span><i style="background:#fdf4dc;border:1px solid #f1dca0"></i>Hampir habis</span><span><i style="background:#fae6e2;border:1px solid #f0c6be"></i>Penuh</span><span>Klik tanggal untuk memilih tanggal ambil</span></div>`;
+      <div class="cal-legend" style="margin-top:12px"><span><i style="background:var(--g100);border:1px solid var(--g200)"></i>Tersedia</span><span><i style="background:#fdf4dc;border:1px solid #f1dca0"></i>Hampir habis</span><span><i style="background:#fae6e2;border:1px solid #f0c6be"></i>Penuh</span></div></details>`;
     $('#calPrev').addEventListener('click', () => { viewMonth.setMonth(viewMonth.getMonth() - 1); drawCal(); });
     $('#calNext').addEventListener('click', () => { viewMonth.setMonth(viewMonth.getMonth() + 1); drawCal(); });
-    $$('.cal-day[data-d]', cb).forEach((b) => b.addEventListener('click', () => {
-      if (mode !== 'rent') { mode = 'rent'; drawOrder(); }
-      window.__setStart && window.__setStart(b.dataset.d);
-      toast(`Tanggal ambil diatur ke ${D.fmtDate(b.dataset.d)}.`);
-    }));
+    const fold = $('#calFold', cb); if (fold) fold.addEventListener('toggle', () => { calOpen = fold.open; });
   }
   drawOrder();
 

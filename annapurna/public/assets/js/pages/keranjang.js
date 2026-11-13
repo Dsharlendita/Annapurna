@@ -7,13 +7,18 @@
     const bad = Cart.all().filter((it) => it.type === 'rent' && it.qty > Cart.availability(it)).length;
     toast(bad ? `Tanggal disamakan. ${bad} alat perlu dicek stoknya.` : `Semua alat disewa ${D.fmtRange(start, end)}.`, bad ? 'err' : undefined);
   }
+  let ctab = '';
   function draw() {
     const cart = Cart.all();
     if (!cart.length) {
       root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-cart-shopping"></i></div><h3>Keranjang masih kosong</h3><p>Pilih alat yang mau disewa atau dibeli. Semua yang kamu tambahkan akan muncul di sini.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="katalog">Sewa alat</a><a class="btn btn-outline" href="paket">Lihat paket</a><a class="btn btn-light" href="belanja">Belanja alat</a></div></div>`;
       return;
     }
-    const rent = cart.filter((c) => c.type === 'rent'), buy = cart.filter((c) => c.type === 'buy');
+    const rentAll = cart.filter((c) => c.type === 'rent'), buyAll = cart.filter((c) => c.type === 'buy');
+    /* Keranjang sewa & keranjang beli terpisah: masing-masing punya ringkasan & checkout sendiri */
+    if (!ctab) ctab = UI.param('t') === 'beli' ? 'buy' : UI.param('t') === 'sewa' ? 'rent' : '';
+    if (!ctab || (ctab === 'rent' && !rentAll.length && buyAll.length) || (ctab === 'buy' && !buyAll.length && rentAll.length)) ctab = rentAll.length ? 'rent' : 'buy';
+    const rent = ctab === 'rent' ? rentAll : [], buy = ctab === 'buy' ? buyAll : [];
     let problems = 0, szProblems = 0;
     const row = (it) => {
       const r = Cart.resolve(it);
@@ -28,7 +33,7 @@
         <img loading="lazy" decoding="async" src="${asset(r.img)}" alt="">
         <div>
           <h4>${esc(r.name)} ${it.kind === 'package' ? '<span class="pill green plain" style="margin-left:4px">Paket</span>' : ''}</h4>
-          <div class="sm">${it.type === 'rent' ? `${esc(Rules.tierLabel(r.tiers, days))} · ${rupiah(Rules.tierPlan(r.tiers, days).total)} / unit` : rupiah(r.unit)}${r.sub ? `<br>${esc(r.sub)}` : ''}</div>
+          <div class="sm">${it.type === 'rent' ? `${esc(Rules.tierLabel(r.tiers, days))} · ${rupiah(Rules.tierPlan(r.tiers, days).total)} / unit${Rules.tierBreak(r.tiers, days) ? `<span class="dur-break"><i class="fa-solid fa-calculator"></i> ${esc(Rules.tierBreak(r.tiers, days))}</span>` : ''}` : rupiah(r.unit)}${r.sub ? `<br>${esc(r.sub)}` : ''}</div>
           ${it.kind === 'package' ? (() => { const pk = DB.pkg(it.refId); const sized = Rules.packageSized(pk, it.swaps); if (!sized.length) return ''; const SZ = it.sizes || {};
             return `<div class="cart-pksz">${sized.map((x) => { const list = Rules.sizeAvailability(x.productId, it.start, it.end); const need = x.qty * it.qty;
               return `<div class="cart-size ${SZ[x.k] ? '' : 'need'}"><label>${esc(x.product.name.replace(/\s*\(.*\)/, ''))}</label><select class="select" data-pks="${x.k}"><option value="">Pilih ukuran…</option>${list.map((o) => `<option value="${esc(o.name)}" ${SZ[x.k] === o.name ? 'selected' : ''} ${o.avail < need && SZ[x.k] !== o.name ? 'disabled' : ''}>${esc(o.name.replace(/\s*\(.*\)/, ''))} ${o.avail < need ? '(habis)' : `(sisa ${o.avail})`}</option>`).join('')}</select></div>`; }).join('')}</div>`; })() : ''}
@@ -51,15 +56,19 @@
     const buyTotal = buy.reduce((s, i) => s + Cart.lineTotal(i), 0);
     const dp = Math.round(rentTotal * DB.settings().dpPercent / 100);
     const rentHtml = rent.map(row).join(''), buyHtml = buy.map(row).join('');
-    root.innerHTML = `<div class="layout-2">
-      <div>
+    const tabs = `<div class="cart-tabs" role="tablist">
+      <button type="button" role="tab" data-ct="rent" class="${ctab === 'rent' ? 'on' : ''}"><i class="fa-solid fa-campground"></i> Keranjang sewa <span>${rentAll.length}</span></button>
+      <button type="button" role="tab" data-ct="buy" class="${ctab === 'buy' ? 'on' : ''}"><i class="fa-solid fa-bag-shopping"></i> Keranjang beli <span>${buyAll.length}</span></button></div>`;
+    const emptyTab = !rent.length && !buy.length ? `<div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid ${ctab === 'rent' ? 'fa-campground' : 'fa-bag-shopping'}"></i></div><h3>Keranjang ${ctab === 'rent' ? 'sewa' : 'beli'} kosong</h3><p><a class="link" href="${ctab === 'rent' ? 'katalog' : 'belanja'}">${ctab === 'rent' ? 'Cari alat untuk disewa' : 'Lihat alat yang dijual'}</a></p></div>` : '';
+    root.innerHTML = `${tabs}<div class="layout-2">
+      <div>${emptyTab}
         ${(() => { const ranges = [...new Set(rent.map((r) => r.start + '|' + r.end))]; const t = DB.trip() || (rent[0] && { start: rent[0].start, end: rent[0].end });
           if (!rent.length || !t) return '';
           if (ranges.length > 1) return `<div class="notice date-sync"><i class="fa-regular fa-calendar"></i><div><strong>Tanggal sewa di keranjang berbeda-beda.</strong> Samakan semua menjadi <b>${D.fmtRange(t.start, t.end)}</b>? Biasanya semua alat untuk satu trip diambil & dikembalikan bersamaan.</div><button class="btn btn-primary btn-sm" id="syncDates" data-s="${t.start}" data-e="${t.end}">Samakan</button></div>`;
           return `<div class="notice green date-sync"><i class="fa-regular fa-calendar-check"></i><div>Semua alat disewa untuk <b>${D.fmtRange(rent[0].start, rent[0].end)}</b> · ${Rules.rentalDays(rent[0].start, rent[0].end)} malam, kembali paling lambat pukul ${String(DB.settings().returnTime || '22:00').replace(':', '.')} WIB.</div><button class="btn btn-light btn-sm" id="chgDates">Ubah tanggal</button></div>`; })()}
         ${rent.length ? `<section class="cart-group"><h3><i class="fa-solid fa-campground" style="color:var(--g600)"></i> Sewa alat <span class="muted" style="font-weight:500;font-size:13px">(${rent.length})</span></h3>${rentHtml}</section>` : ''}
         ${buy.length ? `<section class="cart-group"><h3><i class="fa-solid fa-bag-shopping" style="color:var(--g600)"></i> Beli alat <span class="muted" style="font-weight:500;font-size:13px">(${buy.length})</span></h3>${buyHtml}</section>` : ''}
-        <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-light btn-sm" href="katalog"><i class="fa-solid fa-plus"></i> Tambah alat lain</a><button class="btn btn-ghost btn-sm" id="clearCart" style="color:var(--red)">Kosongkan keranjang</button></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-light btn-sm" href="katalog"><i class="fa-solid fa-plus"></i> Tambah alat lain</a><button class="btn btn-ghost btn-sm" id="clearCart" style="color:var(--red)">Kosongkan keranjang ${ctab === 'rent' ? 'sewa' : 'beli'}</button></div>
       </div>
       <aside class="card sticky-side">
         <div class="card-title">Ringkasan</div>
@@ -68,12 +77,13 @@
         <div class="kv total"><span>Dibayar sekarang</span><span>${rupiah(dp + buyTotal)}</span></div>
         ${szProblems ? `<div class="notice red" style="margin:12px 0"><i class="fa-solid fa-ruler"></i><div>Ada ${szProblems} paket yang ukuran barangnya belum dipilih. Pilih ukurannya dulu sebelum lanjut.</div></div>` : ''}
         ${problems ? `<div class="notice red" style="margin:12px 0"><i class="fa-solid fa-circle-exclamation"></i><div>Ada ${problems} item yang jumlahnya melebihi stok. Perbaiki dulu sebelum lanjut.</div></div>` : ''}
-        <button class="btn btn-primary btn-block" id="goCheckout" style="margin-top:12px" ${problems || szProblems ? 'disabled' : ''}>Lanjut ke checkout <i class="fa-solid fa-arrow-right"></i></button>
+        <button class="btn btn-primary btn-block" id="goCheckout" style="margin-top:12px" ${problems || szProblems || (!rent.length && !buy.length) ? 'disabled' : ''}>${ctab === 'rent' ? 'Checkout sewa' : 'Checkout belanja'} <i class="fa-solid fa-arrow-right"></i></button>
         <p class="muted" style="font-size:12.5px;margin-top:10px"><i class="fa-solid fa-circle-info"></i> Pembatalan sewa maksimal H-2 sebelum tanggal ambil, DP dikembalikan penuh.</p>
       </aside>
     </div>`;
-    $('#goCheckout').addEventListener('click', () => (location.href = 'checkout'));
-    $('#clearCart').addEventListener('click', async () => { if (await confirmBox({ title: 'Kosongkan keranjang?', text: 'Semua alat di keranjang akan dihapus.', ok: 'Kosongkan', danger: true })) { Cart.clear(); draw(); toast('Keranjang dikosongkan.'); } });
+    $('#goCheckout').addEventListener('click', () => (location.href = 'checkout?t=' + (ctab === 'rent' ? 'sewa' : 'beli')));
+    $$('.cart-tabs [data-ct]').forEach((b) => b.addEventListener('click', () => { ctab = b.dataset.ct; history.replaceState(null, '', '?t=' + (ctab === 'rent' ? 'sewa' : 'beli')); draw(); }));
+    $('#clearCart').addEventListener('click', async () => { const nm = ctab === 'rent' ? 'sewa' : 'beli'; if (await confirmBox({ title: `Kosongkan keranjang ${nm}?`, text: `Semua alat di keranjang ${nm} akan dihapus.`, ok: 'Kosongkan', danger: true })) { Cart.clear(ctab); draw(); toast(`Keranjang ${nm} dikosongkan.`); } });
     const syn = $('#syncDates'); if (syn) syn.addEventListener('click', () => { setAll(syn.dataset.s, syn.dataset.e); });
     const chg = $('#chgDates'); if (chg) chg.addEventListener('click', () => UI.tripModal(() => { const t = DB.trip(); if (t) setAll(t.start, t.end); }));
   }

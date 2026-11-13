@@ -12,13 +12,15 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * Dikirim otomatis saat Owner menambahkan staff.
- * Contoh: Mail::to($staff)->queue(new StaffAccountCreated($staff, $owner, $passwordSementara));
+ * Kata sandi dibuat Owner dan diberikan langsung ke staff, jadi $temporaryPassword biasanya null
+ * (email hanya berisi info akun & cara login).
+ * Contoh: Mail::to($staff)->queue(new StaffAccountCreated($staff, $owner, null, true));
  */
 class StaffAccountCreated extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public User $staff, public User $owner, public string $temporaryPassword) {}
+    public function __construct(public User $staff, public User $owner, public ?string $temporaryPassword = null, public bool $mustChange = true) {}
 
     public function envelope(): Envelope
     {

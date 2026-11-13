@@ -1,5 +1,5 @@
 (function () {
-  const { DB, D, rupiah, Svc } = Ann; const { $, esc, param, toast, fileToDataURL, pill } = UI;
+  const { DB, D, rupiah, Svc } = Ann; const { $, $$, esc, param, toast, fileToDataURL, pill } = UI;
   const user = Site.requireLogin(); if (!user) return;
   const st = DB.settings();
   const ids = (param('ids') || '').split(',').filter(Boolean);
@@ -11,9 +11,15 @@
   if (!pending.length) { root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-circle-check"></i></div><h3>Semua tagihan sudah dibayar</h3><p>Admin akan memverifikasi pembayaranmu. Status terbaru bisa dilihat di Pesanan Saya.</p><a class="btn btn-primary" href="pesanan">Buka Pesanan Saya</a></div>`; return; }
   const due = (o) => (o._t === 'rent' ? o.dp : o.total);
   const total = pending.reduce((s, o) => s + due(o), 0);
-  const method = pending[0].method;
   const deadline = DB.payDeadline(pending[0]);
-  const bank = st.banks.find((b) => method.includes(b.bank));
+  /* Rekening tujuan dipilih di sini (bukan saat checkout): customer cukup transfer ke salah satu, lalu unggah bukti */
+  const DEST = [...st.banks.map((b) => ({ key: b.bank, label: `Transfer ${b.bank}`, bank: b })), { key: 'QRIS', label: 'QRIS', bank: null }];
+  const prevM = String(pending[0].method || '');
+  let dest = DEST.find((d) => prevM === d.label) || DEST[0]; /* pesanan baru ("Transfer / QRIS") → rekening pertama */
+  const qrisSrc = UI.asset(st.qrisImg || 'assets/img/qris-annapurna.png');
+  const destHtml = (d) => (d.bank
+    ? `<div class="bank"><div><small class="muted">${esc(d.label)} · a.n. ${esc(d.bank.holder)}</small><br><strong id="accNo">${esc(d.bank.number)}</strong></div><button class="btn btn-light btn-sm" data-copy="${esc(d.bank.number.replace(/\s/g, ''))}" data-copy-l="Nomor rekening"><i class="fa-regular fa-copy"></i> Salin</button></div>`
+    : `<div class="qris-box"><img src="${qrisSrc}" alt="QRIS Annapurna Adventure Shop" class="qris-img"><p class="muted" style="font-size:13px;margin:10px 0 8px">Scan dengan aplikasi e-wallet / m-banking (GoPay, OVO, DANA, ShopeePay, dll.), lalu masukkan nominal <b>${rupiah(total)}</b>.</p><a class="btn btn-light btn-sm" href="${qrisSrc}" download="QRIS-Annapurna-Adventure.png"><i class="fa-solid fa-download"></i> Unduh QRIS</a></div>`);
 
   root.innerHTML = `<div class="layout-2">
     <div>
@@ -21,9 +27,10 @@
         <div class="pay-timer"><div><span class="pay-timer-l"><i class="fa-regular fa-clock"></i> Selesaikan pembayaran dalam</span>${UI.cdSpan(deadline.toISOString(), 'pay')}<small>Batas: ${D.fmtDateTime(deadline.toISOString())} WIB</small></div></div>
         <p class="muted">Kamu punya waktu <b>${+DB.settings().payWindowHours || 1} jam</b> sejak pesanan dibuat. Booking yang belum dibayar sampai batas waktu akan dibatalkan otomatis supaya alat bisa disewa orang lain.</p>
         <div style="margin-top:18px">
-          ${bank ? `<div class="bank"><div><small class="muted">${esc(method)} · a.n. ${esc(bank.holder)}</small><br><strong id="accNo">${esc(bank.number)}</strong></div><button class="btn btn-light btn-sm" id="copyAcc"><i class="fa-regular fa-copy"></i> Salin</button></div>`
-            : `<div class="qris-box"><img src="${UI.asset(st.qrisImg || 'assets/img/qris-annapurna.png')}" alt="QRIS Annapurna Adventure Shop" class="qris-img"><p class="muted" style="font-size:13px;margin:10px 0 8px">Scan dengan aplikasi e-wallet / m-banking (GoPay, OVO, DANA, ShopeePay, dll.), lalu masukkan nominal <b>${rupiah(total)}</b>.</p><a class="btn btn-light btn-sm" href="${UI.asset(st.qrisImg || 'assets/img/qris-annapurna.png')}" download="QRIS-Annapurna-Adventure.png"><i class="fa-solid fa-download"></i> Unduh QRIS</a></div>`}
-          <div class="bank" style="background:#fff"><div><small class="muted">Jumlah yang harus ditransfer</small><br><strong style="color:var(--g800);font-size:22px">${rupiah(total)}</strong></div><button class="btn btn-light btn-sm" id="copyAmt"><i class="fa-regular fa-copy"></i> Salin</button></div>
+          <p class="pd-l">Bayar ke salah satu rekening ini</p>
+          <div class="pd-tabs" id="destTabs">${DEST.map((d) => `<button type="button" data-dest="${esc(d.key)}" class="${d === dest ? 'on' : ''}"><i class="fa-solid ${d.bank ? 'fa-building-columns' : 'fa-qrcode'}"></i> ${esc(d.key)}</button>`).join('')}</div>
+          <div id="destBox">${destHtml(dest)}</div>
+          <div class="bank" style="background:#fff"><div><small class="muted">Jumlah yang harus ditransfer</small><br><strong style="color:var(--g800);font-size:22px">${rupiah(total)}</strong></div><button class="btn btn-light btn-sm" data-copy="${total}" data-copy-l="Jumlah transfer"><i class="fa-regular fa-copy"></i> Salin</button></div>
         </div>
       </div>
       <div class="card">
@@ -48,8 +55,13 @@
   </div>`;
 
   const copy = (txt, label) => { (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(`${label} disalin.`)).catch(() => toast(`${label}: ${txt}`)); };
-  $('#copyAcc') && $('#copyAcc').addEventListener('click', () => copy(bank.number.replace(/\s/g, ''), 'Nomor rekening'));
-  $('#copyAmt').addEventListener('click', () => copy(String(total), 'Jumlah transfer'));
+  root.addEventListener('click', (e) => {
+    const c = e.target.closest('[data-copy]'); if (c) { copy(c.dataset.copy, c.dataset.copyL); return; }
+    const t = e.target.closest('[data-dest]'); if (!t) return;
+    dest = DEST.find((d) => d.key === t.dataset.dest) || dest;
+    $$('#destTabs [data-dest]').forEach((x) => x.classList.toggle('on', x === t));
+    $('#destBox').innerHTML = destHtml(dest);
+  });
 
   let proof = null;
   const handle = async (file) => {
@@ -91,21 +103,26 @@
             fd.append('payment_type', 'Penjualan');
             fd.append('amount', due(o));
           }
-          fd.append('bank_name', bank ? bank.bank : 'QRIS');
+          fd.append('bank_name', dest.bank ? dest.bank.bank : 'QRIS');
           fd.append('proof_file', fileBlob, 'proof.jpg');
 
-          await Api.try('POST', 'api/pembayaran/upload', fd, () => null);
+          /* Server mengembalikan data pembayaran: ID-nya disimpan untuk tombol Verifikasi admin (api/admin/pembayaran/{id}/verifikasi) */
+          const up = await Api.try('POST', 'api/pembayaran/upload', fd, () => null);
+          const pay = up && up.ok && up.raw && up.raw.payment;
+          if (pay && pay.id) o.serverPaymentId = pay.id;
         }
 
         const now = D.nowStamp();
         if (o._t === 'rent') {
           const b = DB.booking(o.id) || o;
-          b.status = 'menunggu_konfirmasi'; b.paymentStatus = 'dp_verifying'; b.proof = proof;
+          b.status = 'menunggu_konfirmasi'; b.paymentStatus = 'dp_verifying'; b.proof = proof; b.method = dest.label;
+          if (o.serverPaymentId) b.serverPaymentId = o.serverPaymentId;
           b.history.push({ at: now, text: 'Bukti pembayaran DP diunggah' });
           DB.saveBooking(b);
         } else {
           const s = DB.sale(o.id) || o;
-          s.status = 'diproses'; s.paymentStatus = 'verifying'; s.proof = proof;
+          s.status = 'diproses'; s.paymentStatus = 'verifying'; s.proof = proof; s.method = dest.label;
+          if (o.serverPaymentId) s.serverPaymentId = o.serverPaymentId;
           s.history.push({ at: now, text: 'Bukti pembayaran diunggah' });
           DB.saveSale(s);
         }

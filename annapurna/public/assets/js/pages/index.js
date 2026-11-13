@@ -148,3 +148,4 @@
     $('#mineSec').hidden = false;
   })();
 })();
+

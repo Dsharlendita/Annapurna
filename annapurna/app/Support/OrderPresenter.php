@@ -25,6 +25,18 @@ class OrderPresenter
         return $dt ? $dt->copy()->timezone(config('app.timezone'))->format('Y-m-d\TH:i:s') : null;
     }
 
+    /** Metode pengembalian DP → { method, bank, account, holder } (null bila belum dipilih). */
+    private static function refundMethod(\App\Models\Refund $r): ?array
+    {
+        if (!$r->method) {
+            return null;
+        }
+
+        return $r->method === 'tunai'
+            ? ['method' => 'tunai']
+            : ['method' => 'transfer', 'bank' => $r->bank_name ?? '', 'account' => $r->account_number ?? '', 'holder' => $r->account_name ?? ''];
+    }
+
     private static function payments($payments): array
     {
         return $payments->where('status', 'verified')->sortBy('id')->values()->map(fn (Payment $p) => [
@@ -115,15 +127,24 @@ class OrderPresenter
             'idType' => $b->guarantee_type,
             'payments' => self::payments($b->payments),
             'refunds' => $b->refund && $b->refund->status === 'selesai'
-                ? [['at' => self::stamp($b->refund->processed_at ?? $b->refund->updated_at), 'amount' => (int) $b->refund->amount]]
+                ? [array_filter(array_merge([
+                    'at' => self::stamp($b->refund->processed_at ?? $b->refund->updated_at),
+                    'amount' => (int) $b->refund->amount,
+                    'ref' => $b->refund->transfer_ref,
+                    'proof' => $b->refund->proof_url,
+                    'waAt' => self::stamp($b->refund->notified_at),
+                ], self::refundMethod($b->refund) ?? []), fn ($v) => $v !== null)]
                 : [],
-            'cancel' => $b->status === 'dibatalkan' ? [
+            'cancel' => $b->status === 'dibatalkan' ? array_filter([
                 'at' => self::stamp($b->cancel_at ?? $b->updated_at),
                 'reason' => $b->cancel_reason,
                 'auto' => (bool) $b->cancel_auto,
                 'refundable' => in_array($b->payment_status, ['refund_pending', 'refunded'], true),
                 'refundStatus' => $refundStatus,
-            ] : null,
+                'by' => $b->refund?->requested_by,
+                // Metode pengembalian DP pilihan customer/admin (bentuk sama dengan UI.refundRead di FE)
+                'refund' => $b->refund ? self::refundMethod($b->refund) : null,
+            ], fn ($v) => $v !== null) : null,
             'ret' => $ret ? [
                 'at' => self::stamp($ret->return_date),
                 'cond' => $ret->condition,

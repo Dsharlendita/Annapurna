@@ -136,8 +136,10 @@
     </div></div>
     ${svcBill()}
     </div>
-    ${(x.payments || []).length || (x.svc || []).length ? `<h5 class="inv-hist-h" style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
-      ${[...(x.payments || []).map((p) => ({ at: p.at, t: p.type || p.via || 'Pembayaran', a: p.amount })), ...(x.svc || []).map((p) => ({ at: p.at, t: p.kind === 'pasang' ? 'Jasa tenda' : 'Ongkir', a: p.amount }))].sort((a, b) => String(a.at).localeCompare(String(b.at))).map((p) => `<div class="kv" style="border-bottom:1px dashed var(--line)"><span>${D.fmtDateTime(p.at)} · ${esc(p.t)}</span><span>${rupiah(p.a)}</span></div>`).join('')}` : ''}
+    ${(x.payments || []).length || (x.svc || []).length || (x.refunds || []).length ? `<h5 class="inv-hist-h" style="margin:22px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Riwayat pembayaran</h5>
+      ${[...(x.payments || []).map((p) => ({ at: p.at, t: p.type || p.via || 'Pembayaran', a: p.amount })), ...(x.svc || []).map((p) => ({ at: p.at, t: p.kind === 'pasang' ? 'Jasa tenda' : 'Ongkir', a: p.amount })),
+        /* Refund ikut tercatat: kapan, berapa, dan lewat apa (transfer / tunai) */
+        ...(x.refunds || []).map((r) => ({ at: r.at, t: UI.refundTitle(r) + (UI.refundVia(r) ? ' · ' + UI.refundVia(r) : ''), a: -(+r.amount || 0), rf: true }))].sort((a, b) => String(a.at).localeCompare(String(b.at))).map((p) => `<div class="kv ${p.rf ? 'inv-refund' : ''}" style="border-bottom:1px dashed var(--line)"><span>${p.rf ? '<i class="fa-solid fa-rotate-left"></i> ' : ''}${D.fmtDateTime(p.at)} · ${esc(p.t)}</span><span>${p.a < 0 ? '− ' + rupiah(-p.a) : rupiah(p.a)}</span></div>`).join('')}` : ''}
     ${isRent ? `<div class="notice green" style="margin-top:22px"><i class="fa-solid fa-circle-info"></i><div><strong>Ketentuan singkat</strong><ul>${st.rentalTerms.slice(0, 3).map((t) => `<li>${esc(t)}</li>`).join('')}<li>${esc(st.cancelPolicy[0])}</li></ul></div></div>` : ''}
     ${isLd ? `<div class="notice green" style="margin-top:22px"><i class="fa-solid fa-circle-info"></i><div><strong>Ketentuan laundry</strong><ul>${(x._snap ? x._snap.terms || [] : Laundry.terms()).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div></div>` : ''}
     <p class="muted" style="text-align:center;font-size:12.5px;margin-top:22px">Terima kasih telah mempercayai Annapurna Adventure. Tunjukkan nota ini${isRent ? ' dan kartu identitas asli' : ''} saat ${saleDel ? 'barang diantar' : 'mengambil barang di toko'}.</p>

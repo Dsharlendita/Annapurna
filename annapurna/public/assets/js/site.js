@@ -2,6 +2,7 @@
   const { DB, D, rupiah } = window.Ann;
   const { $, $$, esc, asset, url, toast, Cart, waLink } = window.UI;
   const page = document.body.dataset.page || '';
+  const FOCUS_PAGES = ['checkout', 'pembayaran'];
 
   const MTN = {
     line: `<svg viewBox="0 0 200 80" fill="none" aria-hidden="true"><path d="M4 76 L52 34 L66 46 L98 10 L120 32 L132 24 L196 76" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><path d="M98 10 L90 30 L100 24 L106 34 M52 34 L48 48 L56 44" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
@@ -104,8 +105,13 @@
     $('#tripChip') && $('#tripChip').addEventListener('click', () => UI.tripModal(() => location.reload()));
     $('#tripClear') && $('#tripClear').addEventListener('click', (e) => { e.stopPropagation(); DB.setTrip(null); UI.toast('Tanggal sewa dihapus.'); setTimeout(() => location.reload(), 500); });
     /* Setelah pesanan dibuat, tanggal sewa direset: beri tahu sekali supaya customer tidak bingung */
-    try { if (sessionStorage.getItem('annapurna:tripReset')) { sessionStorage.removeItem('annapurna:tripReset'); setTimeout(() => UI.toast('Pesanan dibuat. Tanggal sewa direset untuk pesanan berikutnya.'), 600); } } catch (e) { /* abaikan */ }
-    bottomNav(s); remindCustomer(s);
+    try { sessionStorage.removeItem('annapurna:tripReset'); } catch (e) { /* abaikan */ }
+    /* Checkout & pembayaran: fokus ke satu tombol bayar (tanpa menu bawah, Asisten Trip & tombol ke atas) supaya isian tidak tertutup di HP */
+    if (FOCUS_PAGES.includes(page)) document.body.classList.add('flow-focus');
+    /* Detail produk di HP: cukup bar "Sewa / Beli" di bawah (seperti aplikasi belanja), menu bawah tidak ditampilkan */
+    else if (/\/produk\/?$/.test(location.pathname)) document.body.classList.add('pd-focus'); /* halaman produk memakai data-page "katalog" */
+    else bottomNav(s);
+    remindCustomer(s);
     setTimeout(() => pwCard(s), 0);
 
     const pop = $('#searchPop'), inp = $('#searchInput'), res = $('#searchRes');
@@ -141,12 +147,12 @@
           <img class="flogo" src="${asset('assets/img/logo-white.png')}" alt="Annapurna Adventure">
           <p>Annapurna Adventure Shop &amp; Rental. Sewa mudah, harga bersahabat, kenangan tak terlupakan. Teman terbaik setiap petualanganmu!</p>
         </div>
-        <div>
-          <h5>Menu</h5>
+        <details class="f-col" open>
+          <summary><h5>Menu</h5></summary>
           <ul>${LINKS.map((l) => `<li><a href="${url(l.href)}">${l.label}</a></li>`).join('')}<li><a href="${url('./#layanan')}">Jasa Tenda</a></li><li><a href="${url('kontak#cek-pesanan')}">Cek Status Pesanan</a></li></ul>
-        </div>
-        <div>
-          <h5>Kontak</h5>
+        </details>
+        <details class="f-col" open>
+          <summary><h5>Kontak</h5></summary>
           <ul class="kontak">
             <li><i class="fa-solid fa-wand-magic-sparkles"></i><button type="button" class="link-btn f-ai" data-ai-open>Tanya Asisten Trip (instan, 24 jam)</button></li>
             <li><i class="fa-brands fa-whatsapp"></i><a href="${waLink()}" target="_blank" rel="noopener">${esc(st.phone)}</a></li>
@@ -155,7 +161,7 @@
             <li><i class="fa-solid fa-envelope"></i><a href="mailto:${st.email}">${esc(st.email)}</a></li>
             <li><i class="fa-solid fa-location-dot"></i><a href="${url('kontak#lokasi')}">${esc(st.address)}</a></li>
           </ul>
-        </div>
+        </details>
         <div>
           <h5>Ikuti Kami</h5>
           <div class="soc">
@@ -169,11 +175,21 @@
     </footer>
     <button class="to-top" id="toTop" aria-label="Kembali ke atas"><i class="fa-solid fa-arrow-up"></i></button>`;
     $('#toTop').addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));
+    /* HP: kolom Menu & Kontak di footer dilipat (tekan judulnya untuk membuka) supaya footer tidak terlalu panjang */
+    /* Ikuti ukuran layar setiap saat (termasuk saat HP diputar / jendela diubah ukurannya): HP = tertutup, laptop = terbuka */
+    const fq = matchMedia('(max-width: 640px)');
+    const syncFoot = () => document.querySelectorAll('.footer details.f-col').forEach((d) => { d.open = !fq.matches; });
+    syncFoot(); (fq.addEventListener ? fq.addEventListener('change', syncFoot) : fq.addListener(syncFoot));
+    /* HP: tombol melayang (Asisten Trip) disembunyikan sementara saat layar digeser, muncul lagi saat berhenti,
+       supaya tidak menutupi tombol "Sewa" / "Beli" di kartu yang sedang dilihat */
+    let scrT = null;
+    addEventListener('scroll', () => { if (!fq.matches) return; document.body.classList.add('is-scrolling'); clearTimeout(scrT); scrT = setTimeout(() => document.body.classList.remove('is-scrolling'), 700); }, { passive: true });
   }
 
   /* Akun dibuat otomatis saat checkout → tawarkan buat kata sandi (opsional) */
   function pwCard(s) {
-    if (!s || !s.needsPassword || !['pembayaran', 'pesanan', 'profil'].includes(page)) return;
+    /* Tidak ditampilkan di halaman pembayaran supaya customer fokus membayar; muncul di Pesanan Saya setelah bukti terkirim */
+    if (!s || !s.needsPassword || !['pesanan', 'profil'].includes(page)) return;
     let skip = false; try { skip = sessionStorage.getItem('ann-pw-skip') === '1'; } catch (e) { skip = false; }
     const root = document.getElementById('root') || document.getElementById('list');
     if (skip || !root || document.getElementById('pwCard')) return;

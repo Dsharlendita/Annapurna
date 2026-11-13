@@ -15,7 +15,10 @@
       return `<button class="${state.cat === c.id ? 'active' : ''}" data-cat="${c.id}"><span>${esc(c.name)}</span><small>${n}</small></button>`;
     }).join('');
   }
-  function draw() {
+  /* Katalog ditampilkan bertahap (12 barang dulu) supaya halaman tidak terlalu panjang di HP */
+  const PAGE = 12; let limit = PAGE;
+  function draw(more) {
+    if (more !== true) limit = PAGE;
     $$('.mode-links a').forEach((b) => b.classList.toggle('active', b.dataset.mode === state.mode));
     $('#dateFilter').classList.toggle('hidden', state.mode === 'buy');
     $('#pageTitle').textContent = state.mode === 'buy' ? 'Belanja Alat Outdoor' : 'Sewa Alat Outdoor';
@@ -40,6 +43,7 @@
 
     const catName = state.cat === 'all' ? '' : ` di kategori ${(cats.find((c) => c.id === state.cat) || {}).name}`;
     $('#resultInfo').innerHTML = `Menampilkan <strong>${list.length}</strong> alat${catName}${state.brands.size ? ` merek ${esc([...state.brands].join(', '))}` : ''}${q ? ` untuk “${esc(state.q)}”` : ''}${found.mode === 'related' ? ' <span class="muted">· tidak ada nama alat yang cocok, menampilkan alat yang berkaitan</span>' : ''}${hasDates ? ` · tanggal ${D.fmtRange(state.start, state.end)}` : ''}`;
+    const full = list; list = list.slice(0, limit);
     $('#grid').innerHTML = list.length ? list.map((p) => {
       let card = productCard(p, state.mode);
       /* Satu acuan dengan label kartu: tanggal yang dipilih, atau hari ini */
@@ -49,6 +53,9 @@
       const txt = state.mode === 'buy' ? (p.stock > 0 ? `Stok ${p.stock}` : 'Stok habis') : avail <= 0 ? (hasDates ? (() => { const nx = Rules.nextAvailable(p.id, 1, state.start, state.end); return nx ? `Penuh · tersedia lagi ${D.fmtDate(nx)}` : 'Penuh di tanggalmu'; })() : 'Sedang disewa semua') : `${avail} unit tersedia${hasDates ? ' di tanggalmu' : ' hari ini'}`;
       return card.replace('<div class="acts">', `<div class="stock-pill ${cls}">${txt}</div><div class="acts">`);
     }).join('') : `<div class="empty-state" style="grid-column:1/-1"><div class="ic"><i class="fa-solid fa-magnifying-glass"></i></div><h3>Alat tidak ditemukan</h3><p>Coba kata kunci lain atau pilih kategori “Semua alat”.</p><button class="btn btn-primary" id="resetF">Tampilkan semua alat</button></div>`;
+    let mb = $('#moreBox'); if (!mb) { $('#grid').insertAdjacentHTML('afterend', '<div class="more-wrap" id="moreBox"></div>'); mb = $('#moreBox'); }
+    mb.innerHTML = full.length > list.length ? `<button type="button" class="btn btn-light" id="loadMore"><i class="fa-solid fa-chevron-down"></i> Muat lebih banyak <small class="muted">(${list.length} dari ${full.length})</small></button>` : '';
+    const lm = $('#loadMore'); lm && lm.addEventListener('click', () => { limit += PAGE; draw(true); });
     const r = $('#resetF'); r && r.addEventListener('click', () => { state.cat = 'all'; state.q = ''; $('#q').value = ''; draw(); });
     const u = new URL(location.href);
     ['cat', 'q', 'mode'].forEach((k) => u.searchParams.delete(k));

@@ -5,10 +5,13 @@
 @section('owner_only', '1')
 
 @section('content')
-  <p class="page-sub">Sesuaikan aturan dan pilihan yang dipakai staff tanpa mengubah kode program: kategori, atribut barang (ukuran, warna, kapasitas), status barang, aturan rental, denda, form, dan SOP. Setiap perubahan tercatat di histori sistem.</p>
+  <p class="page-sub">Sesuaikan aturan dan pilihan yang dipakai staff tanpa mengubah kode program. Pilih kelompok di kiri, lalu bagian yang ingin diubah di tab atas. Setiap perubahan tercatat di histori sistem.</p>
   <div class="cfg">
     <nav class="cfg-nav" id="cfgNav" aria-label="Bagian konfigurasi"></nav>
-    <section class="cfg-main" id="cfgMain"></section>
+    <div class="cfg-body">
+      <div class="cfg-tabs" id="cfgTabs" role="tablist"></div>
+      <section class="cfg-main" id="cfgMain"></section>
+    </div>
   </div>
 @endsection
 

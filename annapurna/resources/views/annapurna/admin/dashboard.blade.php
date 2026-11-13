@@ -17,6 +17,7 @@
     <div id="todo"></div>
   </section>
   {{-- 2. Layanan lapangan: jadwal antar / jemput dan jasa bongkar pasang tenda (7 hari ke depan) --}}
+  <details class="fs-fold" id="svcFold"><summary><span><i class="fa-solid fa-truck-ramp-box"></i> Jadwal antar-jemput &amp; jasa bongkar pasang · 7 hari ke depan</span><i class="fa-solid fa-chevron-down tf-chev"></i></summary>
   <div class="fs-grid" id="svcSec">
     <section class="panel fs-panel" aria-labelledby="svcAT">
       <div class="panel-h">
@@ -33,17 +34,7 @@
       <div id="svcTenda"></div>
     </section>
   </div>
-  {{-- 3. Jadwal hari ini & kondisi toko --}}
-  <div class="grid-dash dash-mid">
-    <div class="panel">
-      <div class="panel-h"><h3><i class="fa-regular fa-clock" style="color:var(--g600)"></i> Jadwal hari ini</h3><a class="btn btn-light btn-xs" href="{{ route('admin.kalender') }}">Kalender <i class="fa-solid fa-arrow-right"></i></a></div>
-      <div id="today"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-h"><h3><i class="fa-solid fa-store" style="color:var(--g600)"></i> Kondisi toko</h3></div>
-      <div class="mini-grid" id="stats2"></div>
-    </div>
-  </div>
+  </details>
   {{-- 4. Untuk dilihat (bukan dikerjakan) --}}
   <h4 class="dash-sec"><i class="fa-solid fa-chart-column"></i> Ringkasan</h4>
   <div class="grid-dash">
@@ -52,6 +43,10 @@
       <div class="chart-box"><canvas id="chart" aria-label="Grafik pemasukan"></canvas></div>
     </div>
     <div>
+      <div class="panel">
+        <div class="panel-h"><h3><i class="fa-solid fa-store" style="color:var(--g600)"></i> Kondisi toko</h3></div>
+        <div class="mini-grid" id="stats2"></div>
+      </div>
       <div class="panel" id="sopPanel" hidden>
         <div class="panel-h"><h3><i class="fa-solid fa-clipboard-list" style="color:var(--g600)"></i> SOP penting</h3><a class="btn btn-light btn-xs" href="{{ route('admin.sop') }}">Semua SOP</a></div>
         <div id="sopPin"></div>
@@ -61,11 +56,6 @@
         <ul class="bar-list" id="top"></ul>
       </div>
     </div>
-  </div>
-  <div class="panel" style="margin-top:18px">
-    <div class="panel-h"><h3>Booking terbaru</h3><a class="btn btn-light btn-xs" href="{{ route('admin.booking') }}">Semua booking <i class="fa-solid fa-arrow-right"></i></a></div>
-    <div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>No.</th><th>Customer</th><th>Tanggal sewa</th><th class="num">Total</th><th>Status</th><th></th></tr></thead><tbody id="latest"></tbody></table></div>
-    <div class="latest-more" id="latestMore"></div>
   </div>
   </div>
   <div id="dashJual" hidden>

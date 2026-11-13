@@ -49,9 +49,8 @@
         ${due ? `<button type="button" class="btn btn-gold btn-xs" data-ldpay="${o.id}"><i class="fa-solid fa-cash-register"></i> Bayar</button>` : ''}
         ${o.status === 'siap' ? `<button type="button" class="btn btn-primary btn-xs" data-lddone="${o.id}"><i class="fa-solid fa-circle-check"></i> Sudah diambil</button>` : Laundry.FLOW[o.status] ? `<button type="button" class="btn btn-primary btn-xs" data-ldnext="${o.id}"><i class="fa-solid ${Laundry.FLOW[o.status][1]}"></i> ${Laundry.FLOW[o.status][2]}</button>` : ''}
         <button type="button" class="btn btn-light btn-xs" data-lddet="${o.id}">Detail</button></div>`; };
-    $('#kDates').innerHTML = `<div class="k-ldq"><div class="k-ldq-h"><span><i class="fa-solid fa-jug-detergent"></i> Laundry berjalan (${L.length}) · ambil &amp; bayar</span><a class="link" href="${UI.url('admin/laundry')}" style="font-size:12.5px">Buka menu Laundry</a></div>
-      ${L.length ? L.slice(0, 6).map(row).join('') + (L.length > 6 ? `<p class="muted" style="font-size:12.5px">+${L.length - 6} lainnya di menu Laundry.</p>` : '') : '<p class="muted" style="font-size:13px">Tidak ada laundry yang sedang berjalan.</p>'}
-      <p class="muted" style="font-size:12.5px;margin-top:8px">Laundry baru: pilih barang di bawah, isi data customer, lalu simpan.</p></div>`;
+    /* Kasir hanya MENERIMA laundry baru. Proses (mulai dicuci, siap diambil, bayar, sudah diambil) cukup di menu Laundry. */
+    $('#kDates').innerHTML = `<div class="k-ldq k-ldq-mini"><span><i class="fa-solid fa-jug-detergent"></i> Pilih barang di bawah, isi data customer, lalu simpan.${L.length ? ` <span class="muted">${L.length} laundry sedang berjalan diproses di menu Laundry.</span>` : ''}</span><a class="btn btn-light btn-xs" href="${UI.url('admin/laundry')}">Buka menu Laundry <i class="fa-solid fa-arrow-right"></i></a></div>`;
   }
   $('#kDates').addEventListener('click', async (e) => {
     const refresh = () => { drawLaundryQueue(); Admin.refreshShell(); };
@@ -82,6 +81,7 @@
     if (S.mode === 'buy') return DB.saleableStock(x);
     return Cart.availability({ type: 'rent', kind, refId: x.id, qty: 1, start: S.start, end: S.end });
   }
+  let kLimit = 12;
   function drawGrid() {
     if (isLd()) {
       const q = S.q.toLowerCase();
@@ -93,14 +93,20 @@
       $('#kGrid').innerHTML = tiles.length ? tiles.join('') : '<p class="muted" style="grid-column:1/-1;padding:20px">Barang laundry tidak ditemukan. Pakai kartu <b>Lain-lain</b> untuk barang di luar daftar.</p>';
       return;
     }
-    const L = list();
-    $('#kGrid').innerHTML = L.length ? L.map(({ kind, x }) => {
+    let L = list();
+    /* HP: tampilkan 12 barang dulu (+ tombol "Tampilkan lebih banyak") supaya rincian transaksi tidak tertimbun jauh di bawah.
+       Pencarian / kategori tetap menyaring dari semua barang. */
+    const narrow = matchMedia('(max-width: 640px)').matches; const fullL = L;
+    if (narrow && !S.q && L.length > kLimit) L = L.slice(0, kLimit);
+    const moreBtn = fullL.length > L.length ? `<button type="button" class="btn btn-light btn-sm k-more" id="kMore" style="grid-column:1/-1"><i class="fa-solid fa-chevron-down"></i> Tampilkan lebih banyak <small class="muted">(${L.length} dari ${fullL.length})</small></button>` : '';
+    $('#kGrid').innerHTML = (L.length ? L.map(({ kind, x }) => {
       const n = stockOf(kind, x);
       const price = S.mode === 'buy' ? rupiah(x.price) : `${rupiah(Rules.unitPrice(x, days()))}<small> / ${days()} malam</small>`;
       return `<button type="button" class="k-item ${n <= 0 ? 'out' : ''}" data-add="${kind}|${x.id}" ${n <= 0 ? 'disabled' : ''}>
         <img src="${asset(x.img)}" alt="" loading="lazy" decoding="async"><span class="k-nm">${kind === 'package' ? '<span class="pill gray plain">Paket</span> ' : ''}${esc(x.name)}</span>
         <span class="k-pr">${price}</span><span class="k-st ${n <= 2 ? 'low' : ''}">${n <= 0 ? 'Habis' : `Sisa ${n}`}</span></button>`;
-    }).join('') : '<p class="muted" style="grid-column:1/-1;padding:20px">Barang tidak ditemukan.</p>';
+    }).join('') : '<p class="muted" style="grid-column:1/-1;padding:20px">Barang tidak ditemukan.</p>') + moreBtn;
+    const mb = $('#kMore'); if (mb) mb.addEventListener('click', () => { kLimit += 12; drawGrid(); });
   }
 
   /* ---------- Tambah barang (pilih ukuran bila perlu) ---------- */
@@ -218,13 +224,26 @@
         <div class="grid-2">${sp.deliver ? `<div class="field"><label>Jam ${tent ? 'antar &amp; pasang' : 'antar'}</label><select class="select" id="kSvcTime">${opt(S.svcTime)}</select></div>` : ''}${sp.pickup === true ? `<div class="field"><label>Jam bongkar &amp; jemput</label><select class="select" id="kSvcBack">${opt(S.svcBack)}</select></div>` : ''}</div>` : ''}
     </div>`;
   }
+  /* HP: bar ringkasan di bawah layar (jumlah barang + total) → satu ketuk ke rincian transaksi.
+     Disembunyikan saat rincian transaksi sudah terlihat di layar. */
+  let kBarSeen = false;
+  function kBar(t) {
+    if (!document.getElementById('kBar')) {
+      document.body.insertAdjacentHTML('beforeend', '<div class="k-bar" id="kBar" hidden><span class="k-bar-t"></span><button type="button" class="btn btn-primary btn-sm" id="kBarGo">Lihat transaksi <i class="fa-solid fa-arrow-down"></i></button></div>');
+      document.getElementById('kBarGo').addEventListener('click', () => $('#kBill').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      if ('IntersectionObserver' in window) new IntersectionObserver((en) => { kBarSeen = en[0].isIntersecting; kBar(totals()); }, { threshold: 0.15 }).observe($('#kBill'));
+    }
+    const bar = document.getElementById('kBar'); const n = t.L.reduce((a, x) => a + (x.it ? x.it.qty : 1), 0);
+    bar.hidden = !t.L.length || kBarSeen || !matchMedia('(max-width: 900px)').matches;
+    bar.querySelector('.k-bar-t').innerHTML = `<b>${n} barang</b> · ${rupiah(t.total)}`;
+  }
   function drawBill() {
-    const t = totals();
+    const t = totals(); setTimeout(() => kBar(totals()), 0);
     $('#kBill').innerHTML = `
       <div class="kb-h"><h3><i class="fa-solid ${isLd() ? 'fa-jug-detergent' : 'fa-receipt'}"></i> ${S.mode === 'rent' ? 'Transaksi sewa' : isLd() ? 'Transaksi laundry' : 'Transaksi jual'}</h3><small class="muted">No. nota dibuat otomatis saat disimpan (format ${isLd() ? DB.nextLaundryNo() : (S.mode === 'rent' ? 'RNT' : 'ODR') + '/001/' + ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][new Date().getMonth()] + '/' + new Date().getFullYear()})</small></div>
       <div class="kb-items">${t.L.length ? t.L.map((x, i) => `<div class="kb-it">${x.img ? `<img src="${asset(x.img)}" alt="">` : `<span class="kb-ic"><i class="fa-solid ${x.icon}"></i></span>`}<div class="kb-nm"><b>${esc(x.name)}</b><small>${esc(x.sub)}${x.editable ? ` · <button type="button" class="link-btn" data-ldedit="${i}"><i class="fa-solid fa-pen"></i> ubah</button>` : ''}</small></div>
         <div class="qty sm"><button type="button" data-q="-1" data-i="${i}" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input value="${x.it.qty}" readonly aria-label="Jumlah"><button type="button" data-q="1" data-i="${i}" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div>
-        <span class="kb-pr">${rupiah(x.total)}</span><button type="button" class="icon-btn sm" data-del="${i}" aria-label="Hapus"><i class="fa-solid fa-xmark"></i></button></div>`).join('') : `<div class="kb-empty"><i class="fa-solid fa-basket-shopping"></i><p>Klik ${isLd() ? 'jenis barang laundry' : 'barang'} di kiri untuk menambahkannya.</p></div>`}</div>
+        <span class="kb-pr">${rupiah(x.total)}</span><button type="button" class="icon-btn sm" data-del="${i}" aria-label="Hapus"><i class="fa-solid fa-xmark"></i></button></div>`).join('') : `<div class="kb-empty"><i class="fa-solid fa-basket-shopping"></i><p>Klik ${isLd() ? 'jenis barang laundry' : 'barang'} ${matchMedia('(max-width: 900px)').matches ? 'di atas' : 'di kiri'} untuk menambahkannya.</p></div>`}</div>
       ${svcSec(t)}
       <div class="kb-sec"><h4>Customer</h4>
         ${S.mode === 'buy' ? '<p class="muted kb-opt-note"><i class="fa-solid fa-circle-info"></i> Untuk penjualan, nama &amp; WhatsApp <b>boleh dikosongkan</b> (pelanggan umum). Isi bila invoice ingin dikirim ke WhatsApp customer.</p>' : ''}
@@ -246,9 +265,13 @@
         ${S.mode === 'rent' && t.svc ? `${t.fee ? `<div class="kv"><span>Jasa ${Svc.spec(S.svcMode).short.toLowerCase()} (${Math.min(S.svcTents, tentMax())} tenda)</span><span>${rupiah(t.fee)}</span></div>` : ''}${t.ong ? `<div class="kv"><span>Ongkir antar / jemput</span><span>${rupiah(t.ong)}</span></div>` : ''}<small class="muted" style="display:block;font-size:12px;margin:-2px 0 6px">Layanan dibayar sekarang, dicatat terpisah dari total sewa (Keuangan lini Rental).</small>` : ''}
         ${isLd() ? `<div class="seg kb-opt"><button type="button" data-o="lunas" class="${S.payOpt !== 'nanti' ? 'active' : ''}">Bayar sekarang</button><button type="button" data-o="nanti" class="${S.payOpt === 'nanti' ? 'active' : ''}">Bayar saat diambil</button></div>` : ''}
         ${S.mode === 'rent' && S.pickup === 'later' ? `<div class="seg kb-opt"><button type="button" data-o="dp" class="${S.payOpt === 'dp' ? 'active' : ''}">DP ${st.dpPercent}%</button><button type="button" data-o="lunas" class="${S.payOpt === 'lunas' ? 'active' : ''}">Lunas</button></div>
+          <p class="kb-note"><i class="fa-solid fa-circle-info"></i><span>${S.payOpt === 'dp'
+            ? `DP minimal <b>${st.dpPercent}%</b> (${rupiah(t.dpMin)}). Customer <b>boleh membayar lebih</b> dari DP — ketik nominalnya — dan <b>sisanya dibayar saat barang diambil</b>. Mau bayar penuh? Pilih <b>Lunas</b>.`
+            : `Customer <b>membayar penuh sekarang</b>. Saat barang diambil tidak ada tagihan lagi (kecuali denda / biaya tambahan saat pengembalian).`}</span></p>
           ${S.payOpt === 'dp' ? `<div class="field kb-dp"><label for="kDp">Nominal DP dibayar</label><input class="input" id="kDp" inputmode="numeric" value="${Number(t.rentNow).toLocaleString('id-ID')}">
             <span class="hint ${t.rentNow < t.dpMin ? 'error' : ''}">${t.rentNow < t.dpMin ? `Minimal ${rupiah(t.dpMin)} (${st.dpPercent}%)` : `Minimal ${rupiah(t.dpMin)} (${st.dpPercent}%) · sisa <b>${rupiah(t.total - t.rentNow)}</b> dilunasi nanti`}</span>
             <div class="kb-quick">${[t.dpMin, Math.round(t.total * 0.7 / 1000) * 1000, t.total].filter((v, i, a) => v >= t.dpMin && v <= t.total && a.indexOf(v) === i).map((v) => `<button type="button" class="chip" data-dpq="${v}">${v === t.total ? 'Lunas' : rupiah(v)}</button>`).join('')}</div></div>` : ''}` : ''}
+        ${S.mode === 'rent' && S.pickup === 'now' ? `<p class="kb-note"><i class="fa-solid fa-circle-info"></i><span>Barang <b>diambil sekarang</b>, jadi sewa <b>dibayar lunas saat ini</b>. Customer yang ingin bayar DP dulu: pilih <b>Diambil nanti</b> di atas.</span></p>` : ''}
         <div class="kv hl"><span>Dibayar sekarang</span><span>${rupiah(t.payNow)}</span></div>
         ${t.payNow ? `<div class="seg kb-opt" aria-label="Metode">${['Tunai', 'Transfer', 'QRIS'].map((x) => `<button type="button" data-m="${x}" class="${S.method === x ? 'active' : ''}">${x}</button>`).join('')}</div>
         ${S.method === 'Tunai' ? `<div class="field"><label>Uang diterima</label><input class="input" id="kRecv" inputmode="numeric" value="${S.received ? Number(S.received).toLocaleString('id-ID') : ''}" placeholder="0">
@@ -262,7 +285,9 @@
   const num = (v) => +String(v || '').replace(/[^\d]/g, '') || 0;
 
   /* ---------- Simpan ---------- */
-  function save() {
+  let saving = false;
+  async function save() {
+    if (saving) return;
     const t = totals();
     S.name = $('#kName').value.trim(); S.phone = $('#kPhone').value.trim(); S.note = $('#kNote').value.trim();
     const optCust = S.mode === 'buy'; /* penjualan: nama & WA opsional · sewa & laundry: wajib */
@@ -363,8 +388,10 @@
     }
     Rules.recalc(b); if (b.paymentStatus === 'dp_paid') b.dp = t.svc ? t.rentNow : t.payNow;
 
-    // Kirim sewa offline ke database server Laravel
-    Api.try('POST', 'api/booking', {
+    // Kirim sewa offline ke database server Laravel — DITUNGGU, supaya kode booking & ID server sudah ada
+    // sebelum barang dicatat keluar (endpoint pickup butuh ID server; mencegah booking tercatat ganda)
+    saving = true;
+    const sv = await Api.try('POST', 'api/booking', {
       customer_name: customer.name,
       customer_phone: customer.phone,
       customer_email: customer.email || null,
@@ -384,22 +411,25 @@
         size: it.size || null,
         price_per_day: it.pricePerDay,
       })),
-    }).then((sv) => {
-      if (sv && sv.ok && sv.data && sv.data.booking) {
-        b.id = sv.data.booking.booking_code || b.id;
-        b.booking_code = sv.data.booking.booking_code;
-        b.nota_no = sv.data.booking.nota_no;
-        b.notaNo = sv.data.booking.nota_no;
-        DB.saveBooking(b);
-      }
     });
+    if (sv && sv.ok && sv.data && sv.data.booking) {
+      b.id = sv.data.booking.booking_code || b.id;
+      b.booking_code = sv.data.booking.booking_code;
+      b.nota_no = sv.data.booking.nota_no;
+      b.notaNo = sv.data.booking.nota_no;
+      if (sv.data.booking.id) b.serverId = sv.data.booking.id;
+      /* Uang yang diterima di kasir dicatat SEKALI ke server lewat endpoint pelunasan yang sudah ada
+         (api/admin/booking/{kode}/settle). Form barang keluar berikutnya mengirim 0 karena sudah lunas/terbayar. */
+      if (t.payNow > 0) Api.post(`api/admin/booking/${encodeURIComponent(b.id)}/settle`, { payment_amount: t.payNow, payment_method: `Kasir · ${S.method}`, settle_later: false, settle_disc_amount: 0 }, { redirectOn401: false }).catch(() => {});
+    }
 
     DB.saveBooking(b);
     reset(); /* form langsung kosong setelah tersimpan (mencegah tersimpan dua kali) */
     DB.audit({ type: 'rental', action: `Kasir: sewa offline ${NO(b)} · ${Admin.itemsText(b)} · ${D.fmtRange(b.start, b.end)} · dibayar ${rupiah(t.payNow)} (${S.method})`, ref: b.id });
     /* Ambil sekarang: buka Catat barang keluar. Bila jendela itu ditutup tanpa disimpan, booking tetap tercatat (Dikonfirmasi & lunas)
        dan barang bisa dicatat keluar nanti dari menu Barang Keluar & Kembali. */
-    if (S.pickup === 'now') { let ok = false; Admin.BK.pickup(DB.booking(b.id), () => { ok = true; done(DB.booking(b.id), 'rent'); });
+    /* fromKasir: identitas & pembayaran sudah diisi di kasir → jendela berikutnya hanya konfirmasi serah terima */
+    if (S.pickup === 'now') { let ok = false; Admin.BK.pickup(DB.booking(b.id), () => { ok = true; done(DB.booking(b.id), 'rent'); }, { fromKasir: true });
       const watch = setInterval(() => { if (ok) { clearInterval(watch); return; } if (!document.querySelector('.modal')) { clearInterval(watch); done(DB.booking(b.id), 'rent'); } }, 400); }
     else done(DB.booking(b.id), 'rent');
   }
@@ -476,7 +506,7 @@
   $('#kMode').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (!b || b.dataset.k === S.mode) return; if (S.items.length && !confirm('Ganti jenis transaksi akan mengosongkan barang yang sudah dipilih. Lanjutkan?')) return;
     S.mode = b.dataset.k; S.items = []; S.cat = ''; S.payOpt = S.mode === 'laundry' ? 'nanti' : 'lunas'; S.svcMode = ''; S.svcTents = 1; S.svcOngkir = 0; $$('#kMode [data-k]').forEach((x) => x.classList.toggle('active', x === b)); draw(); });
   $('#kQ').addEventListener('input', (e) => { S.q = e.target.value.trim(); drawGrid(); if (isLd()) drawLaundryQueue(); });
-  $('#kCats').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; S.cat = b.dataset.c; drawCats(); drawGrid(); });
+  $('#kCats').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; S.cat = b.dataset.c; kLimit = 12; drawCats(); drawGrid(); });
   $('#kDates').addEventListener('click', (e) => {
     const p = e.target.closest('[data-p]'); if (p) { S.pickup = p.dataset.p; if (S.pickup === 'now') { const n = days(); S.start = T; S.end = D.addDays(T, n); } drawDates(); drawGrid(); drawBill(); return; }
     const d = e.target.closest('[data-d]'); if (d) { S.end = D.addDays(S.start, +d.dataset.d); drawDates(); drawGrid(); drawBill(); }
@@ -499,21 +529,27 @@
     const sv = e.target.closest('[data-sv]'); if (sv) { S.svcTents = Math.max(1, Math.min(tentMax(), S.svcTents + +sv.dataset.sv)); drawBill(); return; }
     const mm = e.target.closest('[data-m]'); if (mm) { S.method = mm.dataset.m; drawBill(); return; }
     const r = e.target.closest('[data-r]'); if (r) { S.received = +r.dataset.r; drawBill(); return; }
-    if (e.target.closest('#kSave')) save();
+    if (e.target.closest('#kSave')) { pressSave = false; save().finally(() => { saving = false; }); }
     if (e.target.closest('#kReset')) reset();
   });
   $('#kBill').addEventListener('input', (e) => {
     if (e.target.id === 'kName') S.name = e.target.value; if (e.target.id === 'kPhone') S.phone = e.target.value; if (e.target.id === 'kNote') S.note = e.target.value;
     if (e.target.id === 'kSvcAddr') S.svcAddr = e.target.value;
   });
+  /* Tombol Simpan ditekan langsung setelah mengetik (mis. Uang diterima): event "change" terjadi di antara
+     mousedown & click. Kalau panel digambar ulang saat itu, klik pertama hilang → staff harus menekan dua kali.
+     Maka saat Simpan sedang ditekan, nilai tetap disimpan tetapi panel tidak digambar ulang. */
+  let pressSave = false;
+  $('#kBill').addEventListener('pointerdown', (e) => { pressSave = !!e.target.closest('#kSave'); }, true);
+  const redraw = () => { if (!pressSave) drawBill(); };
   $('#kBill').addEventListener('change', (e) => {
     /* Ganti alasan: punya besaran bawaan → mode % terisi; tidak punya → mode Rp dikosongkan (mencegah salah ketik 3000 di mode %) */
-    if (e.target.id === 'kdReason') { S.dReason = e.target.value; const r = DB.discReasons().find((x) => x.name === S.dReason); if (r && r.pct !== '') { S.dType = 'pct'; S.dVal = String(r.pct); } else { S.dType = 'rp'; S.dVal = ''; } drawBill(); if (S.dReason === '__lain') $('#kdText').focus(); else if (S.dType === 'rp' && $('#kdVal')) $('#kdVal').focus(); }
-    if (e.target.id === 'kdVal') { S.dVal = String(num(e.target.value) || ''); drawBill(); }
+    if (e.target.id === 'kdReason') { S.dReason = e.target.value; const r = DB.discReasons().find((x) => x.name === S.dReason); if (r && r.pct !== '') { S.dType = 'pct'; S.dVal = String(r.pct); } else { S.dType = 'rp'; S.dVal = ''; } redraw(); if (S.dReason === '__lain') $('#kdText').focus(); else if (S.dType === 'rp' && $('#kdVal')) $('#kdVal').focus(); }
+    if (e.target.id === 'kdVal') { S.dVal = String(num(e.target.value) || ''); redraw(); }
     if (e.target.id === 'kdText') { S.dText = e.target.value; }
-    if (e.target.id === 'kRecv') { S.received = num(e.target.value); drawBill(); }
-    if (e.target.id === 'kDp') { S.dpAmt = num(e.target.value); drawBill(); }
-    if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); drawBill(); }
+    if (e.target.id === 'kRecv') { S.received = num(e.target.value); redraw(); }
+    if (e.target.id === 'kDp') { S.dpAmt = num(e.target.value); redraw(); }
+    if (e.target.id === 'kSvcOng') { S.svcOngkir = num(e.target.value); redraw(); }
     if (e.target.id === 'kLdEst') S.ldEst = e.target.value >= T ? e.target.value : T;
     if (e.target.id === 'kSvcTime') S.svcTime = e.target.value; if (e.target.id === 'kSvcBack') S.svcBack = e.target.value;
   });

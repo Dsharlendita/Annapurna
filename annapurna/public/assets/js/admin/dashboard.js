@@ -126,30 +126,7 @@
 
     drawField();
 
-    const latestAll = B.slice().sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
-    $('#latestMore').innerHTML = `<a class="btn btn-light btn-sm btn-block" href="${UI.url('admin/booking')}">Lihat semua booking (${latestAll.length}) <i class="fa-solid fa-arrow-right"></i></a>`;
-    $('#latest').innerHTML = latestAll.slice(0, 40).map((b) => `<tr>
-      <td class="nw"><strong>${NO(b)}</strong></td><td>${esc(b.customer.name)}</td><td class="nw">${D.fmtRange(b.start, b.end)}</td>
-      <td class="num">${rupiah(b.total)}</td><td>${pill('rental', b.status)}</td><td><button class="btn btn-light btn-xs" data-act="detail" data-id="${b.id}">Detail</button></td></tr>`).join('');
-
-    /* Booking terbaru: tinggi mengikuti isinya sendiri (10 booking terbaru), tidak ikut memanjang saat SOP di kolom kanan dibuka */
-    const fitLatest = () => {
-      const panel = $('#latest').closest('.panel'); if (!panel) return;
-      panel.style.alignSelf = 'start';
-      [...$('#latest').children].forEach((r, i) => (r.style.display = i < 6 ? '' : 'none'));
-    };
-    fitLatest();
-    if (!window.__fitLatest) { window.__fitLatest = true; window.addEventListener('resize', () => requestAnimationFrame(fitLatest)); window.addEventListener('load', fitLatest); }
-
-    const pick = B.filter((b) => b.status === 'dikonfirmasi' && b.start === T && !Ann.Svc.delivers(b)); /* yang diantar sudah tampil sebagai jadwal Antar */
-    const due = B.filter((b) => b.status === 'disewa' && b.end <= T);
-    const svcRow = (e) => `<div class="list-row"><span class="pill gold plain">${esc(e.type === 'antar' ? (e.tent ? 'Pasang' : 'Antar') : (e.tent ? 'Bongkar' : 'Jemput'))}</span><div class="nm"><strong>${e.time ? Svc.fmtT(e.time) + ' · ' : ''}${esc(e.ref)} · ${esc(e.name)}</strong><small>${esc(e.kind)} · ${esc(e.address || '-')}</small></div><a class="btn btn-light btn-xs" href="#svcSec">Jadwal</a></div>`;
-    $('#today').innerHTML = (pick.length || due.length || svcToday.length) ? [
-      ...svcToday.map(svcRow),
-      ...pick.map((b) => `<div class="list-row"><span class="pill blue plain">Ambil</span><div class="nm"><strong>${NO(b)} · ${esc(b.customer.name)}</strong><small>${esc(Admin.itemsText(b))}</small></div><button class="btn btn-primary btn-xs" data-act="pickup" data-id="${b.id}">Catat keluar</button></div>`),
-      ...due.map((b) => `<div class="list-row"><span class="pill ${b.end < T ? 'red' : 'amber'} plain">${b.end < T ? 'Terlambat' : 'Kembali'}</span><div class="nm"><strong>${NO(b)} · ${esc(b.customer.name)}</strong><small>${esc(Admin.itemsText(b))}</small></div><button class="btn btn-primary btn-xs" data-act="return" data-id="${b.id}">Terima</button></div>`),
-    ].join('') : '<p class="muted" style="font-size:13.5px">Tidak ada jadwal ambil, kembali, antar, atau jemput hari ini.</p>';
-
+    /* "Booking terbaru" & "Jadwal hari ini" dihapus dari dashboard: isinya sudah ada di Perlu tindakan & menu Booking Rental */
     /* Sama dengan perhitungan "Produk Rental Terlaris" di beranda (periode mengikuti pengaturan owner) */
     const hb = DB.settings().homeBest || {}; const cnt = DB.rentCounts(+hb.days || 0);
     const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5); const max = top.length ? top[0][1] : 1;
@@ -294,3 +271,5 @@
   if (param('tab') === 'jual' || param('tab') === 'laundry') showView(param('tab'));
   syncLaundry(); syncServices();
 })();
+/* Chip "Antar & jemput" / "Bongkar pasang" menuju jadwal yang dilipat → buka lipatannya dulu */
+document.addEventListener('click', (e) => { const a = e.target.closest('a[href$="#svcSec"]'); if (!a) return; const f = document.getElementById('svcFold'); if (f) f.open = true; });

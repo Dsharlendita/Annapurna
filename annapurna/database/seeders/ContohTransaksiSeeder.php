@@ -32,9 +32,9 @@ class ContohTransaksiSeeder extends Seeder
                 'start_date' => now()->addDays(3),
                 'end_date' => now()->addDays(5),
                 'days' => 2,
-                'subtotal' => 150000,
-                'total_amount' => 150000,
-                'dp_amount' => 75000,
+                'subtotal' => 80000,
+                'total_amount' => 80000,
+                'dp_amount' => 40000,
                 'payment_method' => 'Transfer',
                 'status' => 'dikonfirmasi',
                 'payment_status' => 'dp_paid',
@@ -44,20 +44,20 @@ class ContohTransaksiSeeder extends Seeder
         );
 
         BookingItem::updateOrCreate(
-            ['booking_id' => $booking->id, 'product_id' => 'p1'],
+            ['booking_id' => $booking->id, 'product_id' => 'tnd-4'],
             [
-                'product_name' => 'Tenda Camping',
-                'product_img' => 'assets/img/products/tenda.jpg',
+                'product_name' => 'Tenda Kapasitas 4 (Double Layer)',
+                'product_img' => 'assets/img/wa/tnd-4.jpg',
                 'qty' => 1,
-                'price_per_day' => 75000,
-                'subtotal' => 150000,
+                'price_per_day' => 40000,
+                'subtotal' => 80000,
             ]
         );
 
         Payment::updateOrCreate(
             ['booking_id' => $booking->id, 'payment_type' => 'DP'],
             [
-                'amount' => 75000,
+                'amount' => 40000,
                 'payment_method' => 'Transfer',
                 'bank_name' => 'BCA',
                 'status' => 'verified',

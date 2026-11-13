@@ -19,13 +19,18 @@ return new class extends Migration
             $table->string('ref', 100)->nullable();                    // kode transaksi terkait, mis. nota booking
             $table->enum('type', ['income', 'expense']);
             $table->string('category');
-            $table->enum('line', ['rent', 'sale', 'umum'])->default('umum'); // lini usaha
+            $table->enum('line', ['rent', 'sale', 'umum'])->nullable()->default('umum'); // lini usaha (null = ikut kategori)
             $table->unsignedInteger('amount');
             $table->date('transaction_date');
             $table->text('description');
             $table->string('proof_file')->nullable();
+            // otomatis = dibuat sistem dari pembayaran/refund; manual = dicatat staff
+            // (pemasukan lain, pengeluaran, pembelian stok, perawatan alat)
+            $table->enum('source', ['otomatis', 'manual'])->default('otomatis');
             $table->enum('status', ['aktif', 'dibatalkan'])->default('aktif');
             $table->text('void_reason')->nullable();
+            $table->foreignId('voided_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('voided_at')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 

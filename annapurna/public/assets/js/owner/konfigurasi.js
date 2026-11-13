@@ -624,13 +624,8 @@
   function cfgSave(next, action, fields) {
     const old = S(); const ch = fields.filter(([k]) => JSON.stringify(old[k]) !== JSON.stringify(next[k])).map(([k, l, f]) => ({ field: l, from: f ? f(old[k] ?? '') : String(old[k] ?? ''), to: f ? f(next[k]) : String(next[k]) }));
     if (!ch.length) { toast('Tidak ada perubahan.'); return; }
+    /* DB.set → write('settings') → perubahan otomatis terkirim ke server (api/sync/settings) */
     DB.set('settings', next); DB.audit({ type: 'konfigurasi', action, changes: ch }); toast('Konfigurasi disimpan.'); R[cur]();
-    /* Kirim setiap pengaturan yang berubah ke server lewat endpoint yang sudah ada (POST api/owner/konfigurasi {key, value}).
-       Sebelumnya bagian-bagian yang memakai cfgSave hanya tersimpan di browser. */
-    if (window.Api) fields.filter(([k]) => JSON.stringify(old[k]) !== JSON.stringify(next[k])).forEach(([k, l]) => {
-      Api.post('api/owner/konfigurasi', { key: k, value: next[k], action, changes: ch.filter((c) => c.field === l) }, { redirectOn401: false })
-        .then((r) => { if (r && !r.ok && r.status && ![404, 405].includes(r.status)) toast(`"${l}" tersimpan, tetapi gagal dikirim ke server: ${r.msg}`, 'err'); });
-    });
   }
 
   function catForm(c) {

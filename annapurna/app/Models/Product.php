@@ -11,6 +11,9 @@ class Product extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
+    /** Harga modal tidak ikut terkirim ke publik (JSON); staff membacanya lewat atribut langsung. */
+    protected $hidden = ['cost_price'];
+
     protected $fillable = [
         'id',
         'name',
@@ -41,6 +44,10 @@ class Product extends Model
         'min_days',
         'has_variant',
         'variant_data',
+        'deposit',
+        'min_stock',
+        'service_every',
+        'wash',
     ];
 
     protected function casts(): array
@@ -61,6 +68,10 @@ class Product extends Model
             'specs' => 'array',
             'attrs' => 'array',
             'variant_data' => 'array',
+            'deposit' => 'integer',
+            'min_stock' => 'integer',
+            'service_every' => 'integer',
+            'wash' => 'boolean',
         ];
     }
 
@@ -79,9 +90,10 @@ class Product extends Model
         return $this->hasMany(Restock::class, 'product_id', 'id');
     }
 
-    public function reviews(): HasMany
+    /** Ulasan tampil yang menyebut produk ini (satu ulasan bisa untuk beberapa produk). */
+    public function reviewList()
     {
-        return $this->hasMany(Review::class, 'product_id', 'id');
+        return Review::forProduct($this->id)->where('is_visible', true)->latest()->get();
     }
 
     public function activeUnits(): HasMany

@@ -21,7 +21,7 @@ class ReviewController extends Controller
         $q = $request->input('q');
         $rating = $request->input('rating');
 
-        $query = Review::with(['booking', 'sale', 'product', 'replier']);
+        $query = Review::with(['booking', 'sale', 'replier']);
 
         // Filter Tab
         match ($tab) {
@@ -82,7 +82,8 @@ class ReviewController extends Controller
         $validated = $request->validate([
             'booking_id' => 'nullable|exists:bookings,id',
             'sale_id' => 'nullable|exists:sales,id',
-            'product_id' => 'nullable|exists:products,id',
+            'product_ids' => 'nullable|array',
+            'product_ids.*' => 'string|exists:products,id',
             'customer_name' => 'required|string|max:100',
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'required|string|max:1000',
@@ -92,8 +93,9 @@ class ReviewController extends Controller
             'booking_id' => $validated['booking_id'] ?? null,
             'sale_id' => $validated['sale_id'] ?? null,
             'user_id' => Auth::id(),
-            'product_id' => $validated['product_id'] ?? null,
+            'product_ids' => $validated['product_ids'] ?? [],
             'customer_name' => $validated['customer_name'],
+            'customer_email' => Auth::user()?->email,
             'rating' => (int) $validated['rating'],
             'comment' => $validated['comment'],
             'is_featured' => false,

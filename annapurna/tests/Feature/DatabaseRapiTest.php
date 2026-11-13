@@ -89,10 +89,12 @@ class DatabaseRapiTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertSame(91, Product::count());
+        $this->assertSame(74, Product::count());                    // katalog sama dengan data.js
         $this->assertNotNull(Product::find('ck-capit'));          // ID produk dari data.js
         $this->assertSame(50, Setting::get('dp_percent'));
         $this->assertSame(1, Payment::count());                    // contoh booking dengan DP
-        $this->assertSame(14, \App\Models\Category::where('is_active', true)->count());
+        $this->assertSame(6, \App\Models\Category::where('is_active', true)->count());
+        $this->assertTrue(\App\Models\Package::find('pk-2p')->is_popular);
+        $this->assertSame(1147000, Product::find('jl-1')->cost_price);
     }
 }

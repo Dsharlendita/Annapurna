@@ -945,3 +945,29 @@ php artisan optimize:clear
 **Tes**: `tests/Feature/DatabaseRapiTest.php` (4 tes) — total 31 tes lulus.
 
 **Belum** (data yang masih hanya di browser, lihat daftar di laporan Aji): pengeluaran/pemasukan manual, notifikasi, catatan & blacklist pelanggan, katalog/promo/ulasan dari server, arsip bulanan.
+
+## C.41 Data browser tersambung ke server — 13 Nov 2026 (Aji)
+
+**Wajib setelah pull:** `php artisan migrate:fresh --seed` lalu `php artisan optimize:clear`. `ASSET_VERSION` = `20261113.2`.
+
+**Cara kerjanya (penting untuk FE):**
+- `/boot.js` dan `/boot-staff.js` dimuat layout tepat setelah `data.js` → memanggil `Ann.DB.applyServer(snap)`. Katalog, pengaturan, promo, ulasan, status pelanggan, keuangan manual, dan notifikasi di localStorage diganti dengan data server setiap kali halaman dibuka.
+- `write()` di `data.js` sekarang otomatis mengirim **selisih** ke `POST /api/sync/{koleksi}` untuk: `products, categories, promos, reviews, expenses, incomes, customerMeta, settings, notifications`. Jadi **cukup panggil fungsi DB seperti biasa** (`DB.saveProduct`, `DB.savePromo`, `DB.saveFinance`, `DB.notify`, `DB.set('settings', …)`, …). Jangan tambahkan `fetch` sendiri untuk data ini.
+- `fetch` lama di `promo.js`, `ulasan.js`, `saveConfig`, dan `cfgSave` sudah dihapus. Semuanya dulu gagal diam-diam karena mengirim ID lokal (`PR-…`, `REV-…`) ke endpoint yang meminta angka.
+- ID baru diganti ID server otomatis: `PR-{id}`, `REV-{id}`, `N{id}`, dan kode `EXP-…`/`INC-…` bila bentrok.
+- Unit fisik barang (`p.units`) **tetap lokal** dan tidak dikirim. Stok dikirim sebagai selisih (`_stockFrom`), supaya penjualan online yang dikurangi server tidak tertimpa.
+- Gagal kirim → toast "Perubahan … belum tersimpan ke server", lalu dicoba lagi pada penyimpanan berikutnya.
+
+**Perubahan server lain:**
+- Pelanggan yang diblokir Owner ditolak `/api/booking` dan `/api/sale` (422, `field: customer_email`), dicocokkan lewat email **atau** nomor HP. Kasir (staff) tetap bisa melayani.
+- Promo saat booking memakai aturan lengkap (periode, kuota, Senin–Kamis) dan menambah `used_count`.
+- Penjualan kasir (`is_walk_in`) tidak lagi mengurangi stok di server, karena stok ikut sinkron dari kasir. Penjualan online tetap dikurangi server.
+- Restock: kirim `expense_id` (sudah ditambahkan di `barang.js`) → pengeluaran & stok tidak tercatat dua kali.
+- `/api/produk/{id}` tidak lagi mengirim harga modal ke publik.
+- Katalog seeder = katalog `data.js` (6 kategori, 74 barang, 9 paket). Barang contoh lama `p1…p17` dihapus.
+
+**Tabel baru/berubah:** `user_notifications`, `customer_flags`, `finances.source/voided_by/voided_at`, `reviews.product_ids/customer_email/customer_label/avatar/seen_at`, `products.deposit/min_stock/service_every/wash`, `packages.is_popular`.
+
+**Tes:** `IntegrasiTampilanTest` (13) + uji lapisan sinkronisasi di Node (11) + uji Chrome menyeluruh (owner/admin/customer/pengunjung, 30+ halaman tanpa error JS). Total tes PHP: 44.
+
+**Belum tersambung (backlog):** jejak audit (`audit` lokal vs `activity_logs`), kode login OTP (`loginCode`, masih dibuat di browser), arsip & pembersihan bulanan (`archives`, `cleanupReq`, `customerArchive`), kotak keluar email (`outbox`), daftar penjualan untuk admin, unit fisik per barang, permintaan perpanjangan/ganti barang dari customer.

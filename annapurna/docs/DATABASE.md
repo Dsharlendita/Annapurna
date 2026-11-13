@@ -1,6 +1,6 @@
 # Struktur Database Annapurna Adventure
 
-Database MySQL dengan 34 tabel aplikasi, dibagi menjadi 8 bagian. Setiap bagian punya satu file migrasi di `database/migrations/`.
+Database MySQL dengan 36 tabel aplikasi, dibagi menjadi 8 bagian. Setiap bagian punya satu file migrasi di `database/migrations/`.
 
 | No | Bagian | File migrasi | Tabel |
 |---|---|---|---|
@@ -11,7 +11,7 @@ Database MySQL dengan 34 tabel aplikasi, dibagi menjadi 8 bagian. Setiap bagian 
 | 05 | Laundry | `2026_11_13_000004_create_laundry_tables` | laundry_categories, laundry_items, laundry_orders, laundry_order_items, laundry_status_logs |
 | 06 | Pembayaran | `2026_11_13_000005_create_payments_table` | payments |
 | 07 | Keuangan | `2026_11_13_000006_create_keuangan_tables` | finances, restocks |
-| 08 | Sistem | `2026_11_13_000007_create_sistem_tables` | settings, promos, reviews, document_sequences, nota_links, activity_logs, email_logs, chat_misses |
+| 08 | Sistem | `2026_11_13_000007_create_sistem_tables` | settings, promos, reviews, user_notifications, customer_flags, document_sequences, nota_links, activity_logs, email_logs, chat_misses |
 
 Tabel bawaan Laravel (`cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `migrations`) tidak dibahas di sini.
 
@@ -54,6 +54,8 @@ erDiagram
     booking_services ||--o{ payments : "dibayar"
 
     finances ||--o| restocks : "biaya pembelian"
+    users ||--o{ user_notifications : "menerima"
+    users ||--o{ finances : "mencatat"
     products ||--o{ restocks : "ditambah stok"
 
     users {
@@ -111,7 +113,14 @@ erDiagram
         string finance_code UK
         enum type "income | expense"
         enum line "rent | sale | umum"
+        enum source "otomatis | manual"
         int amount
+    }
+    customer_flags {
+        bigint id PK
+        string email UK
+        string phone
+        enum flag "normal | jaminan | blacklist"
     }
 ```
 
@@ -146,13 +155,16 @@ erDiagram
 - Transfer online berstatus `pending` sampai diverifikasi admin. Pembayaran di toko langsung berstatus `verified`, dan `verified_by` diisi staff yang menerima uang.
 
 ### 07 · Keuangan
-- **finances** adalah buku kas: pemasukan dan pengeluaran per lini usaha (`rent`, `sale`, `umum`). Pembayaran customer yang sudah diterima ikut dibukukan otomatis di sini.
+- **finances** adalah buku kas: pemasukan dan pengeluaran per lini usaha (`rent`, `sale`, `umum`). Kolom `source` membedakan baris yang dibuat sistem dari pembayaran/refund (`otomatis`) dan baris yang dicatat staff, misalnya pemasukan lain, listrik, pembelian stok, dan perawatan alat (`manual`). Halaman Keuangan hanya mengambil baris `manual`, karena pemasukan otomatis dihitung dari pesanan, sehingga tidak terhitung dua kali.
 - **restocks** mencatat pembelian stok atau unit baru. Biayanya dibukukan sebagai pengeluaran di `finances`.
 
 ### 08 · Sistem
 - **settings** menyimpan pengaturan toko dalam bentuk kunci dan nilai JSON. Nama kunci selalu snake_case (`dp_percent`, `cancel_days`, `dur_rules`). Kunci camelCase dari tampilan (`dpPercent`) otomatis diarahkan ke baris yang sama.
 - **document_sequences** menyimpan nomor urut nota per bulan.
 - **activity_logs** mencatat jejak aktivitas staff. Setiap baris menyimpan hash baris sebelumnya, sehingga perubahan diam-diam bisa ketahuan.
+- **reviews** menyimpan ulasan customer sekaligus testimoni beranda. Satu ulasan bisa untuk beberapa barang (`product_ids`).
+- **user_notifications** berisi notifikasi lonceng per akun. Notifikasi yang sama dan belum dibaca digabung (`count`).
+- **customer_flags** menyimpan status pelanggan dari Owner: normal, perlu jaminan tambahan, atau diblokir. Pelanggan yang diblokir ditolak server saat memesan online, baik dicocokkan lewat email maupun nomor HP.
 
 ## Mengisi ulang database
 
@@ -167,3 +179,21 @@ Perintah ini mengisi:
 - Satu contoh booking.
 
 Kalau ingin mengubah katalog awal, cukup ubah file JSON tersebut.
+
+## Hubungan dengan tampilan (frontend)
+
+Tampilan buatan Dita menyimpan data di browser (`public/assets/js/data.js`). Sekarang server menjadi sumber kebenarannya:
+
+| Arah | Cara | Isi |
+|---|---|---|
+| Server → browser | `/boot.js` dimuat setiap halaman, sebelum skrip halaman | pengaturan toko, kategori, barang (tanpa harga modal), paket, promo, ulasan yang tampil |
+| Server → browser (staff) | `/boot-staff.js` | harga modal, semua ulasan, status pelanggan, pemasukan/pengeluaran manual, pengaturan khusus Owner |
+| Server → browser (akun) | ditulis langsung di layout | notifikasi akun yang sedang masuk |
+| Browser → server | `POST /api/sync/{koleksi}` otomatis setiap kali `data.js` menyimpan | barang, kategori, promo, ulasan, pengeluaran, pemasukan, status pelanggan, pengaturan, notifikasi |
+
+Penerjemah bentuk data antara kolom database dan objek tampilan ada di `app/Support/FeData.php`. Aturan siapa boleh mengubah apa ada di `app/Http/Controllers/Annapurna/SyncController.php`:
+- Customer hanya boleh menulis ulasannya sendiri dan mengirim notifikasi ke staff.
+- Admin boleh mengubah katalog, keuangan manual, dan profil toko.
+- Owner boleh mengubah semua pengaturan.
+
+File `boot.js` memakai parameter versi (`?v=`) yang berubah setiap kali data berubah, jadi aman disimpan di cache browser.

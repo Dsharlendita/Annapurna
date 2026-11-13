@@ -992,8 +992,103 @@
     ];
   }
 
+  /* ==========================================================================
+     Sinkronisasi dengan server
+     - Data server masuk lewat DB.applyServer(snap): boot.js (katalog, pengaturan, promo, ulasan),
+       boot-staff.js (data khusus staff) dan data akun yang ditulis layout (notifikasi).
+     - Setiap write() ke koleksi di SYNC dibandingkan dengan data terakhir dari server, lalu
+       selisihnya dikirim ke POST api/sync/{koleksi}. Server yang menentukan siapa boleh mengubah apa.
+     - Koleksi yang belum pernah menerima data server (mis. data demo) tidak dikirim.
+     ========================================================================== */
+  const SYNC = {
+    products: { staff: true, label: 'data barang', strip: ['units'] },
+    categories: { staff: true, label: 'kategori' },
+    promos: { staff: true, label: 'promo', strip: ['used'] },
+    reviews: { staff: false, label: 'ulasan' },
+    expenses: { staff: true, label: 'pengeluaran' },
+    incomes: { staff: true, label: 'pemasukan' },
+    customerMeta: { staff: true, label: 'status pelanggan', map: true },
+    settings: { staff: true, label: 'pengaturan', map: true },
+    notifications: { staff: false, label: 'notifikasi' },
+  };
+  const syncBase = {}; /* koleksi → Map(id → sidik data yang sama dengan server) */
+  /* Stok barang dikirim sebagai selisih (_stockFrom → stock), bukan angka mutlak, supaya penjualan online
+     yang dikurangi server tidak tertimpa angka lama dari perangkat staff. */
+  const syncStockFrom = {};
+  const syncPending = new Set();
+  let syncApplying = false, syncTimer = null, syncWarned = 0;
+  const syncStrip = (k, v) => { const st = SYNC[k].strip; if (!st || !v || typeof v !== 'object' || Array.isArray(v)) return v; const c = Object.assign({}, v); st.forEach((x) => delete c[x]); return c; };
+  /* Sidik data tidak bergantung urutan kunci objek (saveProduct dkk. menyusun ulang objek) */
+  const stableJson = (v) => (Array.isArray(v) ? '[' + v.map(stableJson).join(',') + ']'
+    : v && typeof v === 'object' ? '{' + Object.keys(v).filter((x) => v[x] !== undefined).sort().map((x) => JSON.stringify(x) + ':' + stableJson(v[x])).join(',') + '}'
+      : JSON.stringify(v === undefined ? null : v));
+  const syncHash = (k, v) => stableJson(syncStrip(k, v));
+  const syncEntries = (k, v) => (SYNC[k].map ? Object.entries(v || {}) : (Array.isArray(v) ? v : []).filter((x) => x && x.id != null).map((x) => [String(x.id), x]));
+  const syncSnapshot = (k, v) => { syncBase[k] = new Map(syncEntries(k, v).map(([id, x]) => [id, syncHash(k, x)])); };
+  const syncQueue = (k) => { syncPending.add(k); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncFlush(false), 40); };
+  const syncSession = () => { try { return JSON.parse(localStorage.getItem(KEY('session')) || 'null'); } catch (e) { return null; } };
+  function syncWarn(label, e) {
+    if (Date.now() - syncWarned < 4000) return; syncWarned = Date.now();
+    const msg = `Perubahan ${label} belum tersimpan ke server${e && e.message ? ': ' + e.message : ''}. Periksa koneksi lalu coba simpan lagi.`;
+    if (typeof window !== 'undefined' && window.UI && window.UI.toast) window.UI.toast(msg, 'err'); else console.warn(msg);
+  }
+  /* Ganti ID lokal dengan ID dari server (mis. REV-12 → REV-37, EXP-1003 → EXP-58) */
+  function syncRemap(k, map) {
+    const cur = read(k, []); const base = syncBase[k]; let ch = false;
+    cur.forEach((x) => { if (x && map[x.id]) { if (base) base.delete(String(x.id)); x.id = map[x.id]; if (base) base.set(String(x.id), syncHash(k, x)); ch = true; } });
+    if (!ch) return;
+    syncApplying = true;
+    try {
+      write(k, cur);
+      if (k === 'expenses') { const R = read('restocks', []); let c2 = false; R.forEach((r) => { if (r.expenseId && map[r.expenseId]) { r.expenseId = map[r.expenseId]; c2 = true; } }); if (c2) write('restocks', R); }
+    } finally { syncApplying = false; }
+  }
+  function syncFlush(keepalive) {
+    clearTimeout(syncTimer); syncTimer = null;
+    const sess = syncSession(); const staff = !!sess && (sess.role === 'admin' || sess.role === 'owner');
+    const keys = [...syncPending]; syncPending.clear();
+    keys.forEach((k) => {
+      const base = syncBase[k]; const cfg = SYNC[k]; if (!base) return;
+      const cur = read(k, cfg.map ? {} : []); const seen = new Set(); const changed = [];
+      syncEntries(k, cur).forEach(([id, x]) => { seen.add(id); const h = syncHash(k, x); if (base.get(id) !== h) changed.push([id, x, h]); });
+      const removed = [...base.keys()].filter((id) => !seen.has(id));
+      if (!changed.length && !removed.length) return;
+      const accept = () => { changed.forEach(([id, , h]) => base.set(id, h)); removed.forEach((id) => base.delete(id)); };
+      /* Pengunjung tanpa login / customer pada data staff: perubahan hanya lokal (server tetap sumber kebenaran) */
+      if (!sess || (cfg.staff && !staff)) { accept(); return; }
+      const prevStock = k === 'products' ? Object.assign({}, syncStockFrom) : null;
+      const body = { items: cfg.map ? Object.fromEntries(changed.map(([id, x]) => [id, x])) : changed.map(([, x]) => (k === 'products' && syncStockFrom[x.id] != null ? Object.assign({ _stockFrom: syncStockFrom[x.id] }, syncStrip(k, x)) : syncStrip(k, x))), removed };
+      if (k === 'products') changed.forEach(([, x]) => { syncStockFrom[x.id] = +x.stock || 0; });
+      const root = (typeof document !== 'undefined' && document.body && document.body.dataset.base) || '/';
+      const csrf = ((typeof document !== 'undefined' && document.querySelector('meta[name="csrf-token"]')) || {}).content || '';
+      accept(); /* dianggap terkirim; bila gagal ditandai lagi supaya ikut terkirim pada penyimpanan berikutnya */
+      fetch(root + 'api/sync/' + k, { method: 'POST', keepalive: !!keepalive, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify(body) })
+        .then((res) => res.json().catch(() => ({})).then((j) => ({ ok: res.ok && j.ok !== false, j, status: res.status })))
+        .then(({ ok, j, status }) => {
+          if (!ok) throw new Error((j && (j.msg || j.message)) || 'kode ' + status);
+          if (j.map && Object.keys(j.map).length) syncRemap(k, j.map);
+        })
+        .catch((e) => { changed.forEach(([id]) => base.delete(id)); removed.forEach((id) => base.set(id, '?')); if (prevStock) { Object.keys(syncStockFrom).forEach((id) => delete syncStockFrom[id]); Object.assign(syncStockFrom, prevStock); } syncWarn(cfg.label, e); });
+    });
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => { if (syncPending.size) syncFlush(true); });
+  /* Gabungkan produk dari server dengan data lokal: kolom katalog dari server, unit fisik & riwayat tetap lokal */
+  const SRV_PRODUCT_KEYS = ['name', 'cat', 'img', 'rent', 'rent3', 'rent5', 'price', 'cost', 'stock', 'rating', 'reviews', 'cond', 'badge', 'featured', 'active', 'minDays', 'brand', 'sku', 'color', 'material', 'weight', 'dimension', 'includes', 'desc', 'specs', 'attrs', 'variant', 'deposit', 'minStock', 'serviceEvery', 'wash'];
+  function mergeServerProducts(list, scope) {
+    const old = {}; read('products', PRODUCTS).forEach((p) => { old[p.id] = p; });
+    return list.map((sp) => {
+      const m = Object.assign({}, old[sp.id] || {}, sp);
+      SRV_PRODUCT_KEYS.forEach((key) => { if (!(key in sp) && !(key === 'cost' && scope !== 'staff')) delete m[key]; });
+      return syncUnits(m);
+    });
+  }
+
   const read = (k, fb) => { try { const v = localStorage.getItem(KEY(k)); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } };
-  const write = (k, v) => { if (k === 'settings') _durC = null; try { localStorage.setItem(KEY(k), JSON.stringify(v)); } catch (e) { console.warn('Penyimpanan penuh / tidak tersedia', e); } };
+  const write = (k, v) => {
+    if (k === 'settings') _durC = null;
+    try { localStorage.setItem(KEY(k), JSON.stringify(v)); } catch (e) { console.warn('Penyimpanan penuh / tidak tersedia', e); }
+    if (!syncApplying && syncBase[k]) syncQueue(k);
+  };
   /* Kata sandi akun LOKAL (mode transisi) tidak pernah disimpan sebagai teks asli.
      Ini hanya penyamaran di browser; keamanan sebenarnya ada di server (bcrypt Laravel).
      Akun dari server (owner, admin, customer terdaftar) tidak punya kata sandi lokal sama sekali. */
@@ -1236,17 +1331,7 @@
     saveConfig(key, value, action, changes) {
       const st = DB.settings(); st[key] = value; write('settings', st);
       DB.audit({ type: 'konfigurasi', action, changes });
-      try {
-        fetch('/api/owner/konfigurasi', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
-          },
-          body: JSON.stringify({ key, value, action, changes })
-        });
-      } catch (_) {}
+      /* Terkirim ke server otomatis lewat sinkronisasi pengaturan (write → api/sync/settings) */
     },
     packages: () => read('packages', PACKAGES),
     pkg: (id) => read('packages', PACKAGES).find((p) => p.id === id),
@@ -1873,6 +1958,24 @@
     clearRead(email) { write('notifications', read('notifications', []).filter((n) => !(n.email === email && n.read))); },
     notifyStaff(title, text, link) { DB.staff().filter((u) => u.status !== 'nonaktif').forEach((u) => DB.notify(u.email, title, text, link)); },
     markRead(email, id) { const all = read('notifications', []); all.forEach((n) => { if (n.email === email && (!id || n.id === id)) n.read = true; }); write('notifications', all); },
+
+    /* Terima data dari server (lihat "Sinkronisasi dengan server"). snap.scope: public | staff | user */
+    applyServer(snap) {
+      if (!snap || typeof snap !== 'object') return;
+      syncApplying = true;
+      try {
+        (snap.clear || []).forEach((k) => { if (!(k in snap)) write(k, k === 'customerMeta' ? {} : []); });
+        if (snap.settings && Object.keys(snap.settings).length) write('settings', Object.assign({}, read('settings', SETTINGS), snap.settings));
+        if (snap.categories) write('categories', snap.categories);
+        if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; }); }
+        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
+        if (snap.customerMeta) write('customerMeta', Array.isArray(snap.customerMeta) ? {} : snap.customerMeta);
+      } finally { syncApplying = false; }
+      Object.keys(SYNC).forEach((k) => { if (snap[k] && k !== 'settings') syncSnapshot(k, read(k, SYNC[k].map ? {} : [])); });
+      if (snap.settings) syncSnapshot('settings', Object.assign({}, SETTINGS, read('settings', SETTINGS)));
+    },
+    /* Kirim perubahan yang masih menunggu sekarang juga (dipakai tes / sebelum pindah halaman) */
+    flushSync: () => syncFlush(false),
 
     cart: () => read('cart', []),
     setCart: (c) => { write('cart', c); document.dispatchEvent(new CustomEvent('cart:change')); },

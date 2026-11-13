@@ -58,6 +58,12 @@ return new class extends Migration
             $table->unsignedInteger('min_days')->default(1);
             $table->boolean('has_variant')->default(false);
             $table->json('variant_data')->nullable();                  // daftar ukuran, label, opsi
+
+            // Aturan sewa & perawatan
+            $table->unsignedInteger('deposit')->default(0);            // jaminan uang per barang (0 = tidak ada)
+            $table->unsignedInteger('min_stock')->nullable();          // batas peringatan stok menipis
+            $table->unsignedInteger('service_every')->nullable();      // servis tiap N kali sewa (null = ikut pengaturan toko)
+            $table->boolean('wash')->nullable();                       // perlu dicuci setelah kembali (null = ikut kategori)
             $table->timestamps();
 
             $table->foreign('category_id')->references('id')->on('categories')->cascadeOnDelete();
@@ -93,6 +99,7 @@ return new class extends Migration
             $table->unsignedInteger('people_min')->nullable();
             $table->unsignedInteger('people_max')->nullable();
             $table->string('type')->default('camping');
+            $table->boolean('is_popular')->default(false);             // label "Populer" di halaman paket
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

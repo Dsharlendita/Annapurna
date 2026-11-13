@@ -256,9 +256,13 @@ class FinanceController extends Controller
             'restock_date' => ['nullable', 'date'],
             'date' => ['nullable', 'date'], // alias restock_date
             'note' => ['nullable', 'string', 'max:500'],
+            // Kode pengeluaran yang sudah dibuat tampilan (EXP-…). Bila ada, pengeluaran & stok produk
+            // tidak dicatat dua kali: stok ikut sinkronisasi barang, pengeluaran memakai kode yang sama.
+            'expense_id' => ['nullable', 'string', 'max:50'],
         ]);
 
         $qty = (int) $validated['qty'];
+        $expenseId = $validated['expense_id'] ?? null;
         $unitCost = (int) ($validated['unit_cost'] ?? $validated['cost'] ?? $product->cost_price ?? 0);
         $totalCost = $qty * $unitCost;
         $kind = $validated['kind'] ?? ($product->sale_price > 0 && $product->rent_price == 0 ? 'sale' : 'rent');
@@ -267,7 +271,7 @@ class FinanceController extends Controller
         $supplier = $validated['supplier'] ?? null;
         $note = $validated['note'] ?? null;
 
-        return DB::transaction(function () use ($product, $qty, $unitCost, $totalCost, $kind, $variant, $restockDate, $supplier, $note) {
+        return DB::transaction(function () use ($product, $qty, $unitCost, $totalCost, $kind, $variant, $restockDate, $supplier, $note, $expenseId) {
             $user = Auth::user();
             $generatedUnits = [];
 
@@ -297,18 +301,22 @@ class FinanceController extends Controller
             }
 
             // 2. Tambah stok produk dan perbarui cost_price
-            $product->stock += $qty;
+            if (! $expenseId) {
+                $product->stock += $qty;
+            }
             if ($unitCost > 0) {
                 $product->cost_price = $unitCost;
             }
             $product->save();
 
-            // 3. Catat pengeluaran keuangan otomatis (Pembelian Barang)
-            $financeCode = Finance::generateCode('expense');
+            // 3. Catat pengeluaran (Pembelian Barang) — pakai baris yang sama dengan tampilan bila ada
             $financeLine = ($kind === 'rent') ? 'rent' : 'sale';
+            $existing = $expenseId ? Finance::where('finance_code', $expenseId)->first() : null;
+            $financeCode = $expenseId && ! $existing ? $expenseId : Finance::generateCode('expense');
 
-            $finance = Finance::create([
+            $finance = $existing && $existing->source === 'manual' && $existing->type === 'expense' ? $existing : Finance::create([
                 'finance_code' => $financeCode,
+                'source' => 'manual',
                 'ref' => "RESTOCK-{$product->id}-" . time(),
                 'type' => 'expense',
                 'category' => 'Pembelian Barang',

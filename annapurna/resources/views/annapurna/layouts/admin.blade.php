@@ -20,6 +20,13 @@
   </div>
 
   <script src="{{ asset('assets/js/data.js') }}?v={{ config('app.asset_version') }}"></script>
+  {{-- Data dari server (katalog, pengaturan, promo, ulasan) sebelum halaman digambar; ?v= berubah bila data berubah --}}
+  <script src="{{ route('boot') }}?v={{ \App\Http\Controllers\Annapurna\BootController::version() }}"></script>
+  @auth
+  @if (in_array(auth()->user()->role, ['admin', 'owner'], true))
+  <script src="{{ route('boot.staff') }}?v={{ \App\Http\Controllers\Annapurna\BootController::version('staff') }}"></script>
+  @endif
+  @endauth
   @auth
   <script>
     /* Sinkronkan sesi Laravel ke frontend. Dicocokkan lewat EMAIL (bukan ID), karena ID di database bisa berbeda dengan ID data demo. */
@@ -37,6 +44,8 @@
       });
     }
   </script>
+  {{-- Notifikasi akun ini dari server --}}
+  <script>window.Ann && window.Ann.DB && window.Ann.DB.applyServer(@json(\App\Http\Controllers\Annapurna\BootController::userData()));</script>
   @endauth
   @guest
   <script>

@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Promo;
+use App\Models\CustomerFlag;
 use App\Models\Sale;
 use App\Models\SaleDelivery;
 use App\Models\SaleItem;
@@ -100,18 +101,32 @@ class ApiController extends Controller
         return response()->json(['ok' => true, 'data' => $products]);
     }
 
+    /** Jawaban 422 bila email / nomor HP pemesan diblokir Owner (customer_flags). */
+    private function blockedResponse(?string $email, ?string $phone): ?JsonResponse
+    {
+        if (CustomerFlag::isBlocked($email, $phone) || CustomerFlag::isBlocked(Auth::user()?->email, null)) {
+            return response()->json([
+                'ok' => false,
+                'field' => 'customer_email',
+                'msg' => 'Maaf, pesanan online untuk data ini tidak dapat diproses. Silakan hubungi toko lewat WhatsApp.',
+            ], 422);
+        }
+
+        return null;
+    }
+
     /**
      * Mengambil detail satu produk.
      */
     public function productDetail(string $id): JsonResponse
     {
-        $p = Product::where('id', $id)->with(['category', 'reviews'])->first();
+        $p = Product::where('id', $id)->with('category')->first();
 
         if (!$p) {
             return response()->json(['ok' => false, 'msg' => 'Produk tidak ditemukan.'], 404);
         }
 
-        return response()->json(['ok' => true, 'data' => $p]);
+        return response()->json(['ok' => true, 'data' => $p->toArray() + ['reviews' => $p->reviewList()]]);
     }
 
     /**
@@ -200,6 +215,9 @@ class ApiController extends Controller
         if (!$isStaff) {
             unset($validated['status'], $validated['payment_status'], $validated['channel']);
             $request->merge(['is_walk_in' => false]);
+            if ($blocked = $this->blockedResponse($validated['customer_email'] ?? null, $validated['customer_phone'] ?? null)) {
+                return $blocked;
+            }
         }
 
         return DB::transaction(function () use ($validated, $request) {
@@ -261,21 +279,12 @@ class ApiController extends Controller
             // Hitung diskon promo jika ada
             $discount = 0;
             if (!empty($validated['promo_code'])) {
-                $promo = Promo::where('code', strtoupper($validated['promo_code']))
-                    ->where('is_active', true)
-                    ->where(function ($q) {
-                        $q->whereNull('valid_until')->orWhere('valid_until', '>=', now());
-                    })
-                    ->first();
-
-                if ($promo && $subtotal >= $promo->min_order) {
-                    $discount = $promo->discount_type === 'persen'
-                        ? (int)round($subtotal * $promo->discount_value / 100)
-                        : min($promo->discount_value, $subtotal);
-
-                    if ($promo->max_discount && $discount > $promo->max_discount) {
-                        $discount = $promo->max_discount;
-                    }
+                $promo = Promo::where('code', strtoupper($validated['promo_code']))->lockForUpdate()->first();
+                // Tanggal ambil dipakai untuk aturan "hanya Senin–Kamis", sama seperti di tampilan
+                $check = $promo?->calculateDiscount($subtotal, 'rent', $validated['start_date']);
+                if ($check && $check['valid']) {
+                    $discount = min((int) $check['discount'], $subtotal);
+                    $promo->increment('used_count');
                 }
             }
 
@@ -356,6 +365,9 @@ class ApiController extends Controller
         // Walk-in (langsung lunas) & diskon manual hanya boleh dari kasir (staf), bukan dari checkout publik
         if (!in_array(Auth::user()?->role, ['admin', 'owner'], true)) {
             $request->merge(['is_walk_in' => false, 'discount_amount' => 0, 'discount_reason' => null]);
+            if ($blocked = $this->blockedResponse($validated['customer_email'] ?? null, $validated['customer_phone'] ?? null)) {
+                return $blocked;
+            }
         }
 
         return DB::transaction(function () use ($validated, $request) {
@@ -385,7 +397,11 @@ class ApiController extends Controller
                 ];
 
                 // Kurangi stok produk
-                $product->decrement('stock', $qty);
+                // Penjualan kasir (staff): stok dikurangi tampilan kasir lalu ikut sinkronisasi barang
+                // (api/sync/products). Penjualan online dari customer dikurangi di sini.
+                if (! $request->boolean('is_walk_in')) {
+                    $product->decrement('stock', $qty);
+                }
             }
 
             $code = 'ORD-TMP-' . bin2hex(random_bytes(6)); // diganti ORD-YYYYMMDD-{id} setelah insert

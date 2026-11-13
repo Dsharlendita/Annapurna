@@ -41,14 +41,17 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Ulasan customer untuk sewa atau pembelian
+        // Ulasan customer untuk sewa atau pembelian (juga testimoni di beranda)
         Schema::create('reviews', function (Blueprint $table) {
             $table->id();
             $table->foreignId('booking_id')->nullable()->constrained('bookings')->nullOnDelete();
             $table->foreignId('sale_id')->nullable()->constrained('sales')->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('product_id', 50)->nullable();
+            $table->json('product_ids')->nullable();                   // barang yang diulas, mis. ["tnd-4","oe-kursi"]
             $table->string('customer_name');
+            $table->string('customer_email')->nullable();
+            $table->string('customer_label', 100)->nullable();         // keterangan di bawah nama, mis. "Pendaki, Purwokerto"
+            $table->string('avatar')->nullable();
             $table->unsignedTinyInteger('rating')->default(5);
             $table->text('comment');
             $table->text('reply')->nullable();
@@ -57,9 +60,33 @@ return new class extends Migration
             $table->boolean('is_featured')->default(false);
             $table->unsignedSmallInteger('featured_order')->default(0);
             $table->boolean('is_visible')->default(true);
+            $table->timestamp('seen_at')->nullable();                  // sudah dibaca staff
+            $table->timestamps();
+        });
+
+        // Notifikasi lonceng untuk setiap akun
+        Schema::create('user_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->string('title', 150);
+            $table->text('body');
+            $table->string('link')->nullable();
+            $table->unsignedInteger('count')->default(1);              // notifikasi sama yang digabung
+            $table->timestamp('read_at')->nullable();
             $table->timestamps();
 
-            $table->foreign('product_id')->references('id')->on('products')->nullOnDelete();
+            $table->index(['user_id', 'read_at']);
+        });
+
+        // Status pelanggan yang diatur Owner: perlu jaminan tambahan / diblokir
+        Schema::create('customer_flags', function (Blueprint $table) {
+            $table->id();
+            $table->string('email')->unique();
+            $table->string('phone', 30)->nullable();                   // dicek juga, agar tidak bisa diakali dengan email lain
+            $table->enum('flag', ['normal', 'jaminan', 'blacklist'])->default('normal');
+            $table->text('note')->nullable();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamps();
         });
 
         // Penomoran nota per bulan: RNTL/001/XI/2026, ODR/…, DRY/…
@@ -138,6 +165,8 @@ return new class extends Migration
         Schema::dropIfExists('activity_logs');
         Schema::dropIfExists('nota_links');
         Schema::dropIfExists('document_sequences');
+        Schema::dropIfExists('customer_flags');
+        Schema::dropIfExists('user_notifications');
         Schema::dropIfExists('reviews');
         Schema::dropIfExists('promos');
         Schema::dropIfExists('settings');

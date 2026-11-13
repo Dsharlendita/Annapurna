@@ -3,6 +3,7 @@
 use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
+use App\Http\Controllers\Annapurna\BootController;
 use App\Http\Controllers\Annapurna\BookingServiceController;
 use App\Http\Controllers\Annapurna\ChatMissController;
 use App\Http\Controllers\Annapurna\ConfigController;
@@ -17,9 +18,14 @@ use App\Http\Controllers\Annapurna\PromoController;
 use App\Http\Controllers\Annapurna\ReturnController;
 use App\Http\Controllers\Annapurna\ReviewController;
 use App\Http\Controllers\Annapurna\StaffController;
+use App\Http\Controllers\Annapurna\SyncController;
 use App\Models\EmailLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Data server untuk tampilan (dimuat di layout sebelum skrip halaman)
+Route::get('/boot.js', [BootController::class, 'public'])->name('boot');
+Route::get('/boot-staff.js', [BootController::class, 'staff'])->middleware(['auth', 'role:admin,owner'])->name('boot.staff');
 
 // Halaman Publik
 Route::controller(PageController::class)->group(function () {
@@ -117,6 +123,9 @@ Route::middleware('auth')->group(function () {
     // Pesanan Saya (customer): data dari database, bukan localStorage
     Route::get('/api/pesanan', [OrderController::class, 'myOrders'])->name('api.pesanan');
     Route::post('/api/pesanan/{id}/batal', [OrderController::class, 'customerCancel'])->name('api.pesanan.batal');
+
+    // Perubahan dari tampilan (katalog, promo, ulasan, keuangan manual, pengaturan, notifikasi, status pelanggan)
+    Route::post('/api/sync/{collection}', [SyncController::class, 'sync'])->name('api.sync');
 });
 
 // API Admin (Pengaturan Toko, Keuangan, & Restock)

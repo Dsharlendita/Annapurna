@@ -22,6 +22,7 @@ class Package extends Model
         'people_min',
         'people_max',
         'type',
+        'is_popular',
         'is_active',
     ];
 
@@ -34,6 +35,7 @@ class Package extends Model
             'people_min' => 'integer',
             'people_max' => 'integer',
             'is_active' => 'boolean',
+            'is_popular' => 'boolean',
         ];
     }
 

@@ -4,7 +4,7 @@ Database MySQL dengan 37 tabel aplikasi, dibagi menjadi 8 bagian. Setiap bagian 
 
 | No | Bagian | File migrasi | Tabel |
 |---|---|---|---|
-| 01 | Akun | `0001_01_01_000000_create_akun_tables` + `2026_11_13_000008_create_login_codes_table` | users, password_reset_tokens, sessions, login_codes |
+| 01 | Akun | `0001_01_01_000000_create_akun_tables` + `…000008_create_login_codes_table` + `…000009_add_google_login_to_users_table` | users, password_reset_tokens, sessions, login_codes |
 | 02 | Katalog | `2026_11_13_000001_create_katalog_tables` | categories, products, product_units, packages, package_items |
 | 03 | Sewa | `2026_11_13_000002_create_sewa_tables` | bookings, booking_items, booking_services, booking_returns, booking_extensions, booking_changes, refunds |
 | 04 | Penjualan | `2026_11_13_000003_create_penjualan_tables` | sales, sale_items, sale_deliveries |
@@ -129,6 +129,7 @@ erDiagram
 ### 01 · Akun
 - **users** menyimpan semua orang yang memakai sistem. Kolom `role` membedakan owner, admin (staff toko), dan customer.
 - Kolom `auto_created` menandai akun customer yang dibuat otomatis saat staff mencatat transaksi di kasir.
+- Kolom `google_id` menyambungkan akun dengan akun Google ("Masuk dengan Google"). Kolom `password_set` bernilai false untuk akun yang dibuat lewat Google dan belum pernah membuat kata sandi sendiri.
 - **login_codes** menyimpan kode verifikasi 6 digit yang dikirim lewat email untuk "Masuk dengan kode" dan "Lupa kata sandi". Kodenya disimpan dalam bentuk teracak (hash), berlaku 10 menit, sekali pakai, dan hangus setelah 5 kali salah.
 
 ### 02 · Katalog

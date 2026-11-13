@@ -456,7 +456,8 @@ class StaffController extends Controller
             ], 401);
         }
 
-        $mustChange = (bool) $user->must_change_password;
+        // Wajib ganti (akun staff baru) atau akun Google yang belum punya kata sandi: tidak perlu kata sandi lama
+        $mustChange = (bool) $user->must_change_password || $user->password_set === false;
 
         $rules = [
             'password' => ['required', 'string', 'min:6'],
@@ -500,6 +501,7 @@ class StaffController extends Controller
 
         $user->password = $validated['password'];
         $user->must_change_password = false;
+        $user->password_set = true;
         $user->remember_token = Str::random(60);
         $user->save();
 

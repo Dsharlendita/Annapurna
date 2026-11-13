@@ -1005,3 +1005,16 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 **Catatan:** email staff (akun baru / reset oleh Owner) memakai antrean. Dengan `QUEUE_CONNECTION=database` email itu baru terkirim kalau `php artisan queue:work` dijalankan. Untuk laptop, pakai `QUEUE_CONNECTION=sync`.
 
 **Tes:** `VerifikasiKodeTest` (6) + uji Chrome (lupa kata sandi → kata sandi baru → masuk; masuk dengan kode). Total 50 tes PHP lulus.
+
+
+## C.43 Masuk / daftar dengan Google — 13 Nov 2026 (Aji)
+
+**Setelah pull:** `composer install` (paket baru `laravel/socialite`) lalu `php artisan migrate` (kolom `users.google_id`, `users.password_set`).
+
+- Tombol **"Masuk dengan Google"** (halaman masuk), **"Daftar dengan Google"** (halaman daftar), dan pilihan Google di pop-up checkout "Kamu sudah punya akun". Tombol hanya tampil bila `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` diisi di `.env`.
+- Email belum terdaftar → akun customer dibuat otomatis (tanpa kata sandi, `password_set = false`). Email sudah terdaftar → masuk ke akun itu dan akun Google disambungkan (`google_id`). Akun nonaktif ditolak. Email Google yang belum terverifikasi ditolak.
+- Lupa kata sandi untuk pengguna Gmail: masuk dengan Google, lalu buat kata sandi baru di **Profil**. Akun tanpa kata sandi tidak diminta "kata sandi lama"; sesi FE membawa `hasPassword`.
+- Tombol "Masuk dengan kode" & kode lupa sandi lewat email hanya tampil bila `MAIL_MAILER` bukan `log`. Kalau email belum dipasang, "Lupa kata sandi" menawarkan Google atau WhatsApp admin.
+- `next` setelah masuk hanya boleh alamat di website ini (alamat luar seperti `//situs-lain` diabaikan).
+
+**Rute:** `GET /auth/google`, `GET /auth/google/callback` (`GoogleAuthController`). **Tes:** `GoogleLoginTest` (7). Total 57 tes lulus.

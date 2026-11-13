@@ -14,6 +14,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'google_id',
         'phone',
         'address',
         'role',
@@ -24,11 +25,13 @@ class User extends Authenticatable
         'last_login_at',
         'last_logout_at',
         'password',
+        'password_set',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'google_id',
     ];
 
     protected function casts(): array
@@ -38,6 +41,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'must_change_password' => 'boolean',
             'auto_created' => 'boolean',
+            'password_set' => 'boolean',
             'last_login_at' => 'datetime',
             'last_logout_at' => 'datetime',
         ];

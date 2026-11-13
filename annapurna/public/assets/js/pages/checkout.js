@@ -202,8 +202,11 @@
     const m = UI.modal({ title: 'Kamu sudah punya akun', body: `<p style="font-size:14px;margin-bottom:12px">${r.by === 'email' ? 'Email' : 'Nomor WhatsApp'} ini sudah terdaftar atas nama <strong>${esc(r.user.name)}</strong>. Masuk dulu untuk melanjutkan — isi keranjangmu tetap aman.</p>
       <div class="seg" id="lfTab" style="margin-bottom:14px"><button type="button" class="active" data-t="code">Kode verifikasi</button><button type="button" data-t="pw">Kata sandi</button></div>
       <div id="lfBody"></div>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="lfOk">Masuk &amp; lanjutkan</button>' });
-    /* Kode verifikasi dikirim server ke email akun (Api.code); kata sandi tetap bisa dipakai */
-    let mode = 'code', sent = null;
+    /* Kode verifikasi dikirim server ke email akun (Api.code) — hanya bila email pengirim sudah dipasang toko */
+    const canCode = document.body.dataset.mail === '1', canGoogle = document.body.dataset.google === '1';
+    let mode = canCode ? 'code' : 'pw', sent = null;
+    if (!canCode) { const tc = m.$('#lfTab [data-t="code"]'); if (tc) tc.remove(); }
+    if (canGoogle) m.$('#lfBody').insertAdjacentHTML('afterend', `<div class="or-sep"><span>atau</span></div><a class="btn btn-light btn-block btn-google" href="${UI.url('auth/google?next=' + encodeURIComponent('checkout'))}"><i class="fa-brands fa-google"></i> Masuk dengan Google</a>`);
     const draw = () => {
       m.$$('#lfTab button').forEach((b) => b.classList.toggle('active', b.dataset.t === mode));
       m.$('#lfBody').innerHTML = mode === 'pw' ? `<div class="field"><label>Kata sandi</label><input class="input" type="password" id="lfPw" autocomplete="current-password"></div>`

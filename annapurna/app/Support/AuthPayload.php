@@ -19,6 +19,8 @@ class AuthPayload
             'phone' => $user->phone ?? '',
             'address' => $user->address ?? '',
             'mustChangePw' => (bool) $user->must_change_password,
+            // false = akun dari Google yang belum punya kata sandi sendiri (ganti sandi tanpa kata sandi lama)
+            'hasPassword' => (bool) ($user->password_set ?? true),
         ];
     }
 

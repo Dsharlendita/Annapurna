@@ -22,13 +22,21 @@
   });
 
   const p = $('#fPw');
+  /* Akun yang dibuat lewat Google belum punya kata sandi: tidak ada "kata sandi lama" */
+  const noPw = (DB.session() || {}).hasPassword === false;
+  if (noPw && p.elements.old) {
+    const fo = p.elements.old.closest('.field'); if (fo) fo.hidden = true;
+    p.insertAdjacentHTML('afterbegin', '<p class="muted" id="pwGoogleNote" style="font-size:13px;margin-bottom:10px">Akunmu masuk lewat Google. Buat kata sandi kalau ingin bisa masuk juga dengan email &amp; kata sandi.</p>');
+  }
   p.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!validate(p, { old: (v) => (!v ? 'Isi kata sandi lama.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : ''), cpw: (v) => (v !== p.elements.npw.value ? 'Konfirmasi kata sandi tidak sama.' : '') })) return;
-    const r = await Api.busy(p.querySelector('[type="submit"]'), () => Api.changePassword(p.elements.old.value, p.elements.npw.value), 'Menyimpan…');
+    const needOld = !((DB.session() || {}).hasPassword === false);
+    if (!validate(p, { old: (v) => (needOld && !v ? 'Isi kata sandi lama.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : ''), cpw: (v) => (v !== p.elements.npw.value ? 'Konfirmasi kata sandi tidak sama.' : '') })) return;
+    const r = await Api.busy(p.querySelector('[type="submit"]'), () => Api.changePassword(needOld ? p.elements.old.value : '', p.elements.npw.value), 'Menyimpan…');
     if (!r) return;
     if (!r.ok) { if (r.field === 'old') validate(p, { old: () => r.msg || 'Kata sandi lama salah.' }); else toast(r.msg, 'err'); return; }
-    p.reset(); toast('Kata sandi berhasil diganti.');
+    if (!needOld) { const s = DB.session(); if (s) { s.hasPassword = true; localStorage.setItem('annapurna:session', JSON.stringify(s)); } const fo = p.elements.old && p.elements.old.closest('.field'); if (fo) fo.hidden = false; const n = $('#pwGoogleNote'); if (n) n.remove(); }
+    p.reset(); toast(needOld ? 'Kata sandi berhasil diganti.' : 'Kata sandi dibuat. Sekarang kamu juga bisa masuk dengan email & kata sandi.');
   });
 
   function notifs() {

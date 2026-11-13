@@ -7,7 +7,7 @@
   @yield('head')
   @stack('styles')
 </head>
-<body data-base="{{ rtrim(url('/'), '/') }}/" data-page="@yield('page')">
+<body data-base="{{ rtrim(url('/'), '/') }}/" data-page="@yield('page')" data-google="{{ \App\Http\Controllers\Annapurna\GoogleAuthController::enabled() ? 1 : 0 }}" data-mail="{{ config('mail.default') !== 'log' ? 1 : 0 }}">
   <div id="site-header"></div>
   @yield('content')
   <div id="site-footer"></div>
@@ -28,6 +28,7 @@
         phone: @json(auth()->user()->phone ?? ''),
         address: @json(auth()->user()->address ?? ''),
         mustChangePw: {{ auth()->user()->must_change_password ? 'true' : 'false' }},
+        hasPassword: {{ auth()->user()->password_set === false ? 'false' : 'true' }},
         loginAt: @json(auth()->user()->last_login_at?->toISOString() ?? now()->toISOString())
       });
     }

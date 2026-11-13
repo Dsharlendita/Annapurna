@@ -1829,7 +1829,7 @@
       else Object.assign(u, { name: su.name || u.name, role: su.role || u.role, status: su.status || u.status, phone: su.phone || u.phone, address: su.address || u.address });
       write('users', users);
       const prev = DB.session(); const same = prev && String(prev.email).toLowerCase() === email;
-      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw,
+      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw, hasPassword: su.hasPassword !== false,
         loginAt: (same && prev.loginAt) || su.loginAt || nowStamp(), seen: (same && prev.seen) || {} };
       write('session', s);
       return s;

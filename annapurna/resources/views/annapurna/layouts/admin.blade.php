@@ -40,6 +40,7 @@
         phone: @json(auth()->user()->phone ?? ''),
         address: @json(auth()->user()->address ?? ''),
         mustChangePw: {{ auth()->user()->must_change_password ? 'true' : 'false' }},
+        hasPassword: {{ auth()->user()->password_set === false ? 'false' : 'true' }},
         loginAt: @json(auth()->user()->last_login_at?->toISOString() ?? now()->toISOString())
       });
     }

@@ -7,6 +7,7 @@ use App\Http\Controllers\Annapurna\BootController;
 use App\Http\Controllers\Annapurna\BookingServiceController;
 use App\Http\Controllers\Annapurna\ChatMissController;
 use App\Http\Controllers\Annapurna\ConfigController;
+use App\Http\Controllers\Annapurna\GoogleAuthController;
 use App\Http\Controllers\Annapurna\FinanceController;
 use App\Http\Controllers\Annapurna\LaundryController;
 use App\Http\Controllers\Annapurna\NotaLinkController;
@@ -23,6 +24,10 @@ use App\Http\Controllers\Annapurna\VerificationController;
 use App\Models\EmailLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Masuk / daftar dengan Google (kunci di .env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->middleware('throttle:20,1')->name('auth.google');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:20,1')->name('auth.google.callback');
 
 // Kode verifikasi lewat email: masuk dengan kode & lupa kata sandi (tanpa login, dibatasi 10x/menit per IP)
 Route::middleware('throttle:10,1')->controller(VerificationController::class)->group(function () {

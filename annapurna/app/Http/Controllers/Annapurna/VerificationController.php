@@ -178,7 +178,7 @@ class VerificationController extends Controller
             return $this->fail('Waktu verifikasi habis. Ulangi dari kirim kode.', 422, 'password');
         }
 
-        $u->forceFill(['password' => Hash::make($v['password']), 'must_change_password' => false])->save();
+        $u->forceFill(['password' => Hash::make($v['password']), 'must_change_password' => false, 'password_set' => true])->save();
         // Semua sesi lama akun ini dikeluarkan (mis. bila kata sandi lama diketahui orang lain)
         DB::table('sessions')->where('user_id', $u->id)->delete();
         $request->session()->forget('pw_reset');

@@ -4,7 +4,6 @@ namespace App\Mail;
 
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -16,7 +15,7 @@ use Illuminate\Queue\SerializesModels;
  * (email hanya berisi info akun & cara login).
  * Contoh: Mail::to($staff)->queue(new StaffAccountCreated($staff, $owner, null, true));
  */
-class StaffAccountCreated extends Mailable implements ShouldQueue
+class StaffAccountCreated extends Mailable
 {
     use Queueable, SerializesModels;
 

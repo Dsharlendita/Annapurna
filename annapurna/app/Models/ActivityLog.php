@@ -14,7 +14,7 @@ class ActivityLog extends Model
     public const UPDATED_AT = null;
 
     protected $fillable = [
-        'user_id', 'user_name', 'role', 'type', 'action', 'subject_type', 'subject_id',
+        'user_id', 'user_name', 'role', 'type', 'action', 'subject_type', 'subject_id', 'client_ref',
         'changes', 'ip_address', 'user_agent', 'prev_hash', 'hash',
     ];
 
@@ -74,7 +74,9 @@ class ActivityLog extends Model
         $prev = str_repeat('0', 64);
         foreach (static::orderBy('id')->cursor() as $log) {
             $attrs = $log->getAttributes();
-            $attrs['changes'] = $log->changes ?? [];
+            // getAttribute(): di dalam model, $log->changes membaca properti internal Eloquent ($changes),
+            // bukan kolom "changes" — dulu membuat setiap catatan berisi rincian perubahan dianggap rusak.
+            $attrs['changes'] = $log->getAttribute('changes') ?? [];
             $attrs['created_at'] = $log->created_at->toIso8601String();
             if ($log->prev_hash !== $prev || static::hashFor($attrs, $prev) !== $log->hash) {
                 return $log->id;

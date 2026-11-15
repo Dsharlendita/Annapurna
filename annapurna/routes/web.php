@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Annapurna\ActivityController;
 use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
@@ -221,6 +222,8 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
 
 // API Manajemen Staff, Promo & Konfigurasi (Khusus Role: Owner)
 Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'])->group(function () {
+    // Histori aktivitas semua perangkat (dari server)
+    Route::get('/aktivitas', [ActivityController::class, 'index'])->name('aktivitas');
     Route::prefix('staff')->name('staff.')->controller(StaffController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/', 'store')->name('store');

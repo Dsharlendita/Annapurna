@@ -51,6 +51,7 @@ class SyncController extends Controller
             'customerMeta' => 'customerMeta',
             'settings' => 'settings',
             'notifications' => 'notifications',
+            'audit' => 'audit',
             default => null,
         };
         abort_unless($handler !== null, 404, 'Jenis data tidak dikenal.');
@@ -383,6 +384,26 @@ class SyncController extends Controller
         }
         if ($changed) {
             Audit::log('konfigurasi', 'Mengubah pengaturan: ' . implode(', ', $changed));
+        }
+    }
+
+    // ------------------------------------------------------------------ Histori aktivitas
+
+    /** Catatan histori dari tampilan. Hanya bertambah: tidak bisa diubah atau dihapus. */
+    private function audit(array $items, array $removed): void
+    {
+        $this->staffOnly();
+        foreach ($items as $e) {
+            if (! is_array($e) || empty($e['id'])) {
+                continue;
+            }
+            if (str_starts_with((string) $e['id'], 'L')) {
+                continue;                                // sudah dari server
+            }
+            $log = Audit::fromClient($e, $this->user());
+            if ($log) {
+                $this->map[$e['id']] = 'L' . $log->id;
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 (function () {
   if (window.Admin.blocked) return;
   const { DB, AUDIT_TYPES, D } = Ann;
-  const { $, $$, esc, param, modal, bindExport } = UI;
+  const { $, $$, esc, param, modal, bindExport, toast } = UI;
   Admin.init('owner-histori', 'Histori Sistem');
   const T = D.today();
   const PAGE = 60;
@@ -110,4 +110,11 @@
   if (param('type') && AUDIT_TYPES[param('type')]) { const g = TABS.find(([, , fn]) => fn({ type: param('type') })); tab = g[0]; }
   fillTypes(); if (param('type')) $('#fType').value = param('type');
   drawIntegrity(); draw();
+  /* Histori semua perangkat dari server (bukan hanya yang tercatat di browser ini) */
+  if (window.Api) Api.get('api/owner/aktivitas?from=' + D.addDays(D.today(), -365) + '&to=' + D.today(), { redirectOn401: false }).then((r) => {
+    if (!r.ok || !r.data || !Array.isArray(r.data.entries)) { toast('Histori dari server gagal dimuat. Yang tampil adalah catatan di perangkat ini.', 'err'); return; }
+    DB.flushSync && DB.flushSync();
+    DB.applyServer({ audit: r.data.entries, auditCheck: r.data.integrity });
+    drawIntegrity(); draw();
+  });
 })();

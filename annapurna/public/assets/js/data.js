@@ -1010,7 +1010,9 @@
     customerMeta: { staff: true, label: 'status pelanggan', map: true },
     settings: { staff: true, label: 'pengaturan', map: true },
     notifications: { staff: false, label: 'notifikasi' },
+    audit: { staff: true, label: 'histori aktivitas' },
   };
+  let serverAuditCheck = null; /* hasil pemeriksaan rantai histori di server (halaman Histori) */
   const syncBase = {}; /* koleksi → Map(id → sidik data yang sama dengan server) */
   /* Stok barang dikirim sebagai selisih (_stockFrom → stock), bukan angka mutlak, supaya penjualan online
      yang dikurangi server tidak tertimpa angka lama dari perangkat staff. */
@@ -1909,6 +1911,8 @@
       return entry;
     },
     verifyAudit() {
+      /* Histori dari server: keutuhan rantai diperiksa server (ActivityLog::firstBrokenId) */
+      if (serverAuditCheck) return serverAuditCheck;
       const list = read('audit', []); let prev = 'GENESIS';
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
@@ -1956,10 +1960,13 @@
         if (snap.settings && Object.keys(snap.settings).length) write('settings', Object.assign({}, read('settings', SETTINGS), snap.settings));
         if (snap.categories) write('categories', snap.categories);
         if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; }); }
-        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
+        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications', 'audit'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
         if (snap.customerMeta) write('customerMeta', Array.isArray(snap.customerMeta) ? {} : snap.customerMeta);
       } finally { syncApplying = false; }
       Object.keys(SYNC).forEach((k) => { if (snap[k] && k !== 'settings') syncSnapshot(k, read(k, SYNC[k].map ? {} : [])); });
+      /* Histori: catatan yang sudah ada di perangkat ini dianggap lama; hanya catatan baru yang dikirim */
+      if (snap.auditTrack && !syncBase.audit) syncSnapshot('audit', read('audit', []));
+      if (snap.auditCheck) serverAuditCheck = snap.auditCheck;
       if (snap.settings) syncSnapshot('settings', Object.assign({}, SETTINGS, read('settings', SETTINGS)));
     },
     /* Kirim perubahan yang masih menunggu sekarang juga (dipakai tes / sebelum pindah halaman) */
@@ -2304,9 +2311,12 @@
     const B = read('bookings', []), S = read('sales', []);
     const bDone = (b) => (b.status === 'dibatalkan' || (b.status === 'selesai' && Rules.paidTotal(b) >= (b.total || 0))) && old((b.ret && b.ret.at) || (b.cancel && b.cancel.at) || b.end || b.createdAt);
     const sDone = (s) => (s.status === 'dibatalkan' || (s.status === 'selesai' && s.paymentStatus === 'paid')) && old(s.createdAt);
-    const rmB = B.filter(bDone), rmS = S.filter(sDone);
+    /* Data dari server (booking/penjualan bertanda _srv, pemasukan & pengeluaran) TIDAK dihapus:
+       server menyimpannya permanen untuk pembukuan, dan bila dihapus di browser akan termuat lagi.
+       Yang dibersihkan hanya sisa data lama yang memang cuma ada di browser ini. */
+    const rmB = B.filter((b) => bDone(b) && !b._srv), rmS = S.filter((s) => sDone(s) && !s._srv);
     const A = read('audit', []), N = read('notifications', []), O = read('outbox', []), E = read('expenses', []), I = read('incomes', []);
-    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at)), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = E.filter((e) => old(e.date)), rmI = I.filter((e) => old(e.date));
+    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at) && n.read), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = [], rmI = [];
     const photos = [...rmB, ...rmS].filter((x) => x.proof || (x.out && x.out.photo) || (x.ret && x.ret.photo)).length;
     const counts = { bookings: rmB.length, sales: rmS.length, logs: rmA.length, notifications: rmN.length, emails: rmO.length, finance: rmE.length + rmI.length, photos };
     const total = counts.bookings + counts.sales + counts.logs + counts.notifications + counts.emails + counts.finance;

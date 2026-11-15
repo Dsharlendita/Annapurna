@@ -100,6 +100,7 @@ class BootController extends Controller
 
         return $this->js([
             'scope' => 'staff',
+            'auditTrack' => true,   // catatan histori baru di perangkat ini dikirim ke server
             'settings' => $isOwner ? FeData::settings(true) : [],
             // Staff: harga modal + unit fisik (kode, keluar/dirawat, riwayat)
             'products' => Product::with('units')->orderBy('sort_order')->orderBy('id')->get()

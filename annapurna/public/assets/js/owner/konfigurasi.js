@@ -196,8 +196,16 @@
               <label class="cb-sw"><input type="checkbox" data-ri="${i}" data-k="active" ${r.active === false ? '' : 'checked'}> Aktif</label>
               <span class="cb-acts">${r.builtin ? (String(r.answer || '').trim() ? `<button type="button" class="btn btn-light btn-xs" data-reset="${i}">Pakai jawaban bawaan</button>` : '') : `<button type="button" class="btn btn-light btn-xs" data-del="${i}"><i class="fa-solid fa-trash-can"></i> Hapus</button>`}</span></div>
           </div></details>`;
+      /* Pertanyaan belum terjawab dari SEMUA customer (server). Sebelum termuat / bila gagal: catatan di perangkat ini. */
+      let srvMiss = null;
+      const missList = () => srvMiss || DB.chatMisses();
+      if (window.Api) Api.get('api/owner/chat/misses', { redirectOn401: false }).then((r) => {
+        if (!r || !r.ok || !Array.isArray(r.data)) return;
+        srvMiss = r.data.map((m) => ({ key: m.question_norm, text: m.question_text, count: m.count, last: m.last_at }));
+        if (document.body.contains($('#saveCb'))) { grab(); draw(); }
+      });
       const draw = () => {
-        const miss = DB.chatMisses();
+        const miss = missList();
         $('#cfgMain').innerHTML = head('Asisten Trip – Tanya jawab AI', 'Asisten Trip memakai <b>chatbot AI</b> yang memahami pertanyaan customer dengan bahasa sehari-hari. Tulis topik dan jawabannya di sini sebagai bahan pengetahuan chatbot. Fitur Rencanakan trip (sistem rekomendasi) tidak diatur di sini.')
           + `<div class="cfg-block"><h3><i class="fa-solid fa-book-open"></i> Topik &amp; jawaban <small class="muted" style="font-weight:500">${rules.filter((r) => r.active !== false).length} aktif dari ${rules.length}</small></h3>
               <p class="muted" style="font-size:12.5px;margin:-6px 0 10px">Chatbot menjawab berdasarkan topik yang aktif. Bila pertanyaan di luar semua topik, customer diarahkan ke admin dan pertanyaannya dicatat di "Pertanyaan belum terjawab".</p>
@@ -227,15 +235,15 @@
         const del = t.closest('[data-del]'); if (del) { grab(); const r = rules[+del.dataset.del]; if (!(await confirmBox({ title: `Hapus topik ${r.title || ''}?`, text: 'Topik dihapus setelah kamu menekan Simpan perubahan.', ok: 'Hapus', danger: true }))) return; rules.splice(+del.dataset.del, 1); open = ''; draw(); return; }
         const rs = t.closest('[data-reset]'); if (rs) { grab(); rules[+rs.dataset.reset].answer = ''; draw(); return; }
         const ph = t.closest('[data-ph]'); if (ph) { const ta = lastTa && document.body.contains(lastTa) ? lastTa : box.querySelector('details[open] .cb-ans'); if (!ta) { toast('Klik dulu kolom jawaban yang ingin diisi.', 'err'); return; } const p0 = ta.selectionStart || ta.value.length; ta.value = ta.value.slice(0, p0) + ph.dataset.ph + ta.value.slice(p0); ta.focus(); return; }
-        const mk = t.closest('[data-mk]'); if (mk) { grab(); const m = DB.chatMisses().find((x) => x.key === mk.dataset.mk); rules.push(newRule({ title: m ? m.text.slice(0, 60) : '', fromMiss: mk.dataset.mk })); open = String(rules.length - 1); draw(); toast('Topik baru dibuat dari pertanyaan. Rapikan judulnya, tulis jawaban, lalu simpan.'); const c = box.querySelector(`[data-card="${open}"]`); if (c) c.scrollIntoView({ block: 'center' }); return; }
-        const ig = t.closest('[data-ign]'); if (ig) { DB.dismissChatMiss(ig.dataset.ign); grab(); draw(); return; }
+        const mk = t.closest('[data-mk]'); if (mk) { grab(); const m = missList().find((x) => x.key === mk.dataset.mk); rules.push(newRule({ title: m ? m.text.slice(0, 60) : '', fromMiss: mk.dataset.mk })); open = String(rules.length - 1); draw(); toast('Topik baru dibuat dari pertanyaan. Rapikan judulnya, tulis jawaban, lalu simpan.'); const c = box.querySelector(`[data-card="${open}"]`); if (c) c.scrollIntoView({ block: 'center' }); return; }
+        const ig = t.closest('[data-ign]'); if (ig) { DB.dismissChatMiss(ig.dataset.ign); if (srvMiss) srvMiss = srvMiss.filter((x) => x.key !== ig.dataset.ign); grab(); draw(); return; }
         if (t.closest('#saveCb')) {
           grab();
           const bad = rules.find((r) => r.active !== false && (!String(r.title || '').trim() || (!r.builtin && !String(r.answer || '').trim())));
           if (bad) { toast(`Lengkapi topik "${bad.title || 'tanpa judul'}": topik dan jawaban wajib diisi.`, 'err'); open = String(rules.indexOf(bad)); draw(); return; }
           /* keys lama dibawa apa adanya (tidak ditampilkan) agar Asisten Trip di website tetap jalan selama masa transisi */
           const clean = rules.map((r) => Object.assign({ id: r.id, title: String(r.title).trim(), answer: String(r.answer || '').trim(), action: r.action || '', priority: r.priority === 'tinggi' ? 'tinggi' : 'normal', active: r.active !== false, builtin: !!r.builtin }, Array.isArray(r.keys) && r.keys.length ? { keys: r.keys } : {}));
-          rules.filter((r) => r.fromMiss).forEach((r) => DB.dismissChatMiss(r.fromMiss));
+          rules.filter((r) => r.fromMiss).forEach((r) => { DB.dismissChatMiss(r.fromMiss); if (srvMiss) srvMiss = srvMiss.filter((x) => x.key !== r.fromMiss); });
           const next = Object.assign({}, S(), { chatRules: clean, chatSpecial: Object.assign({}, sp) });
           cfgSave(next, 'Mengubah topik Asisten Trip (tanya jawab AI)', [['chatRules', 'Topik tanya jawab', (v) => `${(v || []).filter((r) => r.active !== false).length} aktif dari ${(v || []).length} topik`], ['chatSpecial', 'Data toko untuk chatbot', (v) => Object.entries(v || {}).filter(([, on]) => !on).map(([k]) => k + ' nonaktif').join(', ') || 'semua aktif']]);
         }

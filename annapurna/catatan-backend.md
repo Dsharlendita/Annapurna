@@ -1072,3 +1072,12 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - **`php artisan data:kosongkan`** mengosongkan transaksi & histori uji di database (katalog, unit, paket, pengaturan, akun, koneksi Google Drive tetap). Ditolak di server online kecuali `--paksa`.
 - Dita: setelah pull, jalankan `php artisan data:kosongkan` bila ingin database laptop juga mulai dari 0.
 - `ASSET_VERSION` = `20261115.4`. Tes PHP 81 lulus.
+
+## C.48 Asisten Trip memakai Gemini — 15 Nov 2026 (Aji)
+
+- **Server:** `POST /api/chat` dan `POST /api/ai/rencana` (`AsistenController`, klien `App\Support\Gemini`). Kunci di `.env`: `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-2.5-flash`), `GEMINI_DAILY_LIMIT` (default 1000 panggilan/hari). Batas 15 pertanyaan/menit per pengunjung.
+- Gemini menerima: info toko & katalog + harga dari MySQL, topik aktif Konfigurasi → Asisten Trip (dikirim tampilan sebagai `pengetahuan[]`), konteks halaman/keranjang **tanpa data pribadi**. Jawaban selalu JSON `{teks, aksi[], saran[], wa, handoff}`.
+- **Hibrida (ai.js):** status pesanan, stok, ukuran, harga per durasi, cek keranjang, rencana trip, dan topik prioritas tinggi tetap dijawab sistem. Topik umum, sapaan, dan pertanyaan di luar topik → Gemini. Gagal/kuota habis/tanpa kunci (503/429/502) → jawaban berbasis aturan seperti sebelumnya.
+- Rencanakan Trip: Gemini hanya memahami cerita (orang, malam, jenis, tempat, alat yang sudah punya); daftar alat & biaya tetap dihitung `recommend()`.
+- Pertanyaan yang Gemini tidak tahu (`tidak_tahu`) dicatat ke `chat_misses`. Konfigurasi Owner sekarang menampilkan pertanyaan belum terjawab **dari semua customer** (`GET api/owner/chat/misses`).
+- Tes: `AsistenGeminiTest` (6). Total PHP 87 lulus. `ASSET_VERSION` = `20261115.5`.

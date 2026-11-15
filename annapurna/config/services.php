@@ -23,6 +23,13 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    // Asisten Trip: tanya jawab & rencana trip (kunci dari aistudio.google.com → Get API key)
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'daily_limit' => (int) env('GEMINI_DAILY_LIMIT', 1000),   // batas panggilan per hari (seluruh website)
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Annapurna\ActivityController;
+use App\Http\Controllers\Annapurna\AsistenController;
 use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
@@ -95,7 +96,10 @@ Route::prefix('api')->name('api.')->group(function () {
     });
 
     Route::post('/nota-link', [NotaLinkController::class, 'store'])->name('nota.store');
-    Route::post('/chat/miss', [ChatMissController::class, 'store'])->name('chat.miss');
+    Route::post('/chat/miss', [ChatMissController::class, 'store'])->middleware('throttle:30,1')->name('chat.miss');
+    // Asisten Trip (Gemini lewat server; kunci GEMINI_API_KEY di .env). Lewat batas → tampilan memakai jawaban cadangan.
+    Route::post('/chat', [AsistenController::class, 'chat'])->middleware('throttle:15,1')->name('chat');
+    Route::post('/ai/rencana', [AsistenController::class, 'rencana'])->middleware('throttle:15,1')->name('ai.rencana');
 });
 
 // Panel Admin (Role: Admin & Owner)

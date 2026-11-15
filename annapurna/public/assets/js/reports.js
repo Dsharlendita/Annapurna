@@ -153,7 +153,7 @@
         rows, foot: ['Total', '', '', '', '', L.totalIn, L.totalOut] };
     },
     aktivitas(f, t) {
-      const L = DB.audits().filter((a) => a.type !== 'akses' && inR(a.at, f, t)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      const L = audits().filter((a) => a.type !== 'akses' && inR(a.at, f, t)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
       const people = new Set(L.filter((a) => a.role !== 'system').map((a) => a.userId));
       return { title: 'Laporan Aktivitas Staff', note: 'Dicatat otomatis oleh sistem (tanpa input manual). Tidak termasuk riwayat membuka halaman.',
         sum: [['Total aktivitas', L.length], ['Staff terlibat', people.size], ['Perubahan data', L.filter((a) => (AUDIT_TYPES[a.type] || {}).group === 'data').length], ['Aktivitas transaksi', L.filter((a) => (AUDIT_TYPES[a.type] || {}).group === 'transaksi').length]],
@@ -161,7 +161,7 @@
         rows: L.map((a) => [D.fmtDateTime(a.at), a.userName, roleLabel(a.role), typeLabel(a.type), refText(a.action), refNo(a.ref), (a.changes || []).map((c) => `${c.field}: ${c.from || '—'} → ${c.to || '—'}`).join('; ') || '-']) };
     },
     login(f, t) {
-      const all = DB.audits().filter((a) => ['login', 'logout', 'login_gagal'].includes(a.type));
+      const all = audits().filter((a) => ['login', 'logout', 'login_gagal'].includes(a.type));
       const rows = [];
       all.forEach((a, i) => {
         if (!inR(a.at, f, t)) return;
@@ -170,7 +170,7 @@
           const lo = out && out.type === 'logout' ? out : null;
           /* Tidak menekan Keluar: jam keluar diperkirakan dari aktivitas terakhir staff di sesi itu */
           const until = out ? out.at : '9999';
-          const lastAct = !lo && out ? DB.audits().filter((x) => x.userId === a.userId && x.at > a.at && x.at < until && !['login', 'logout', 'login_gagal'].includes(x.type)).map((x) => x.at).sort().pop() : null;
+          const lastAct = !lo && out ? audits().filter((x) => x.userId === a.userId && x.at > a.at && x.at < until && !['login', 'logout', 'login_gagal'].includes(x.type)).map((x) => x.at).sort().pop() : null;
           const estEnd = lastAct || null;
           rows.push({ at: a.at, dur: lo ? new Date(lo.at) - new Date(a.at) : 0, r: [a.userName, roleLabel(a.role), D.fmtDateTime(a.at), lo ? D.fmtDateTime(lo.at) : estEnd ? `± ${D.fmtDateTime(estEnd)} (aktivitas terakhir)` : '-', lo ? durasi(new Date(lo.at) - new Date(a.at)) : estEnd ? `± ${durasi(new Date(estEnd) - new Date(a.at))}` : '-', lo ? (lo.auto ? `Logout otomatis (tidak aktif ${lo.idleMin || 60} menit)` : 'Logout normal') : out ? (estEnd ? 'Tidak menekan Keluar (browser ditutup) · jam keluar diperkirakan' : 'Tidak menekan Keluar & tidak ada aktivitas') : 'Sesi masih berjalan'], dur: lo ? new Date(lo.at) - new Date(a.at) : 0 });
         }
@@ -200,6 +200,9 @@
   }
 
   /* ---------- Rekap bulanan → Google Drive + email Owner ---------- */
+  /* Sumber histori: saat membuat rekap memakai data server satu bulan (lihat generateMonthly), selain itu isi browser */
+  let auditSrc = null;
+  const audits = () => auditSrc || DB.audits();
   const MONTHLY = [['rental', 'Laporan Rental'], ['penjualan', 'Laporan Penjualan'], ['keuangan', 'Laporan Keuangan'], ['stok', 'Laporan Stok'], ['pengembalian', 'Laporan Pengembalian'], ['aktivitas', 'Laporan Aktivitas Staff'], ['login', 'Histori Login Staff']];
   const pad = (n) => String(n).padStart(2, '0');
   const monthName = (period) => { const [y, m] = period.split('-').map(Number); return `${D.BULAN_PANJANG[m - 1]} ${y}`; };
@@ -211,7 +214,7 @@
   function monthSummary(period) {
     const [f, t] = monthRange(period);
     const B = DB.staffBookings(), S = DB.staffSales(), L = Admin.ledger(f, t);
-    const acts = DB.audits().filter((a) => a.type !== 'akses' && a.role !== 'system' && inR(a.at, f, t));
+    const acts = audits().filter((a) => a.type !== 'akses' && a.role !== 'system' && inR(a.at, f, t));
     const per = {}; acts.forEach((a) => { per[a.userName] = (per[a.userName] || 0) + 1; });
     return {
       rental: B.filter((b) => inR(b.start, f, t) && b.status !== 'dibatalkan').length,
@@ -233,21 +236,27 @@
   async function generateMonthly(period, opts) {
     opts = opts || {};
     const old = DB.archive(period);
-    const summary = monthSummary(period);
     const [pf, pt] = monthRange(period);
-    /* Isi laporan disimpan bersama arsip di perangkat ini, agar tetap bisa diunduh walau data mentah sudah dibersihkan */
-    let snap = old && old.purged && old.snap ? old.snap : null;
-    try { snap = snap || Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](pf, pt)))])); } catch (e) { /* abaikan */ }
+    /* Aktivitas & login staff diambil dari server (semua perangkat), bukan isi browser ini yang bisa berisi data contoh */
+    if (DB.flushSync) { try { await DB.flushSync(); } catch (e) { /* abaikan */ } }
+    const ar = await Api.get(`api/admin/rekap/${period}/aktivitas`, { timeout: 60000 });
+    if (!ar.ok || !ar.data || !Array.isArray(ar.data.entries)) return { ok: false, msg: ar.msg || 'Gagal mengambil histori aktivitas dari server.' };
+    auditSrc = ar.data.entries;
     const fd = new FormData();
-    fd.append('period', period); fd.append('auto', opts.auto ? '1' : '0');
-    fd.append('summary', JSON.stringify(old && old.purged && old.summary ? old.summary : summary));
+    let snap = null;
     try {
+      const summary = monthSummary(period);
+      /* Isi laporan disimpan bersama arsip di perangkat ini, agar tetap bisa diunduh walau data mentah sudah dibersihkan */
+      snap = old && old.purged && old.snap ? old.snap : null;
+      try { snap = snap || Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](pf, pt)))])); } catch (e) { /* abaikan */ }
+      fd.append('period', period); fd.append('auto', opts.auto ? '1' : '0');
+      fd.append('summary', JSON.stringify(old && old.purged && old.summary ? old.summary : summary));
       for (const [k, l] of MONTHLY) {
         const cur = (snap && snap[k]) || R[k](pf, pt);
         const blob = await UI.exportPDF(toSpec(cur, fileName(l, period).replace(/\.pdf$/, ''), `Periode ${D.fmtDate(pf, true)} – ${D.fmtDate(pt, true)} · ${cur.note}`), { blob: true });
         fd.append(`files[${k}]`, blob, fileName(l, period));
       }
-    } catch (e) { console.error(e); return { ok: false, msg: 'Gagal membuat file PDF rekap.' }; }
+    } catch (e) { console.error(e); return { ok: false, msg: 'Gagal membuat file PDF rekap.' }; } finally { auditSrc = null; }
     const r = await Api.post('api/admin/rekap', fd, { timeout: 180000 });
     if (!r.ok) return { ok: false, msg: r.msg, reconnect: !!(r.raw && r.raw.reconnect) };
     const s = r.data;

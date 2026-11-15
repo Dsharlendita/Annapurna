@@ -224,6 +224,7 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
 
     // Rekap laporan bulanan: 7 PDF diunggah ke Google Drive Owner
     Route::post('/rekap', [RekapController::class, 'store'])->middleware('throttle:10,1')->name('rekap.store');
+    Route::get('/rekap/{period}/aktivitas', [ActivityController::class, 'rekap'])->name('rekap.aktivitas');
 });
 
 // API Manajemen Staff, Promo & Konfigurasi (Khusus Role: Owner)

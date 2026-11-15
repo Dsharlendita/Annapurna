@@ -92,7 +92,17 @@ Minimal sekali sehari. Pilih salah satu:
 
 Uji pemulihan (restore) sekali sebelum website ramai, supaya yakin backup-nya benar-benar bisa dipakai.
 
-## 7. Setelah online
+## 7. Mulai dari nol (tanpa data uji)
+
+Database di hosting dibuat baru (`migrate` + `db:seed` di server online), jadi **tidak ada** pesanan, penjualan, laundry, keuangan, pelanggan, atau histori dari masa uji. Yang ikut terisi hanya: katalog barang & paket, harga laundry, pengaturan toko, akun Owner & Admin.
+
+Sebelum dibuka untuk umum:
+- **Google Drive:** hapus folder uji di Drive (`ANNAPURNA ADVENTURE` → `TAHUN 2026` → `REKAP LAPORAN BULAN …` hasil percobaan). Folder utama boleh tetap ada; website online akan memakainya lagi. Setelah online, tekan **Hubungkan** sekali lagi dari website online.
+- **Stok & unit barang:** jumlah stok dan kode unit masih angka contoh. Sesuaikan dengan barang sungguhan di **Barang**.
+- **Promo & testimoni:** 3 promo dan 6 testimoni di beranda adalah contoh. Nonaktifkan / sembunyikan di **Promo** dan **Ulasan**, atau ganti dengan yang asli.
+- **Jangan** salin database laptop ke hosting, karena isinya data uji.
+
+## 8. Setelah online
 
 - Masuk sebagai Owner dan **ganti kata sandi**.
 - Isi profil toko, rekening bank, dan ketentuan di **Konfigurasi**.

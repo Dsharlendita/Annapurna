@@ -324,11 +324,12 @@
         channel: 'kasir',
       }).then((sv) => {
         if (sv && sv.ok && sv.data && sv.data.order) {
+          const localId = o.id;
           o.id = sv.data.order.order_code || o.id;
           o.no = sv.data.order.nota_no || o.no;
           o.order_code = sv.data.order.order_code;
           o.nota_no = sv.data.order.nota_no;
-          DB.saveLaundry(o);
+          DB.saveLaundry(o, localId);
         }
       });
 

@@ -198,6 +198,24 @@ class GoogleDriveRekapTest extends TestCase
         $this->assertSame('Google Drive perlu dihubungkan ulang', UserNotification::where('user_id', $this->owner->id)->value('title'));
     }
 
+    public function test_aktivitas_rekap_diambil_dari_server_per_bulan(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-10-10 03:00:00');
+        $this->actingAs($this->admin)->postJson('/api/sync/audit', ['items' => [['id' => 'AUD-1', 'type' => 'booking', 'action' => 'Verifikasi DP RNT/001']]])->assertOk();
+        \Illuminate\Support\Carbon::setTestNow('2026-11-02 03:00:00');
+        $this->actingAs($this->admin)->postJson('/api/sync/audit', ['items' => [['id' => 'AUD-2', 'type' => 'booking', 'action' => 'Aksi November']]])->assertOk();
+
+        $res = $this->actingAs($this->owner)->getJson('/api/admin/rekap/2026-10/aktivitas')->assertOk();
+        $this->assertSame(['Verifikasi DP RNT/001'], array_column($res->json('data.entries'), 'action'));
+
+        // Admin hanya boleh untuk bulan yang rekap otomatisnya jatuh tempo (Drive terhubung, sudah lewat jadwal)
+        $this->actingAs($this->admin)->getJson('/api/admin/rekap/2026-10/aktivitas')->assertForbidden();
+        $this->connect();
+        $this->actingAs($this->admin)->getJson('/api/admin/rekap/2026-10/aktivitas')->assertOk();
+        $this->actingAs($this->admin)->getJson('/api/admin/rekap/2026-09/aktivitas')->assertForbidden();
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
     public function test_jadwal_rekap_otomatis(): void
     {
         $at = fn ($s) => CarbonImmutable::parse($s, Rekap::TZ);

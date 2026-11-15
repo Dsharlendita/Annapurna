@@ -742,9 +742,31 @@
   }
   /* Booking & penjualan terbaru dari server, sekali per halaman (dipanggil Admin.init).
      Setelah selesai, event 'ann:orders' dikirim supaya halaman menggambar ulang dengan data server. */
+  /* Laundry dari server (semua status). Isi lokal yang tidak ada di server (data contoh lama, catatan yang gagal tersimpan)
+     dibuang, sama seperti booking & penjualan, supaya laporan keuangan tidak menghitung pemasukan fiktif. */
+  async function syncLaundryAll() {
+    const r = await Api.get('api/admin/laundry?tab=semua', { redirectOn401: false });
+    if (!(r && r.ok && Array.isArray(r.data))) return false;
+    const local = Object.fromEntries(DB.laundry().map((o) => [o.id, o]));
+    const list = r.data.map((so) => {
+      const id = so.order_code || 'DRY-' + so.id;
+      const srv = {
+        id, no: so.nota_no || so.order_code, order_code: so.order_code, nota_no: so.nota_no,
+        customer: { name: so.customer_name, phone: so.customer_phone, email: so.customer_email || '' },
+        items: (so.items || []).map((i) => ({ id: i.laundry_item_id, name: i.item_name, cat: i.category, price: i.unit_price, qty: i.qty, custom: i.is_custom })),
+        discount: so.discount_amount || 0, discountReason: so.discount_reason, notifiedReady: so.notified_ready, notes: so.notes, status: so.status, paymentStatus: so.payment_status,
+        total: so.total_amount, createdAt: so.created_at, pickedAt: so.picked_at,
+        payments: (so.payments || []).map((p) => ({ at: p.paid_at, amount: p.amount, type: p.payment_type, via: p.payment_method })),
+      };
+      if (so.est_done) srv.estDone = D.day(so.est_done);
+      return Object.assign({ history: [] }, local[id] || {}, srv);
+    });
+    DB.set('laundry', list);
+    return true;
+  }
   let ordersSync = null;
   function syncOrders() {
-    if (!ordersSync) ordersSync = Promise.all([syncBookings(), syncSales()]).then(([b, s]) => {
+    if (!ordersSync) ordersSync = Promise.all([syncBookings(), syncSales(), syncLaundryAll()]).then(([b, s]) => {
       document.dispatchEvent(new CustomEvent('ann:orders', { detail: { bookings: b, sales: s } }));
       return b && s;
     });

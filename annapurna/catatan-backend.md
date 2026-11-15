@@ -1058,3 +1058,10 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - Scheduler `rekap:ingatkan` 10.00 WIB: notifikasi Owner bila rekap belum dibuat.
 - Tes: `GoogleDriveRekapTest` (10). Total PHP 78 lulus.
 - Verifikasi kode lewat WhatsApp **tidak** dibuat (keputusan Owner).
+
+## C.46 Data contoh browser tidak masuk laporan — 15 Nov 2026 (Aji)
+
+- **Laundry:** `Admin.syncOrders()` sekarang juga memuat semua laundry server (`GET api/admin/laundry?tab=semua`) dan membuang laundry lokal yang tidak ada di server (contoh `DRY-1001…`). Sebelumnya pemasukan laundry contoh ikut terhitung di Keuangan.
+- **Kasir laundry:** setelah server menjawab, catatan sementara (`DRY-1004`) diganti kode server (`DRY-20261115-0001`) lewat `DB.saveLaundry(o, idLama)`. Sebelumnya tersimpan dua kali → pemasukan laundry dobel.
+- **Rekap PDF Aktivitas & Histori Login** memakai `GET /api/admin/rekap/{period}/aktivitas` (Owner: bulan mana pun; Admin: hanya bulan yang rekap otomatisnya jatuh tempo), bukan histori di browser.
+- `ASSET_VERSION` = `20261115.3`. Tes PHP 79 lulus.

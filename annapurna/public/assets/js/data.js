@@ -1537,7 +1537,8 @@
     /* ---------- Laundry (diinput staff di kasir; customer website hanya menghubungi admin via WhatsApp) ---------- */
     laundry: () => read('laundry', []),
     laundryOrder: (id) => read('laundry', []).find((x) => x.id === id || x.no === id),
-    saveLaundry(o) { const all = read('laundry', []); const i = all.findIndex((x) => x.id === o.id); if (i >= 0) all[i] = o; else all.unshift(o); write('laundry', all); },
+    /* replaceId: id sementara di browser yang diganti kode dari server (DRY-1004 → DRY-20261115-0004), supaya tidak tercatat dua kali */
+    saveLaundry(o, replaceId) { let all = read('laundry', []); if (replaceId && replaceId !== o.id) all = all.filter((x) => x.id !== replaceId); const i = all.findIndex((x) => x.id === o.id); if (i >= 0) all[i] = o; else all.unshift(o); write('laundry', all); },
     /* Nomor nota laundry: DRY / nomor urut / bulan Romawi / tahun, urut dimulai lagi dari 001 setiap bulan */
     nextLaundryNo(at) {
       const d = new Date(at || Date.now()); const mon = ROMAN[d.getMonth()], y = d.getFullYear();

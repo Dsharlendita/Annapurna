@@ -6,6 +6,8 @@
 
 @section('content')
   <p class="page-sub">Setiap awal bulan sistem membuat rekap laporan bulan sebelumnya, menyimpannya ke Google Drive per tahun &amp; bulan, lalu mengirim email ringkasan beserta link folder ke Owner.</p>
+  {{-- Jujur ke pengguna: unggah ke Google Drive & email rekap belum tersambung ke layanan sungguhan --}}
+  <div class="notice amber" style="margin-bottom:16px"><i class="fa-solid fa-flask"></i><div><strong>Mode simulasi.</strong> Rekap laporan sudah dibuat dan bisa diunduh dari halaman ini, tetapi <strong>belum benar-benar diunggah ke Google Drive dan belum dikirim lewat email</strong>. Unduh file rekap secara manual sampai integrasi Google Drive diaktifkan. Data transaksi tetap tersimpan aman di server.</div></div>
   <div class="grid-dash" style="grid-template-columns:1fr 1fr">
     <div class="panel">
       <div class="panel-h"><h3><i class="fa-brands fa-google-drive" style="color:#1a73e8"></i> Google Drive</h3><span id="driveState"></span></div>

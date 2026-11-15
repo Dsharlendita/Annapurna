@@ -50,6 +50,15 @@ class AktivitasTest extends TestCase
             ->assertJsonPath('data.integrity.count', 3);
     }
 
+    public function test_hash_tidak_terpengaruh_urutan_kunci_dari_mysql(): void
+    {
+        // Kolom JSON MySQL menyimpan {"field","from","to"} sebagai {"to","from","field"}
+        $base = ['user_id' => 1, 'user_name' => 'Dita', 'role' => 'admin', 'type' => 'x', 'action' => 'y', 'subject_id' => 'R', 'created_at' => '2026-11-15T06:00:00+00:00'];
+        $a = ActivityLog::hashFor($base + ['changes' => [['field' => 'Folder', 'from' => null, 'to' => 'A']]], 'p');
+        $b = ActivityLog::hashFor($base + ['changes' => [['to' => 'A', 'from' => null, 'field' => 'Folder']]], 'p');
+        $this->assertSame($a, $b);
+    }
+
     public function test_customer_tidak_bisa_menulis_histori(): void
     {
         $budi = User::create(['name' => 'Budi', 'email' => 'budi@mail.com', 'role' => 'customer', 'status' => 'aktif', 'password' => 'rahasia123']);

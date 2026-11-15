@@ -1018,3 +1018,28 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - `next` setelah masuk hanya boleh alamat di website ini (alamat luar seperti `//situs-lain` diabaikan).
 
 **Rute:** `GET /auth/google`, `GET /auth/google/callback` (`GoogleAuthController`). **Tes:** `GoogleLoginTest` (7). Total 57 tes lulus.
+
+
+## C.44 Perbaikan menyeluruh — 15 Nov 2026 (Aji)
+
+**Setelah pull:** `composer install`, `php artisan migrate` (2 migrasi baru, tidak menghapus data), `php artisan optimize:clear`. `ASSET_VERSION` = `20261115.1`.
+
+**Penjualan untuk admin dari server.** `GET /api/admin/sales`. `Admin.init` memanggil `Admin.syncOrders()` (booking + penjualan) di setiap halaman panel, lalu mengirim event `ann:orders`. Halaman yang punya `draw()` menggambar ulang otomatis. Halaman panel baru cukup menambah `document.addEventListener('ann:orders', draw)`.
+
+**Perpanjangan & ganti barang sampai ke server.**
+- Customer: `POST /api/pesanan/{id}/perpanjang {to_date, reason}`, `POST /api/pesanan/{id}/ganti {from_id, to_id, to_size, qty, reason}`.
+- Admin di toko (langsung disetujui): `POST /api/admin/booking/{id}/perpanjang {to_date, is_paid}`, `POST /api/admin/booking/{id}/ganti {from_id, to_id, to_size, qty, note, paid_now}`.
+- Setujui/tolak: `api/admin/permintaan/{extend|change}/{id}/action`, jawabannya membawa booking terbaru (`data`).
+- Biaya selalu dihitung server (tarif paket dihitung sekali). `b.extensions` / `b.changes` sekarang datang dari server dengan id angka.
+- `fromServer` memakai barang dari server bila isinya berbeda dengan lokal (mis. diganti di perangkat lain).
+
+**Unit fisik tersimpan di server.** `product_units` + `out_ref`, `care`, `care_info`, `history`, status `terjual`. Unit ikut sinkron barang (`p.units` dikirim lewat `api/sync/products`) dan dimuat di `boot-staff.js`. Barang keluar/kembali mencatat unit di server. Unit yang sedang keluar ditolak untuk booking lain.
+
+**Histori aktivitas.** `DB.audit` dari tampilan → `activity_logs` (`api/sync/audit`, kolom `client_ref` mencegah dobel). Histori Owner membaca `GET /api/owner/aktivitas`.
+- Dua bug lama diperbaiki di `ActivityLog`: (1) `firstBrokenId` membaca `$log->changes` = properti internal Eloquent, sehingga catatan berisi rincian selalu dianggap rusak; (2) kolom JSON MySQL mengurutkan ulang kunci, sehingga hash tidak cocok. Sekarang kunci diurutkan sebelum di-hash.
+
+**Pembersihan bulanan** tidak lagi menghapus booking/penjualan/keuangan dari server (disimpan permanen untuk pembukuan). Yang dibersihkan hanya sisa data yang memang cuma ada di browser.
+
+**Lain-lain:** email staff dikirim langsung (tanpa antrean). Seeder di server online tidak memakai kata sandi demo (lihat `docs/DEPLOY.md`). Halaman Integrasi diberi label **Mode simulasi** (Google Drive & email rekap belum sungguhan).
+
+**Tes:** `PermintaanPesananTest` (6), `UnitFisikTest` (2), `AktivitasTest` (3), uji Node 12. Total PHP 68 lulus.

@@ -38,8 +38,24 @@ class ActivityLog extends Model
     {
         return hash('sha256', $prev.'|'.json_encode([
             $attrs['user_id'] ?? null, $attrs['user_name'], $attrs['role'], $attrs['type'], $attrs['action'],
-            $attrs['subject_id'] ?? null, $attrs['changes'] ?? [], $attrs['created_at'],
+            $attrs['subject_id'] ?? null, self::canonical($attrs['changes'] ?? []), $attrs['created_at'],
         ], JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Urutkan kunci objek secara abjad (rekursif). Kolom JSON MySQL menyimpan kunci dengan urutan
+     * sendiri ({"to","from","field"}), jadi tanpa ini hash yang dihitung ulang tidak cocok.
+     */
+    private static function canonical(mixed $v): mixed
+    {
+        if (! is_array($v)) {
+            return $v;
+        }
+        if (! array_is_list($v)) {
+            ksort($v);
+        }
+
+        return array_map(fn ($x) => self::canonical($x), $v);
     }
 
     public static function record(?int $userId, string $type, string $action, ?string $subjectType = null, ?string $subjectId = null, ?array $changes = null): static

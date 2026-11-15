@@ -1065,3 +1065,10 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - **Kasir laundry:** setelah server menjawab, catatan sementara (`DRY-1004`) diganti kode server (`DRY-20261115-0001`) lewat `DB.saveLaundry(o, idLama)`. Sebelumnya tersimpan dua kali → pemasukan laundry dobel.
 - **Rekap PDF Aktivitas & Histori Login** memakai `GET /api/admin/rekap/{period}/aktivitas` (Owner: bulan mana pun; Admin: hanya bulan yang rekap otomatisnya jatuh tempo), bukan histori di browser.
 - `ASSET_VERSION` = `20261115.3`. Tes PHP 79 lulus.
+
+## C.47 Mulai dari 0 — 15 Nov 2026 (Aji)
+
+- **Browser tidak lagi membuat data contoh** (booking, penjualan, laundry, keuangan, histori, email, notifikasi, status pelanggan). `VERSION` data.js = `ann-v20`, jadi browser lama otomatis dibersihkan sekali. Fungsi `seedBookings()` dll. tetap ada tapi tidak dipakai.
+- **`php artisan data:kosongkan`** mengosongkan transaksi & histori uji di database (katalog, unit, paket, pengaturan, akun, koneksi Google Drive tetap). Ditolak di server online kecuali `--paksa`.
+- Dita: setelah pull, jalankan `php artisan data:kosongkan` bila ingin database laptop juga mulai dari 0.
+- `ASSET_VERSION` = `20261115.4`. Tes PHP 81 lulus.

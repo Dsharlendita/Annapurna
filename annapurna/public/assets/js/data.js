@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = 'ann-v19'; /* v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
+  const VERSION = 'ann-v20'; /* v20: transaksi, histori, email & notifikasi contoh tidak dibuat lagi (semua dari server). v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
   const KEY = (k) => `annapurna:${k}`;
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -1107,24 +1107,26 @@
     const PR = JSON.parse(JSON.stringify(PRODUCTS));
     write('packages', PACKAGES);
     write('settings', SETTINGS);
-    const B = seedBookings(), S = seedSales(), E = seedExpenses().map((e) => Object.assign({ status: 'aktif' }, e));
+    /* Transaksi, histori, email & notifikasi contoh TIDAK dibuat lagi: semuanya datang dari server (MySQL).
+       Fungsi seedBookings()/seedSales()/… tetap ada untuk bahan uji, tapi tidak dipakai. */
+    const B = [], S = [], E = [];
     seedUnits(PR, B);
     PR.find((p) => p.id === 'gas').minStock = 10; PR.forEach((p) => { if (p.price && p.minStock == null) p.minStock = 2; });
     write('products', PR);
     write('bookings', B);
     write('sales', S);
-    write('laundry', seedLaundry());
+    write('laundry', []);
     localStorage.removeItem(KEY('restocks')); /* dibuat ulang dari catatan pembelian barang contoh (lihat migrateRestock) */
     write('promos', seedPromos());
-    write('customerMeta', { 'fajar@mail.com': { flag: 'normal', note: 'Pernah terlambat 1 hari, tapi kooperatif.' }, 'laras@mail.com': { flag: 'jaminan', note: 'Sering batal mendadak. Minta jaminan KTP + KTM.' } });
+    write('customerMeta', {});
     const users = USERS.map((u) => Object.assign({}, u));
     write('expenses', E);
-    write('incomes', seedIncomes());
-    write('audit', seedAudit(B, S, E, users));
+    write('incomes', []);
+    write('audit', []);
     write('users', users);
-    write('outbox', seedOutbox(users));
+    write('outbox', []);
     write('archives', []);
-    write('notifications', seedNotifications());
+    write('notifications', []);
     write('reviews', seedReviews());
     write('cart', []);
     write('version', VERSION);
@@ -2360,7 +2362,7 @@
   try { localStorage.removeItem(KEY('loginCode')); } catch (e) { /* kode verifikasi lama dari versi sebelumnya */ }
   /* Revisi layanan: kategori pemasukan laundry, bongkar pasang & ongkir ditambahkan ke pengaturan yang sudah tersimpan */
   /* Data contoh laundry untuk penyimpanan lama (sebelum fitur laundry ada) */
-  if (read('laundry', null) === null) write('laundry', seedLaundry());
+  if (read('laundry', null) === null) write('laundry', []);
   (function migrateServiceCats() {
     const st = read('settings', null); if (!st || st.svcV1) return;
     const fc = st.financeCats || JSON.parse(JSON.stringify(SETTINGS.financeCats));

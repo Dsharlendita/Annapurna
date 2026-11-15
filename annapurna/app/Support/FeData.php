@@ -115,6 +115,48 @@ class FeData
         ]);
     }
 
+    /** Unit fisik → bentuk tampilan { code, size, cond, status, out, care, careInfo, rents, sinceService, lastService, notes, log } */
+    public static function toFeUnit(\App\Models\ProductUnit $u): array
+    {
+        return self::clean([
+            'code' => $u->unit_code,
+            'size' => $u->size,
+            'cond' => $u->condition,
+            'status' => in_array($u->status, ['nonaktif', 'terjual'], true) ? $u->status : 'aktif',
+            'out' => $u->out_ref,
+            'care' => $u->care,
+            'careInfo' => $u->care_info,
+            'rents' => (int) $u->rents_count,
+            'sinceService' => (int) $u->since_service,
+            'lastService' => self::stamp($u->last_service),
+            'notes' => $u->notes ?? '',
+            'log' => $u->history ?: [],
+            'cost' => $u->purchase_cost !== null ? (int) $u->purchase_cost : null,
+        ]);
+    }
+
+    /** Unit dari tampilan → kolom product_units. Status server diturunkan dari keadaan unit. */
+    public static function fromFeUnit(array $u): array
+    {
+        $fe = $u['status'] ?? 'aktif';
+        $status = in_array($fe, ['nonaktif', 'terjual'], true) ? $fe : (! empty($u['out']) ? 'disewa' : (! empty($u['care']) ? 'perawatan' : 'tersedia'));
+        $log = array_values(array_filter((array) ($u['log'] ?? []), 'is_array'));
+
+        return [
+            'size' => $u['size'] ?? null,
+            'condition' => mb_substr((string) ($u['cond'] ?? 'Baik'), 0, 255),
+            'status' => $status,
+            'out_ref' => ! empty($u['out']) ? mb_substr((string) $u['out'], 0, 50) : null,
+            'care' => ! empty($u['care']) ? mb_substr((string) $u['care'], 0, 20) : null,
+            'care_info' => is_array($u['careInfo'] ?? null) ? $u['careInfo'] : null,
+            'rents_count' => max(0, (int) ($u['rents'] ?? 0)),
+            'since_service' => max(0, (int) ($u['sinceService'] ?? 0)),
+            'last_service' => ! empty($u['lastService']) ? substr((string) $u['lastService'], 0, 19) : null,
+            'notes' => $u['notes'] ?? null,
+            'history' => array_slice($log, -50),          // 50 catatan terakhir per unit
+        ];
+    }
+
     public static function fromFeProduct(array $x): array
     {
         $variant = ! empty($x['variant']['options']) ? $x['variant'] : null;

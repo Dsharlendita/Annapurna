@@ -187,6 +187,9 @@ class ReturnController extends Controller
                     'hilang' => 'nonaktif',
                     default => 'tersedia',
                 };
+                $u->out_ref = null;
+                $u->care = in_array($res, ['perbaikan', 'cuci'], true) ? $res : null;
+                $u->care_info = $u->care ? ['issue' => $r['issue'] ?? null, 'since' => now()->format('Y-m-d\TH:i:s'), 'by' => Auth::user()?->name] : null;
                 $u->condition = $r['cond'] ?? match ($res) {
                     'perbaikan' => 'Rusak',
                     'hilang' => 'Hilang',
@@ -296,7 +299,7 @@ class ReturnController extends Controller
             if ($item) {
                 $item->update(['product_unit_id' => $unit->id]);
             }
-            $unit->update(['status' => 'disewa']);
+            $unit->update(['status' => 'disewa', 'out_ref' => $booking->booking_code]);
         }
     }
 

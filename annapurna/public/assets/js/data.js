@@ -1001,7 +1001,7 @@
      - Koleksi yang belum pernah menerima data server (mis. data demo) tidak dikirim.
      ========================================================================== */
   const SYNC = {
-    products: { staff: true, label: 'data barang', strip: ['units'] },
+    products: { staff: true, label: 'data barang' },   /* unit fisik ikut terkirim */
     categories: { staff: true, label: 'kategori' },
     promos: { staff: true, label: 'promo', strip: ['used'] },
     reviews: { staff: false, label: 'ulasan' },

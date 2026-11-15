@@ -60,6 +60,7 @@ class BootController extends Controller
         if ($scope === 'staff') {
             $parts[] = Finance::where('source', 'manual')->max('updated_at') . '#' . Finance::where('source', 'manual')->count();
             $parts[] = self::stamp(CustomerFlag::class);
+            $parts[] = self::stamp(\App\Models\ProductUnit::class);
             $parts[] = Auth::user()?->role;
         }
 
@@ -100,7 +101,9 @@ class BootController extends Controller
         return $this->js([
             'scope' => 'staff',
             'settings' => $isOwner ? FeData::settings(true) : [],
-            'products' => Product::orderBy('sort_order')->orderBy('id')->get()->map(fn ($p) => FeData::toFeProduct($p, true))->all(),
+            // Staff: harga modal + unit fisik (kode, keluar/dirawat, riwayat)
+            'products' => Product::with('units')->orderBy('sort_order')->orderBy('id')->get()
+                ->map(fn ($p) => FeData::toFeProduct($p, true) + ($p->units->isNotEmpty() ? ['units' => $p->units->sortBy('unit_code')->values()->map(fn ($u) => FeData::toFeUnit($u))->all()] : []))->all(),
             'reviews' => Review::with(['booking', 'sale'])->latest('id')->get()->map(fn ($r) => FeData::toFeReview($r))->all(),
             'customerMeta' => (object) FeData::customerMeta(),   // objek {email: …}, bukan array kosong []
             'expenses' => $manual->where('type', 'expense')->map(fn ($f) => FeData::toFeFinance($f))->values()->all(),

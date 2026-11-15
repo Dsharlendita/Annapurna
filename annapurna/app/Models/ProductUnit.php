@@ -14,10 +14,14 @@ class ProductUnit extends Model
         'purchase_cost',
         'condition',
         'status',
+        'out_ref',
+        'care',
+        'care_info',
         'rents_count',
         'since_service',
         'last_service',
         'notes',
+        'history',
     ];
 
     protected function casts(): array
@@ -27,6 +31,8 @@ class ProductUnit extends Model
             'rents_count' => 'integer',
             'since_service' => 'integer',
             'last_service' => 'datetime',
+            'care_info' => 'array',
+            'history' => 'array',
         ];
     }
 

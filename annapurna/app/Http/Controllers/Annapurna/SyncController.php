@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\CustomerFlag;
 use App\Models\Finance;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\Promo;
 use App\Models\Review;
 use App\Models\Sale;
@@ -140,6 +141,7 @@ class SyncController extends Controller
                 $attrs['stock'] = max(0, (int) $p->stock + ($attrs['stock'] - (int) $x['_stockFrom']));
             }
             $p ? $p->update($attrs) : Product::create($attrs + ['sort_order' => (int) Product::max('sort_order') + 1]);
+            $this->saveUnits($attrs['id'], $x['units'] ?? null);
         }
         foreach ($removed as $id) {
             // Produk yang pernah dipakai transaksi hanya dinonaktifkan agar nota lama tetap utuh
@@ -152,6 +154,27 @@ class SyncController extends Controller
         }
         if ($items || $removed) {
             Audit::log('katalog', 'Memperbarui barang: ' . implode(', ', array_slice(array_column($items, 'name'), 0, 5) ?: $removed));
+        }
+    }
+
+    /** Unit fisik dari tampilan: disimpan per kode unit. Unit tidak pernah dihapus (cukup dinonaktifkan). */
+    private function saveUnits(string $productId, $units): void
+    {
+        if (! is_array($units)) {
+            return;
+        }
+        foreach ($units as $u) {
+            $code = is_array($u) ? trim((string) ($u['code'] ?? '')) : '';
+            if ($code === '' || strlen($code) > 50) {
+                continue;
+            }
+            $row = ProductUnit::where('unit_code', $code)->lockForUpdate()->first();
+            if ($row && $row->product_id !== $productId) {
+                $this->skipped[] = $code;              // kode unit sudah dipakai barang lain
+                continue;
+            }
+            $attrs = FeData::fromFeUnit($u);
+            $row ? $row->update($attrs) : ProductUnit::create($attrs + ['product_id' => $productId, 'unit_code' => $code, 'purchase_cost' => isset($u['cost']) ? max(0, (int) $u['cost']) : null]);
         }
     }
 

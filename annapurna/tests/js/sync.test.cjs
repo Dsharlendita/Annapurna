@@ -12,7 +12,7 @@ const R = (src) => env.run(src);
 const calls = () => env.fetchCalls.filter((c) => String(c.url).includes('api/sync/'));
 const reset = () => { env.fetchCalls.length = 0; };
 const setSession = (role, email) => R(`localStorage.setItem('annapurna:session', JSON.stringify({ role: '${role}', email: '${email}', name: 'Uji' }))`);
-let pass = 0; const ok = (name, fn) => Promise.resolve(fn()).then(() => { pass++; console.log('  âœ“', name); });
+let pass = 0; const ok = (name, fn) => Promise.resolve(fn()).then(() => { pass++; console.log('  ✓', name); });
 
 (async () => {
   // Kunci sesi: pastikan prefix sama dengan data.js
@@ -55,20 +55,27 @@ let pass = 0; const ok = (name, fn) => Promise.resolve(fn()).then(() => { pass++
     assert.strictEqual(calls()[0].init.headers['X-CSRF-TOKEN'], 'tok');
   });
 
-  // 4. Tidak ada perubahan â†’ tidak dikirim; perubahan unit saja â†’ tidak dikirim
+  // 4. Tidak ada perubahan → tidak dikirim; perubahan unit fisik → ikut dikirim (unit tersimpan di server)
   reset();
   R(`Ann.DB.savePromo(Object.assign({}, Ann.DB.promos()[0]), 'uji', [])`);
+  await wait(80);
+  await ok('tanpa perubahan → tidak ada kiriman', () => assert.strictEqual(calls().length, 0));
+  reset();
   R(`(() => { const all = JSON.parse(localStorage.getItem('annapurna:products')); all[0].units[0].notes = 'catatan unit'; localStorage.setItem('annapurna:products', JSON.stringify(all)); Ann.DB.saveProduct(all[0]); })()`);
   await wait(80);
-  await ok('tanpa perubahan / hanya unit fisik berubah â†’ tidak ada kiriman', () => assert.strictEqual(calls().length, 0));
+  await ok('catatan unit fisik berubah → barang & unitnya terkirim', () => {
+    assert.strictEqual(calls().length, 1);
+    const it = calls()[0].body.items[0];
+    assert.ok(Array.isArray(it.units)); assert.strictEqual(it.units[0].notes, 'catatan unit');
+  });
 
   // 5. Stok dikirim sebagai selisih
   reset();
   R(`Ann.DB.saveProduct(Object.assign({}, Ann.DB.product('tnd-4'), { stock: 8 }))`);
   await wait(80);
-  await ok('stok terkirim dengan _stockFrom (selisih), unit fisik tidak ikut', () => {
+  await ok('stok terkirim dengan _stockFrom (selisih)', () => {
     const it = calls()[0].body.items[0];
-    assert.strictEqual(it._stockFrom, 6); assert.strictEqual(it.stock, 8); assert.ok(!('units' in it));
+    assert.strictEqual(it._stockFrom, 6); assert.strictEqual(it.stock, 8);
   });
 
   // 6. ID lokal diganti ID server
@@ -82,12 +89,12 @@ let pass = 0; const ok = (name, fn) => Promise.resolve(fn()).then(() => { pass++
   reset(); await wait(80);
   await ok('setelah ganti ID tidak ada kiriman ulang', () => assert.strictEqual(calls().length, 0));
 
-  // 7. Gagal â†’ pesan error & dikirim ulang pada penyimpanan berikutnya
+  // 7. Gagal → pesan error & dikirim ulang pada penyimpanan berikutnya
   responder = () => ({ __status: 500, ok: false, msg: 'Server bermasalah' }); reset();
   const warned = []; env.win.UI = { toast: (m, t) => warned.push([m, t]) };
   R(`Ann.DB.savePromo(Object.assign({}, Ann.DB.promos()[0], { value: 25 }), 'uji', [])`);
   await wait(80);
-  await ok('gagal kirim â†’ toast error', () => { assert.strictEqual(warned.length, 1); assert.ok(/promo belum tersimpan ke server: Server bermasalah/.test(warned[0][0])); assert.strictEqual(warned[0][1], 'err'); });
+  await ok('gagal kirim → toast error', () => { assert.strictEqual(warned.length, 1); assert.ok(/promo belum tersimpan ke server: Server bermasalah/.test(warned[0][0])); assert.strictEqual(warned[0][1], 'err'); });
   responder = () => ({ ok: true, map: {} }); reset();
   R(`Ann.DB.saveCategory({ id: 'tenda', name: 'Tenda Camping' })`);
   R(`Ann.DB.savePromo(Object.assign({}, Ann.DB.promos()[0]), 'uji', [])`);

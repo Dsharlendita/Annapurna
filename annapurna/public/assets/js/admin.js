@@ -421,7 +421,7 @@
     const c = cleanupSum(P); const total = P.reduce((a, x) => a + x.p.total, 0);
     const months = P.map((x) => Reports.monthName(x.a.period)).join(' & ');
     const m = modal({ title: `Rekap ${months} sudah aman di Google Drive`, size: 'lg', body: `
-      <div class="clm-ok">${P.map((x) => `<div class="clm-arc"><i class="fa-solid fa-folder-closed"></i><div><b>${esc(Reports.folderName(x.a.period))}</b><small><i class="fa-solid fa-check"></i> ${x.a.files.length} file laporan tersimpan · <i class="fa-solid fa-check"></i> email terkirim ke ${esc(x.a.mailTo || 'owner')}</small></div><a class="btn btn-light btn-xs" href="${O('integrasi?folder=' + x.a.period)}">Lihat folder</a></div>`).join('')}</div>
+      <div class="clm-ok">${P.map((x) => `<div class="clm-arc"><i class="fa-solid fa-folder-closed"></i><div><b>${esc(Reports.folderName(x.a.period))}</b><small><i class="fa-solid fa-check"></i> ${x.a.files.length} file laporan tersimpan di Google Drive${x.a.mailStatus === 'terkirim' ? ` · <i class="fa-solid fa-check"></i> email terkirim ke ${esc(x.a.mailTo || 'owner')}` : ''}</small></div><a class="btn btn-light btn-xs" href="${O('integrasi?folder=' + x.a.period)}">Lihat folder</a></div>`).join('')}</div>
       <h4 class="clm-h">Data lama yang bisa dibersihkan agar website tetap ringan</h4>
       <ul class="clm-list">${Object.entries(c).filter(([k, v]) => v && CL_LBL[k]).map(([k, v]) => `<li><b>${v}</b> ${CL_LBL[k]}${k === 'bookings' || k === 'sales' ? ' (selesai/dibatalkan)' : ''}</li>`).join('')}</ul>
       <p class="clm-safe"><i class="fa-solid fa-shield-halved"></i> Tetap aman: barang & unit, pesanan aktif/belum lunas, ulasan, ringkasan angka bulanan, dan riwayat pelanggan. Laporan bulan tsb. tetap bisa diunduh dari arsip.</p>

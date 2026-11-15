@@ -15,6 +15,7 @@ use App\Http\Controllers\Annapurna\LaundryController;
 use App\Http\Controllers\Annapurna\NotaLinkController;
 use App\Http\Controllers\Annapurna\OrderController;
 use App\Http\Controllers\Annapurna\OwnerController;
+use App\Http\Controllers\Annapurna\RekapController;
 use App\Http\Controllers\Annapurna\PageController;
 use App\Http\Controllers\Annapurna\PermintaanController;
 use App\Http\Controllers\Annapurna\PromoController;
@@ -124,6 +125,8 @@ Route::prefix('owner')->name('owner.')->middleware(['auth', 'role:owner', 'passw
     Route::get('/histori', 'histori')->name('histori');
     Route::get('/staff', 'staff')->name('staff');
     Route::get('/integrasi', 'integrasi')->name('integrasi');
+    // Hubungkan Google Drive (izin drive.file) untuk menyimpan rekap bulanan
+    Route::get('/integrasi/google/hubungkan', [RekapController::class, 'connect'])->middleware('throttle:10,1')->name('integrasi.google');
     Route::get('/konfigurasi', 'konfigurasi')->name('konfigurasi');
     Route::get('/pelanggan', 'pelanggan')->name('pelanggan');
     Route::get('/promo', 'promo')->name('promo');
@@ -218,12 +221,16 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
     // Pengiriman Penjualan Belanja & Pelunasan Kasir
     Route::post('/sales/{id}/delivery', [ApiController::class, 'saveSaleDelivery'])->name('sales.delivery');
     Route::post('/booking/{id}/settle', [ApiController::class, 'settleBooking'])->name('booking.settle');
+
+    // Rekap laporan bulanan: 7 PDF diunggah ke Google Drive Owner
+    Route::post('/rekap', [RekapController::class, 'store'])->middleware('throttle:10,1')->name('rekap.store');
 });
 
 // API Manajemen Staff, Promo & Konfigurasi (Khusus Role: Owner)
 Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'])->group(function () {
     // Histori aktivitas semua perangkat (dari server)
     Route::get('/aktivitas', [ActivityController::class, 'index'])->name('aktivitas');
+    Route::delete('/drive', [RekapController::class, 'disconnect'])->name('drive.disconnect');
     Route::prefix('staff')->name('staff.')->controller(StaffController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/', 'store')->name('store');

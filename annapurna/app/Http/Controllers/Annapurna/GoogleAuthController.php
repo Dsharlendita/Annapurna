@@ -52,6 +52,10 @@ class GoogleAuthController extends Controller
         if (! self::enabled()) {
             return $this->back('belum-aktif');
         }
+        // Owner sedang menghubungkan Google Drive (alamat callback sama, jadi tidak perlu didaftarkan lagi)
+        if ($request->session()->pull('google_purpose') === 'drive') {
+            return RekapController::finishConnect($request);
+        }
         if ($request->filled('error')) {
             return $this->back('batal');               // pengguna menekan "Batal" di halaman Google
         }

@@ -59,6 +59,15 @@ class FeData
             $v = json_decode($s->value, true);
             $out[$key] = json_last_error() === JSON_ERROR_NONE ? $v : $s->value;
         }
+        if ($withPrivate) {
+            // Status Google Drive selalu dari server (akun yang benar-benar dihubungkan), bukan isian tampilan
+            try {
+                $c = \App\Models\DriveConnection::current();
+                $out['integration'] = array_merge(is_array($out['integration'] ?? null) ? $out['integration'] : [], ['driveConnected' => (bool) $c, 'driveAccount' => $c?->email ?? '']);
+            } catch (\Throwable $e) {
+                // tabel belum dimigrasi
+            }
+        }
 
         return $out;
     }

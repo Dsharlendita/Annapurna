@@ -146,17 +146,23 @@
 
   function drawRekap() {
     const ig = DB.settings().integration || {};
+    const drv = DB.driveInfo() || {};
     const last = DB.archives()[0];
     const next = new Date(); next.setDate(1); next.setMonth(next.getMonth() + 1); next.setDate(ig.sendDay || 1);
     const prev = Reports.prevPeriod();
     $('#rekap').innerHTML = `
-      <div class="kv"><span>Status</span>${ig.autoMonthly && ig.driveConnected ? '<span class="pill green">Otomatis aktif</span>' : '<span class="pill gray">Nonaktif</span>'}</div>
+      <div class="kv"><span>Status</span>${!drv.connected ? `<a class="pill amber" href="${O('integrasi')}">Drive belum terhubung</a>` : ig.autoMonthly ? '<span class="pill green">Otomatis aktif</span>' : '<span class="pill gray">Nonaktif</span>'}</div>
       <div class="kv"><span>Penerima</span><span>${esc(ig.ownerEmail || '-')}</span></div>
       <div class="kv"><span>Jadwal berikutnya</span><span>${D.fmtDate(D.toISO(next), true)}, ${esc(ig.sendTime || '06:00')}</span></div>
       <div class="kv"><span>Rekap terakhir</span><span>${last ? `${Reports.monthName(last.period)} · ${D.fmtDateTime(last.createdAt)}` : 'Belum ada'}</span></div>
       ${last ? `<a class="drive-chip" href="${O('integrasi?folder=' + last.period)}"><i class="fa-solid fa-folder"></i><span><strong>${esc(Reports.folderName(last.period))}</strong><small>${last.files.length} file PDF · ${esc(last.path.slice(0, 2).join(' / '))}</small></span></a>` : ''}
-      ${DB.archive(prev) ? '' : `<button class="btn btn-primary btn-sm btn-block" id="genPrev" style="margin-top:12px"><i class="fa-solid fa-cloud-arrow-up"></i> Buat rekap ${Reports.monthName(prev)} sekarang</button>`}`;
-    const g = $('#genPrev'); if (g) g.addEventListener('click', () => { Reports.generateMonthly(prev); UI.toast(`Rekap ${Reports.monthName(prev)} dibuat dan email terkirim.`); drawRekap(); drawFeed(); });
+      ${DB.archive(prev) || !drv.connected ? '' : `<button class="btn btn-primary btn-sm btn-block" id="genPrev" style="margin-top:12px"><i class="fa-solid fa-cloud-arrow-up"></i> Buat rekap ${Reports.monthName(prev)} sekarang</button>`}`;
+    const g = $('#genPrev'); if (g) g.addEventListener('click', async () => {
+      const r = await Api.busy(g, () => Reports.generateMonthly(prev), 'Mengunggah ke Drive…'); if (!r) return;
+      if (!r.ok) { UI.toast(r.msg || 'Rekap gagal disimpan.', 'err'); return; }
+      UI.toast(`Rekap ${Reports.monthName(prev)} tersimpan di Google Drive.`); drawRekap(); drawFeed();
+    });
+    window.onRekapDone = () => { drawRekap(); drawFeed(); };
   }
 
   function drawFeed() {

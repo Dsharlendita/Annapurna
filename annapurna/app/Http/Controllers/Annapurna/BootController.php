@@ -4,16 +4,19 @@ namespace App\Http\Controllers\Annapurna;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\DriveConnection;
 use App\Models\CustomerFlag;
 use App\Models\Finance;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
 use App\Models\Promo;
+use App\Models\ReportArchive;
 use App\Models\Review;
 use App\Models\Setting;
 use App\Models\UserNotification;
 use App\Support\FeData;
+use App\Support\Rekap;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -120,11 +123,32 @@ class BootController extends Controller
             return [];
         }
 
-        return [
+        $out = [
             'scope' => 'user',
             'email' => $u->email,
             'notifications' => UserNotification::where('user_id', $u->id)->latest('updated_at')->limit(150)->get()
                 ->map(fn ($n) => FeData::toFeNotification($n, $u->email))->all(),
         ];
+        if ($u->isStaff()) {
+            try {
+                // Rekap bulanan yang sudah jatuh tempo: dibuat otomatis oleh perangkat staff yang sedang membuka panel
+                $out['rekapDue'] = Rekap::duePeriod();
+                if ($u->role === 'owner') {
+                    $c = DriveConnection::current();
+                    $out['drive'] = [
+                        'enabled' => GoogleAuthController::enabled(),
+                        'connected' => (bool) $c,
+                        'email' => $c?->email,
+                        'rootUrl' => $c?->root_folder_id ? 'https://drive.google.com/drive/folders/' . $c->root_folder_id : null,
+                        'mailOn' => Rekap::mailEnabled(),
+                    ];
+                    $out['archives'] = ReportArchive::orderByDesc('period')->get()->map(fn ($a) => Rekap::toFe($a))->all();
+                }
+            } catch (\Throwable $e) {
+                report($e);   // tabel belum dimigrasi: halaman tetap tampil
+            }
+        }
+
+        return $out;
     }
 }

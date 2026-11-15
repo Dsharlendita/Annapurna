@@ -1043,3 +1043,18 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 **Lain-lain:** email staff dikirim langsung (tanpa antrean). Seeder di server online tidak memakai kata sandi demo (lihat `docs/DEPLOY.md`). Halaman Integrasi diberi label **Mode simulasi** (Google Drive & email rekap belum sungguhan).
 
 **Tes:** `PermintaanPesananTest` (6), `UnitFisikTest` (2), `AktivitasTest` (3), uji Node 12. Total PHP 68 lulus.
+
+
+## C.45 Google Drive sungguhan — 15 Nov 2026 (Aji)
+
+**Setelah pull:** `php artisan migrate` (tabel baru `drive_connections`, `report_archives`), `php artisan optimize:clear`. `ASSET_VERSION` = `20261115.2`.
+
+- Label "Mode simulasi" dihapus. Owner menekan **Hubungkan** → `GET /owner/integrasi/google/hubungkan` → izin Google `drive.file` (callback tetap `/auth/google/callback`, diteruskan ke `RekapController::finishConnect` lewat session `google_purpose=drive`). Refresh token disimpan terenkripsi.
+- Rekap: browser membuat 7 PDF (`UI.exportPDF(spec, { blob: true })`) → `POST /api/admin/rekap` (multipart `period`, `auto`, `summary`, `files[rental|penjualan|keuangan|stok|pengembalian|aktivitas|login]`). Server membuat folder `folder utama / TAHUN yyyy / REKAP LAPORAN BULAN …`, mengunggah (file bernama sama diganti), menyimpan `report_archives`, mengirim `MonthlyReportMail` bila MAIL_MAILER bukan `log` (`mailStatus`: terkirim | gagal | nonaktif).
+- `Reports.generateMonthly(period)` sekarang **async** dan mengembalikan `{ ok, a }` atau `{ ok: false, msg, reconnect }`.
+- Status dari server lewat `BootController::userData()`: `DB.driveInfo()` (owner: enabled, connected, email, rootUrl, mailOn), `DB.archives()` (dari server), `DB.rekapDue()` (bulan yang rekap otomatisnya jatuh tempo; dijalankan `Reports.autoMonthly()` di perangkat staff mana pun).
+- `integration.driveConnected` / `driveAccount` selalu diisi server; nilai dari tampilan diabaikan.
+- `DELETE /api/owner/drive` memutuskan & mencabut izin di akun Google.
+- Scheduler `rekap:ingatkan` 10.00 WIB: notifikasi Owner bila rekap belum dibuat.
+- Tes: `GoogleDriveRekapTest` (10). Total PHP 78 lulus.
+- Verifikasi kode lewat WhatsApp **tidak** dibuat (keputusan Owner).

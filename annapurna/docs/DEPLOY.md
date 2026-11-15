@@ -43,6 +43,17 @@ Buka Google Cloud Console → proyek **Annapurna Web** → **Clients** → **Ann
 3. Di menu **Audience**, klik **Publish app** supaya semua customer bisa masuk, tidak hanya Test users.
 4. Ganti **User support email** di menu **Branding** ke email toko.
 
+## 3b. Google Drive (rekap bulanan)
+
+Memakai Client ID/Secret yang sama dengan login Google. Alamat callback juga sama, jadi tidak perlu menambah redirect URI.
+
+1. Google Cloud Console → **APIs & Services → Library** → cari **Google Drive API** → **Enable**.
+2. Menu **Data Access** → **Add or remove scopes** → centang `.../auth/drive.file` → **Update** → **Save**. Izin ini hanya memberi akses ke folder & file yang dibuat website, bukan isi Drive lainnya, jadi tidak perlu verifikasi Google.
+3. Pastikan aplikasi sudah **Publish app** (langkah 3 di atas). Selama masih mode *Testing*, izin Drive **kedaluwarsa setiap 7 hari** dan Owner harus menekan Hubungkan lagi.
+4. Masuk sebagai Owner → **Google Drive & Email** → **Hubungkan** → pilih akun Google toko → centang izin Google Drive → **Lanjutkan**.
+
+Rekap dibuat otomatis saat panel admin/owner pertama kali dibuka setelah jadwal (default tanggal 1 pukul 06.00 WIB). Bila sampai pukul 10.00 belum dibuat, Owner mendapat notifikasi (`rekap:ingatkan`, butuh cron di langkah 5). Email ringkasan baru benar-benar terkirim bila langkah 4 (email) diisi; tanpa itu, link folder tetap ada di halaman Integrasi.
+
 ## 4. Email (opsional: kode verifikasi & email staff)
 
 ```
@@ -60,7 +71,7 @@ App Password dibuat di myaccount.google.com/apppasswords (Verifikasi 2 Langkah h
 
 ## 5. Jadwal otomatis (cron)
 
-Pembatalan booking yang tidak dibayar (setiap 15 menit) dan pengingat laundry (setiap pukul 09.00) baru berjalan kalau scheduler Laravel dijalankan. Di panel hosting (menu **Cron Jobs**), tambahkan:
+Pembatalan booking yang tidak dibayar (setiap 15 menit), pengingat laundry (setiap pukul 09.00), dan pengingat rekap Google Drive (pukul 10.00 WIB) baru berjalan kalau scheduler Laravel dijalankan. Di panel hosting (menu **Cron Jobs**), tambahkan:
 
 ```
 * * * * * cd /path/ke/annapurna && php artisan schedule:run >> /dev/null 2>&1

@@ -712,7 +712,8 @@
     saveBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), spec.filename + '.xlsx');
   }
 
-  async function exportPDF(spec) {
+  /* opts.blob = true → kembalikan file PDF (Blob) tanpa mengunduh; dipakai untuk unggah rekap ke Google Drive */
+  async function exportPDF(spec, opts) {
     await loadScript(vendor('jspdf.umd.min.js')); await loadScript(vendor('jspdf.plugin.autotable.min.js'));
     const st = DB.settings();
     const doc = new window.jspdf.jsPDF({ orientation: spec.orientation || 'landscape', unit: 'mm', format: 'a4' });
@@ -773,6 +774,7 @@
     /* Nomor halaman ditulis terakhir supaya benar ("Halaman x dari y") */
     const NP = doc.internal.getNumberOfPages();
     for (let pg = 1; pg <= NP; pg++) { doc.setPage(pg); const H = doc.internal.pageSize.getHeight(); doc.setFontSize(7.5); doc.setTextColor(138, 149, 140); doc.setFont('helvetica', 'normal'); doc.text(`Halaman ${pg} dari ${NP}`, W - M, H - 7, { align: 'right' }); }
+    if (opts && opts.blob) return doc.output('blob');
     doc.save(spec.filename + '.pdf');
   }
 

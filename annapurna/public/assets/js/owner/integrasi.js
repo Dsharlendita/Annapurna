@@ -6,37 +6,70 @@
   const T = D.today();
   const G = $('#gf'), M = $('#mf');
   const ig = () => DB.settings().integration || {};
+  /* Status sungguhan dari server (BootController::userData): akun Drive yang terhubung & apakah email aktif */
+  const info = () => DB.driveInfo() || {};
+  const base = document.body.dataset.base || '/';
+
+  /* Hasil kembali dari halaman izin Google (?drive=…) */
+  (function connectResult() {
+    const r = param('drive'); if (!r) return;
+    const MSG = {
+      terhubung: ['ok', `Google Drive terhubung (${info().email || ''}).`],
+      putus: ['ok', 'Google Drive diputuskan.'],
+      batal: ['err', 'Menghubungkan Google Drive dibatalkan.'],
+      izin: ['err', 'Izin Google Drive belum dicentang. Tekan Hubungkan lagi lalu centang izin akses file Google Drive.'],
+      'belum-aktif': ['err', 'Login Google belum diatur di server (GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET di .env).'],
+      gagal: ['err', 'Gagal menghubungkan Google Drive. Coba lagi.'],
+    };
+    const m = MSG[r] || MSG.gagal;
+    if (r === 'terhubung') DB.audit({ type: 'pengaturan', action: `Menghubungkan Google Drive (${info().email || '-'})` });
+    setTimeout(() => toast(m[1], m[0] === 'ok' ? undefined : 'err'), 300);
+    const u = new URL(location.href); u.searchParams.delete('drive'); history.replaceState(null, '', u.pathname + u.search + u.hash);
+  })();
+
+  function notice() {
+    const i = info();
+    let html;
+    if (!i.enabled) html = '<div class="notice amber"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Google belum diatur di server.</strong> Isi GOOGLE_CLIENT_ID &amp; GOOGLE_CLIENT_SECRET di file .env agar Google Drive bisa dihubungkan.</div></div>';
+    else if (!i.connected) html = '<div class="notice amber"><i class="fa-brands fa-google-drive"></i><div><strong>Google Drive belum terhubung.</strong> Tekan <b>Hubungkan</b>, pilih akun Google toko, lalu izinkan akses Google Drive. Rekap belum bisa disimpan sebelum terhubung.</div></div>';
+    else html = `<div class="notice green"><i class="fa-solid fa-circle-check"></i><div><strong>Terhubung ke Google Drive ${esc(i.email)}.</strong> Rekap disimpan sungguhan di Drive akun ini${i.rootUrl ? ` (<a href="${esc(i.rootUrl)}" target="_blank" rel="noopener">buka folder utama</a>)` : ''}.`
+      + (i.mailOn ? '' : ' <br><span class="muted">Email ringkasan belum aktif karena server email belum diatur. Link folder tetap bisa dibuka dari halaman ini.</span>') + '</div></div>';
+    $('#driveNotice').innerHTML = html;
+  }
 
   function load() {
-    const x = ig();
-    G.elements.driveAccount.value = x.driveAccount || ''; G.elements.driveRoot.value = x.driveRoot || 'ANNAPURNA ADVENTURE';
+    const x = ig(), i = info();
+    G.elements.driveRoot.value = x.driveRoot || 'ANNAPURNA ADVENTURE';
     G.elements.autoMonthly.checked = !!x.autoMonthly; G.elements.sendDay.value = String(x.sendDay || 1); G.elements.sendTime.value = x.sendTime || '06:00';
     M.elements.ownerEmail.value = x.ownerEmail || ''; M.elements.ccEmails.value = x.ccEmails || '';
-    $('#driveState').innerHTML = x.driveConnected
+    $('#driveAcc').innerHTML = i.connected ? `<i class="fa-brands fa-google"></i> ${esc(i.email)}` : '<span class="muted">Belum ada akun terhubung</span>';
+    $('#driveState').innerHTML = i.connected
       ? `<span class="pill green plain"><i class="fa-solid fa-circle-check"></i> Terhubung</span> <button class="btn btn-light btn-xs" id="conn">Putuskan</button>`
-      : `<span class="pill gray">Belum terhubung</span> <button class="btn btn-primary btn-xs" id="conn"><i class="fa-brands fa-google"></i> Hubungkan</button>`;
+      : `<span class="pill gray">Belum terhubung</span> <button class="btn btn-primary btn-xs" id="conn" ${i.enabled ? '' : 'disabled'}><i class="fa-brands fa-google"></i> Hubungkan</button>`;
     $('#conn').addEventListener('click', toggleConn);
     const next = new Date(); next.setDate(1); next.setMonth(next.getMonth() + 1); next.setDate(x.sendDay || 1);
     const nextPeriod = T.slice(0, 7);
-    $('#nextRun').innerHTML = x.autoMonthly && x.driveConnected
-      ? `<i class="fa-solid fa-calendar-check"></i><div>Rekap <strong>${Reports.monthName(nextPeriod)}</strong> akan dibuat otomatis pada <strong>${D.fmtDate(D.toISO(next), true)} pukul ${esc(x.sendTime || '06:00')}</strong>, disimpan ke Drive, lalu dikirim ke ${esc(x.ownerEmail || '-')}${x.ccEmails ? ` (CC: ${esc(x.ccEmails)})` : ''}.</div>`
-      : '<i class="fa-solid fa-circle-pause"></i><div>Rekap otomatis sedang nonaktif. Rekap tetap bisa dibuat manual dari arsip di bawah.</div>';
-    $('#nextRun').className = `notice ${x.autoMonthly && x.driveConnected ? 'green' : ''}`;
+    $('#nextRun').innerHTML = x.autoMonthly && i.connected
+      ? `<i class="fa-solid fa-calendar-check"></i><div>Rekap <strong>${Reports.monthName(nextPeriod)}</strong> dibuat otomatis mulai <strong>${D.fmtDate(D.toISO(next), true)} pukul ${esc(x.sendTime || '06:00')} WIB</strong>, saat panel admin/owner pertama kali dibuka, lalu disimpan ke Google Drive${i.mailOn ? ` dan ringkasannya dikirim ke ${esc(x.ownerEmail || '-')}${x.ccEmails ? ` (CC: ${esc(x.ccEmails)})` : ''}` : ''}. Bila sampai pukul 10.00 belum dibuat, Owner diingatkan lewat notifikasi.</div>`
+      : `<i class="fa-solid fa-circle-pause"></i><div>Rekap otomatis sedang nonaktif${i.connected ? '' : ' (Google Drive belum terhubung)'}. Rekap tetap bisa dibuat manual dari arsip di bawah.</div>`;
+    $('#nextRun').className = `notice ${x.autoMonthly && i.connected ? 'green' : ''}`;
+    notice();
   }
-  async function toggleConn() {
-    const x = ig();
-    if (x.driveConnected && !(await confirmBox({ title: 'Putuskan Google Drive?', text: 'Rekap otomatis tidak akan diunggah sampai Drive dihubungkan lagi. Arsip yang sudah ada tidak terhapus.', ok: 'Putuskan', danger: true }))) return;
-    const next = Object.assign({}, DB.settings()); next.integration = Object.assign({}, x, { driveConnected: !x.driveConnected });
-    DB.saveSettings(next);
-    DB.audit({ type: 'pengaturan', action: `${x.driveConnected ? 'Memutuskan' : 'Menghubungkan'} integrasi Google Drive (${x.driveAccount || '-'})` });
-    toast(x.driveConnected ? 'Google Drive diputuskan.' : 'Google Drive terhubung.'); load(); drawDrive();
+  async function toggleConn(e) {
+    const i = info();
+    if (!i.connected) { e.currentTarget.disabled = true; location.href = base + 'owner/integrasi/google/hubungkan'; return; }
+    if (!(await confirmBox({ title: 'Putuskan Google Drive?', text: `Izin akses Drive ${esc(i.email)} akan dicabut. Rekap tidak akan diunggah sampai Drive dihubungkan lagi. Folder & file yang sudah ada di Drive tidak terhapus.`, ok: 'Putuskan', danger: true }))) return;
+    const r = await Api.busy(e.currentTarget, () => Api.del('api/owner/drive'), 'Memutuskan…'); if (!r) return;
+    if (!r.ok) { toast(r.msg, 'err'); return; }
+    DB.audit({ type: 'pengaturan', action: `Memutuskan Google Drive (${i.email || '-'})` });
+    location.href = base + 'owner/integrasi?drive=putus';
   }
   $('#saveInt').addEventListener('click', () => {
-    const okG = validate(G, { driveAccount: (v) => (!isEmail(v) ? 'Email Google tidak valid.' : ''), driveRoot: (v) => (v.length < 3 ? 'Isi nama folder.' : ''), sendTime: (v) => (!v ? 'Isi jam.' : '') });
+    const okG = validate(G, { driveRoot: (v) => (v.length < 3 ? 'Isi nama folder.' : ''), sendTime: (v) => (!v ? 'Isi jam.' : '') });
     const okM = validate(M, { ownerEmail: (v) => (!isEmail(v) ? 'Email tidak valid.' : ''), ccEmails: (v) => (v && v.split(',').some((e) => !isEmail(e.trim())) ? 'Ada email CC yang tidak valid.' : '') });
     if (!okG || !okM) return;
     const next = Object.assign({}, DB.settings());
-    next.integration = Object.assign({}, ig(), { driveAccount: G.elements.driveAccount.value.trim(), driveRoot: G.elements.driveRoot.value.trim().toUpperCase(), autoMonthly: G.elements.autoMonthly.checked,
+    next.integration = Object.assign({}, ig(), { driveRoot: G.elements.driveRoot.value.trim().toUpperCase(), autoMonthly: G.elements.autoMonthly.checked,
       sendDay: +G.elements.sendDay.value, sendTime: G.elements.sendTime.value, ownerEmail: M.elements.ownerEmail.value.trim(), ccEmails: M.elements.ccEmails.value.split(',').map((e) => e.trim()).filter(Boolean).join(', ') });
     toast(DB.saveSettings(next) ? 'Pengaturan integrasi disimpan.' : 'Tidak ada perubahan.'); load();
   });
@@ -79,17 +112,18 @@
   });
 
   function drawDrive() {
-    const x = ig(); const A = DB.archives(); const open = param('folder');
+    const x = ig(), i = info(); const A = DB.archives(); const open = param('folder');
     const years = [...new Set([T.slice(0, 4), ...A.map((a) => a.period.slice(0, 4))])].sort().reverse();
     const cur = T.slice(0, 7);
+    const mailPill = (a) => (a.mailStatus === 'terkirim' ? ' · email terkirim' : a.mailStatus === 'gagal' ? ' · email gagal' : '');
     $('#drive').innerHTML = `<div class="drive">
-      <div class="drive-root"><i class="fa-brands fa-google-drive"></i> <strong>${esc(x.driveRoot || 'ANNAPURNA ADVENTURE')}</strong> <small class="muted">${esc(x.driveAccount || '')}</small></div>
+      <div class="drive-root"><i class="fa-brands fa-google-drive"></i> <strong>${esc(x.driveRoot || 'ANNAPURNA ADVENTURE')}</strong> <small class="muted">${esc(i.email || 'Google Drive belum terhubung')}</small>${i.rootUrl ? ` <a class="btn btn-light btn-xs" href="${esc(i.rootUrl)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka di Drive</a>` : ''}</div>
       ${years.map((y) => { const months = A.filter((a) => a.period.startsWith(y));
         return `<details class="drive-f" ${y === T.slice(0, 4) || (open && open.startsWith(y)) ? 'open' : ''}><summary><i class="fa-solid fa-folder"></i> TAHUN ${y} <small>${months.length} folder</small></summary>
-          ${months.map((a) => `<details class="drive-f sub" id="f-${a.period}" ${open === a.period ? 'open' : ''}><summary><i class="fa-solid fa-folder"></i> ${esc(Reports.folderName(a.period))} <small>${a.files.length} file · ${a.auto ? 'otomatis' : 'manual'} · ${D.fmtDateTime(a.createdAt)}${a.version > 1 ? ` · versi ${a.version}` : ''}</small></summary>
+          ${months.map((a) => `<details class="drive-f sub" id="f-${a.period}" ${open === a.period ? 'open' : ''}><summary><i class="fa-solid fa-folder"></i> ${esc(Reports.folderName(a.period))} <small>${a.files.length} file · ${a.auto ? 'otomatis' : 'manual'} · ${D.fmtDateTime(a.createdAt)}${a.version > 1 ? ` · versi ${a.version}` : ''}${mailPill(a)}</small></summary>
             <div class="drive-sum"><span>Rental <b>${a.summary.rental}</b></span><span>Penjualan <b>${a.summary.penjualan}</b></span><span>Pemasukan <b>${rupiah(a.summary.pemasukan)}</b></span><span>Pengeluaran <b>${rupiah(a.summary.pengeluaran)}</b></span><span>Aktivitas staff <b>${a.summary.aktivitas}</b></span></div>
-            <ul class="drive-files">${a.files.map((f) => `<li><i class="fa-regular fa-file-pdf"></i><span>${esc(f.name)}</span><button class="btn btn-light btn-xs" data-dl="${a.period}|${f.type}"><i class="fa-solid fa-download"></i> Unduh</button></li>`).join('')}</ul>
-            <div class="drive-acts"><button class="btn btn-light btn-xs" data-all="${a.period}"><i class="fa-solid fa-file-arrow-down"></i> Unduh semua</button><button class="btn btn-light btn-xs" data-mail="${a.mailId}"><i class="fa-regular fa-envelope"></i> Lihat email</button><button class="btn btn-light btn-xs" data-regen="${a.period}"><i class="fa-solid fa-rotate"></i> Perbarui &amp; kirim ulang</button></div>
+            <ul class="drive-files">${a.files.map((f) => `<li><i class="fa-regular fa-file-pdf"></i><span>${esc(f.name)}</span>${f.url ? `<a class="btn btn-light btn-xs" href="${esc(f.url)}" target="_blank" rel="noopener"><i class="fa-brands fa-google-drive"></i> Buka</a>` : ''}<button class="btn btn-light btn-xs" data-dl="${a.period}|${f.type}"><i class="fa-solid fa-download"></i> Unduh</button></li>`).join('')}</ul>
+            <div class="drive-acts">${a.folderUrl ? `<a class="btn btn-primary btn-xs" href="${esc(a.folderUrl)}" target="_blank" rel="noopener"><i class="fa-brands fa-google-drive"></i> Buka folder di Drive</a>` : ''}<button class="btn btn-light btn-xs" data-all="${a.period}"><i class="fa-solid fa-file-arrow-down"></i> Unduh semua</button>${a.mailId ? `<button class="btn btn-light btn-xs" data-mail="${a.mailId}"><i class="fa-regular fa-envelope"></i> Lihat email</button>` : ''}<button class="btn btn-light btn-xs" data-regen="${a.period}"><i class="fa-solid fa-rotate"></i> Perbarui &amp; unggah ulang</button></div>
           </details>`).join('')}
           ${y === T.slice(0, 4) ? `<div class="drive-f sub pending"><i class="fa-regular fa-folder"></i> ${esc(Reports.folderName(cur))} <small>dibuat otomatis awal bulan depan</small></div>` : ''}
         </details>`; }).join('')}</div>`;
@@ -104,7 +138,7 @@
     $('#obCount').textContent = `${L.length} email`;
     const kind = { staff_invite: ['blue', 'Akun staff'], password_reset: ['amber', 'Reset sandi'], monthly_report: ['green', 'Rekap bulanan'] };
     $('#outbox').innerHTML = L.length ? `<div class="table-wrap" data-no-paginate><table class="table"><thead><tr><th>Waktu</th><th>Jenis</th><th>Kepada</th><th>Subjek</th><th>Status</th><th class="num"></th></tr></thead><tbody>
-      ${V.map((m) => { const k = kind[m.kind] || ['gray', m.kind]; return `<tr><td class="nw">${D.fmtDateTime(m.at)}</td><td><span class="pill ${k[0]}">${k[1]}</span></td><td>${esc(m.to)}</td><td style="min-width:220px">${esc(m.subject)}</td><td><span class="pill green plain"><i class="fa-solid fa-check"></i> Terkirim</span></td><td class="num"><button class="btn btn-light btn-xs" data-mail="${m.id}">Lihat</button></td></tr>`; }).join('')}</tbody></table></div>
+      ${V.map((m) => { const k = kind[m.kind] || ['gray', m.kind]; const st = m.status === 'nonaktif' ? '<span class="pill gray">Email belum aktif</span>' : m.status === 'gagal' ? '<span class="pill red">Gagal</span>' : '<span class="pill green plain"><i class="fa-solid fa-check"></i> Terkirim</span>'; return `<tr><td class="nw">${D.fmtDateTime(m.at)}</td><td><span class="pill ${k[0]}">${k[1]}</span></td><td>${esc(m.to)}</td><td style="min-width:220px">${esc(m.subject)}</td><td>${st}</td><td class="num"><button class="btn btn-light btn-xs" data-mail="${m.id}">Lihat</button></td></tr>`; }).join('')}</tbody></table></div>
       ${pages > 1 ? `<div class="ob-pager"><span>Menampilkan <b>${(obPage - 1) * OB_PER + 1}–${Math.min(obPage * OB_PER, L.length)}</b> dari <b>${L.length}</b></span><div class="pg">
         <button class="btn btn-light btn-xs" data-obp="${obPage - 1}" ${obPage === 1 ? 'disabled' : ''} aria-label="Sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
         ${Array.from({ length: pages }, (_, i) => i + 1).map((n) => `<button class="btn btn-xs ${n === obPage ? 'btn-primary' : 'btn-light'}" data-obp="${n}">${n}</button>`).join('')}
@@ -114,20 +148,29 @@
   $('#outbox').addEventListener('click', (e) => { const b = e.target.closest('[data-obp]'); if (!b || b.disabled) return; obPage = +b.dataset.obp; drawOutbox(); });
 
   $('#genPeriod').max = T.slice(0, 7); $('#genPeriod').value = Reports.prevPeriod();
-  $('#gen').addEventListener('click', async () => {
+  /* Buat / perbarui rekap: PDF dibuat di browser lalu diunggah server ke Google Drive */
+  async function runRekap(p, btn) {
+    const r = await Api.busy(btn, () => Reports.generateMonthly(p), 'Mengunggah…'); if (!r) return;
+    if (!r.ok) { toast(r.msg || 'Rekap gagal disimpan.', 'err'); if (r.reconnect) setTimeout(() => location.reload(), 1500); return; }
+    const a = r.a;
+    toast(`Rekap ${Reports.monthName(p)} tersimpan di Google Drive${a.mailStatus === 'terkirim' ? ` dan ringkasan dikirim ke ${a.mailTo}` : ''}.`);
+    history.replaceState(null, '', '?folder=' + p); drawDrive(); drawOutbox(); drawCleanup();
+  }
+  $('#gen').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
     const p = $('#genPeriod').value; if (!p) { toast('Pilih bulan.', 'err'); return; }
-    if (!ig().driveConnected) { toast('Hubungkan Google Drive terlebih dahulu.', 'err'); return; }
+    if (!info().connected) { toast('Hubungkan Google Drive terlebih dahulu.', 'err'); return; }
     const exists = DB.archive(p);
-    if (!(await confirmBox({ title: `${exists ? 'Perbarui' : 'Buat'} rekap ${Reports.monthName(p)}?`, text: `${exists ? 'Folder yang ada akan diperbarui dengan data terbaru. ' : ''}${Reports.MONTHLY.length} laporan PDF disimpan ke folder <strong>${esc(Reports.folderName(p))}</strong> dan email ringkasan dikirim ke ${esc(ig().ownerEmail)}.${p === T.slice(0, 7) ? '<br><br>Catatan: bulan berjalan belum selesai, datanya masih bisa bertambah.' : ''}`, ok: exists ? 'Perbarui' : 'Buat & kirim' }))) return;
-    Reports.generateMonthly(p); toast(`Rekap ${Reports.monthName(p)} tersimpan dan email terkirim.`);
-    history.replaceState(null, '', '?folder=' + p); drawDrive(); drawOutbox();
+    if (!(await confirmBox({ title: `${exists ? 'Perbarui' : 'Buat'} rekap ${Reports.monthName(p)}?`, text: `${exists ? 'File di folder Drive akan diganti dengan data terbaru. ' : ''}${Reports.MONTHLY.length} laporan PDF diunggah ke folder <strong>${esc(Reports.folderName(p))}</strong> di Google Drive ${esc(info().email)}${info().mailOn ? ` dan email ringkasan dikirim ke ${esc(ig().ownerEmail || '-')}` : ''}.${p === T.slice(0, 7) ? '<br><br>Catatan: bulan berjalan belum selesai, datanya masih bisa bertambah.' : ''}`, ok: exists ? 'Perbarui' : 'Buat & unggah' }))) return;
+    runRekap(p, btn);
   });
+  window.onRekapDone = () => { drawDrive(); drawOutbox(); drawCleanup(); };
   document.querySelector('.content').addEventListener('click', async (e) => {
     const dl = e.target.closest('[data-dl]'), all = e.target.closest('[data-all]'), ml = e.target.closest('[data-mail]'), rg = e.target.closest('[data-regen]');
     if (dl) { const [p, t] = dl.dataset.dl.split('|'); const h = dl.innerHTML; dl.disabled = true; dl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; try { await Reports.downloadArchiveFile(p, t); } catch (er) { console.error(er); toast('Gagal membuat PDF.', 'err'); } dl.disabled = false; dl.innerHTML = h; }
     if (all) { const p = all.dataset.all; all.disabled = true; for (const [t] of Reports.MONTHLY) { try { await Reports.downloadArchiveFile(p, t); } catch (er) { console.error(er); } await new Promise((r) => setTimeout(r, 350)); } all.disabled = false; toast('Semua laporan diunduh.'); }
     if (ml) { const m = DB.outbox().find((x) => x.id === ml.dataset.mail); if (m) Reports.mailModal(m); }
-    if (rg) { const p = rg.dataset.regen; if (!(await confirmBox({ title: `Perbarui rekap ${Reports.monthName(p)}?`, text: 'Folder diperbarui dengan data terbaru dan email ringkasan dikirim ulang ke Owner.', ok: 'Perbarui & kirim' }))) return; Reports.generateMonthly(p); toast('Rekap diperbarui.'); drawDrive(); drawOutbox(); }
+    if (rg) { const p = rg.dataset.regen; if (!info().connected) { toast('Hubungkan Google Drive terlebih dahulu.', 'err'); return; } if (!(await confirmBox({ title: `Perbarui rekap ${Reports.monthName(p)}?`, text: `File di folder Google Drive diganti dengan data terbaru${info().mailOn ? ' dan email ringkasan dikirim ulang ke Owner' : ''}.`, ok: 'Perbarui & unggah' }))) return; runRekap(p, rg); }
   });
   load(); drawDrive(); drawOutbox();
   drawCleanup();

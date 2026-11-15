@@ -6,13 +6,13 @@
 
 @section('content')
   <p class="page-sub">Setiap awal bulan sistem membuat rekap laporan bulan sebelumnya, menyimpannya ke Google Drive per tahun &amp; bulan, lalu mengirim email ringkasan beserta link folder ke Owner.</p>
-  {{-- Jujur ke pengguna: unggah ke Google Drive & email rekap belum tersambung ke layanan sungguhan --}}
-  <div class="notice amber" style="margin-bottom:16px"><i class="fa-solid fa-flask"></i><div><strong>Mode simulasi.</strong> Rekap laporan sudah dibuat dan bisa diunduh dari halaman ini, tetapi <strong>belum benar-benar diunggah ke Google Drive dan belum dikirim lewat email</strong>. Unduh file rekap secara manual sampai integrasi Google Drive diaktifkan. Data transaksi tetap tersimpan aman di server.</div></div>
+  {{-- Status sungguhan dari server: Google Drive terhubung / belum, email aktif / belum --}}
+  <div id="driveNotice" style="margin-bottom:16px"></div>
   <div class="grid-dash" style="grid-template-columns:1fr 1fr">
     <div class="panel">
       <div class="panel-h"><h3><i class="fa-brands fa-google-drive" style="color:#1a73e8"></i> Google Drive</h3><span id="driveState"></span></div>
       <form id="gf" novalidate>
-        <div class="field"><label>Akun Google</label><input class="input" name="driveAccount" type="email"></div>
+        <div class="field"><label>Akun Google</label><div class="input" id="driveAcc" style="background:var(--g50,#f6f4ee);display:flex;align-items:center;gap:8px;min-height:42px"></div><span class="hint">Akun dipilih saat menekan <b>Hubungkan</b>. Sistem hanya bisa melihat folder &amp; file yang dibuatnya sendiri di Drive ini.</span></div>
         <div class="field"><label>Folder utama</label><input class="input" name="driveRoot"><span class="hint">Struktur: folder utama / TAHUN 2026 / REKAP LAPORAN BULAN …</span></div>
         <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:12px"><input type="checkbox" name="autoMonthly"> Buat rekap otomatis setiap bulan</label>
         <div class="grid-2">
@@ -35,7 +35,7 @@
   </div>
   <div class="panel" style="margin-top:18px">
     <div class="panel-h"><h3>Arsip laporan di Google Drive</h3>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="input" type="month" id="genPeriod" style="width:auto;padding:8px 12px"><button class="btn btn-light btn-sm" id="gen"><i class="fa-solid fa-cloud-arrow-up"></i> Buat rekap &amp; kirim email</button></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="input" type="month" id="genPeriod" style="width:auto;padding:8px 12px"><button class="btn btn-light btn-sm" id="gen"><i class="fa-solid fa-cloud-arrow-up"></i> Buat rekap &amp; unggah ke Drive</button></div>
     </div>
     <div id="drive"></div>
   </div>

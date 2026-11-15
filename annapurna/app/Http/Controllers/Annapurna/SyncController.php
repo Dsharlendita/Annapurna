@@ -379,6 +379,9 @@ class SyncController extends Controller
                 $this->skipped[] = $key;
                 continue;
             }
+            if ($key === 'integration' && is_array($value)) {
+                unset($value['driveConnected'], $value['driveAccount']);   // diatur lewat tombol Hubungkan (server)
+            }
             Setting::set($key, $value);
             $changed[] = $key;
         }

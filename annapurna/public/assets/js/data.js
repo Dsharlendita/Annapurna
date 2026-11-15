@@ -1013,6 +1013,7 @@
     audit: { staff: true, label: 'histori aktivitas' },
   };
   let serverAuditCheck = null; /* hasil pemeriksaan rantai histori di server (halaman Histori) */
+  let srvDrive = null, srvRekapDue = null; /* status Google Drive & rekap yang jatuh tempo (dari BootController::userData) */
   const syncBase = {}; /* koleksi → Map(id → sidik data yang sama dengan server) */
   /* Stok barang dikirim sebagai selisih (_stockFrom → stock), bukan angka mutlak, supaya penjualan online
      yang dikurangi server tidak tertimpa angka lama dari perangkat staff. */
@@ -1922,7 +1923,12 @@
       return { ok: true, count: list.length };
     },
 
-    /* ---------- Email keluar & arsip Google Drive (simulasi frontend) ---------- */
+    /* ---------- Google Drive (status dari server) ---------- */
+    driveInfo: () => srvDrive,         /* { enabled, connected, email, rootUrl, mailOn } — hanya Owner; null = belum dimuat */
+    rekapDue: () => srvRekapDue,       /* '2026-10' bila rekap otomatis bulan itu sudah jatuh tempo, atau null */
+    setRekapDone(period) { if (srvRekapDue === period) srvRekapDue = null; },
+
+    /* ---------- Email keluar & arsip rekap (arsip dari server; snap/purged tetap per perangkat) ---------- */
     outbox: () => read('outbox', []).slice().sort((a, b) => b.at.localeCompare(a.at)),
     sendMail(m) {
       const all = read('outbox', []);
@@ -1932,6 +1938,12 @@
     archives: () => read('archives', []).slice().sort((a, b) => b.period.localeCompare(a.period)),
     archive: (period) => read('archives', []).find((a) => a.period === period),
     saveArchive(a) { const all = read('archives', []); const i = all.findIndex((x) => x.period === a.period); if (i >= 0) all[i] = a; else all.push(a); write('archives', all); },
+    /* Arsip dari server = yang benar-benar ada di Google Drive. Isi laporan (snap), status pembersihan (purged)
+       & id email lokal milik perangkat ini dipertahankan. Arsip lama hasil simulasi (tanpa server) dibuang. */
+    mergeArchives(list) {
+      const local = Object.fromEntries(read('archives', []).map((a) => [a.period, a]));
+      write('archives', list.map((s) => { const o = local[s.period] || {}; const keep = {}; ['snap', 'purged', 'mailId'].forEach((k) => { if (o[k] != null) keep[k] = o[k]; }); return Object.assign({}, s, keep); }));
+    },
 
     notifications(email) { return read('notifications', []).filter((n) => n.email === email).sort((a, b) => b.at.localeCompare(a.at)); },
     /* Notifikasi yang sama (judul + tautan) yang belum dibaca digabung jadi satu, bukan ditumpuk.
@@ -1967,6 +1979,9 @@
       /* Histori: catatan yang sudah ada di perangkat ini dianggap lama; hanya catatan baru yang dikirim */
       if (snap.auditTrack && !syncBase.audit) syncSnapshot('audit', read('audit', []));
       if (snap.auditCheck) serverAuditCheck = snap.auditCheck;
+      if ('rekapDue' in snap) srvRekapDue = snap.rekapDue || null;
+      if (snap.drive) srvDrive = snap.drive;
+      if (Array.isArray(snap.archives)) DB.mergeArchives(snap.archives);
       if (snap.settings) syncSnapshot('settings', Object.assign({}, SETTINGS, read('settings', SETTINGS)));
     },
     /* Kirim perubahan yang masih menunggu sekarang juga (dipakai tes / sebelum pindah halaman) */

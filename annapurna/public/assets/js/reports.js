@@ -207,7 +207,6 @@
   const prevPeriod = (iso) => { const d = new Date((iso || T()) + 'T00:00:00'); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
   const folderName = (period) => `REKAP LAPORAN BULAN ${monthName(period).toUpperCase()}`;
   const fileName = (label, period) => `${label} ${monthName(period)}.pdf`;
-  const integ = () => DB.settings().integration || {};
 
   function monthSummary(period) {
     const [f, t] = monthRange(period);
@@ -227,21 +226,38 @@
     };
   }
 
-  function generateMonthly(period, opts) {
+  /* Buat 7 PDF rekap di browser (isi sama dengan halaman Laporan), lalu server mengunggahnya ke Google Drive Owner
+     (folder utama / TAHUN yyyy / REKAP LAPORAN BULAN …) dan mengirim email ringkasan bila server email aktif.
+     Hasil: { ok: true, a } atau { ok: false, msg, reconnect } — tidak pernah throw. */
+  const MAIL_LBL = { terkirim: 'email terkirim', gagal: 'email gagal dikirim', nonaktif: 'email belum aktif' };
+  async function generateMonthly(period, opts) {
     opts = opts || {};
-    const ig = integ(); const old = DB.archive(period); const me = DB.session();
+    const old = DB.archive(period);
     const summary = monthSummary(period);
-    const to = [ig.ownerEmail, ...String(ig.ccEmails || '').split(',').map((x) => x.trim()).filter(Boolean)].filter(Boolean);
-    const mail = DB.sendMail({ kind: 'monthly_report', to: to.join(', '), subject: `Rekap Laporan Annapurna Adventure – ${monthName(period)}`, data: { period, summary, folder: folderName(period), files: MONTHLY.map(([, l]) => fileName(l, period)) } });
-    const a = { period, createdAt: D.nowStamp(), by: opts.auto ? 'Sistem (terjadwal)' : me.name, auto: !!opts.auto, version: old ? (old.version || 1) + 1 : 1,
-      path: [ig.driveRoot || 'ANNAPURNA ADVENTURE', `TAHUN ${period.slice(0, 4)}`, folderName(period)], files: MONTHLY.map(([k, l]) => ({ type: k, name: fileName(l, period) })), summary, mailId: mail.id, mailTo: mail.to };
-    /* Snapshot isi setiap file laporan disimpan bersama arsip, agar tetap bisa diunduh walau data mentah sudah dibersihkan */
     const [pf, pt] = monthRange(period);
-    try { a.snap = Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](pf, pt)))])); } catch (e) { /* abaikan */ }
-    if (old && old.purged) { a.snap = old.snap || a.snap; a.purged = old.purged; a.summary = old.summary; }
+    /* Isi laporan disimpan bersama arsip di perangkat ini, agar tetap bisa diunduh walau data mentah sudah dibersihkan */
+    let snap = old && old.purged && old.snap ? old.snap : null;
+    try { snap = snap || Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](pf, pt)))])); } catch (e) { /* abaikan */ }
+    const fd = new FormData();
+    fd.append('period', period); fd.append('auto', opts.auto ? '1' : '0');
+    fd.append('summary', JSON.stringify(old && old.purged && old.summary ? old.summary : summary));
+    try {
+      for (const [k, l] of MONTHLY) {
+        const cur = (snap && snap[k]) || R[k](pf, pt);
+        const blob = await UI.exportPDF(toSpec(cur, fileName(l, period).replace(/\.pdf$/, ''), `Periode ${D.fmtDate(pf, true)} – ${D.fmtDate(pt, true)} · ${cur.note}`), { blob: true });
+        fd.append(`files[${k}]`, blob, fileName(l, period));
+      }
+    } catch (e) { console.error(e); return { ok: false, msg: 'Gagal membuat file PDF rekap.' }; }
+    const r = await Api.post('api/admin/rekap', fd, { timeout: 180000 });
+    if (!r.ok) return { ok: false, msg: r.msg, reconnect: !!(r.raw && r.raw.reconnect) };
+    const s = r.data;
+    DB.setRekapDone(period);
+    if (r.raw && r.raw.existed) { DB.mergeArchives(DB.archives().filter((x) => x.period !== period).concat([s])); return { ok: true, a: DB.archive(period), existed: true }; }
+    const mail = DB.sendMail({ kind: 'monthly_report', to: s.mailTo || '-', status: s.mailStatus, subject: `Rekap Laporan Annapurna Adventure – ${monthName(period)}`, data: { period, summary: s.summary, folder: folderName(period), folderUrl: s.folderUrl, files: s.files.map((f) => f.name) } });
+    const a = Object.assign({}, s, { snap, mailId: mail.id }, old && old.purged ? { purged: old.purged } : {});
     DB.saveArchive(a);
-    DB.audit(Object.assign(opts.auto ? { system: true } : {}, { type: 'laporan', action: `${old ? 'Memperbarui' : 'Membuat'} rekap laporan ${monthName(period)}, disimpan ke Google Drive & dikirim ke ${mail.to}`, ref: period, changes: [{ field: 'Folder', from: '', to: a.path.join(' / ') }, { field: 'File', from: '', to: `${a.files.length} PDF` }] }));
-    return a;
+    DB.audit(Object.assign(opts.auto ? { system: true } : {}, { type: 'laporan', action: `${old ? 'Memperbarui' : 'Membuat'} rekap laporan ${monthName(period)} di Google Drive (${MAIL_LBL[s.mailStatus] || 'email belum aktif'})`, ref: period, changes: [{ field: 'Folder', from: '', to: s.path.join(' / ') }, { field: 'File', from: '', to: `${s.files.length} PDF` }] }));
+    return { ok: true, a };
   }
 
   /* Simpan isi laporan ke arsip (tanpa mengirim email) — untuk arsip lama yang dibuat sebelum ada snapshot */
@@ -251,13 +267,22 @@
     a.snap = Object.fromEntries(MONTHLY.map(([k]) => [k, JSON.parse(JSON.stringify(R[k](f, t)))])); a.summary = Object.assign({}, a.summary, { byLine: monthSummary(period).byLine });
     DB.saveArchive(a); return a;
   }
-  function autoMonthly() {
-    const ig = integ(); if (!ig.autoMonthly || !ig.driveConnected) return;
-    const now = new Date(); const day = now.getDate(); const [h, m] = String(ig.sendTime || '06:00').split(':').map(Number);
-    if (day < (ig.sendDay || 1) || (day === (ig.sendDay || 1) && now.getHours() * 60 + now.getMinutes() < h * 60 + m)) return;
-    const period = prevPeriod();
-    if (DB.archive(period)) return;
-    const a = generateMonthly(period, { auto: true });
+  /* Rekap otomatis: server memberi tahu bulan yang sudah jatuh tempo (DB.rekapDue). Perangkat staff mana pun yang
+     membuka panel membuat PDF-nya lalu mengunggah. Bila gagal, dicoba lagi paling cepat 30 menit kemudian. */
+  let autoRunning = false;
+  async function autoMonthly() {
+    const period = DB.rekapDue(); if (!period || autoRunning) return;
+    const key = 'ann-rekap-try-' + period;
+    try { if (Date.now() - (+sessionStorage.getItem(key) || 0) < 30 * 60000) return; sessionStorage.setItem(key, String(Date.now())); } catch (e) { /* abaikan */ }
+    autoRunning = true;
+    let res;
+    try {
+      if (window.Admin && Admin.syncOrders) await Admin.syncOrders();   /* pakai pesanan terbaru dari server */
+      res = await generateMonthly(period, { auto: true });
+    } catch (e) { console.error(e); res = { ok: false, msg: 'Terjadi kesalahan saat membuat rekap.' }; } finally { autoRunning = false; }
+    if (!res.ok) { if (DB.session().role === 'owner') toast(`Rekap otomatis ${monthName(period)} belum tersimpan: ${res.msg}`, 'err'); return; }
+    if (res.existed) return;
+    const a = res.a;
     /* Pembersihan otomatis setelah rekap tersimpan & email terkirim (bisa dimatikan owner) */
     let cl = null; const mode = DB.cleanupMode();
     if (a && a.mailId && mode === 'auto') cl = DB.cleanupArchived(period);
@@ -269,7 +294,8 @@
         DB.users().filter((u) => u.role === 'owner').forEach((u) => DB.notify(u.email, 'Pembersihan data menunggu persetujuan', `Rekap ${monthName(period)} sudah tersimpan di Google Drive. ${pv.total} data lama siap dibersihkan agar website tetap ringan. Data tidak akan dihapus sebelum kamu menyetujui.`, 'owner/integrasi#bersih'));
       }
     }
-    setTimeout(() => toast(`Rekap laporan ${monthName(period)} dibuat otomatis, disimpan ke Google Drive, dan dikirim ke ${ig.ownerEmail}.${cl && cl.ok && cl.total ? ` ${cl.total} data lama dibersihkan.` : ''}`), 600);
+    toast(`Rekap laporan ${monthName(period)} dibuat otomatis dan disimpan ke Google Drive${a.mailStatus === 'terkirim' ? `, ringkasan dikirim ke ${a.mailTo}` : ''}.${cl && cl.ok && cl.total ? ` ${cl.total} data lama dibersihkan.` : ''}`);
+    if (typeof window.onRekapDone === 'function') window.onRekapDone(period);
   }
 
   async function downloadArchiveFile(period, type) {
@@ -279,7 +305,7 @@
     const cur = (arc && arc.snap && arc.snap[type]) || R[type](f, t);
     const spec = toSpec(cur, fileName(item[1], period).replace(/\.pdf$/, ''), `Periode ${D.fmtDate(f, true)} – ${D.fmtDate(t, true)} · ${cur.note}`);
     await UI.exportPDF(spec);
-    DB.audit({ type: 'laporan', action: `Mengunduh ${fileName(item[1], period)} dari arsip Google Drive`, ref: period });
+    DB.audit({ type: 'laporan', action: `Mengunduh ${fileName(item[1], period)} dari arsip rekap`, ref: period });
   }
 
   /* ---------- Template email ---------- */
@@ -306,14 +332,14 @@
         <p>Rekap laporan operasional bulan <strong>${esc(monthName(d.period))}</strong> telah dibuat dan disimpan pada Google Drive.</p>
         <table class="mail-tbl">${row('Total transaksi rental', s.rental)}${row('Total penjualan', s.penjualan)}${row('Total pemasukan', rupiah(s.pemasukan))}${row('Total pengeluaran', rupiah(s.pengeluaran))}${row('Selisih', rupiah((s.pemasukan || 0) - (s.pengeluaran || 0)))}${row('Total barang keluar', s.keluar)}${row('Total barang kembali', s.kembali)}${row('Jumlah pembatalan', s.batal)}${row('Jumlah pergantian barang', s.ganti)}${row('Aktivitas staff', `${s.aktivitas} aktivitas${(s.perStaff || []).length ? '<br><small>' + s.perStaff.map(([n, c]) => `${esc(n)}: ${c}`).join(' · ') + '</small>' : ''}`)}</table>
         <p><strong>File di folder:</strong></p><ul>${(d.files || []).map((f) => `<li><i class="fa-regular fa-file-pdf" style="color:#c0392b"></i> ${esc(f)}</li>`).join('')}</ul>
-        <p><a class="mail-btn" href="${url('owner/integrasi?folder=' + d.period)}"><i class="fa-brands fa-google-drive"></i> ${esc(d.folder)}</a></p>`);
+        <p><a class="mail-btn" href="${esc(d.folderUrl || url('owner/integrasi?folder=' + d.period))}" target="_blank" rel="noopener"><i class="fa-brands fa-google-drive"></i> ${esc(d.folder)}</a></p>`);
     }
     return shell(`<p>${esc(m.subject)}</p>`);
   }
   function mailText(m) {
     const st = DB.settings(); const d = m.data || {};
     if (m.kind === 'monthly_report') { const s = d.summary || {};
-      return `Rekap laporan operasional bulan ${monthName(d.period)} telah dibuat dan disimpan pada Google Drive.\n\nTotal transaksi rental: ${s.rental}\nTotal penjualan: ${s.penjualan}\nTotal pemasukan: ${rupiah(s.pemasukan)}\nTotal pengeluaran: ${rupiah(s.pengeluaran)}\nBarang keluar: ${s.keluar}\nBarang kembali: ${s.kembali}\nPembatalan: ${s.batal}\nPergantian barang: ${s.ganti}\nAktivitas staff: ${s.aktivitas}\n\nFolder: ${d.folder}\n${url('owner/integrasi?folder=' + d.period)}`; }
+      return `Rekap laporan operasional bulan ${monthName(d.period)} telah dibuat dan disimpan pada Google Drive.\n\nTotal transaksi rental: ${s.rental}\nTotal penjualan: ${s.penjualan}\nTotal pemasukan: ${rupiah(s.pemasukan)}\nTotal pengeluaran: ${rupiah(s.pengeluaran)}\nBarang keluar: ${s.keluar}\nBarang kembali: ${s.kembali}\nPembatalan: ${s.batal}\nPergantian barang: ${s.ganti}\nAktivitas staff: ${s.aktivitas}\n\nFolder: ${d.folder}\n${d.folderUrl || url('owner/integrasi?folder=' + d.period)}`; }
     return `Halo ${d.name},\n\n${m.kind === 'staff_invite' ? `Akun staff Anda di ${st.storeName} telah dibuat oleh Owner (${d.by}).` : `Kata sandi akun staff Anda telah diatur ulang oleh Owner (${d.by}).`}\n\nNama toko: ${st.storeName}\nNama akun: ${d.name}\nEmail akun: ${d.email}\nRole: ${roleLabel(d.role)}\n${d.ownerSetPw ? 'Kata sandi: diberikan langsung oleh Owner' : `Kata sandi sementara: ${d.tempPassword}`}\nLink website: ${url('masuk')}\n\nCara masuk:\n1. Buka link website di atas.\n2. Masuk dengan email dan kata sandi ${d.ownerSetPw ? 'yang diberikan Owner' : 'sementara'}.\n${!d.ownerSetPw || d.mustChange ? '3. Buat kata sandi baru saat pertama login.\n' : ''}\nAkun ini dibuat oleh Owner ${st.storeName}.`;
   }
   function mailModal(m) {

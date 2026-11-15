@@ -1081,3 +1081,4 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - Rencanakan Trip: Gemini hanya memahami cerita (orang, malam, jenis, tempat, alat yang sudah punya); daftar alat & biaya tetap dihitung `recommend()`.
 - Pertanyaan yang Gemini tidak tahu (`tidak_tahu`) dicatat ke `chat_misses`. Konfigurasi Owner sekarang menampilkan pertanyaan belum terjawab **dari semua customer** (`GET api/owner/chat/misses`).
 - Tes: `AsistenGeminiTest` (6). Total PHP 87 lulus. `ASSET_VERSION` = `20261115.5`.
+- (C.48 lanjutan) Gemini juga menerima **promo aktif** dari database. Pertanyaan saran/izin/diskon soal trip ("tips camping saat hujan?") dicoba ke Gemini dulu; daftar alat jadi cadangan. `ASSET_VERSION` = `20261115.6`.

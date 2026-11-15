@@ -222,13 +222,17 @@
       return { html: `Tarif sewa <b>${esc(prodSz.name)}</b>:<ul>${rows}</ul>${n ? `Untuk <b>${n} malam</b>: <b>${rupiah(Rules.tierPlan(t, n).total)}</b> (${esc(Rules.tierLabel(t, n))}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prodSz.id) }] };
     }
     const tripish = /\d+\s*(orang|org|malam|mlm|hari)/.test(q) || has(q, ['berdua', 'bertiga', 'berempat', 'rombongan', 'keluarga', 'naik gunung', 'mendaki', 'camping', 'kemah', 'tektok', 'slamet', 'prau', 'baturraden', 'rekomendasi', 'rencana', 'trip', 'butuh apa', 'sewa apa', 'perlu apa']);
+    /* Pertanyaan saran / izin / diskon tentang trip (mis. "tips camping saat hujan?", "boleh sewa rombongan 30 orang? ada diskon?")
+       bukan permintaan daftar alat → dicoba ke Gemini dulu (soft); daftar alat di bawah jadi cadangan bila Gemini tidak tersedia.
+       Cerita rencana ("camping berempat 1 malam") tetap langsung dihitung sistem. */
+    const advice = /\?\s*$/.test(String(text)) || has(q, ['tips', 'saran', 'boleh', 'diskon', 'promo', 'potongan', 'aman', 'cuaca', 'hujan', 'kenapa', 'apakah', 'bagaimana', 'gimana', 'apa saja', 'persiapan']);
     if (SP.trip && tripish && !has(q, ['batal', 'denda', 'dp', 'jam', 'alamat'])) {
       const plan = parsePlan(text);
       if (has(q, ['rencanakan trip', 'rencana trip']) && !plan.people && !plan.type) return { html: 'Siap! Ceritakan rencanamu: mau ke mana, berapa orang, dan berapa malam. Contoh: <i>"camping di Baturraden berempat 1 malam"</i>.', planner: true };
       const s = nextWeekend(); const e = D.addDays(s, Math.max(1, plan.nights == null ? 1 : plan.nights));
       const r = recommend(plan, s, e);
       const top = r.pkg && r.pkg.avail ? `Paket yang paling pas: <b>${esc(r.pkg.pk.name)}</b> (${rupiah(r.pkg.total)} untuk ${r.days} malam).` : '';
-      return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} malam sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }] };
+      return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} malam sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }], soft: advice };
     }
     const prod = SP.produk ? matchProduct(q) : null;
     if (prod && has(q, ['harga', 'berapa', 'tarif', 'biaya', 'ada', 'tersedia', 'stok', 'sisa', 'kosong', 'ready'])) {

@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\ChatMiss;
 use App\Models\Package;
 use App\Models\Product;
+use App\Models\Promo;
 use App\Models\Setting;
 use App\Support\Gemini;
 use App\Support\GeminiException;
@@ -59,6 +60,22 @@ class AsistenController extends Controller
                     . ($k->price_3 ? ', paket 3 hari ' . self::rp((int) $k->price_3) : '') . ($k->price_5 ? ', paket 5 hari ' . self::rp((int) $k->price_5) : '') . " | {$isi}";
             }
 
+            $lines[] = '';
+            $lines[] = 'PROMO AKTIF (kode | nama | potongan | syarat | berlaku):';
+            $today = now()->toDateString();
+            $promos = Promo::where('is_active', true)
+                ->where(fn ($q) => $q->whereNull('valid_from')->orWhereDate('valid_from', '<=', $today))
+                ->where(fn ($q) => $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $today))->get();
+            foreach ($promos as $p) {
+                $cut = in_array($p->discount_type, ['persen', 'percent'], true) ? ((int) $p->discount_value) . '%' . ($p->max_discount ? ' (maks ' . self::rp((int) $p->max_discount) . ')' : '') : self::rp((int) $p->discount_value);
+                $lines[] = "- {$p->code} | {$p->name} | {$cut} | " . ($p->min_order ? 'min. belanja ' . self::rp((int) $p->min_order) : 'tanpa minimum')
+                    . ($p->weekday_only ? ', hanya hari kerja' : '') . ($p->description ? ', ' . mb_substr($p->description, 0, 120) : '')
+                    . ' | ' . ($p->valid_until ? 's.d. ' . substr((string) $p->valid_until, 0, 10) : 'tanpa batas');
+            }
+            if ($promos->isEmpty()) {
+                $lines[] = '- (tidak ada promo yang sedang berlaku)';
+            }
+
             return implode("\n", $lines);
         });
     }
@@ -84,7 +101,7 @@ Kamu adalah "Asisten Trip", asisten chat website toko persewaan & penjualan alat
 Jawab dalam Bahasa Indonesia yang santai dan sopan, panggil customer "kamu", singkat (paling banyak sekitar 120 kata).
 
 ATURAN:
-1. Untuk hal tentang toko (harga, paket, kebijakan, jam, alamat, pembayaran, denda, pembatalan, syarat) HANYA pakai fakta di INFO TOKO, PENGETAHUAN, dan KATALOG. Jangan mengarang harga, promo, stok, atau aturan.
+1. Untuk hal tentang toko (harga, paket, promo, kebijakan, jam, alamat, pembayaran, denda, pembatalan, syarat) HANYA pakai fakta di INFO TOKO, PENGETAHUAN, KATALOG, dan PROMO AKTIF. Jangan mengarang harga, promo, diskon, stok, atau aturan. Diskon khusus di luar PROMO AKTIF hanya bisa diputuskan admin (handoff).
 2. Harga sewa di katalog adalah harga 1 malam, paket 3 hari, dan paket 5 hari. Untuk lama sewa lain atau total belanja, sebut tarif dasarnya lalu arahkan ke fitur Rencanakan Trip atau halaman barang (sistem yang menghitung).
 3. Jangan pernah menyebut jumlah stok atau memastikan barang tersedia; arahkan ke halaman barang untuk cek ketersediaan di tanggalnya.
 4. Status pesanan: minta customer mengetik nomor nota (contoh RNTL/028/X/2026) atau membuka Pesanan Saya. Jangan meminta KTP, kata sandi, OTP, atau data rekening customer.

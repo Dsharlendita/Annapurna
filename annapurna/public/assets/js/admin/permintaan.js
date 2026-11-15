@@ -76,7 +76,7 @@
     const ok = e.target.closest('[data-ok]'), no = e.target.closest('[data-no]'), rf = e.target.closest('[data-refund]');
     if (ok || no) {
       const [bid, cid] = (ok || no).dataset[ok ? 'ok' : 'no'].split('|'); const b = DB.booking(bid); const c = b.changes.find((x) => x.id === cid);
-      if (ok) { if (!(await confirmBox({ title: 'Setujui ganti barang?', text: `${c.qty}× ${esc(c.fromName)} diganti <strong>${esc(c.toName)}</strong> pada ${NO(b)}. Total booking akan disesuaikan.`, ok: 'Setujui' }))) return; if (Admin.BK.approveChange(b, c)) { Admin.refreshShell(); draw(); } }
+      if (ok) { if (!(await confirmBox({ title: 'Setujui ganti barang?', text: `${c.qty}× ${esc(c.fromName)} diganti <strong>${esc(c.toName)}</strong> pada ${NO(b)}. Total booking akan disesuaikan.`, ok: 'Setujui' }))) return; if (await Admin.BK.approveChange(b, c)) { Admin.refreshShell(); draw(); } }
       else if (await Admin.BK.rejectChange(b, c)) { Admin.refreshShell(); draw(); }
     }
     if (rf) { if (await Admin.BK.refund(DB.booking(rf.dataset.refund))) { Admin.refreshShell(); draw(); } }
@@ -87,5 +87,7 @@
   /* Status "konfirmasi WA terkirim" diperbarui saat staff kembali dari WhatsApp */
   window.addEventListener('focus', () => { if (tab === 'cancel' && !document.querySelector('.modal')) draw(); });
   draw();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();
 

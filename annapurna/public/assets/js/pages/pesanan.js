@@ -258,7 +258,15 @@
     const syncQ = () => { const n = D.diffDays(b.end, m.$('#xEnd').value); m.$$('#xQuick [data-n]').forEach((x) => x.classList.toggle('on', +x.dataset.n === n)); };
     m.$('#xQuick').addEventListener('click', (e) => { const q = e.target.closest('[data-n]'); if (!q) return; m.$('#xEnd').value = D.addDays(b.end, +q.dataset.n); syncQ(); calc(); });
     m.$('#xEnd').addEventListener('change', () => { syncQ(); calc(); }); calc();
-    m.$('#xOk').addEventListener('click', () => { const r = calc(); if (!r.ok) return; const to = m.$('#xEnd').value;
+    m.$('#xOk').addEventListener('click', async () => { const r = calc(); if (!r.ok) return; const to = m.$('#xEnd').value;
+      /* Dikirim ke server (biaya dihitung server); booking contoh lama yang belum ada di server tetap diproses lokal */
+      const sv = await Api.busy(m.$('#xOk'), () => Api.try('POST', `api/pesanan/${encodeURIComponent(b.id)}/perpanjang`, { to_date: to, reason: m.$('#xWhy').value.trim() }, () => ({ ok: true })), 'Mengirim…');
+      if (!sv) return; if (!sv.ok) { toast(sv.msg || 'Permintaan gagal dikirim.', 'err'); return; }
+      if (sv.source === 'server' && sv.data && sv.data.id) {
+        DB.mergeServer('bookings', [sv.data]);
+        DB.notifyStaff('Permintaan perpanjangan', `${b.customer.name} ingin memperpanjang ${NO(b)} sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari).`, 'admin/permintaan?tab=extend');
+        m.close(); toast('Permintaan perpanjangan terkirim ke admin.'); draw(); return;
+      }
       b.extensions = b.extensions || []; b.extensions.push({ id: 'EXT-' + Date.now(), at: D.nowStamp(), from: b.end, to, days: r.extraDays, cost: r.cost, reason: m.$('#xWhy').value.trim(), status: 'menunggu', source: 'customer' });
       b.history.push({ at: D.nowStamp(), text: `Mengajukan perpanjangan sampai ${D.fmtDate(to, true)}` }); DB.saveBooking(b);
       DB.notifyStaff('Permintaan perpanjangan', `${b.customer.name} ingin memperpanjang ${NO(b)} sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari).`, 'admin/permintaan?tab=extend');
@@ -266,7 +274,14 @@
   }
 
   function change(b) {
-    UI.changeModal(b, { mode: 'customer', onSubmit: (r) => {
+    UI.changeModal(b, { mode: 'customer', onSubmit: async (r) => {
+      const sv = await Api.try('POST', `api/pesanan/${encodeURIComponent(b.id)}/ganti`, { from_id: r.line.refId, to_id: r.p.id, to_size: r.size || null, qty: r.qty, reason: r.reason || '' }, () => ({ ok: true }));
+      if (!sv.ok) { toast(sv.msg || 'Permintaan gagal dikirim.', 'err'); return false; }
+      if (sv.source === 'server' && sv.data && sv.data.id) {
+        DB.mergeServer('bookings', [sv.data]);
+        DB.notifyStaff('Permintaan ganti barang', `${b.customer.name} ingin mengganti ${r.qty}× ${r.line.name} menjadi ${r.toName} (${NO(b)}).`, 'admin/permintaan');
+        toast('Permintaan ganti barang terkirim ke admin.'); draw(); return true;
+      }
       b.changes = b.changes || [];
       b.changes.push({ id: 'CHG-' + Date.now(), at: D.nowStamp(), lineIndex: r.lineIndex, fromId: r.line.refId, fromName: r.line.name, toId: r.p.id, toName: r.toName, toSize: r.size || null, qty: r.qty, diff: r.diff, reason: r.reason, status: 'menunggu', source: 'customer' });
       b.history.push({ at: D.nowStamp(), text: `Mengajukan ganti ${r.qty}× ${r.line.name} → ${r.toName}` });

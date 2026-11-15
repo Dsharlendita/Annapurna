@@ -10,6 +10,8 @@ use App\Models\Finance;
 use App\Models\Payment;
 use App\Models\Refund;
 use App\Support\Audit;
+use App\Support\BookingRequests;
+use App\Support\OrderPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,8 +43,15 @@ class PermintaanController extends Controller
         ]);
     }
 
+    /** Data booking terbaru (bentuk tampilan) untuk digabung FE setelah aksi. */
+    private function bookingData(Booking $b): array
+    {
+        return OrderPresenter::booking($b->fresh(OrderPresenter::BOOKING_WITH));
+    }
+
     /**
      * Menyetujui atau menolak permintaan ganti barang.
+     * POST /api/admin/permintaan/change/{id}/action { action: setujui|tolak, admin_note? }
      */
     public function actionChange(Request $request, string $id): JsonResponse
     {
@@ -55,79 +64,29 @@ class PermintaanController extends Controller
         if (! ctype_digit($id) || ! BookingChange::whereKey((int) $id)->exists()) {
             return response()->json(['ok' => false, 'msg' => 'Permintaan ganti barang tidak ditemukan di server.'], 404);
         }
-        $action = $request->input('action');
-        $note = $request->input('admin_note');
 
-        return DB::transaction(function () use ($id, $action, $note) {
+        return DB::transaction(function () use ($request, $id) {
             // Kunci & cek ulang: permintaan yang sudah diputuskan tidak boleh diproses dua kali (selisih harga dobel)
             $change = BookingChange::with('booking.items')->whereKey((int) $id)->lockForUpdate()->firstOrFail();
             if ($change->status !== 'menunggu') {
                 return response()->json(['ok' => false, 'msg' => "Permintaan ini sudah {$change->status}."], 422);
             }
-            $booking = $change->booking;
+            $ok = $request->input('action') === 'setujui';
+            $ok ? BookingRequests::approveChange($change, $request->input('admin_note'))
+                : BookingRequests::rejectChange($change, $request->input('admin_note'));
 
-            if ($action === 'setujui') {
-                $change->update([
-                    'status' => 'disetujui',
-                    'admin_note' => $note,
-                    'action_by' => Auth::id(),
-                    'action_at' => now(),
-                ]);
-
-                // Update item di booking jika ada
-                if ($change->from_product_id && $change->to_product_id) {
-                    $item = $booking->items()->where('product_id', $change->from_product_id)->first();
-                    if ($item) {
-                        $item->update([
-                            'product_id' => $change->to_product_id,
-                            'product_name' => $change->to_product_name ?: $item->product_name,
-                            'size' => $change->to_size ?: $item->size,
-                        ]);
-                    }
-                }
-
-                // Perbarui total amount jika ada selisih harga
-                if ($change->price_diff != 0) {
-                    $booking->total_amount = max(0, $booking->total_amount + $change->price_diff);
-                    $booking->save();
-                }
-
-                Audit::log(
-                    'pergantian',
-                    "Menyetujui permintaan ganti barang pada booking #{$booking->booking_code}: {$change->from_product_name} -> {$change->to_product_name}",
-                    $booking
-                );
-
-                return response()->json([
-                    'ok' => true,
-                    'msg' => 'Permintaan ganti barang berhasil disetujui.',
-                    'change' => $change->fresh(),
-                ]);
-            } else {
-                $change->update([
-                    'status' => 'ditolak',
-                    'admin_note' => $note,
-                    'action_by' => Auth::id(),
-                    'action_at' => now(),
-                ]);
-
-                Audit::log(
-                    'pergantian',
-                    "Menolak permintaan ganti barang pada booking #{$booking->booking_code}" . ($note ? ": {$note}" : ""),
-                    $booking
-                );
-
-                return response()->json([
-                    'ok' => true,
-                    'msg' => 'Permintaan ganti barang ditolak.',
-                    'change' => $change->fresh(),
-                ]);
-            }
+            return response()->json([
+                'ok' => true,
+                'msg' => $ok ? 'Permintaan ganti barang berhasil disetujui.' : 'Permintaan ganti barang ditolak.',
+                'change' => $change->fresh(),
+                'data' => $this->bookingData($change->booking),
+            ]);
         });
     }
 
     /**
      * Menyetujui atau menolak perpanjangan sewa.
+     * POST /api/admin/permintaan/extend/{id}/action { action: setujui|tolak, is_paid?, reason? }
      */
     public function actionExtend(Request $request, string $id): JsonResponse
     {
@@ -141,79 +100,23 @@ class PermintaanController extends Controller
         if (! ctype_digit($id) || ! BookingExtension::whereKey((int) $id)->exists()) {
             return response()->json(['ok' => false, 'msg' => 'Permintaan perpanjangan tidak ditemukan di server.'], 404);
         }
-        $action = $request->input('action');
-        $isPaid = $request->boolean('is_paid');
 
-        return DB::transaction(function () use ($id, $action, $isPaid) {
+        return DB::transaction(function () use ($request, $id) {
             // Kunci & cek ulang: klik "setujui" dua kali tidak boleh menambah hari & biaya dua kali
             $ext = BookingExtension::with('booking')->whereKey((int) $id)->lockForUpdate()->firstOrFail();
             if ($ext->status !== 'menunggu') {
                 return response()->json(['ok' => false, 'msg' => "Permintaan ini sudah {$ext->status}."], 422);
             }
-            $booking = $ext->booking;
+            $ok = $request->input('action') === 'setujui';
+            $ok ? BookingRequests::approveExtension($ext, $request->boolean('is_paid'))
+                : BookingRequests::rejectExtension($ext, $request->input('reason'));
 
-            if ($action === 'setujui') {
-                $ext->update([
-                    'status' => 'disetujui',
-                    'action_by' => Auth::id(),
-                    'action_at' => now(),
-                ]);
-
-                // Perpanjang tanggal booking
-                $booking->end_date = $ext->to_date;
-                $booking->days += $ext->days;
-                $booking->total_amount += $ext->cost;
-                $booking->save();
-
-                // Jika sudah dibayar lunas sekarang
-                if ($isPaid && $ext->cost > 0) {
-                    $booking->payments()->create(Payment::receivedInStore($ext->cost, 'Perpanjangan', 'Tunai', Auth::id(), 'Pembayaran perpanjangan sewa ' . $ext->days . ' hari'));
-
-                    // Uang yang diterima wajib masuk buku kas
-                    Finance::create([
-                        'finance_code' => Finance::generateCode('income'),
-                        'ref' => $booking->nota_no,
-                        'type' => 'income',
-                        'category' => 'Perpanjangan Sewa',
-                        'line' => 'rent',
-                        'amount' => $ext->cost,
-                        'transaction_date' => now()->toDateString(),
-                        'description' => "Perpanjangan {$booking->nota_no} +{$ext->days} hari ({$booking->customer_name})",
-                        'status' => 'aktif',
-                        'created_by' => Auth::id(),
-                    ]);
-                }
-
-                Audit::log(
-                    'perpanjangan',
-                    "Menyetujui perpanjangan booking #{$booking->booking_code} sampai {$ext->to_date->format('Y-m-d')} (+{$ext->days} hari)",
-                    $booking
-                );
-
-                return response()->json([
-                    'ok' => true,
-                    'msg' => 'Perpanjangan sewa disetujui.',
-                    'extension' => $ext->fresh(),
-                ]);
-            } else {
-                $ext->update([
-                    'status' => 'ditolak',
-                    'action_by' => Auth::id(),
-                    'action_at' => now(),
-                ]);
-
-                Audit::log(
-                    'perpanjangan',
-                    "Menolak perpanjangan booking #{$booking->booking_code}",
-                    $booking
-                );
-
-                return response()->json([
-                    'ok' => true,
-                    'msg' => 'Perpanjangan sewa ditolak.',
-                    'extension' => $ext->fresh(),
-                ]);
-            }
+            return response()->json([
+                'ok' => true,
+                'msg' => $ok ? 'Perpanjangan sewa disetujui.' : 'Perpanjangan sewa ditolak.',
+                'extension' => $ext->fresh(),
+                'data' => $this->bookingData($ext->booking),
+            ]);
         });
     }
 

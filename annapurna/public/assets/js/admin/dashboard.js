@@ -270,6 +270,8 @@
   $('#dashView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) showView(b.dataset.v); });
   if (param('tab') === 'jual' || param('tab') === 'laundry') showView(param('tab'));
   syncLaundry(); syncServices();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();
 /* Chip "Antar & jemput" / "Bongkar pasang" menuju jadwal yang dilipat → buka lipatannya dulu */
 document.addEventListener('click', (e) => { const a = e.target.closest('a[href$="#svcSec"]'); if (!a) return; const f = document.getElementById('svcFold'); if (f) f.open = true; });

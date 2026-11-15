@@ -1208,7 +1208,12 @@
     if (!o.no) delete o.no;
     SRV_NULLABLE.forEach((k) => { if (o[k] == null) o[k] = null; });
     if (kind === 'bookings') {
-      o.items = loc && loc.items && loc.items.length ? loc.items : (s.items || []).map((it) => {
+      /* Barang lokal (berisi paket & tarif) dipakai selama isinya sama dengan server; bila berbeda
+         (mis. barang diganti / ditambah di perangkat lain) pakai barang dari server */
+      const ids = (list) => list.slice().sort().join('|');
+      const locIds = loc && loc.items ? ids(loc.items.flatMap((it) => (it.components && it.components.length ? it.components.map((c) => c.productId) : [it.refId]))) : '';
+      const sameItems = loc && loc.items && loc.items.length && locIds === ids((s.items || []).map((it) => it.refId));
+      o.items = sameItems ? loc.items : (s.items || []).map((it) => {
         const p = DB.product(it.refId);
         return Object.assign({}, it, { tiers: p ? productTiers(p) : { d1: it.pricePerDay || 0 }, components: [it.size ? { productId: it.refId, qty: 1, size: it.size } : { productId: it.refId, qty: 1 }] });
       });

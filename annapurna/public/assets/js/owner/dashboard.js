@@ -182,4 +182,6 @@
   syncPer();
   $('#bizView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; VIEW = b.dataset.v; $$('#bizView [data-v]').forEach((x) => x.classList.toggle('active', x === b)); drawn = true; drawBiz(); });
   drawBiz(); drawChart(); drawRekap(); drawFeed();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => { drawBiz(); drawChart(); drawRekap(); drawFeed(); });
 })();

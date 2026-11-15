@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class OrderPresenter
 {
-    public const BOOKING_WITH = ['items', 'payments', 'returnLog', 'refund', 'service'];
+    public const BOOKING_WITH = ['items', 'payments', 'returnLog', 'refund', 'service', 'extensions.actionUser', 'changes.actionUser'];
     public const SALE_WITH = ['items', 'payments', 'delivery'];
 
     private static function stamp($dt): ?string
@@ -145,6 +145,39 @@ class OrderPresenter
                 // Metode pengembalian DP pilihan customer/admin (bentuk sama dengan UI.refundRead di FE)
                 'refund' => $b->refund ? self::refundMethod($b->refund) : null,
             ], fn ($v) => $v !== null) : null,
+            // Permintaan perpanjangan & ganti barang (bentuk sama dengan b.extensions / b.changes di FE).
+            // id = id server (angka) → dipakai langsung oleh aksi setujui/tolak admin.
+            'extensions' => $b->extensions->sortBy('id')->values()->map(fn ($x) => array_filter([
+                'id' => (string) $x->id,
+                'at' => self::stamp($x->created_at),
+                'from' => $x->from_date?->toDateString(),
+                'to' => $x->to_date?->toDateString(),
+                'days' => (int) $x->days,
+                'cost' => (int) $x->cost,
+                'reason' => $x->reason,
+                'status' => $x->status,
+                'source' => $x->source,
+                'by' => $x->actionUser?->name,
+                'decidedAt' => self::stamp($x->action_at),
+            ], fn ($v) => $v !== null))->all(),
+            'changes' => $b->changes->sortBy('id')->values()->map(fn ($c) => array_filter([
+                'id' => (string) $c->id,
+                'at' => self::stamp($c->created_at),
+                'lineIndex' => ($i = $b->items->search(fn ($it) => $it->product_id === ($c->status === 'disetujui' ? $c->to_product_id : $c->from_product_id))) === false ? null : $i,
+                'fromId' => $c->from_product_id,
+                'fromName' => $c->from_product_name,
+                'toId' => $c->to_product_id,
+                'toName' => $c->to_product_name,
+                'toSize' => $c->to_size,
+                'qty' => (int) $c->qty,
+                'diff' => (int) $c->price_diff,
+                'reason' => $c->reason,
+                'note' => $c->admin_note,
+                'status' => $c->status,
+                'source' => $c->source,
+                'by' => $c->actionUser?->name,
+                'decidedAt' => self::stamp($c->action_at),
+            ], fn ($v) => $v !== null))->all(),
             'ret' => $ret ? [
                 'at' => self::stamp($ret->return_date),
                 'cond' => $ret->condition,

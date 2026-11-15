@@ -52,4 +52,6 @@
   draw();
   /* Tautan langsung ke bagian tertentu (mis. #sec-restock dari Dashboard) */
   if (/^#sec-[\w-]+$/.test(location.hash)) setTimeout(() => { const el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();

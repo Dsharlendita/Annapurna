@@ -80,7 +80,7 @@
   /* Tampilkan data tersimpan dulu (cepat), lalu ambil data terbaru dari database dan gambar ulang */
   draw();
   $('#count').textContent = 'Memuat data booking dari server…';
-  Admin.syncBookings().then((ok) => {
+  Admin.syncOrders().then((ok) => {
     draw();
     if (!ok) toast('Data booking dari server gagal dimuat. Yang tampil adalah data tersimpan di perangkat ini.', 'err');
     if (param('id')) Admin.bookingModal(param('id'), draw);

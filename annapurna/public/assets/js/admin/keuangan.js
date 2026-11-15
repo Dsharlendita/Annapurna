@@ -156,5 +156,7 @@
   const syncLini = () => { $$('#lini [data-l]').forEach((b) => b.classList.toggle('active', b.dataset.l === LINE)); $('#liniNote').textContent = { all: 'Semua transaksi: sewa, penjualan, dan pemasukan/pengeluaran umum toko. Angka ini sama dengan tab Gabungan di Dashboard owner.', rent: 'Hanya transaksi sewa: DP, pelunasan, denda, refund DP, perawatan & perbaikan alat sewa. Selisihnya adalah laba kotor sewa, belum dikurangi biaya Umum (listrik, gaji, dll.).', sale: 'Hanya transaksi jual: pembayaran pesanan beli (online & kasir) dan pembelian/restock barang jual. Selisihnya adalah laba kotor penjualan, belum dikurangi biaya Umum.', umum: 'Pemasukan & pengeluaran yang dipakai bersama sewa & jual: operasional, promosi, listrik, gaji, dll. Laba bersih toko hanya terlihat di Gabungan.' }[LINE]; };
   $('#lini').addEventListener('click', (e) => { const b = e.target.closest('[data-l]'); if (!b) return; LINE = b.dataset.l; history.replaceState(null, '', LINE === 'all' ? location.pathname : '?lini=' + LINE); syncLini(); draw(); });
   syncLini();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();
 

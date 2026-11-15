@@ -69,4 +69,6 @@
   $('#next').addEventListener('click', () => { $('#from').value = D.addDays($('#from').value || T, 7); draw(); });
   $('#today').addEventListener('click', () => { $('#from').value = T; draw(); });
   draw();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();

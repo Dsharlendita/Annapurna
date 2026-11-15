@@ -36,6 +36,18 @@ class OrderController extends Controller
         return response()->json(['ok' => true, 'data' => $rows]);
     }
 
+    /** GET /api/admin/sales — semua penjualan (online & kasir) dalam bentuk objek tampilan. */
+    public function adminSales(): JsonResponse
+    {
+        $rows = \App\Models\Sale::with(OrderPresenter::SALE_WITH)
+            ->latest('id')
+            ->limit(1000)
+            ->get()
+            ->map(fn ($s) => OrderPresenter::sale($s));
+
+        return response()->json(['ok' => true, 'data' => $rows]);
+    }
+
     /** GET /api/pesanan — booking & pembelian milik customer yang sedang login. */
     public function myOrders(): JsonResponse
     {

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Annapurna\AdminController;
 use App\Http\Controllers\Annapurna\ApiController;
 use App\Http\Controllers\Annapurna\AuthController;
+use App\Http\Controllers\Annapurna\BookingRequestController;
 use App\Http\Controllers\Annapurna\BootController;
 use App\Http\Controllers\Annapurna\BookingServiceController;
 use App\Http\Controllers\Annapurna\ChatMissController;
@@ -136,6 +137,9 @@ Route::middleware('auth')->group(function () {
     // Pesanan Saya (customer): data dari database, bukan localStorage
     Route::get('/api/pesanan', [OrderController::class, 'myOrders'])->name('api.pesanan');
     Route::post('/api/pesanan/{id}/batal', [OrderController::class, 'customerCancel'])->name('api.pesanan.batal');
+    // Customer mengajukan perpanjangan / ganti barang (menunggu persetujuan admin)
+    Route::post('/api/pesanan/{id}/perpanjang', [BookingRequestController::class, 'customerExtend'])->name('api.pesanan.perpanjang');
+    Route::post('/api/pesanan/{id}/ganti', [BookingRequestController::class, 'customerChange'])->name('api.pesanan.ganti');
 
     // Perubahan dari tampilan (katalog, promo, ulasan, keuangan manual, pengaturan, notifikasi, status pelanggan)
     Route::post('/api/sync/{collection}', [SyncController::class, 'sync'])->name('api.sync');
@@ -148,6 +152,10 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
     // Daftar booking & aksi status (Verifikasi DP / Tolak bukti / Batalkan)
     Route::controller(OrderController::class)->group(function () {
         Route::get('/bookings', 'adminBookings')->name('bookings.index');
+        Route::get('/sales', 'adminSales')->name('sales.index');
+        // Perpanjangan / ganti barang yang dicatat langsung di toko (langsung disetujui)
+        Route::post('/booking/{id}/perpanjang', [BookingRequestController::class, 'storeExtend'])->name('booking.perpanjang');
+        Route::post('/booking/{id}/ganti', [BookingRequestController::class, 'storeChange'])->name('booking.ganti');
         Route::post('/booking/{id}/verifikasi', 'verifyBooking')->name('booking.verify');
         Route::post('/booking/{id}/batal', 'adminCancel')->name('booking.cancel');
     });

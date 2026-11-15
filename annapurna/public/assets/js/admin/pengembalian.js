@@ -57,5 +57,7 @@
     } catch (_) {}
   }
   syncServer();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();
 

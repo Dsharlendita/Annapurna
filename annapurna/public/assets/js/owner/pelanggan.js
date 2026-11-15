@@ -45,4 +45,6 @@
     rows: L.map((c) => [c.name, c.phone, c.email, c.rentals.length, c.sales.length, c.total, c.late, c.cancel, FL[c.meta.flag || 'normal'][0], c.meta.note || '']) }; });
   if (UI.param('q')) $('#q').value = UI.param('q');
   draw();
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();

@@ -44,5 +44,7 @@
       foot: ['Total', '', '', '', '', ok.reduce((a, s) => a + s.items.reduce((x, i) => x + i.qty, 0), 0), ok.reduce((a, s) => a + s.total, 0), '', ''] }; });
   draw();
   if (param('id')) Admin.saleModal(param('id'), draw);
+  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
+  document.addEventListener('ann:orders', () => draw());
 })();
 

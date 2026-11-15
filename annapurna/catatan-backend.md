@@ -1082,3 +1082,10 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - Pertanyaan yang Gemini tidak tahu (`tidak_tahu`) dicatat ke `chat_misses`. Konfigurasi Owner sekarang menampilkan pertanyaan belum terjawab **dari semua customer** (`GET api/owner/chat/misses`).
 - Tes: `AsistenGeminiTest` (6). Total PHP 87 lulus. `ASSET_VERSION` = `20261115.5`.
 - (C.48 lanjutan) Gemini juga menerima **promo aktif** dari database. Pertanyaan saran/izin/diskon soal trip ("tips camping saat hujan?") dicoba ke Gemini dulu; daftar alat jadi cadangan. `ASSET_VERSION` = `20261115.6`.
+
+
+## C.49 Persiapan hosting — 15 Nov 2026 (Aji)
+
+- Panel **Setel ulang data demo** (Pengaturan) hanya tampil saat `APP_ENV=local`.
+- Pencatatan pertanyaan chatbot memakai alamat relatif (aman bila website di subfolder).
+- `SEED_OWNER_PASSWORD` / `SEED_ADMIN_PASSWORD` dibaca lewat `config('app.seed_passwords')`, jadi tetap terbaca setelah `config:cache`. `ASSET_VERSION` = `20261115.7`.

@@ -48,12 +48,15 @@
           <button class="btn btn-light btn-sm" type="submit"><i class="fa-solid fa-key"></i> Ganti kata sandi</button>
         </form>
       </div>
+      {{-- Hanya saat develop: di server online data berasal dari database, bukan data contoh browser --}}
+      @if (app()->environment('local'))
       <div class="panel" id="demoPanel">
         <div class="panel-h"><h3>Data demo</h3></div>
         <p style="font-size:14px;color:var(--ink-2)">Frontend ini menyimpan data di <em>localStorage</em> browser agar semua fitur bisa dicoba tanpa server. Setel ulang untuk mengembalikan data contoh (booking, penjualan, barang, pengaturan).</p>
         <div class="notice red" style="margin:14px 0"><i class="fa-solid fa-triangle-exclamation"></i><div>Semua perubahan yang sudah dibuat akan hilang.</div></div>
         <button class="btn btn-danger" id="reset"><i class="fa-solid fa-rotate"></i> Setel ulang data demo</button>
       </div>
+      @endif
     </div>
   </section>
 @endsection

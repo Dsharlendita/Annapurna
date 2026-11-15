@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
         if (app()->environment('local', 'testing')) {
             return $demo;
         }
-        $pw = env($envKey) ?: Str::password(14, symbols: false);
+        $pw = config("app.seed_passwords.$envKey") ?: Str::password(14, symbols: false);
         $this->command?->warn("Kata sandi awal {$envKey}: {$pw}  (catat sekarang, wajib diganti saat pertama masuk)");
 
         return $pw;

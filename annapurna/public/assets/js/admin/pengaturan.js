@@ -66,10 +66,10 @@
   P.addEventListener('submit', async (e) => { e.preventDefault(); if (!validate(P, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : '') })) return;
     const r = await Api.busy(P.querySelector('[type="submit"]'), () => Api.changePassword(P.elements.old.value, P.elements.npw.value), 'Menyimpan…'); if (!r) return;
     if (!r.ok) { if (r.field === 'old') validate(P, { old: () => r.msg || 'Kata sandi lama salah.' }); else toast(r.msg, 'err'); return; } P.reset(); toast('Kata sandi diganti.'); });
-  $('#reset').addEventListener('click', async () => { if (!(await confirmBox({ title: 'Setel ulang data demo?', text: 'Semua data kembali ke contoh awal, termasuk histori sistem demo. Kamu tetap masuk sebagai owner.', ok: 'Setel ulang', danger: true }))) return; DB.reset(); toast('Data demo dipulihkan.'); setTimeout(() => location.reload(), 700); });
+  if ($('#reset')) $('#reset').addEventListener('click', async () => { if (!(await confirmBox({ title: 'Setel ulang data demo?', text: 'Semua data kembali ke contoh awal, termasuk histori sistem demo. Kamu tetap masuk sebagai owner.', ok: 'Setel ulang', danger: true }))) return; DB.reset(); toast('Data demo dipulihkan.'); setTimeout(() => location.reload(), 700); });
   if (owner) { load(); if (param('tab')) show(param('tab')); }
   else {
-    $('#tabs').hidden = true; $('#demoPanel').remove(); show('akun');
+    $('#tabs').hidden = true; if ($('#demoPanel')) $('#demoPanel').remove(); show('akun');
     $('.page-sub').textContent = 'Ubah nama, nomor HP, dan kata sandi akunmu. Pengaturan toko hanya dapat diubah oleh Owner.';
     $('#akunHead').textContent = 'Profil staff';
   }

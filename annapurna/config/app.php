@@ -4,7 +4,13 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
     
-    'asset_version' => env('ASSET_VERSION', '20261115.6'),
+    'asset_version' => env('ASSET_VERSION', '20261115.7'),
+
+    // Kata sandi awal Owner/Admin untuk db:seed di server online (lihat docs/DEPLOY.md). Lewat config supaya tetap terbaca saat config:cache.
+    'seed_passwords' => [
+        'SEED_OWNER_PASSWORD' => env('SEED_OWNER_PASSWORD'),
+        'SEED_ADMIN_PASSWORD' => env('SEED_ADMIN_PASSWORD'),
+    ],
 
     'env' => env('APP_ENV', 'production'),
 

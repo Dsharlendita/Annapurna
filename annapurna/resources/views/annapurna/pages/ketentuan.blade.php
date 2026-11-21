@@ -4,7 +4,7 @@
 @section('page', 'ketentuan')
 
 @section('content')
-<section class="page-hero ab-page-hero">
+<section class="page-hero ab-page-hero hp-ketentuan">
   <div class="wrap">
     <div class="ab-ph-text">
       <div class="crumbs ha" style="--d:.05s"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Ketentuan</span></div>

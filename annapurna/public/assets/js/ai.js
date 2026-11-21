@@ -45,7 +45,7 @@
       { id: 'hitung', keys: ['batas pengembalian', 'batas kembali', 'pengembalian', 'kembali jam', 'kapan kembali', 'hitung', 'durasi', 'lama sewa', 'per hari', 'per malam', 'permalam', 'kegiatan', 'ekspedisi', '24 jam', 'berapa hari', 'hitungan', 'paket hari'], title: 'Durasi sewa',
         a: `Ada 3 pilihan durasi:<ul>${(s.durations || []).map((d) => `<li><b>${esc(d.name)}</b>: ${esc(d.note)}. ${esc(d.example)}</li>`).join('')}</ul>Pengembalian maksimal sampai jam tutup toko pukul ${esc(String(s.returnTime).replace(':', '.'))} WIB. Lama sewa lain dihitung dengan paket: ${esc([2, 4, 6, 7, 9].map((n) => `${n} hari = ${Ann.Rules.durBlocks(n).map((x) => (x === 1 ? '1 malam' : 'paket ' + x)).join(' + ')}`).join(', '))}.` },
       { id: 'tektok', keys: ['tektok', 'paket tektok', 'tek tok'], title: 'Paket tektok',
-        a: `${DB.packages().filter((p) => p.tektok).map((p) => `${esc(p.name)} ${rupiah(p.price)}`).join(' dan ')} (harga per malam).<ul>${(s.tektokTerms || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul><a href="${url('paket?type=tektok')}">Lihat paket tektok</a>` },
+        a: `${DB.packages().filter((p) => p.type === 'tektok').map((p) => `${esc(p.name)} ${rupiah(p.price)}`).join(' dan ')} (harga per malam).<ul>${(s.tektokTerms || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul><a href="${url('paket?type=tektok')}">Lihat paket tektok</a>` },
       { id: 'cuci', keys: ['cuci', 'kotor', 'bersih', 'mencuci', 'dicuci'], title: 'Barang kotor',
         a: `Sewa bersih, kembali kotor? Biar kami yang membersihkan. Kamu cukup memakainya dengan happy tanpa harus mencuci.<br>Mau mencuci perlengkapan milikmu sendiri? Lihat <a href="${url('laundry')}">daftar harga laundry</a>.` },
       { id: 'beli', keys: ['beli', 'jual', 'membeli', 'dijual', 'belanja'], title: 'Membeli alat',
@@ -159,11 +159,7 @@
     const al = ACT_LINK[r.action];
     return { html: base || 'Maaf, jawabannya belum diisi.', wa: r.action === 'wa', chips: r.builtin ? related(r.id) : [], actions: al ? [{ label: al[0], href: url(al[1]) }] : undefined, rule: r.id };
   }
-  /* opts.noMiss: jangan catat sebagai pertanyaan belum terjawab (dipakai saat Gemini dicoba lebih dulu).
-     Jawaban bertanda soft = boleh digantikan Gemini (topik umum, sapaan, ELSE). Selain itu dihitung dari data
-     (pesanan, stok, ukuran, harga, keranjang, rencana trip) dan selalu dijawab sistem. */
-  function answer(text, opts) {
-    opts = opts || {};
+  function answer(text) {
     const q = norm(text);
     const user = DB.session();
     const SP = DB.chatSpecial();
@@ -222,17 +218,13 @@
       return { html: `Tarif sewa <b>${esc(prodSz.name)}</b>:<ul>${rows}</ul>${n ? `Untuk <b>${n} malam</b>: <b>${rupiah(Rules.tierPlan(t, n).total)}</b> (${esc(Rules.tierLabel(t, n))}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prodSz.id) }] };
     }
     const tripish = /\d+\s*(orang|org|malam|mlm|hari)/.test(q) || has(q, ['berdua', 'bertiga', 'berempat', 'rombongan', 'keluarga', 'naik gunung', 'mendaki', 'camping', 'kemah', 'tektok', 'slamet', 'prau', 'baturraden', 'rekomendasi', 'rencana', 'trip', 'butuh apa', 'sewa apa', 'perlu apa']);
-    /* Pertanyaan saran / izin / diskon tentang trip (mis. "tips camping saat hujan?", "boleh sewa rombongan 30 orang? ada diskon?")
-       bukan permintaan daftar alat → dicoba ke Gemini dulu (soft); daftar alat di bawah jadi cadangan bila Gemini tidak tersedia.
-       Cerita rencana ("camping berempat 1 malam") tetap langsung dihitung sistem. */
-    const advice = /\?\s*$/.test(String(text)) || has(q, ['tips', 'saran', 'boleh', 'diskon', 'promo', 'potongan', 'aman', 'cuaca', 'hujan', 'kenapa', 'apakah', 'bagaimana', 'gimana', 'apa saja', 'persiapan']);
     if (SP.trip && tripish && !has(q, ['batal', 'denda', 'dp', 'jam', 'alamat'])) {
       const plan = parsePlan(text);
       if (has(q, ['rencanakan trip', 'rencana trip']) && !plan.people && !plan.type) return { html: 'Siap! Ceritakan rencanamu: mau ke mana, berapa orang, dan berapa malam. Contoh: <i>"camping di Baturraden berempat 1 malam"</i>.', planner: true };
       const s = nextWeekend(); const e = D.addDays(s, Math.max(1, plan.nights == null ? 1 : plan.nights));
       const r = recommend(plan, s, e);
       const top = r.pkg && r.pkg.avail ? `Paket yang paling pas: <b>${esc(r.pkg.pk.name)}</b> (${rupiah(r.pkg.total)} untuk ${r.days} malam).` : '';
-      return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} malam sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }], soft: advice };
+      return { html: `Untuk <b>${r.type === 'hiking' ? 'pendakian' : 'camping'}</b>${r.place ? ` ke ${esc(r.place)}` : ''}, ${r.people} orang, ${r.nights ? r.nights + ' malam' : 'tanpa menginap'}, kamu butuh sekitar:<ul>${r.lines.map((l) => `<li>${l.qty}× ${esc(l.p.name)}</li>`).join('')}</ul>Perkiraan <b>${rupiah(r.custom)}</b> untuk ${r.days} malam sewa. ${top}`, planner: plan, actions: [{ label: 'Buka perencana trip', plan: text }] };
     }
     const prod = SP.produk ? matchProduct(q) : null;
     if (prod && has(q, ['harga', 'berapa', 'tarif', 'biaya', 'ada', 'tersedia', 'stok', 'sisa', 'kosong', 'ready'])) {
@@ -240,12 +232,12 @@
       return { html: `<b>${esc(prod.name)}</b>${prod.rent ? ` disewakan ${esc(UI.tierText(Rules.productTiers(prod)))}` : ''}${prod.price ? `${prod.rent ? ',' : ''} dijual ${rupiah(prod.price)}` : ''}. ${prod.rent ? `Tersedia <b>${a} unit</b> untuk besok (${D.fmtDate(t, true)}).` : ''}`, actions: [{ label: 'Lihat barang', href: url('produk?id=' + prod.id) }] };
     }
     /* Topik bawaan & aturan Owner (prioritas normal): skor kata kunci tertinggi */
-    const hit = DB.chatMatch(text, 'normal'); if (hit) return Object.assign(fromRule(hit.rule), { soft: true });
-    if (has(q, ['halo', 'hai', 'hi', 'pagi', 'siang', 'sore', 'malam', 'assalamualaikum', 'permisi', 'min'])) return { html: 'Halo! Ada yang bisa aku bantu? Kamu bisa tanya soal cara sewa, DP, pembatalan, denda, atau minta rekomendasi alat untuk trip.', chips: ['Cara sewa', 'Rencanakan trip', 'Cek pesanan'], soft: true };
-    if (has(q, ['terima kasih', 'makasih', 'thanks', 'thx', 'mantap', 'oke', 'ok', 'siap'])) return { html: 'Sama-sama! Semoga petualanganmu seru.', soft: true };
+    const hit = DB.chatMatch(text, 'normal'); if (hit) return fromRule(hit.rule);
+    if (has(q, ['halo', 'hai', 'hi', 'pagi', 'siang', 'sore', 'malam', 'assalamualaikum', 'permisi', 'min'])) return { html: 'Halo! Ada yang bisa aku bantu? Kamu bisa tanya soal cara sewa, DP, pembatalan, denda, atau minta rekomendasi alat untuk trip.', chips: ['Cara sewa', 'Rencanakan trip', 'Cek pesanan'] };
+    if (has(q, ['terima kasih', 'makasih', 'thanks', 'thx', 'mantap', 'oke', 'ok', 'siap'])) return { html: 'Sama-sama! Semoga petualanganmu seru.' };
     /* ELSE: belum ada aturan yang cocok → dicatat agar Owner bisa menjadikannya aturan baru */
-    if (!opts.noMiss) { try { DB.logChatMiss(text); } catch (e) { /* abaikan */ } }
-    return { html: 'Maaf, aku belum yakin jawabannya. Pertanyaan ini sebaiknya langsung ke admin supaya tidak salah informasi. Pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true, chips: ['Cara sewa', 'Pembayaran & DP', 'Pembatalan'], soft: true, miss: true };
+    try { DB.logChatMiss(text); } catch (e) { /* abaikan */ }
+    return { html: 'Maaf, aku belum yakin jawabannya. Pertanyaan ini sebaiknya langsung ke admin supaya tidak salah informasi. Pertanyaanmu sudah otomatis tertulis di WhatsApp.', wa: true, handoff: true, chips: ['Cara sewa', 'Pembayaran & DP', 'Pembatalan'] };
   }
   /* Cek kelengkapan keranjang untuk camping / mendaki */
   function cartCheck() {
@@ -348,17 +340,9 @@
       keranjang: Cart.all().slice(0, 20).map((c) => ({ tipe: c.type, jenis: c.kind, id: c.refId, qty: c.qty, ukuran: c.size || null, mulai: c.start || null, selesai: c.end || null })),
     };
   }
-  /* Topik aktif (bawaan + buatan Owner) sebagai teks polos untuk Gemini. Isian {jam_buka} dll. sudah terisi data toko. */
-  function knowledgeText() {
-    try {
-      return DB.chatRules().filter((r) => r.active !== false).slice(0, 40)
-        .map((r) => ({ topik: String(r.title || '').slice(0, 120), jawaban: plainOf(fromRule(r).html).slice(0, 1500) }))
-        .filter((k) => k.topik && k.jawaban);
-    } catch (e) { return []; }
-  }
   async function serverAnswer(text, history) {
     if (!window.Api) return null;
-    const r = await Api.post('api/chat', { pesan: String(text).slice(0, 500), riwayat: history, konteks: aiContext(), pengetahuan: knowledgeText() }, { timeout: AI_TIMEOUT, redirectOn401: false });
+    const r = await Api.post('api/chat', { pesan: String(text).slice(0, 500), riwayat: history, konteks: aiContext() }, { timeout: AI_TIMEOUT, redirectOn401: false });
     if (useFallback(r)) return null;
     if (!r.ok) return { html: esc(r.msg || 'Maaf, asisten belum bisa menjawab pertanyaan ini.'), wa: true, src: 'gemini' };
     const d = r.data || {};
@@ -475,12 +459,9 @@
       const history = log.slice(-8).map((m) => ({ peran: m.who === 'me' ? 'user' : 'model', teks: plainOf(m.html) }));
       log.push({ who: 'me', html: esc(text) }); bubble('me', esc(text)); setChips([]); input.value = ''; input.disabled = true;
       const typing = bubble('bot', '<span class="ai-dots"><i></i><i></i><i></i></span>');
-      /* Pertanyaan yang butuh data pasti (pesanan, stok, ukuran, harga, keranjang, rencana trip) dijawab sistem.
-         Sisanya ke Gemini lewat server; bila Gemini tidak tersedia → jawaban berbasis aturan (cadangan). */
-      const qx = map[text] || text;
-      const local = answer(qx, { noMiss: true });
-      let r = local.soft ? await serverAnswer(qx, history) : local;
-      if (!r) { await wait(250 + Math.random() * 250); r = local; if (local.miss) { try { DB.logChatMiss(qx); } catch (e) { /* abaikan */ } } }
+      /* Gemini lewat server dulu; bila tidak tersedia → jawaban berbasis aturan (cadangan) */
+      let r = await serverAnswer(map[text] || text, history);
+      if (!r) { await wait(350 + Math.random() * 350); r = answer(map[text] || text); }
       typing.remove(); input.disabled = false; input.focus();
       const extra = actionsHtml(r, text);
       const el = bubble('bot', r.html, extra); log.push({ who: 'bot', html: r.html, extra }); save();

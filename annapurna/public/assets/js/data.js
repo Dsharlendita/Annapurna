@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = 'ann-v20'; /* v20: transaksi, histori, email & notifikasi contoh tidak dibuat lagi (semua dari server). v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
+  const VERSION = 'ann-v19'; /* v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
   const KEY = (k) => `annapurna:${k}`;
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -936,7 +936,17 @@
     p.units = p.units || [];
     let n = p.units.reduce((m, u) => Math.max(m, parseInt(u.code.split('-').pop(), 10) || 0), 0);
     const live = (size) => p.units.filter((u) => u.status !== 'terjual' && u.status !== 'nonaktif' && (size == null || u.size === size)).length;
-    if (hasVariant(p)) p.variant.options.forEach((o) => { while (live(o.name) < o.stock) p.units.push(newUnit(p, o.name, ++n)); });
+    if (hasVariant(p)) {
+      /* Unit yang belum punya kombinasi (mis. dibuat sebelum barang punya atribut) dipakai dulu.
+         Hanya membuat unit baru bila memang kurang, supaya tidak dobel. */
+      const names = new Set(p.variant.options.map((o) => o.name));
+      const pool = p.units.filter((u) => u.status !== 'terjual' && u.status !== 'nonaktif' && !names.has(u.size));
+      p.variant.options.forEach((o) => {
+        let have = live(o.name);
+        while (have < o.stock && pool.length) { const u = pool.shift(); u.size = o.name; have++; }
+        while (have < o.stock) { p.units.push(newUnit(p, o.name, ++n)); have++; }
+      });
+    }
     else while (live(null) < p.stock) p.units.push(newUnit(p, null, ++n));
     if (hasVariant(p)) { p.variant.options.forEach((o) => { o.stock = live(o.name); }); p.stock = p.variant.options.reduce((a, o) => a + o.stock, 0); }
     else p.stock = live(null);
@@ -1001,7 +1011,8 @@
      - Koleksi yang belum pernah menerima data server (mis. data demo) tidak dikirim.
      ========================================================================== */
   const SYNC = {
-    products: { staff: true, label: 'data barang' },   /* unit fisik ikut terkirim */
+    products: { staff: true, label: 'data barang', strip: ['units'] },
+    packages: { staff: true, label: 'paket sewa' },
     categories: { staff: true, label: 'kategori' },
     promos: { staff: true, label: 'promo', strip: ['used'] },
     reviews: { staff: false, label: 'ulasan' },
@@ -1010,10 +1021,7 @@
     customerMeta: { staff: true, label: 'status pelanggan', map: true },
     settings: { staff: true, label: 'pengaturan', map: true },
     notifications: { staff: false, label: 'notifikasi' },
-    audit: { staff: true, label: 'histori aktivitas' },
   };
-  let serverAuditCheck = null; /* hasil pemeriksaan rantai histori di server (halaman Histori) */
-  let srvDrive = null, srvRekapDue = null; /* status Google Drive & rekap yang jatuh tempo (dari BootController::userData) */
   const syncBase = {}; /* koleksi → Map(id → sidik data yang sama dengan server) */
   /* Stok barang dikirim sebagai selisih (_stockFrom → stock), bukan angka mutlak, supaya penjualan online
      yang dikurangi server tidak tertimpa angka lama dari perangkat staff. */
@@ -1107,26 +1115,24 @@
     const PR = JSON.parse(JSON.stringify(PRODUCTS));
     write('packages', PACKAGES);
     write('settings', SETTINGS);
-    /* Transaksi, histori, email & notifikasi contoh TIDAK dibuat lagi: semuanya datang dari server (MySQL).
-       Fungsi seedBookings()/seedSales()/… tetap ada untuk bahan uji, tapi tidak dipakai. */
-    const B = [], S = [], E = [];
+    const B = seedBookings(), S = seedSales(), E = seedExpenses().map((e) => Object.assign({ status: 'aktif' }, e));
     seedUnits(PR, B);
     PR.find((p) => p.id === 'gas').minStock = 10; PR.forEach((p) => { if (p.price && p.minStock == null) p.minStock = 2; });
     write('products', PR);
     write('bookings', B);
     write('sales', S);
-    write('laundry', []);
+    write('laundry', seedLaundry());
     localStorage.removeItem(KEY('restocks')); /* dibuat ulang dari catatan pembelian barang contoh (lihat migrateRestock) */
     write('promos', seedPromos());
-    write('customerMeta', {});
+    write('customerMeta', { 'fajar@mail.com': { flag: 'normal', note: 'Pernah terlambat 1 hari, tapi kooperatif.' }, 'laras@mail.com': { flag: 'jaminan', note: 'Sering batal mendadak. Minta jaminan KTP + KTM.' } });
     const users = USERS.map((u) => Object.assign({}, u));
     write('expenses', E);
-    write('incomes', []);
-    write('audit', []);
+    write('incomes', seedIncomes());
+    write('audit', seedAudit(B, S, E, users));
     write('users', users);
-    write('outbox', []);
+    write('outbox', seedOutbox(users));
     write('archives', []);
-    write('notifications', []);
+    write('notifications', seedNotifications());
     write('reviews', seedReviews());
     write('cart', []);
     write('version', VERSION);
@@ -1213,12 +1219,7 @@
     if (!o.no) delete o.no;
     SRV_NULLABLE.forEach((k) => { if (o[k] == null) o[k] = null; });
     if (kind === 'bookings') {
-      /* Barang lokal (berisi paket & tarif) dipakai selama isinya sama dengan server; bila berbeda
-         (mis. barang diganti / ditambah di perangkat lain) pakai barang dari server */
-      const ids = (list) => list.slice().sort().join('|');
-      const locIds = loc && loc.items ? ids(loc.items.flatMap((it) => (it.components && it.components.length ? it.components.map((c) => c.productId) : [it.refId]))) : '';
-      const sameItems = loc && loc.items && loc.items.length && locIds === ids((s.items || []).map((it) => it.refId));
-      o.items = sameItems ? loc.items : (s.items || []).map((it) => {
+      o.items = loc && loc.items && loc.items.length ? loc.items : (s.items || []).map((it) => {
         const p = DB.product(it.refId);
         return Object.assign({}, it, { tiers: p ? productTiers(p) : { d1: it.pricePerDay || 0 }, components: [it.size ? { productId: it.refId, qty: 1, size: it.size } : { productId: it.refId, qty: 1 }] });
       });
@@ -1330,11 +1331,11 @@
       const L = read('chatMiss', []); const x = L.find((m) => m.key === k);
       if (x) { x.count += 1; x.last = nowStamp(); } else L.unshift({ key: k, text: String(text).slice(0, 200), count: 1, first: nowStamp(), last: nowStamp() });
       write('chatMiss', L.slice(0, 200));
-      try { fetch((document.body.dataset.base || '/') + 'api/chat/miss', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ question: text }) }).catch(() => {}); } catch (e) {}
+      try { fetch('/api/chat/miss', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ question: text }) }).catch(() => {}); } catch (e) {}
     },
     dismissChatMiss(key) {
       write('chatMiss', read('chatMiss', []).filter((m) => m.key !== key));
-      try { fetch((document.body.dataset.base || '/') + 'api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }).catch(() => {}); } catch (e) {}
+      try { fetch('/api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }).catch(() => {}); } catch (e) {}
     },
     lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per malam keterlambatan` : st.lateFeePercent === 100 ? 'sebesar harga sewa per malam untuk setiap barang, setiap malam keterlambatan' : `${st.lateFeePercent}% harga sewa per malam untuk setiap barang, setiap malam keterlambatan`; },
     /* Simpan satu bagian konfigurasi + catat di histori */
@@ -1343,8 +1344,9 @@
       DB.audit({ type: 'konfigurasi', action, changes });
       /* Terkirim ke server otomatis lewat sinkronisasi pengaturan (write → api/sync/settings) */
     },
-    packages: () => read('packages', PACKAGES),
-    pkg: (id) => read('packages', PACKAGES).find((p) => p.id === id),
+    /* Flag tektok diturunkan dari type, supaya paket dari server/admin (yang tidak membawa flag) tetap per malam */
+    packages: () => read('packages', PACKAGES).map((p) => ({ ...p, tektok: p.type === 'tektok' || p.tektok === true })),
+    pkg: (id) => { const p = read('packages', PACKAGES).find((x) => x.id === id); return p ? { ...p, tektok: p.type === 'tektok' || p.tektok === true } : p; },
     bookings: () => (ensureNos(), read('bookings', [])),
     booking: (id) => (ensureNos(), read('bookings', []).find((b) => b.id === id || b.no === id)),
     /* ---------- Unit ---------- */
@@ -1539,8 +1541,7 @@
     /* ---------- Laundry (diinput staff di kasir; customer website hanya menghubungi admin via WhatsApp) ---------- */
     laundry: () => read('laundry', []),
     laundryOrder: (id) => read('laundry', []).find((x) => x.id === id || x.no === id),
-    /* replaceId: id sementara di browser yang diganti kode dari server (DRY-1004 → DRY-20261115-0004), supaya tidak tercatat dua kali */
-    saveLaundry(o, replaceId) { let all = read('laundry', []); if (replaceId && replaceId !== o.id) all = all.filter((x) => x.id !== replaceId); const i = all.findIndex((x) => x.id === o.id); if (i >= 0) all[i] = o; else all.unshift(o); write('laundry', all); },
+    saveLaundry(o) { const all = read('laundry', []); const i = all.findIndex((x) => x.id === o.id); if (i >= 0) all[i] = o; else all.unshift(o); write('laundry', all); },
     /* Nomor nota laundry: DRY / nomor urut / bulan Romawi / tahun, urut dimulai lagi dari 001 setiap bulan */
     nextLaundryNo(at) {
       const d = new Date(at || Date.now()); const mon = ROMAN[d.getMonth()], y = d.getFullYear();
@@ -1614,10 +1615,16 @@
        Satu kali simpan: stok bertambah, harga beli diperbarui, dan pengeluaran "Pembelian Barang" (lini Penjualan)
        tercatat otomatis di Keuangan. Belanja stok = uang keluar (kas), BUKAN pengurang laba. */
     restocks: () => read('restocks', []),
-    restock({ productId, size, qty, cost, date, supplier, note }) {
+    restock({ productId, size, qty, cost, date, supplier, note, newCombo }) {
       const all = read('products', PRODUCTS); const p = all.find((x) => x.id === productId); if (!p) return { ok: false, msg: 'Barang tidak ditemukan.' };
       qty = Math.max(0, parseInt(qty, 10) || 0); cost = Math.max(0, +cost || 0);
       if (!qty) return { ok: false, msg: 'Isi jumlah barang masuk.' };
+      if (hasVariant(p) && newCombo && newCombo.v1) {
+        const v1 = String(newCombo.v1).trim(), v2 = String(newCombo.v2 || '').trim();
+        if (isVar2(p) && !v2) return { ok: false, msg: `Isi ${String(p.variant.label2).toLowerCase()} untuk kombinasi baru.` };
+        size = isVar2(p) ? `${v1}${VSEP}${v2}` : v1;
+        if (!p.variant.options.some((o) => o.name === size)) p.variant.options.push(Object.assign({ name: size, stock: 0 }, isVar2(p) ? { v1, v2 } : {}));
+      }
       if (hasVariant(p) && !size) return { ok: false, msg: 'Pilih ukuran yang di-restock.' };
       const me = DB.session() || { name: 'Sistem' }; const at = nowStamp(); const d = date || today();
       const before = DB.sizeStock(p, size); const oldCost = p.cost;
@@ -1674,6 +1681,59 @@
       DB.audit({ type: 'stok', action: `Restock barang sewa ${p.name}${label ? ' · ' + label : ''}: +${qty} unit${cost ? ' @ ' + rupiah(cost) : ''} (${codes.join(', ')})`, ref: productId,
         changes: [{ field: 'Unit', from: String(before), to: String(before + qty) }, ...(cost ? [{ field: 'Harga beli / unit', from: '', to: rupiah(cost) }, { field: 'Belanja barang sewa', from: '', to: rupiah(qty * cost) }] : [])] });
       return { ok: true, restock: r };
+    },
+    /* Restock beberapa kombinasi sekaligus (satu nota supplier → SATU pengeluaran "Pembelian Barang").
+       Tiap baris menambah stok kombinasinya, membuat unit fisik (barang sewa), dan dicatat sebagai riwayat sendiri
+       dengan kode pengeluaran yang sama. lines: [{ size | newCombo:{v1,v2}, qty }], cost = harga beli per unit. */
+    restockBatch({ productId, kind, lines, cost, date, supplier, note }) {
+      const rent = kind === 'rent';
+      const all = read('products', PRODUCTS); const p = all.find((x) => x.id === productId); if (!p) return { ok: false, msg: 'Barang tidak ditemukan.' };
+      if (rent && !tracked(p)) return { ok: false, msg: 'Barang ini bukan barang sewa.' };
+      cost = Math.max(0, +cost || 0);
+      const L = (lines || []).filter((x) => (parseInt(x.qty, 10) || 0) > 0);
+      if (!L.length) return { ok: false, msg: 'Isi jumlah minimal satu baris.' };
+      const total = L.reduce((a, x) => a + parseInt(x.qty, 10), 0);
+      if (rent && total > 200) return { ok: false, msg: 'Maksimal 200 unit sekali restock.' };
+      const resolved = [];
+      for (const ln of L) {
+        let size = ln.size || '';
+        if (hasVariant(p) && ln.newCombo && ln.newCombo.v1) {
+          const v1 = String(ln.newCombo.v1).trim(), v2 = String(ln.newCombo.v2 || '').trim();
+          if (isVar2(p) && !v2) return { ok: false, msg: `Isi ${String(p.variant.label2).toLowerCase()} untuk kombinasi baru.` };
+          size = isVar2(p) ? `${v1}${VSEP}${v2}` : v1;
+          if (!p.variant.options.some((o) => o.name === size)) p.variant.options.push(Object.assign({ name: size, stock: 0 }, isVar2(p) ? { v1, v2 } : {}));
+        }
+        if (hasVariant(p) && !size) return { ok: false, msg: `Pilih ${variantLabel(p).toLowerCase()} untuk setiap baris.` };
+        if (hasVariant(p) && !p.variant.options.some((o) => o.name === size)) return { ok: false, msg: `Pilihan ${size} tidak ada di barang ini.` };
+        if (resolved.some((r) => r.size === size)) return { ok: false, msg: `${size || 'Pilihan yang sama'} dipilih dua kali. Gabungkan jumlahnya dalam satu baris.` };
+        resolved.push({ size, qty: parseInt(ln.qty, 10) });
+      }
+      const me = DB.session() || { name: 'Sistem' }; const at = nowStamp(); const d = date || today();
+      const label = (s) => (s && hasVariant(p) ? (isVar2(p) ? vParts(p, s).filter(Boolean).join(' / ') : s) : '');
+      const before = Object.fromEntries(resolved.map((r) => [r.size, hasVariant(p) ? DB.sizeStock(p, r.size) : p.stock]));
+      const had = new Set((p.units || []).map((u) => u.code));
+      resolved.forEach((r) => { if (hasVariant(p)) { const o = p.variant.options.find((x) => x.name === r.size); o.stock = (+o.stock || 0) + r.qty; } });
+      if (hasVariant(p)) p.stock = p.variant.options.reduce((a, x) => a + (+x.stock || 0), 0); else p.stock = (+p.stock || 0) + total;
+      if (rent) syncUnits(p);
+      const newUnits = rent ? (p.units || []).filter((u) => !had.has(u.code)) : [];
+      newUnits.forEach((u) => { u.log = u.log || []; u.log.push({ at, text: `Unit baru dari restock${supplier ? ' (' + supplier.trim() + ')' : ''}${cost ? ' · harga beli ' + rupiah(cost) : ''}`, by: me.name }); if (cost) u.cost = cost; });
+      if (cost) p.cost = cost;
+      write('products', all);
+      const eid = total * cost > 0 ? DB.nextId('EXP', DB.expenses()) : null;
+      const R = read('restocks', []); const recs = [];
+      resolved.forEach((r) => {
+        const id = DB.nextId('RST', [...R, ...recs]);
+        const codes = rent ? newUnits.filter((u) => !hasVariant(p) || u.size === r.size).map((u) => u.code) : undefined;
+        recs.push(Object.assign({ id, productId, name: p.name, size: r.size || '', qty: r.qty, cost, date: d, supplier: (supplier || '').trim(), note: (note || '').trim(), by: me.name, at, expenseId: eid }, rent ? { kind: 'rent', units: codes } : {}));
+      });
+      if (eid) {
+        const sizes = resolved.map((r) => (r.size ? `${label(r.size)} ×${r.qty}` : `×${r.qty}`)).join(', ');
+        DB.saveFinance('out', { id: eid, date: d, category: 'Pembelian Barang', desc: `${rent ? 'Restock barang sewa' : 'Restock'} ${p.name} · ${sizes} (${total} × ${rupiah(cost)})${supplier ? ' · ' + supplier.trim() : ''}`, amount: total * cost, line: rent ? 'rent' : 'sale', ref: recs[0].id });
+      }
+      write('restocks', recs.concat(R));
+      DB.audit({ type: 'stok', action: `Restock ${rent ? 'barang sewa ' : ''}${p.name}: ${resolved.map((r) => `${label(r.size) || 'stok'} +${r.qty}`).join(', ')}${cost ? ' @ ' + rupiah(cost) : ''}`, ref: productId,
+        changes: resolved.map((r) => ({ field: `Stok ${label(r.size)}`.trim(), from: String(before[r.size] || 0), to: String((before[r.size] || 0) + r.qty) })) });
+      return { ok: true, restocks: recs, total, amount: total * cost, units: newUnits.map((u) => u.code), expenseId: eid };
     },
     /* Pembelian stok yang SUDAH masuk ke stok lewat form barang / stok awal (tanpa mengubah stok lagi):
        catat riwayat restock + pengeluaran "Pembelian Barang" di lini yang sesuai (sewa → Rental, jual → Penjualan). */
@@ -1785,7 +1845,24 @@
       return { status: 'created', user: r.user };
     },
     /* Masuk dengan kode verifikasi (OTP). Di frontend kode ditampilkan langsung; di backend dikirim via WhatsApp/email. */
-    /* Kode verifikasi login / lupa kata sandi sekarang dibuat, dikirim (email) & dicek server: lihat Api.code di api.js */
+    sendLoginCode(identifier) {
+      const users = read('users', USERS); const id = String(identifier || '').trim().toLowerCase(); const ph = DB.normPhone(id);
+      const u = users.find((x) => x.email.toLowerCase() === id || (ph.length >= 9 && DB.normPhone(x.phone) === ph));
+      if (!u) return { ok: false, msg: 'Email atau nomor WhatsApp belum terdaftar.' };
+      if (isStaff(u)) return { ok: false, msg: 'Akun staff: minta Owner mengatur ulang kata sandi lewat Manajemen Staff.' };
+      if (u.status === 'nonaktif') return { ok: false, msg: 'Akun ini sedang dinonaktifkan.' };
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      write('loginCode', { uid: u.id, code, exp: Date.now() + 5 * 60000 });
+      const dest = /@/.test(id) ? u.email.replace(/^(.{2}).*(@.*)$/, '$1•••$2') : 'WhatsApp ••••' + String(u.phone).slice(-4);
+      return { ok: true, code, dest, name: u.name };
+    },
+    verifyLoginCode(code) {
+      const c = read('loginCode', null); if (!c || Date.now() > c.exp) return { ok: false, msg: 'Kode sudah kedaluwarsa. Kirim ulang kode.' };
+      if (String(code).trim() !== c.code) return { ok: false, msg: 'Kode tidak cocok.' };
+      const u = read('users', USERS).find((x) => x.id === c.uid); localStorage.removeItem(KEY('loginCode'));
+      const sess = { id: u.id, name: u.name, email: u.email, role: u.role, phone: u.phone, address: u.address, needsPassword: !!u.needsPassword, loginAt: nowStamp(), seen: {} };
+      write('session', sess); return { ok: true, user: sess };
+    },
     setOwnPassword(pw) {
       const s = DB.session(); const users = read('users', USERS); const u = users.find((x) => x.id === s.id); if (!u) return false;
       Object.assign(u, { password: pwHash(pw), needsPassword: false }); write('users', users); write('session', Object.assign(s, { needsPassword: false })); return true;
@@ -1840,7 +1917,7 @@
       else Object.assign(u, { name: su.name || u.name, role: su.role || u.role, status: su.status || u.status, phone: su.phone || u.phone, address: su.address || u.address });
       write('users', users);
       const prev = DB.session(); const same = prev && String(prev.email).toLowerCase() === email;
-      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw, hasPassword: su.hasPassword !== false,
+      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw,
         loginAt: (same && prev.loginAt) || su.loginAt || nowStamp(), seen: (same && prev.seen) || {} };
       write('session', s);
       return s;
@@ -1915,8 +1992,6 @@
       return entry;
     },
     verifyAudit() {
-      /* Histori dari server: keutuhan rantai diperiksa server (ActivityLog::firstBrokenId) */
-      if (serverAuditCheck) return serverAuditCheck;
       const list = read('audit', []); let prev = 'GENESIS';
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
@@ -1926,12 +2001,7 @@
       return { ok: true, count: list.length };
     },
 
-    /* ---------- Google Drive (status dari server) ---------- */
-    driveInfo: () => srvDrive,         /* { enabled, connected, email, rootUrl, mailOn } — hanya Owner; null = belum dimuat */
-    rekapDue: () => srvRekapDue,       /* '2026-10' bila rekap otomatis bulan itu sudah jatuh tempo, atau null */
-    setRekapDone(period) { if (srvRekapDue === period) srvRekapDue = null; },
-
-    /* ---------- Email keluar & arsip rekap (arsip dari server; snap/purged tetap per perangkat) ---------- */
+    /* ---------- Email keluar & arsip Google Drive (simulasi frontend) ---------- */
     outbox: () => read('outbox', []).slice().sort((a, b) => b.at.localeCompare(a.at)),
     sendMail(m) {
       const all = read('outbox', []);
@@ -1941,12 +2011,6 @@
     archives: () => read('archives', []).slice().sort((a, b) => b.period.localeCompare(a.period)),
     archive: (period) => read('archives', []).find((a) => a.period === period),
     saveArchive(a) { const all = read('archives', []); const i = all.findIndex((x) => x.period === a.period); if (i >= 0) all[i] = a; else all.push(a); write('archives', all); },
-    /* Arsip dari server = yang benar-benar ada di Google Drive. Isi laporan (snap), status pembersihan (purged)
-       & id email lokal milik perangkat ini dipertahankan. Arsip lama hasil simulasi (tanpa server) dibuang. */
-    mergeArchives(list) {
-      const local = Object.fromEntries(read('archives', []).map((a) => [a.period, a]));
-      write('archives', list.map((s) => { const o = local[s.period] || {}; const keep = {}; ['snap', 'purged', 'mailId'].forEach((k) => { if (o[k] != null) keep[k] = o[k]; }); return Object.assign({}, s, keep); }));
-    },
 
     notifications(email) { return read('notifications', []).filter((n) => n.email === email).sort((a, b) => b.at.localeCompare(a.at)); },
     /* Notifikasi yang sama (judul + tautan) yang belum dibaca digabung jadi satu, bukan ditumpuk.
@@ -1975,16 +2039,10 @@
         if (snap.settings && Object.keys(snap.settings).length) write('settings', Object.assign({}, read('settings', SETTINGS), snap.settings));
         if (snap.categories) write('categories', snap.categories);
         if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; }); }
-        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications', 'audit'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
+        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
         if (snap.customerMeta) write('customerMeta', Array.isArray(snap.customerMeta) ? {} : snap.customerMeta);
       } finally { syncApplying = false; }
       Object.keys(SYNC).forEach((k) => { if (snap[k] && k !== 'settings') syncSnapshot(k, read(k, SYNC[k].map ? {} : [])); });
-      /* Histori: catatan yang sudah ada di perangkat ini dianggap lama; hanya catatan baru yang dikirim */
-      if (snap.auditTrack && !syncBase.audit) syncSnapshot('audit', read('audit', []));
-      if (snap.auditCheck) serverAuditCheck = snap.auditCheck;
-      if ('rekapDue' in snap) srvRekapDue = snap.rekapDue || null;
-      if (snap.drive) srvDrive = snap.drive;
-      if (Array.isArray(snap.archives)) DB.mergeArchives(snap.archives);
       if (snap.settings) syncSnapshot('settings', Object.assign({}, SETTINGS, read('settings', SETTINGS)));
     },
     /* Kirim perubahan yang masih menunggu sekarang juga (dipakai tes / sebelum pindah halaman) */
@@ -2170,7 +2228,7 @@
       dp_paid: { label: 'DP Lunas', tone: 'green' },
       lunas: { label: 'Lunas', tone: 'green' },
       refunded: { label: 'DP Dikembalikan', tone: 'gray' },
-      forfeited: { label: 'DP Hangus', tone: 'red' },
+      forfeited: { label: 'DP Tidak Dikembalikan', tone: 'red' },
       refund_pending: { label: 'Menunggu Refund', tone: 'amber' },
       verifying: { label: 'Menunggu Verifikasi', tone: 'blue' },
       paid: { label: 'Lunas', tone: 'green' },
@@ -2329,12 +2387,9 @@
     const B = read('bookings', []), S = read('sales', []);
     const bDone = (b) => (b.status === 'dibatalkan' || (b.status === 'selesai' && Rules.paidTotal(b) >= (b.total || 0))) && old((b.ret && b.ret.at) || (b.cancel && b.cancel.at) || b.end || b.createdAt);
     const sDone = (s) => (s.status === 'dibatalkan' || (s.status === 'selesai' && s.paymentStatus === 'paid')) && old(s.createdAt);
-    /* Data dari server (booking/penjualan bertanda _srv, pemasukan & pengeluaran) TIDAK dihapus:
-       server menyimpannya permanen untuk pembukuan, dan bila dihapus di browser akan termuat lagi.
-       Yang dibersihkan hanya sisa data lama yang memang cuma ada di browser ini. */
-    const rmB = B.filter((b) => bDone(b) && !b._srv), rmS = S.filter((s) => sDone(s) && !s._srv);
+    const rmB = B.filter(bDone), rmS = S.filter(sDone);
     const A = read('audit', []), N = read('notifications', []), O = read('outbox', []), E = read('expenses', []), I = read('incomes', []);
-    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at) && n.read), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = [], rmI = [];
+    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at)), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = E.filter((e) => old(e.date)), rmI = I.filter((e) => old(e.date));
     const photos = [...rmB, ...rmS].filter((x) => x.proof || (x.out && x.out.photo) || (x.ret && x.ret.photo)).length;
     const counts = { bookings: rmB.length, sales: rmS.length, logs: rmA.length, notifications: rmN.length, emails: rmO.length, finance: rmE.length + rmI.length, photos };
     const total = counts.bookings + counts.sales + counts.logs + counts.notifications + counts.emails + counts.finance;
@@ -2359,10 +2414,9 @@
   try { DB.expireUnpaid(); } catch (e) { /* abaikan */ }
   /* Tanggal sewa lama yang tersimpan permanen di localStorage dihapus (sekarang per sesi) */
   try { localStorage.removeItem(KEY('trip')); } catch (e) { /* abaikan */ }
-  try { localStorage.removeItem(KEY('loginCode')); } catch (e) { /* kode verifikasi lama dari versi sebelumnya */ }
   /* Revisi layanan: kategori pemasukan laundry, bongkar pasang & ongkir ditambahkan ke pengaturan yang sudah tersimpan */
   /* Data contoh laundry untuk penyimpanan lama (sebelum fitur laundry ada) */
-  if (read('laundry', null) === null) write('laundry', []);
+  if (read('laundry', null) === null) write('laundry', seedLaundry());
   (function migrateServiceCats() {
     const st = read('settings', null); if (!st || st.svcV1) return;
     const fc = st.financeCats || JSON.parse(JSON.stringify(SETTINGS.financeCats));

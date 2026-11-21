@@ -24,14 +24,14 @@
         <div class="svc-foot"><span class="svc-note"><i class="${o.noteIc}"></i> ${o.note}</span><span class="svc-acts">${o.acts}</span></div>
       </article>`;
     box.innerHTML = card({
-      tag: 'Laundry', icon: 'fa-jug-detergent', img: 'assets/img/categories/sleeping-bag.jpg',
+      tag: 'Laundry', icon: 'fa-jug-detergent', img: 'assets/img/svc-laundry.jpg',
       title: 'Laundry perlengkapan outdoor', sub: `Mulai <b>${rupiah(Math.min(...L.map(min)))}</b> per barang`,
       body: `<ul class="svc-list">${L.map((c) => `<li><span><i class="fa-solid ${esc(c.icon || 'fa-circle')}" aria-hidden="true"></i>${esc(c.name)}</span><b>${rupiah(min(c))}</b></li>`).join('')}</ul>
         <ul class="svc-chips"><li><i class="fa-regular fa-clock"></i> Selesai ±${Ann.Laundry.days()} hari</li><li><i class="fa-solid fa-receipt"></i> Struk &amp; nota resmi</li><li><i class="fa-solid fa-wallet"></i> Bayar di toko</li></ul>`,
       noteIc: 'fa-solid fa-store', note: `Antar &amp; ambil di toko · ${esc(st.hours || '')}`,
       acts: `<a class="svc-link" href="${url('laundry')}">Daftar harga <i class="fa-solid fa-arrow-right"></i></a>`,
     }) + card({
-      tag: 'Jasa Tenda', icon: 'fa-tents', img: 'assets/img/categories/tenda.jpg',
+      tag: 'Jasa Tenda', icon: 'fa-tents', img: 'assets/img/svc-tenda.jpg',
       title: 'Bongkar &amp; pasang tenda', sub: `Mulai <b>${rupiah(Math.min(...fees))}</b> per tenda`,
       body: `<ul class="svc-list rows">${Svc.TENT_MODES.map((k) => { const x = Svc.spec(k); return `<li><span><b>${x.short}</b><small>${x.desc}</small></span><b>${rupiah(Svc.fee(k))}</b></li>`; }).join('')}</ul>`,
       noteIc: 'fa-brands fa-whatsapp', note: 'Di luar ongkir · dikonfirmasi admin setelah DP',

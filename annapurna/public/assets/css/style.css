@@ -2042,6 +2042,9 @@ label.var-row { cursor: pointer; }
 .pk-pr s, .pk-pr em { display: block; font-size: 11.5px; color: var(--muted); font-style: normal; margin-top: 1px; white-space: nowrap; }
 .pk-pr.main { background: var(--g50, #f1f7f2); border-color: var(--g100); }
 .pk-pr.main strong { font-size: 17px; }
+/* Tektok: hanya satu harga (per malam) → kotak penuh lebar, catatan boleh turun baris */
+.pk-prices.solo { grid-template-columns: minmax(0, 1fr); }
+.pk-prices.solo .pk-pr em { white-space: normal; line-height: 1.4; }
 .pk .pk-items { grid-column: auto; margin: 12px 16px 0; flex-wrap: wrap; overflow: visible; }
 .pk .pk-items span { max-width: 100%; }
 .pk-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: auto; padding: 12px 16px 16px; }
@@ -2260,6 +2263,13 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 .pk-opt input:checked + span { border-color: var(--g600); background: var(--g50); box-shadow: 0 0 0 2px rgba(47, 107, 67, .15); }
 .pk-opt input:focus-visible + span { outline: 2px solid var(--g600); outline-offset: 2px; }
 @media (max-width: 640px) { .pk-opts { grid-template-columns: 1fr; } }
+/* Hasil pencarian barang di paket (dropdown) — terpisah dari kartu pilihan radio */
+.pk-hit { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.pk-hit:hover, .pk-hit:focus-visible { background: var(--g50); outline: none; }
+.pk-hit img { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+.pk-hit > span { flex: 1; min-width: 0; display: block; }
+.pk-hit b { display: block; font-size: 13.5px; line-height: 1.3; font-weight: 600; overflow-wrap: anywhere; }
+.pk-hit small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.3; color: var(--muted); }
 .stat-mini { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .stat-mini span { padding: 8px 12px; border-radius: 10px; background: var(--g50); font-size: 13px; color: var(--ink-2); }
 .stat-mini b { color: var(--g800); }
@@ -2578,7 +2588,6 @@ label .opt { font-weight: 500; color: var(--muted); font-size: .92em; }
 /* Halaman Sewa / Beli: tautan pindah halaman */
 .seg.mode-links a { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
 .seg.mode-links a.active { background: var(--g700); color: #fff; }
-.shop-hero::before { background: linear-gradient(90deg, rgba(60, 40, 8, .82), rgba(60, 40, 8, .35)) !important; }
 /* Menu bawah HP: 6 item */
 @media (max-width: 768px) {
   .bnav { grid-template-columns: repeat(6, 1fr) !important; }
@@ -4300,7 +4309,11 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   .prod-card .pc-stars { display: flex; align-items: center; gap: 4px; margin: 0; }
   .prod-card .pc-stars .stars { font-size: 10.5px; }
   .prod-card .pc-rv { font-size: 11px; }
-  .prod-card .pc-stars.none { display: none; }
+  /* Baris rating tetap ada (tanpa ulasan: bintang abu + "Belum ada ulasan") agar tinggi kartu sama */
+  .prod-card .pc-stars { min-height: 18px; line-height: 1.3; flex-wrap: nowrap; min-width: 0; }
+  .prod-card .pc-stars .stars { flex: none; }
+  .prod-card .pc-rv { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prod-card .pc-stars.none .stars { color: #d9d2c3; }
   .prod-card .pc-price { margin: 6px 0 0; }
   .prod-card .pc-price strong { font-size: 15px; }
   .prod-card .pc-price small { font-size: 11.5px; }
@@ -4621,7 +4634,87 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   .nav-links a { padding: 10px 12px; }
   .nav-links a.active::after { left: 12px; right: 12px; }
 }
-/* Tombol "Masuk / Daftar dengan Google" */
-.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink); font-weight: 600; }
-.btn-google svg { flex: none; }
-.btn-google:hover { border-color: var(--g600); }
+
+/* Data Barang: aksi per baris tetap satu baris */
+.table .acts-compact { flex-wrap: nowrap; }
+.table .acts-compact .btn { white-space: nowrap; }
+
+/* ===== Hero per halaman (gambar baru) ===== */
+.page-hero.hp-sewa { background-image: url('../img/hero-sewa.jpg'); }
+.page-hero.hp-beli { background-image: url('../img/hero-beli.jpg'); }
+.page-hero.hp-paket { background-image: url('../img/hero-paket.jpg'); }
+.page-hero.hp-tentang { background-image: url('../img/hero-tentang.jpg'); }
+.page-hero.hp-ketentuan { background-image: url('../img/hero-ketentuan.jpg'); }
+.page-hero.hp-kontak { background-image: url('../img/hero-kontak.jpg'); }
+
+/* ===== Laundry: foto mengisi lingkaran (revisi) ===== */
+.lp-hero-art .a1 { width: 92%; height: 92%; left: 4%; top: 4%; transform: none; object-fit: cover; -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 86%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 86%, transparent 100%); }
+/* Laundry: foto mengisi bentuk blob penuh, tanpa lapisan pudar di tepi */
+.lp-hero-art .a1 { left: 10%; top: 6%; width: 86%; height: 90%; transform: none; object-fit: cover; border-radius: 46% 54% 42% 58% / 52% 44% 56% 48%; -webkit-mask-image: none; mask-image: none; }
+/* Laundry: blob krem disembunyikan, foto memakai bentuk & animasi yang sama dengan blob */
+.lp-hero-art .lp-blob { display: none; }
+.lp-hero-art .a1 { left: 10%; top: 6%; width: 86%; height: 90%; border-radius: 46% 54% 42% 58% / 52% 44% 56% 48%; animation: lpMorph 14s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .lp-hero-art .a1 { animation: none; } }
+.lp-hero-art .a1 { mix-blend-mode: normal; }
+
+/* ===== Hero semua halaman (kecuali beranda): ukuran seragam, teks di tengah (revisi) ===== */
+.page-hero.hp-sewa, .page-hero.hp-beli, .page-hero.hp-paket, .page-hero.hp-tentang, .page-hero.hp-ketentuan, .page-hero.hp-kontak {
+  min-height: 320px; display: flex; flex-direction: column; justify-content: center; padding: 32px 0;
+}
+@media (max-width: 720px) {
+  .page-hero.hp-sewa, .page-hero.hp-beli, .page-hero.hp-paket, .page-hero.hp-tentang, .page-hero.hp-ketentuan, .page-hero.hp-kontak { min-height: 260px; padding: 28px 0; }
+}
+
+/* ===== Kartu layanan beranda: foto penuh di belakang teks (revisi) ===== */
+body[data-page="home"] .svc-visual { min-height: 200px; padding: 24px 26px; }
+body[data-page="home"] .svc-visual img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; mix-blend-mode: normal; opacity: 1; -webkit-mask-image: none; mask-image: none; z-index: 0; }
+body[data-page="home"] .svc-visual::after { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(90deg, rgba(12, 30, 18, .9) 0%, rgba(12, 30, 18, .6) 55%, rgba(12, 30, 18, .2) 100%); }
+body[data-page="home"] .svc-visual .v-tx { z-index: 1; max-width: 62%; }
+body[data-page="home"] .svc-visual h3 { color: #fff; }
+body[data-page="home"] .svc-visual p { color: rgba(255, 255, 255, .88); }
+body[data-page="home"] .svc-visual p b { color: #fff; }
+@media (max-width: 720px) {
+  body[data-page="home"] .svc-visual { min-height: 170px; }
+}
+
+/* ===== Hero beranda: muncul pelan-pelan (revisi) ===== */
+@keyframes heroFade { from { opacity: 0; } to { opacity: 1; } }
+.hero-bg::before { animation: heroFade 1.6s ease-out both, kenburns 22s ease-out both; }
+
+/* ===== Pemesanan halaman produk: pilih ukuran & warna di atas, ringkas, tidak perlu scroll ===== */
+#dSize { margin-bottom: 4px; }
+#dSize .size-field { margin-bottom: 8px; }
+#dSize .size-field > label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 13px; margin-bottom: 6px; }
+#dSize .size-pick { gap: 6px; }
+#dSize .size-pick button { min-width: 0; padding: 6px 11px; border-radius: 10px; flex-direction: row; align-items: center; gap: 6px; }
+#dSize .size-pick button b { font-size: 13.5px; }
+#dSize .size-pick button small { font-size: 11px; }
+#dSize .size-pick button em { font-size: 10.5px; }
+#dSize .size-pick-2 button { padding: 6px 10px; }
+.pick-box { padding: 12px; margin-top: 10px; }
+.pick-box-h { margin-bottom: 6px; }
+.pick-how { font-size: 13px; color: var(--muted); }
+.pick-how summary { cursor: pointer; font-weight: 600; color: var(--g700); padding: 2px 0 6px; }
+.pick-how[open] summary { margin-bottom: 4px; }
+@media (max-width: 640px) {
+  #dSize .size-pick button { padding: 5px 9px; }
+  #dSize .size-pick button small { font-size: 10.5px; }
+}
+
+/* ===== Restock banyak kombinasi (satu nota, satu pengeluaran) ===== */
+.rs-b-head { font-size: 12px; font-weight: 700; color: var(--muted); margin: 4px 0 6px; }
+.rs-b-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 120px 34px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.rs-b-row .rs-sub { text-align: right; font-size: 12.5px; white-space: nowrap; }
+.rs-b-new { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rs-b-new[hidden] { display: none; }
+.rs-b-new:not([hidden]):has(> [data-f="v2"]) { }
+@media (max-width: 640px) {
+  .rs-b-row { grid-template-columns: minmax(0, 1fr) 90px 34px; }
+  .rs-b-row .rs-sub { grid-column: 1 / -1; text-align: left; margin-top: -4px; }
+  .rs-b-new { grid-template-columns: 1fr; }
+}
+/* Navbar: saat tanggal dipilih, tombol hapus (×) tampil sejajar di samping ikon kalender, bukan menempel seperti badge */
+.trip-wrap { gap: 4px; align-items: center; }
+.trip-wrap .trip-chip.set { width: auto; padding: 0 10px; justify-content: center; }
+.trip-wrap .trip-x { position: static; transform: none; right: auto; top: auto; flex: none; width: 22px; height: 22px; font-size: 10px; background: var(--g100); color: var(--g800); border: 0; }
+.trip-wrap .trip-x:hover { background: var(--g700); color: #fff; }

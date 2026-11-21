@@ -4,7 +4,7 @@
 @section('page', 'kontak')
 
 @section('content')
-<section class="page-hero">
+<section class="page-hero hp-kontak">
   <div class="wrap">
     <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Kontak</span></div>
     <h1>Ada yang mau ditanyakan?</h1>

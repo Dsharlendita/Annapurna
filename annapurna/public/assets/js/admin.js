@@ -367,7 +367,6 @@
     Admin.active = active;
     dueTodayNotices(); stockNotices();
     shellState = { active, title }; renderShell(active, title);
-    if (window.Api) syncOrders();   /* data pesanan dari server untuk semua halaman panel */
     document.title = `${title} — ${isOwner ? 'Owner' : 'Admin'} Annapurna`;
     DB.touch();
     const s = DB.session(); s.seen = s.seen || {};
@@ -413,7 +412,7 @@
       const host = document.querySelector('.content'); if (host) host.insertAdjacentHTML('afterbegin', `<div class="cl-banner ${warn ? 'warn' : ''}" id="clBanner"><i class="fa-solid ${warn ? 'fa-triangle-exclamation' : 'fa-broom'}"></i><div><b>${warn ? `Data ${P.length} bulan belum dibersihkan` : 'Pembersihan data menunggu persetujuanmu'}</b><small>${P.map((x) => Reports.monthName(x.a.period)).join(', ')} sudah aman di Google Drive · ${P.reduce((a, x) => a + x.p.total, 0)} data lama siap dibersihkan${warn ? '. Website bisa makin lambat bila data terus menumpuk.' : ''}${waiting ? ` · ditunda sampai ${D.fmtDate(req.skipUntil > T ? req.skipUntil : req.snoozeUntil, true)}` : ''}</small></div><button class="btn btn-primary btn-sm" type="button" id="clReview">Tinjau</button></div>`);
       const b = document.getElementById('clReview'); if (b) b.addEventListener('click', () => cleanupModal(P));
     }
-    if (waiting || sessionStorage.getItem('clPromptShown')) return;
+    if (!['owner-dashboard', 'owner-integrasi', 'dashboard'].includes(active) || waiting || sessionStorage.getItem('clPromptShown')) return;
     sessionStorage.setItem('clPromptShown', '1');
     cleanupModal(P);
   }
@@ -421,7 +420,7 @@
     const c = cleanupSum(P); const total = P.reduce((a, x) => a + x.p.total, 0);
     const months = P.map((x) => Reports.monthName(x.a.period)).join(' & ');
     const m = modal({ title: `Rekap ${months} sudah aman di Google Drive`, size: 'lg', body: `
-      <div class="clm-ok">${P.map((x) => `<div class="clm-arc"><i class="fa-solid fa-folder-closed"></i><div><b>${esc(Reports.folderName(x.a.period))}</b><small><i class="fa-solid fa-check"></i> ${x.a.files.length} file laporan tersimpan di Google Drive${x.a.mailStatus === 'terkirim' ? ` · <i class="fa-solid fa-check"></i> email terkirim ke ${esc(x.a.mailTo || 'owner')}` : ''}</small></div><a class="btn btn-light btn-xs" href="${O('integrasi?folder=' + x.a.period)}">Lihat folder</a></div>`).join('')}</div>
+      <div class="clm-ok">${P.map((x) => `<div class="clm-arc"><i class="fa-solid fa-folder-closed"></i><div><b>${esc(Reports.folderName(x.a.period))}</b><small><i class="fa-solid fa-check"></i> ${x.a.files.length} file laporan tersimpan · <i class="fa-solid fa-check"></i> email terkirim ke ${esc(x.a.mailTo || 'owner')}</small></div><a class="btn btn-light btn-xs" href="${O('integrasi?folder=' + x.a.period)}">Lihat folder</a></div>`).join('')}</div>
       <h4 class="clm-h">Data lama yang bisa dibersihkan agar website tetap ringan</h4>
       <ul class="clm-list">${Object.entries(c).filter(([k, v]) => v && CL_LBL[k]).map(([k, v]) => `<li><b>${v}</b> ${CL_LBL[k]}${k === 'bookings' || k === 'sales' ? ' (selesai/dibatalkan)' : ''}</li>`).join('')}</ul>
       <p class="clm-safe"><i class="fa-solid fa-shield-halved"></i> Tetap aman: barang & unit, pesanan aktif/belum lunas, ulasan, ringkasan angka bulanan, dan riwayat pelanggan. Laporan bulan tsb. tetap bisa diunduh dari arsip.</p>
@@ -734,44 +733,6 @@
     DB.mergeServer('bookings', r.data, { prune: () => true });
     return true;
   }
-  async function syncSales() {
-    const r = await Api.get('api/admin/sales', { redirectOn401: false });
-    if (!r.ok || !Array.isArray(r.data)) return false;
-    DB.mergeServer('sales', r.data, { prune: () => true });
-    return true;
-  }
-  /* Booking & penjualan terbaru dari server, sekali per halaman (dipanggil Admin.init).
-     Setelah selesai, event 'ann:orders' dikirim supaya halaman menggambar ulang dengan data server. */
-  /* Laundry dari server (semua status). Isi lokal yang tidak ada di server (data contoh lama, catatan yang gagal tersimpan)
-     dibuang, sama seperti booking & penjualan, supaya laporan keuangan tidak menghitung pemasukan fiktif. */
-  async function syncLaundryAll() {
-    const r = await Api.get('api/admin/laundry?tab=semua', { redirectOn401: false });
-    if (!(r && r.ok && Array.isArray(r.data))) return false;
-    const local = Object.fromEntries(DB.laundry().map((o) => [o.id, o]));
-    const list = r.data.map((so) => {
-      const id = so.order_code || 'DRY-' + so.id;
-      const srv = {
-        id, no: so.nota_no || so.order_code, order_code: so.order_code, nota_no: so.nota_no,
-        customer: { name: so.customer_name, phone: so.customer_phone, email: so.customer_email || '' },
-        items: (so.items || []).map((i) => ({ id: i.laundry_item_id, name: i.item_name, cat: i.category, price: i.unit_price, qty: i.qty, custom: i.is_custom })),
-        discount: so.discount_amount || 0, discountReason: so.discount_reason, notifiedReady: so.notified_ready, notes: so.notes, status: so.status, paymentStatus: so.payment_status,
-        total: so.total_amount, createdAt: so.created_at, pickedAt: so.picked_at,
-        payments: (so.payments || []).map((p) => ({ at: p.paid_at, amount: p.amount, type: p.payment_type, via: p.payment_method })),
-      };
-      if (so.est_done) srv.estDone = D.day(so.est_done);
-      return Object.assign({ history: [] }, local[id] || {}, srv);
-    });
-    DB.set('laundry', list);
-    return true;
-  }
-  let ordersSync = null;
-  function syncOrders() {
-    if (!ordersSync) ordersSync = Promise.all([syncBookings(), syncSales(), syncLaundryAll()]).then(([b, s]) => {
-      document.dispatchEvent(new CustomEvent('ann:orders', { detail: { bookings: b, sales: s } }));
-      return b && s;
-    });
-    return ordersSync;
-  }
   /* Kirim aksi booking ke server lebih dulu. Hasil server langsung digabung ke data lokal.
      Booking yang belum ada di server (404, mis. data contoh lama) tetap diproses lokal seperti sebelumnya.
      Mengembalikan booking terbaru, atau null bila server menolak (pesan error sudah ditampilkan). */
@@ -783,18 +744,6 @@
        jadi data server tidak digabung sekarang supaya pembayaran tidak tercatat dobel di layar. */
     if (opts.merge !== false && r.source === 'server' && r.data && r.data.id) { DB.mergeServer('bookings', [r.data]); return DB.booking(b.id); }
     return b;
-  }
-
-  /* Permintaan perpanjangan / ganti barang lewat server.
-     'server' = tersimpan & data server sudah digabung · 'local' = booking belum ada di server (data contoh lama) → proses lokal · null = ditolak server */
-  async function srvReq(b, path, body, btn) {
-    const url = path.startsWith('api/') ? path : `api/admin/booking/${encodeURIComponent(b.id)}/${path}`;
-    const run = () => Api.try('POST', url, body, () => ({ ok: true }));
-    const r = btn ? await Api.busy(btn, run, 'Menyimpan…') : await run();
-    if (!r) return null;
-    if (!r.ok) { toast(r.msg || 'Gagal menyimpan ke server.', 'err'); return null; }
-    if (r.source === 'server' && r.data && r.data.id) { DB.mergeServer('bookings', [r.data]); return 'server'; }
-    return 'local';
   }
 
   const BK = {
@@ -979,8 +928,8 @@
       const refundable = Rules.canRefund(b);
       const m = modal({ title: `Batalkan booking ${NO(b)}`, body: `
         <div class="field"><label>Alasan pembatalan</label><textarea class="textarea" id="cReason" placeholder="Contoh: permintaan customer via WhatsApp"></textarea></div>
-        ${hasDp ? `<div class="notice ${refundable ? 'green' : 'red'}" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>Tanggal ambil ${D.fmtDate(b.start, true)} (${D.diffDays(D.today(), b.start)} hari lagi). Sesuai kebijakan H-${DB.settings().cancelDays}, DP <strong>${refundable ? 'dapat dikembalikan' : 'hangus'}</strong>.</div></div>
-        <div class="field"><label>Perlakuan DP (${rupiah(Rules.paidTotal(b))})</label><select class="select" id="cDp"><option value="refund" ${refundable ? 'selected' : ''}>Kembalikan DP (refund)</option><option value="forfeit" ${refundable ? '' : 'selected'}>DP hangus</option></select></div>
+        ${hasDp ? `<div class="notice ${refundable ? 'green' : 'red'}" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>Tanggal ambil ${D.fmtDate(b.start, true)} (${D.diffDays(D.today(), b.start)} hari lagi). Sesuai kebijakan H-${DB.settings().cancelDays}, DP <strong>${refundable ? 'dapat dikembalikan' : 'tidak dikembalikan dan masuk keuangan rental'}</strong>.</div></div>
+        <div class="field"><label>Perlakuan DP (${rupiah(Rules.paidTotal(b))})</label><select class="select" id="cDp"><option value="refund" ${refundable ? 'selected' : ''}>Kembalikan DP (refund)</option><option value="forfeit" ${refundable ? '' : 'selected'}>Tidak dikembalikan (masuk keuangan)</option></select></div>
         <div id="cRf" ${refundable ? '' : 'hidden'}>${UI.refundFields({ holder: b.customer.name || '' }, { admin: true, optional: true })}</div>` : ''}`,
         foot: `<button class="btn btn-light" data-close>Kembali</button><button class="btn btn-danger" id="cOk">Batalkan booking</button>` });
       if (hasDp) { UI.refundBind(m.el); m.$('#cDp').addEventListener('change', () => { m.$('#cRf').hidden = m.$('#cDp').value !== 'refund'; }); }
@@ -996,7 +945,7 @@
         b = fresh; b.status = 'dibatalkan';
         b.cancel = { at: D.nowStamp(), reason, by: 'admin', refundable: mode === 'refund', refundStatus: mode === 'refund' ? 'menunggu' : mode === 'forfeit' ? 'hangus' : 'tidak_perlu', ...(refund ? { refund } : {}) };
         if (hasDp) b.paymentStatus = mode === 'refund' ? 'refund_pending' : 'forfeited';
-        log(b, `Booking dibatalkan admin: ${reason}`, 'pembatalan', `Membatalkan booking ${NO(b)}: ${reason}`, [{ field: 'Status booking', from: rl(from), to: rl('dibatalkan') }, ...(hasDp ? [{ field: 'Perlakuan DP', from: '', to: mode === 'refund' ? 'Dikembalikan (refund)' : 'Hangus' }] : [])]);
+        log(b, `Booking dibatalkan admin: ${reason}`, 'pembatalan', `Membatalkan booking ${NO(b)}: ${reason}`, [{ field: 'Status booking', from: rl(from), to: rl('dibatalkan') }, ...(hasDp ? [{ field: 'Perlakuan DP', from: '', to: mode === 'refund' ? 'Dikembalikan (refund)' : 'Tidak dikembalikan (masuk keuangan)' }] : [])]);
         DB.saveBooking(b);
         DB.notify(b.customer.email, 'Booking dibatalkan', `${NO(b)} dibatalkan (${reason}).${mode === 'refund' ? (refund && refund.method === 'tunai' ? ' DP bisa diambil tunai di toko.' : ' DP akan dikembalikan maks. 2×24 jam.') : mode === 'forfeit' ? ' DP tidak dapat dikembalikan sesuai kebijakan.' : ''}`, `pesanan?tab=riwayat`);
         m.close(); toast('Booking dibatalkan.'); done && done();
@@ -1100,21 +1049,21 @@
       UI.waCompose({ title: `Kabari DP siap diambil · ${NO(b)}`, phone: b.customer.phone, tplKey: 'refund_cash_ready', waLabel: `Kirim ke ${esc(nm.split(' ')[0])}`,
         text: DB.waText('refund_cash_ready', { nama: nm, nama_depan: nm.split(' ')[0], no_nota: NO(b), jumlah_refund: rupiah(Rules.refundAmount(b)) }) });
     },
-    async approveChange(b, ch) {
-      const sv = await srvReq(b, `api/admin/permintaan/change/${encodeURIComponent(ch.id)}/action`, { action: 'setujui' });
-      if (!sv) return false;
-      if (sv === 'server') {
-        const nb = DB.booking(b.id);
-        log(nb, `Ganti barang disetujui: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menyetujui pergantian barang ${NO(nb)}: ${ch.fromName} → ${ch.toName}`); DB.saveBooking(nb);
-        DB.notify(nb.customer.email, 'Ganti barang disetujui', `${ch.fromName} diganti ${ch.toName} (${NO(nb)}). Total sewa sekarang ${rupiah(nb.total)}.`, `pesanan?id=${nb.id}`);
-        toast('Permintaan ganti barang disetujui.'); return true;
-      }
+    approveChange(b, ch) {
       const res = DB.applyBookingChange(b, ch);
       if (!res.ok) { toast(res.msg, 'err'); return false; }
       const oldTotal = res.oldTotal;
       ch.status = 'disetujui'; ch.decidedAt = D.nowStamp();
       log(b, `Ganti barang disetujui: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menyetujui pergantian barang ${NO(b)}: ${ch.fromName} → ${ch.toName}`, [{ field: 'Barang', from: `${ch.qty}× ${ch.fromName}`, to: `${ch.qty}× ${ch.toName}` }, { field: 'Total booking', from: rupiah(oldTotal), to: rupiah(b.total) }]);
       DB.saveBooking(b);
+      try {
+        const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+        fetch(`/api/admin/permintaan/change/${ch.id}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+          body: JSON.stringify({ action: 'setujui' })
+        }).catch(() => {});
+      } catch (e) {}
       DB.notify(b.customer.email, 'Ganti barang disetujui', `${ch.fromName} diganti ${ch.toName} (${NO(b)}). ${ch.diff > 0 ? `Tambahan ${rupiah(ch.diff)} dibayar saat pengambilan.` : ch.diff < 0 ? `Sisa bayar berkurang ${rupiah(-ch.diff)}.` : ''}`, `pesanan?id=${b.id}`);
       toast('Permintaan ganti barang disetujui.'); return true;
     },
@@ -1132,18 +1081,8 @@
         m.$('#exInfo').innerHTML = r.extraDays > 0 ? `<div class="kv"><span>Tambahan</span><span>${r.extraDays} malam (tarif dihitung ulang sesuai durasi baru)</span></div><div class="kv total"><span>Biaya perpanjangan</span><span>${rupiah(r.cost)}</span></div>${r.ok ? '<div class="notice green" style="margin-top:8px"><i class="fa-solid fa-circle-check"></i><div>Semua barang tersedia di tanggal tambahan.</div></div>' : `<div class="notice red" style="margin-top:8px"><i class="fa-solid fa-circle-xmark"></i><div>${esc(r.msg)}</div></div>`}` : `<p class="muted">${esc(r.msg)}</p>`;
         m.$('#exOk').disabled = !r.ok; m.$('#exPaidW').style.display = r.ok && b.status === 'disewa' ? 'flex' : 'none'; return r; };
       m.$('#exEnd').addEventListener('change', calc); calc();
-      m.$('#exOk').addEventListener('click', async () => {
+      m.$('#exOk').addEventListener('click', () => {
         const r = calc(); if (!r.ok) return; const to = m.$('#exEnd').value; const oldEnd = b.end; const oldTotal = b.total;
-        const paidNow = m.$('#exPaid').checked && m.$('#exPaidW').style.display !== 'none';
-        const sv = await srvReq(b, req ? `api/admin/permintaan/extend/${encodeURIComponent(req.id)}/action` : 'perpanjang', req ? { action: 'setujui', is_paid: paidNow } : { to_date: to, is_paid: paidNow }, m.$('#exOk'));
-        if (!sv) return;
-        if (sv === 'server') {
-          const nb = DB.booking(b.id);
-          log(nb, `Sewa diperpanjang sampai ${D.fmtDate(nb.end, true)}`, 'perpanjangan', `${req ? 'Menyetujui' : 'Mencatat'} perpanjangan ${NO(nb)} sampai ${D.fmtDate(nb.end, true)}`, [{ field: 'Tanggal kembali', from: D.fmtDate(oldEnd, true), to: D.fmtDate(nb.end, true) }, { field: 'Total', from: rupiah(oldTotal), to: rupiah(nb.total) }]);
-          DB.saveBooking(nb);
-          DB.notify(nb.customer.email, 'Sewa diperpanjang', `${NO(nb)} diperpanjang sampai ${D.fmtDate(nb.end, true)}. Total sewa sekarang ${rupiah(nb.total)}${paidNow ? ' (biaya perpanjangan sudah dibayar)' : ', biaya perpanjangan dibayar saat pengembalian'}.`, `pesanan?id=${nb.id}`);
-          m.close(); toast('Perpanjangan disimpan.'); done && done(); return;
-        }
         b.end = to; Rules.recalc(b);
         if (m.$('#exPaid').checked && m.$('#exPaidW').style.display !== 'none') b.payments.push({ at: D.nowStamp(), amount: r.cost, type: 'Perpanjangan' });
         if (b.status === 'disewa') b.paymentStatus = sisa(b) > 0 ? 'dp_paid' : 'lunas';
@@ -1152,37 +1091,40 @@
         else b.extensions.push({ id: 'EXT-' + Date.now(), at: D.nowStamp(), from: oldEnd, to, days: r.extraDays, cost: r.cost, status: 'disetujui', source: 'toko', by: me.name });
         log(b, `Sewa diperpanjang sampai ${D.fmtDate(to, true)} (+${r.extraDays} hari)`, 'perpanjangan', `${req ? 'Menyetujui' : 'Mencatat'} perpanjangan ${NO(b)} sampai ${D.fmtDate(to, true)}`, [{ field: 'Tanggal kembali', from: D.fmtDate(oldEnd, true), to: D.fmtDate(to, true) }, { field: 'Total sewa', from: rupiah(oldTotal), to: rupiah(b.total) }]);
         DB.saveBooking(b);
+        if (req && req.id) {
+          try {
+            const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+            fetch(`/api/admin/permintaan/extend/${req.id}/action`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+              body: JSON.stringify({ action: 'setujui', is_paid: m.$('#exPaid').checked })
+            }).catch(() => {});
+          } catch (e) {}
+        }
         DB.notify(b.customer.email, 'Sewa diperpanjang', `${NO(b)} diperpanjang sampai ${D.fmtDate(to, true)}. Tambahan biaya ${rupiah(r.cost)}${m.$('#exPaid').checked ? ' (sudah dibayar)' : ', dibayar saat pengembalian'}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Perpanjangan disimpan.'); done && done();
       });
       const no = m.$('#exNo'); if (no) no.addEventListener('click', async () => {
         const r = await confirmBox({ title: 'Tolak perpanjangan?', text: 'Customer akan diberi tahu.', ok: 'Tolak', danger: true, input: { label: 'Alasan (opsional)' } }); if (r === false) return;
-        const sv = await srvReq(b, `api/admin/permintaan/extend/${encodeURIComponent(req.id)}/action`, { action: 'tolak', reason: val(r) || '' });
-        if (!sv) return;
-        if (sv === 'server') {
-          const nb = DB.booking(b.id);
-          log(nb, 'Perpanjangan ditolak', 'perpanjangan', `Menolak perpanjangan ${NO(nb)}${val(r) ? `: ${val(r)}` : ''}`); DB.saveBooking(nb);
-          DB.notify(nb.customer.email, 'Perpanjangan ditolak', `Permintaan perpanjangan ${NO(nb)} ditolak${val(r) ? `: ${val(r)}` : ''}. Barang tetap dikembalikan ${D.fmtDate(nb.end, true)}.`, `pesanan?id=${nb.id}`);
-          m.close(); toast('Perpanjangan ditolak.'); done && done(); return;
-        }
         Object.assign(b.extensions.find((x) => x.id === req.id), { status: 'ditolak', decidedAt: D.nowStamp(), by: me.name, note: val(r) });
         log(b, 'Perpanjangan ditolak', 'perpanjangan', `Menolak perpanjangan ${NO(b)}${val(r) ? `: ${val(r)}` : ''}`); DB.saveBooking(b);
+        if (req && req.id) {
+          try {
+            const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+            fetch(`/api/admin/permintaan/extend/${req.id}/action`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+              body: JSON.stringify({ action: 'tolak', reason: val(r) || '' })
+            }).catch(() => {});
+          } catch (e) {}
+        }
         DB.notify(b.customer.email, 'Perpanjangan ditolak', `Permintaan perpanjangan ${NO(b)} ditolak${val(r) ? `: ${val(r)}` : ''}. Barang tetap dikembalikan ${D.fmtDate(b.end, true)}.`, `pesanan?id=${b.id}`);
         m.close(); toast('Perpanjangan ditolak.'); done && done();
       });
     },
     /* Ganti barang langsung di toko (dicatat staff, langsung berlaku). */
     storeChange(b, done) {
-      UI.changeModal(b, { mode: 'staff', onSubmit: async (r) => {
-        const sv = await srvReq(b, 'ganti', { from_id: r.line.refId, to_id: r.p.id, to_size: r.size || null, qty: r.qty, note: r.reason || r.oldCond || '', paid_now: !!(r.paidNow && r.diff > 0) });
-        if (!sv) return false;
-        if (sv === 'server') {
-          const nb = DB.booking(b.id);
-          log(nb, `Ganti barang di toko: ${r.qty}× ${r.line.name} → ${r.toName}`, 'pergantian', `Mencatat ganti barang di toko ${NO(nb)}: ${r.qty}× ${r.line.name} → ${r.toName}`, [{ field: 'Barang', from: `${r.qty}× ${r.line.name}`, to: `${r.qty}× ${r.toName}` }, ...(r.oldCond ? [{ field: 'Kondisi barang lama', from: '', to: r.oldCond }] : [])]);
-          DB.saveBooking(nb);
-          DB.notify(nb.customer.email, 'Barang sewa diganti', `${r.qty}× ${r.line.name} diganti ${r.toName} (${NO(nb)}). Total sewa sekarang ${rupiah(nb.total)}.`, `pesanan?id=${nb.id}`);
-          toast('Penggantian barang disimpan.'); done && done(); return true;
-        }
+      UI.changeModal(b, { mode: 'staff', onSubmit: (r) => {
         const ch = { id: 'CHG-' + Date.now(), at: D.nowStamp(), lineIndex: r.lineIndex, fromId: r.line.refId, fromName: r.line.name, toId: r.p.id, toName: r.toName, toSize: r.size || null, qty: r.qty, diff: r.diff, reason: r.reason, source: 'toko', by: me.name };
         const res = DB.applyBookingChange(b, ch);
         if (!res.ok) { toast(res.msg, 'err'); return false; }
@@ -1203,14 +1145,6 @@
     async rejectChange(b, ch) {
       const r = await confirmBox({ title: 'Tolak permintaan ganti barang?', text: `${ch.fromName} → ${ch.toName}`, ok: 'Tolak', danger: true, input: { label: 'Alasan (opsional)' } });
       if (r === false) return false;
-      const sv = await srvReq(b, `api/admin/permintaan/change/${encodeURIComponent(ch.id)}/action`, { action: 'tolak', admin_note: val(r) || '' });
-      if (!sv) return false;
-      if (sv === 'server') {
-        const nb = DB.booking(b.id);
-        log(nb, `Ganti barang ditolak: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menolak pergantian barang ${NO(nb)}: ${ch.fromName} → ${ch.toName}${val(r) ? ` (${val(r)})` : ''}`); DB.saveBooking(nb);
-        DB.notify(nb.customer.email, 'Ganti barang ditolak', `Permintaan ganti ${ch.fromName} → ${ch.toName} (${NO(nb)}) ditolak${val(r) ? `: ${val(r)}` : ''}.`, `pesanan?id=${nb.id}`);
-        toast('Permintaan ditolak.'); return true;
-      }
       ch.status = 'ditolak'; ch.decidedAt = D.nowStamp(); ch.note = val(r);
       log(b, `Ganti barang ditolak: ${ch.fromName} → ${ch.toName}`, 'pergantian', `Menolak pergantian barang ${NO(b)}: ${ch.fromName} → ${ch.toName}${ch.note ? ` (${ch.note})` : ''}`);
       DB.saveBooking(b);
@@ -1601,7 +1535,7 @@
       </div>
       ${b.proof ? `<div class="mini-sec"><h4>Bukti pembayaran</h4><img class="proof-img" src="${asset(b.proof)}" alt="Bukti pembayaran"></div>` : b.status === 'menunggu_konfirmasi' ? '<div class="mini-sec"><h4>Bukti pembayaran</h4><p class="muted" style="font-size:13px">Bukti diunggah customer (contoh data demo tanpa gambar).</p></div>' : ''}
       ${pend.length ? `<div class="notice" style="margin-top:14px"><i class="fa-solid fa-arrows-rotate"></i><div>Ada ${pend.length} permintaan ganti barang menunggu. <a href="permintaan" style="font-weight:700;text-decoration:underline">Tinjau</a></div></div>` : ''}
-      ${b.cancel ? `<div class="notice red" style="margin-top:14px"><i class="fa-solid fa-ban"></i><div>Dibatalkan ${D.fmtDateTime(b.cancel.at)} — ${esc(b.cancel.reason)}. Refund: ${({ menunggu: 'menunggu diproses', selesai: 'sudah dikembalikan', hangus: 'DP hangus', tidak_perlu: 'tidak ada' })[b.cancel.refundStatus] || '-'}${b.cancel.refund && b.cancel.refund.method ? ` · ${esc(UI.refundText(b.cancel.refund, true))}` : ''}</div></div>` : ''}
+      ${b.cancel ? `<div class="notice red" style="margin-top:14px"><i class="fa-solid fa-ban"></i><div>Dibatalkan ${D.fmtDateTime(b.cancel.at)} — ${esc(b.cancel.reason)}. Refund: ${({ menunggu: 'menunggu diproses', selesai: 'sudah dikembalikan', hangus: 'DP tidak dikembalikan, masuk keuangan rental', tidak_perlu: 'tidak ada' })[b.cancel.refundStatus] || '-'}${b.cancel.refund && b.cancel.refund.method ? ` · ${esc(UI.refundText(b.cancel.refund, true))}` : ''}</div></div>` : ''}
       ${b.out ? outRetHtml(b, 'out') : ''}
       ${b.ret ? outRetHtml(b, 'ret') : ''}
       ${reqSection(b)}
@@ -1635,7 +1569,7 @@
     m.$('[data-bcontact]').addEventListener('click', async (e) => { const bt = e.currentTarget; bt.disabled = true; try { await contactBooking(DB.booking(id)); } finally { bt.disabled = false; } });
     m.$$('[data-svcact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); (btn.dataset.svcact === 'edit' ? svcEdit : svcPay)(DB.booking(id), () => { refreshShell(); done && done(); bookingModal(id, done); }); }));
     const fin2 = () => { refreshShell(); done && done(); };
-    m.$('[data-rqok]').forEach((x) => x.addEventListener('click', async () => { const ch = b.changes.find((c) => c.id === x.dataset.rqok); if (await BK.approveChange(b, ch)) { m.close(); fin2(); } }));
+    m.$$('[data-rqok]').forEach((x) => x.addEventListener('click', () => { const ch = b.changes.find((c) => c.id === x.dataset.rqok); if (BK.approveChange(b, ch)) { m.close(); fin2(); } }));
     m.$$('[data-rqno]').forEach((x) => x.addEventListener('click', async () => { const ch = b.changes.find((c) => c.id === x.dataset.rqno); m.close(); if (await BK.rejectChange(b, ch)) fin2(); }));
     m.$$('[data-rqext]').forEach((x) => x.addEventListener('click', () => { const r = b.extensions.find((y) => y.id === x.dataset.rqext); m.close(); BK.extend(b, fin2, r); }));
     if ((opts && opts.focusReq || UI.param('req')) && m.$('#reqSec')) setTimeout(() => m.$('#reqSec').scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
@@ -2071,5 +2005,5 @@ ${pay}
     e.preventDefault(); e.stopPropagation();
     UI.waCompose({ title: 'Kirim pesan WhatsApp', text: t, phone: u.pathname.replace(/\D/g, ''), waLabel: 'Buka WhatsApp' });
   }, true);
-  window.Admin = { syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
+  window.Admin = { syncBookings, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
 })();

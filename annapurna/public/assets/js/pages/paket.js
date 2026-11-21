@@ -9,7 +9,7 @@
     const normal = items.reduce((s, i) => s + i.p.rent * i.qty, 0);
     const tiers = Rules.packageTiers(pk);
     const rows = Rules.TIERS.map((t) => ({ ...t, price: Rules.tierPlan(tiers, t.days).total, normal: items.reduce((s, i) => s + Rules.tierPlan(Rules.productTiers(i.p), t.days).total * i.qty, 0) }));
-    return { ...pk, items, normal, rows, save: Math.max(0, normal - pk.price), pct: normal > pk.price ? Math.round((1 - pk.price / normal) * 100) : 0, avail: Rules.packageAvailable(pk.id, D.rel(1), D.rel(2)) };
+    return { ...pk, tektok: pk.type === 'tektok', items, normal, rows, save: Math.max(0, normal - pk.price), pct: normal > pk.price ? Math.round((1 - pk.price / normal) * 100) : 0, avail: Rules.packageAvailable(pk.id, D.rel(1), D.rel(2)) };
   });
   const norm = (t) => String(t || '').toLowerCase();
   const fitPeople = (pk, v) => {
@@ -43,7 +43,7 @@
           <p class="pk-tl">${esc(pk.tagline)}</p>
         </div>
       </div>
-      <div class="pk-prices">${(pk.tektok ? pk.rows.filter((r) => r.days === 1) : pk.rows).map((r) => `<div class="pk-pr ${r.days === 1 ? 'main' : ''}"><small>${r.days === 1 ? 'Per malam' : r.days === 3 ? 'Kegiatan 3 hari' : 'Ekspedisi 5 hari'}</small><strong>${rupiah(r.price)}</strong>${pk.tektok ? '<em>khusus 1 malam · tanpa menginap</em>' : r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : '<em>&nbsp;</em>'}</div>`).join('')}</div>
+      <div class="pk-prices${pk.tektok ? ' solo' : ''}">${(pk.tektok ? pk.rows.filter((r) => r.days === 1) : pk.rows).map((r) => `<div class="pk-pr ${r.days === 1 ? 'main' : ''}"><small>${r.days === 1 ? 'Per malam' : r.days === 3 ? 'Kegiatan 3 hari' : 'Ekspedisi 5 hari'}</small><strong>${rupiah(r.price)}</strong>${pk.tektok ? '<em>khusus 1 malam · tanpa menginap</em>' : r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : '<em>&nbsp;</em>'}</div>`).join('')}</div>
       <div class="pk-items">${preview.map((i) => `<span>${i.qty}× ${esc(i.p.name)}</span>`).join('')}${more > 0 ? `<button class="pk-more" data-toggle="${pk.id}">+${more} lainnya</button>` : ''}</div>
       <div class="pk-foot">
         <div class="pk-foot-l"><span class="pk-stock ${pk.avail ? '' : 'out'}"><i class="fa-solid ${pk.avail ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${pk.avail ? `${pk.avail} tersedia besok` : 'Penuh untuk besok'}</span>${pk.pct ? `<span class="pk-save">Hemat ${pk.pct}%</span>` : ''}</div>
@@ -54,7 +54,7 @@
       </div>
       <div class="pk-detail"><div class="pk-detail-in">
         <ul>${pk.items.map((i) => `<li><img loading="lazy" decoding="async" src="${asset(i.p.img)}" alt=""><a href="produk?id=${i.p.id}">${esc(i.p.name)}</a><span class="muted">${i.qty}×</span><strong>${rupiah(i.p.rent * i.qty)}<small class="muted" style="font-weight:400"> /malam</small></strong></li>`).join('')}</ul>
-        <table class="tier-tbl"><thead><tr><th>Durasi</th><th class="num">Harga satuan</th><th class="num">Harga paket</th><th class="num">Hemat</th></tr></thead><tbody>${pk.rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : rupiah(r.normal)}</td><td class="num"><b>${rupiah(r.price)}</b></td><td class="num pk-green">${r.normal > r.price ? rupiah(r.normal - r.price) : '—'}</td></tr>`).join('')}</tbody></table>
+        <table class="tier-tbl"><thead><tr><th>Durasi</th><th class="num">Harga satuan</th><th class="num">Harga paket</th><th class="num">Hemat</th></tr></thead><tbody>${(pk.tektok ? pk.rows.filter((r) => r.days === 1) : pk.rows).map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${r.normal > r.price ? `<s>${rupiah(r.normal)}</s>` : rupiah(r.normal)}</td><td class="num"><b>${rupiah(r.price)}</b></td><td class="num pk-green">${r.normal > r.price ? rupiah(r.normal - r.price) : '—'}</td></tr>`).join('')}</tbody></table>
         ${pk.tektok ? `<div class="tk-terms"><b><i class="fa-solid fa-circle-info"></i> Syarat & ketentuan paket tektok</b><ol>${(DB.settings().tektokTerms || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ol><p>Tukar / upgrade item bisa langsung dipilih saat menekan <b>Sewa</b>.</p></div>` : ''}
       </div></div>
     </article>`;

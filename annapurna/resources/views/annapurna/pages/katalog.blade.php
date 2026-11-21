@@ -4,7 +4,7 @@
 @section('page', 'katalog')
 
 @section('content')
-<section class="page-hero">
+<section class="page-hero hp-sewa">
   <div class="wrap">
     <div class="crumbs"><a href="{{ route('home') }}">Beranda</a><span>/</span><span id="crumbNow">Sewa Alat</span></div>
     <h1 id="pageTitle">Sewa Alat Outdoor</h1>

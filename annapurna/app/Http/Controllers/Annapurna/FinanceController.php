@@ -259,10 +259,13 @@ class FinanceController extends Controller
             // Kode pengeluaran yang sudah dibuat tampilan (EXP-…). Bila ada, pengeluaran & stok produk
             // tidak dicatat dua kali: stok ikut sinkronisasi barang, pengeluaran memakai kode yang sama.
             'expense_id' => ['nullable', 'string', 'max:50'],
+            // Total satu nota (beberapa baris restock dengan expense_id yang sama): dipakai untuk jumlah pengeluaran
+            'expense_total' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $qty = (int) $validated['qty'];
         $expenseId = $validated['expense_id'] ?? null;
+        $expenseTotal = isset($validated['expense_total']) ? (int) $validated['expense_total'] : null;
         $unitCost = (int) ($validated['unit_cost'] ?? $validated['cost'] ?? $product->cost_price ?? 0);
         $totalCost = $qty * $unitCost;
         $kind = $validated['kind'] ?? ($product->sale_price > 0 && $product->rent_price == 0 ? 'sale' : 'rent');
@@ -271,7 +274,7 @@ class FinanceController extends Controller
         $supplier = $validated['supplier'] ?? null;
         $note = $validated['note'] ?? null;
 
-        return DB::transaction(function () use ($product, $qty, $unitCost, $totalCost, $kind, $variant, $restockDate, $supplier, $note, $expenseId) {
+        return DB::transaction(function () use ($product, $qty, $unitCost, $totalCost, $kind, $variant, $restockDate, $supplier, $note, $expenseId, $expenseTotal) {
             $user = Auth::user();
             $generatedUnits = [];
 
@@ -321,7 +324,7 @@ class FinanceController extends Controller
                 'type' => 'expense',
                 'category' => 'Pembelian Barang',
                 'line' => $financeLine,
-                'amount' => $totalCost,
+                'amount' => $expenseTotal ?? $totalCost,
                 'transaction_date' => $restockDate,
                 'description' => "Restock {$kind}: {$product->name} x{$qty} @ Rp" . number_format($unitCost),
                 'status' => 'aktif',

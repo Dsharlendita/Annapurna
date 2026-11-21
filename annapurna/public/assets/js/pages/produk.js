@@ -108,16 +108,16 @@
     }
     if (mode === 'rent') {
       box.innerHTML = `
+        <div id="dSize"></div>
         <div class="grid-2">
           <div class="field"><label for="dStart">Tanggal ambil</label><input type="date" class="input" id="dStart" value="${sel.start}"></div>
           <div class="field"><label for="dEnd">Tanggal kembali</label><input type="date" class="input" id="dEnd" value="${sel.end}"></div>
         </div>
         <div id="dDur"></div><div id="dHint"></div>
-        <div id="dSize"></div>
         <div class="field"><label>Jumlah</label><div class="qty"><button type="button" data-q="-1" aria-label="Kurangi"><i class="fa-solid fa-minus"></i></button><input id="dQty" type="number" min="1" value="1" aria-label="Jumlah"><button type="button" data-q="1" aria-label="Tambah"><i class="fa-solid fa-plus"></i></button></div></div>
         <div class="avail-msg" id="dAvail"></div>
         ${DB.hasVariant(p) ? `<div class="pick-box" id="dPickBox"><div class="pick-box-h"><span class="ic"><i class="fa-solid fa-layer-group"></i></span><div><b>Butuh lebih dari 1 ${esc(DB.variantLabel(p).toLowerCase())}?</b><small id="dPickSub">Contoh: 2 pasang ukuran 42 Hitam + 1 pasang ukuran 40 Merah, sekali booking.</small></div></div>
-          <ol class="pick-steps" id="dPickSteps"><li>Pilih ${esc(DB.variantLabel(p).toLowerCase())} di atas, serta jumlahnya</li><li>Tekan tombol <b>Tambahkan ke daftar sewa</b></li><li>Ulangi untuk pilihan lain, lalu tekan <b>Sewa sekarang</b></li></ol>
+          <details class="pick-how"><summary>Cara pakai</summary><ol class="pick-steps" id="dPickSteps"><li>Pilih ${esc(DB.variantLabel(p).toLowerCase())} di atas, serta jumlahnya</li><li>Tekan tombol <b>Tambahkan ke daftar sewa</b></li><li>Ulangi untuk pilihan lain, lalu tekan <b>Sewa sekarang</b></li></ol></details>
           <button type="button" class="btn btn-outline btn-block" id="dPickAdd"><i class="fa-solid fa-plus"></i> <span>Tambahkan ke daftar sewa</span></button><div id="dPicks"></div></div>` : ''}
         <div class="card" style="padding:16px;margin-top:14px">
           <div class="kv"><span>Harga sewa</span><span id="dLine"></span></div>

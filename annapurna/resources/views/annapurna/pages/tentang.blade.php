@@ -4,7 +4,7 @@
 @section('page', 'tentang')
 
 @section('content')
-<section class="page-hero ab-page-hero">
+<section class="page-hero ab-page-hero hp-tentang">
   <div class="wrap">
     <div class="ab-ph-text">
       <div class="crumbs ha" style="--d:.05s"><a href="{{ route('home') }}">Beranda</a><span>/</span><span>Tentang Kami</span></div>
@@ -19,9 +19,9 @@
   <section class="section ab-story" id="cerita">
     <div class="wrap ab-story-grid">
       <div class="ab-collage" data-reveal="left">
-        <div class="ab-c-main"><img src="{{ asset('assets/img/hero.jpg') }}" alt="Pendaki menikmati matahari terbit di depan tenda"></div>
-        <div class="ab-c-sm ab-c-1"><img src="{{ asset('assets/img/products/tenda.jpg') }}" alt="Tenda camping"></div>
-        <div class="ab-c-sm ab-c-2"><img src="{{ asset('assets/img/products/kompor.jpg') }}" alt="Kompor portable"></div>
+        <div class="ab-c-main"><img src="{{ asset('assets/img/mitra/tentang-utama.jpg') }}" alt="Pendaki menikmati matahari terbit di depan tenda"></div>
+        <div class="ab-c-sm ab-c-1"><img src="{{ asset('assets/img/mitra/tentang-kecil-1.jpg') }}" alt="Tenda camping"></div>
+        <div class="ab-c-sm ab-c-2"><img src="{{ asset('assets/img/mitra/tentang-kecil-2.jpg') }}" alt="Kompor portable"></div>
       </div>
       <div class="ab-story-text" data-reveal="right">
         <div class="eyebrow">Cerita kami</div>

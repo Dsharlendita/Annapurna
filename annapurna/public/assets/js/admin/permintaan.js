@@ -49,7 +49,7 @@
           <td><div class="acts"><button class="btn btn-light btn-xs" data-open="${b.id}"><i class="fa-regular fa-file-lines"></i> Detail</button>${c.status === 'menunggu' ? `<button class="btn btn-primary btn-xs" data-ok="${b.id}|${c.id}"><i class="fa-solid fa-check"></i> Setujui</button><button class="btn btn-danger btn-xs" data-no="${b.id}|${c.id}"><i class="fa-solid fa-xmark"></i> Tolak</button>` : ''}</div></td></tr>`; }).join('')}</tbody></table></div>`
         : '<div class="panel empty-state"><div class="ic"><i class="fa-solid fa-arrows-rotate"></i></div><h3>Belum ada permintaan</h3><p>Permintaan ganti barang dari customer akan muncul di sini.</p></div>';
     } else {
-      const lbl = { menunggu: ['amber', 'Menunggu refund'], selesai: ['gray', 'Sudah dikembalikan'], hangus: ['red', 'DP hangus'], tidak_perlu: ['gray', 'Tidak ada DP'] };
+      const lbl = { menunggu: ['amber', 'Menunggu refund'], selesai: ['gray', 'Sudah dikembalikan'], hangus: ['red', 'DP tidak dikembalikan'], tidak_perlu: ['gray', 'Tidak ada DP'] };
       $('#pane').innerHTML = cancels.length ? `<div class="table-wrap"><table class="table wide"><thead><tr><th>Dibatalkan</th><th>Booking</th><th>Customer</th><th>Tanggal sewa</th><th>Alasan</th><th class="num">Dibayar</th><th>Refund</th><th class="num">Aksi</th></tr></thead><tbody>
         ${cancels.map((b) => { const c = b.cancel || { refundStatus: 'tidak_perlu' }; const L = lbl[c.refundStatus] || lbl.tidak_perlu; return `<tr>
           <td>${c.at ? D.fmtDateTime(c.at) : '-'}<small>oleh ${c.by === 'admin' ? 'admin' : 'customer'}</small></td><td><strong>${NO(b)}</strong></td><td>${esc(b.customer.name)}<small>${esc(b.customer.phone)}</small></td>
@@ -76,7 +76,7 @@
     const ok = e.target.closest('[data-ok]'), no = e.target.closest('[data-no]'), rf = e.target.closest('[data-refund]');
     if (ok || no) {
       const [bid, cid] = (ok || no).dataset[ok ? 'ok' : 'no'].split('|'); const b = DB.booking(bid); const c = b.changes.find((x) => x.id === cid);
-      if (ok) { if (!(await confirmBox({ title: 'Setujui ganti barang?', text: `${c.qty}× ${esc(c.fromName)} diganti <strong>${esc(c.toName)}</strong> pada ${NO(b)}. Total booking akan disesuaikan.`, ok: 'Setujui' }))) return; if (await Admin.BK.approveChange(b, c)) { Admin.refreshShell(); draw(); } }
+      if (ok) { if (!(await confirmBox({ title: 'Setujui ganti barang?', text: `${c.qty}× ${esc(c.fromName)} diganti <strong>${esc(c.toName)}</strong> pada ${NO(b)}. Total booking akan disesuaikan.`, ok: 'Setujui' }))) return; if (Admin.BK.approveChange(b, c)) { Admin.refreshShell(); draw(); } }
       else if (await Admin.BK.rejectChange(b, c)) { Admin.refreshShell(); draw(); }
     }
     if (rf) { if (await Admin.BK.refund(DB.booking(rf.dataset.refund))) { Admin.refreshShell(); draw(); } }
@@ -87,7 +87,5 @@
   /* Status "konfirmasi WA terkirim" diperbarui saat staff kembali dari WhatsApp */
   window.addEventListener('focus', () => { if (tab === 'cancel' && !document.querySelector('.modal')) draw(); });
   draw();
-  /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
-  document.addEventListener('ann:orders', () => draw());
 })();
 

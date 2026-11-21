@@ -8,6 +8,7 @@
   <div class="tabs" id="tabs">
     <button class="tab active" data-tab="sewa"><i class="fa-solid fa-campground"></i> Barang Sewa <span class="cnt" id="cS">0</span></button>
     <button class="tab" data-tab="jual"><i class="fa-solid fa-bag-shopping"></i> Barang Jual <span class="cnt" id="cJ">0</span></button>
+    <button class="tab" data-tab="paket"><i class="fa-solid fa-box-open"></i> Paket Sewa <span class="cnt" id="cP">0</span></button>
     <button class="tab" data-tab="kategori">Kategori <span class="cnt" id="cK">0</span></button>
   </div>
   <section id="pBarang">
@@ -26,9 +27,20 @@
       <tbody id="rows"></tbody>
     </table></div>
   </section>
+  <section id="pPaket" hidden>
+    <p class="muted" style="font-size:13px;margin:0 0 12px">Paket sewa tampil di halaman Paket Sewa. Harga per malam wajib diisi; harga 3 dan 5 hari boleh dikosongkan.</p>
+    <div class="filters">
+      <span class="sp" style="flex:1"></span>
+      <button class="btn btn-primary btn-sm" id="addPkt"><i class="fa-solid fa-plus"></i> Tambah paket</button>
+    </div>
+    <div class="table-wrap"><table class="table wide">
+      <thead id="thPkt"></thead>
+      <tbody id="rowsPkt"></tbody>
+    </table></div>
+  </section>
   <section id="pKategori" hidden>
     <div class="panel" style="max-width:720px">
-      <div class="panel-h"><h3>Kategori barang</h3><button class="btn btn-light btn-sm" id="addCat"><i class="fa-solid fa-sliders"></i> Kelola di Konfigurasi</button></div>
+      <div class="panel-h"><h3>Kategori barang</h3><button class="btn btn-light btn-sm" id="addCat"><i class="fa-solid fa-sliders"></i> Atur kategori di Konfigurasi</button></div>
       <div id="cats"></div>
     </div>
   </section>

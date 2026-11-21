@@ -24,8 +24,7 @@
     </div>
     <div class="lp-hero-art" aria-hidden="true">
       <div class="lp-blob"></div>
-      <img class="a1" src="{{ asset('assets/img/categories/sleeping-bag.jpg') }}" alt="">
-      <img class="a2" src="{{ asset('assets/img/categories/tenda.jpg') }}" alt="">
+      <img class="a1" src="{{ asset('assets/img/mitra/laundry-1.jpg') }}" alt="">
       <span class="lp-bubble b1"></span><span class="lp-bubble b2"></span><span class="lp-bubble b3"></span>
     </div>
   </div>

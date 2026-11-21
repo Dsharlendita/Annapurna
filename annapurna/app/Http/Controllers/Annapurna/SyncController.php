@@ -7,8 +7,9 @@ use App\Models\Booking;
 use App\Models\Category;
 use App\Models\CustomerFlag;
 use App\Models\Finance;
+use App\Models\Package;
+use App\Models\PackageItem;
 use App\Models\Product;
-use App\Models\ProductUnit;
 use App\Models\Promo;
 use App\Models\Review;
 use App\Models\Sale;
@@ -43,6 +44,7 @@ class SyncController extends Controller
     {
         $handler = match ($collection) {
             'products' => 'products',
+            'packages' => 'packages',
             'categories' => 'categories',
             'promos' => 'promos',
             'reviews' => 'reviews',
@@ -51,7 +53,6 @@ class SyncController extends Controller
             'customerMeta' => 'customerMeta',
             'settings' => 'settings',
             'notifications' => 'notifications',
-            'audit' => 'audit',
             default => null,
         };
         abort_unless($handler !== null, 404, 'Jenis data tidak dikenal.');
@@ -142,7 +143,6 @@ class SyncController extends Controller
                 $attrs['stock'] = max(0, (int) $p->stock + ($attrs['stock'] - (int) $x['_stockFrom']));
             }
             $p ? $p->update($attrs) : Product::create($attrs + ['sort_order' => (int) Product::max('sort_order') + 1]);
-            $this->saveUnits($attrs['id'], $x['units'] ?? null);
         }
         foreach ($removed as $id) {
             // Produk yang pernah dipakai transaksi hanya dinonaktifkan agar nota lama tetap utuh
@@ -158,24 +158,60 @@ class SyncController extends Controller
         }
     }
 
-    /** Unit fisik dari tampilan: disimpan per kode unit. Unit tidak pernah dihapus (cukup dinonaktifkan). */
-    private function saveUnits(string $productId, $units): void
+    // ------------------------------------------------------------------ Paket
+
+    /** Paket sewa: data dari tampilan (id, name, price, price3, price5, items[{productId, qty}], ...) */
+    private function packages(array $items, array $removed): void
     {
-        if (! is_array($units)) {
-            return;
+        $this->staffOnly();
+        $types = ['tenda', 'bbq', 'tektok'];
+        $num = fn ($v) => ($v === null || $v === '' || (int) $v <= 0) ? null : (int) $v;
+        foreach ($items as $x) {
+            if (empty($x['id']) || trim((string) ($x['name'] ?? '')) === '') {
+                $this->skipped[] = $x['id'] ?? '?';
+                continue;
+            }
+            $attrs = [
+                'id' => (string) $x['id'],
+                'name' => trim((string) $x['name']),
+                'tagline' => $x['tagline'] ?? null,
+                'img' => $this->storeImage($x['img'] ?? null, 'packages'),
+                'price_per_day' => max(0, (int) ($x['price'] ?? 0)),
+                'price_3' => $num($x['price3'] ?? null),
+                'price_5' => $num($x['price5'] ?? null),
+                'people' => $x['people'] ?? null,
+                'people_min' => $num($x['pMin'] ?? null),
+                'people_max' => $num($x['pMax'] ?? null),
+                'type' => in_array($x['type'] ?? '', $types, true) ? $x['type'] : 'tenda',
+                'is_popular' => (bool) ($x['popular'] ?? false),
+                'is_active' => array_key_exists('active', $x) ? (bool) $x['active'] : true,
+            ];
+            if ($attrs['type'] === 'tektok') {
+                // Paket tektok hanya per malam
+                $attrs['price_3'] = null;
+                $attrs['price_5'] = null;
+            }
+            $pk = Package::whereKey($attrs['id'])->lockForUpdate()->first();
+            if ($pk) {
+                $pk->update($attrs);
+            } else {
+                $pk = Package::create($attrs + ['sort_order' => (int) Package::max('sort_order') + 1]);
+            }
+            $pk->items()->delete();
+            foreach ((array) ($x['items'] ?? []) as $it) {
+                $pid = $it['productId'] ?? null;
+                if (! $pid || ! Product::whereKey($pid)->exists()) {
+                    continue;
+                }
+                PackageItem::create(['package_id' => $pk->id, 'product_id' => $pid, 'qty' => max(1, (int) ($it['qty'] ?? 1))]);
+            }
         }
-        foreach ($units as $u) {
-            $code = is_array($u) ? trim((string) ($u['code'] ?? '')) : '';
-            if ($code === '' || strlen($code) > 50) {
-                continue;
-            }
-            $row = ProductUnit::where('unit_code', $code)->lockForUpdate()->first();
-            if ($row && $row->product_id !== $productId) {
-                $this->skipped[] = $code;              // kode unit sudah dipakai barang lain
-                continue;
-            }
-            $attrs = FeData::fromFeUnit($u);
-            $row ? $row->update($attrs) : ProductUnit::create($attrs + ['product_id' => $productId, 'unit_code' => $code, 'purchase_cost' => isset($u['cost']) ? max(0, (int) $u['cost']) : null]);
+        foreach ($removed as $id) {
+            // Paket tidak dipakai di tabel pesanan, jadi aman dihapus; isinya ikut terhapus (cascade)
+            Package::whereKey($id)->delete();
+        }
+        if ($items || $removed) {
+            Audit::log('katalog', 'Memperbarui paket: ' . implode(', ', array_slice(array_column($items, 'name'), 0, 5) ?: $removed));
         }
     }
 
@@ -379,34 +415,11 @@ class SyncController extends Controller
                 $this->skipped[] = $key;
                 continue;
             }
-            if ($key === 'integration' && is_array($value)) {
-                unset($value['driveConnected'], $value['driveAccount']);   // diatur lewat tombol Hubungkan (server)
-            }
             Setting::set($key, $value);
             $changed[] = $key;
         }
         if ($changed) {
             Audit::log('konfigurasi', 'Mengubah pengaturan: ' . implode(', ', $changed));
-        }
-    }
-
-    // ------------------------------------------------------------------ Histori aktivitas
-
-    /** Catatan histori dari tampilan. Hanya bertambah: tidak bisa diubah atau dihapus. */
-    private function audit(array $items, array $removed): void
-    {
-        $this->staffOnly();
-        foreach ($items as $e) {
-            if (! is_array($e) || empty($e['id'])) {
-                continue;
-            }
-            if (str_starts_with((string) $e['id'], 'L')) {
-                continue;                                // sudah dari server
-            }
-            $log = Audit::fromClient($e, $this->user());
-            if ($log) {
-                $this->map[$e['id']] = 'L' . $log->id;
-            }
         }
     }
 

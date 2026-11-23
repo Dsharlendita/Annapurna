@@ -164,6 +164,8 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
         Route::get('/sales', 'adminSales')->name('sales.index');
         // Tanda perubahan pesanan (panel admin mengecek pesanan baru tanpa refresh)
         Route::get('/denyut', 'adminPulse')->name('denyut');
+        // Status pesanan beli: dikemas / siap diambil / selesai / dibatalkan
+        Route::post('/sale/{id}/status', 'adminSaleStatus')->name('sale.status');
         // Perpanjangan / ganti barang yang dicatat langsung di toko (langsung disetujui)
         Route::post('/booking/{id}/perpanjang', [BookingRequestController::class, 'storeExtend'])->name('booking.perpanjang');
         Route::post('/booking/{id}/ganti', [BookingRequestController::class, 'storeChange'])->name('booking.ganti');

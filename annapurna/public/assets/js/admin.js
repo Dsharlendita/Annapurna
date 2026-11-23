@@ -456,8 +456,18 @@
      - serverPaymentId: dari respons api/pembayaran/upload → api/admin/pembayaran/{id}/verifikasi
      - serverId: ID angka booking dari respons api/booking → endpoint pickup / return (yang menerima ID angka) */
   const srvId = (x) => x.serverId || x.id;
-  const syncVerify = (x, label) => { if (!window.Api || !x.serverPaymentId) return;
-    Api.post(`api/admin/pembayaran/${x.serverPaymentId}/verifikasi`, {}, { redirectOn401: false }).then((r) => { if (r && !r.ok && r.status && ![404, 405, 422].includes(r.status)) toast(`${label} tersimpan, tetapi gagal dikirim ke server: ${r.msg}`, 'err'); }); };
+  /* Aksi pesanan beli disimpan ke server LEBIH DULU (POST api/admin/sale/{id}/status), supaya customer dan perangkat
+     admin lain melihat status yang sama. Mengembalikan data pesanan dari server, atau null bila ditolak (pesan sudah tampil).
+     Penjualan kasir lama yang hanya ada di perangkat ini (belum pernah tersimpan di server) tetap diproses lokal. */
+  async function srvSale(s, status, extra = {}) {
+    if (!window.Api) return true;
+    const r = await Api.post(`api/admin/sale/${encodeURIComponent(s.id)}/status`, Object.assign({ status }, extra), { redirectOn401: false });
+    if (r && r.ok) return (r.data && r.data.id) ? r.data : true;
+    if (r && r.status === 404 && s.channel === 'offline' && !s._srv) return true;
+    toast((r && r.msg) || 'Gagal menyimpan ke server.', 'err');
+    return null;
+  }
+  const srvSaleMerge = (sv) => { if (sv && sv.id) DB.mergeServer('sales', [sv]); };
   /* ===================== Pelunasan sewa (revisi mitra) =====================
      Dipakai di Catat barang keluar, Catat barang kembali & Detail booking (diantar / bayar transfer).
      - Diskon pelunasan (mis. rating Google Maps) SEKALI per booking, maks. sebesar sisa sewa → mengurangi total sewa (pemasukan), bukan pengeluaran
@@ -1703,12 +1713,13 @@
         foot: '<button class="btn btn-light danger-text" id="cpNo"><i class="fa-solid fa-xmark"></i> Tolak bukti</button><button class="btn btn-primary" id="cpOk"><i class="fa-solid fa-check"></i> Pembayaran sesuai</button>' });
       const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); resolve(res); } }); obs.observe(document.body, { childList: true });
       m.$('#cpOk').addEventListener('click', () => { res = true; m.close(); });
-      m.$('#cpNo').addEventListener('click', () => {
+      m.$('#cpNo').addEventListener('click', async () => {
         const box = m.$('#cpRejBox'); if (box.hidden) { box.hidden = false; m.$('#cpRej').focus(); m.$('#cpNo').innerHTML = '<i class="fa-solid fa-xmark"></i> Ya, tolak bukti'; return; }
         const why = m.$('#cpRej').value.trim(); if (!why) { m.$('#cpRej').classList.add('err'); m.$('#cpRej').focus(); return; }
-        const from = s.status; s.paymentStatus = 'unpaid'; s.status = 'menunggu_pembayaran'; s.proof = null;
+        const sv = await Api.busy(m.$('#cpNo'), () => srvSale(s, 'tolak_bukti', { reason: why }), 'Menyimpan…'); if (!sv) return;
+        s.paymentStatus = 'unpaid'; s.status = 'menunggu_pembayaran'; s.proof = null;
         log(s, `Bukti pembayaran ditolak: ${why}`, 'penjualan', `Menolak bukti pembayaran ${NO(s)}: ${why}`, chg('Status pembayaran', 'Sedang diverifikasi', 'Belum dibayar'));
-        DB.saveSale(s); /* Backend belum punya endpoint tolak bukti (lihat catatan-backend C.27) */
+        DB.saveSale(s); srvSaleMerge(sv);
         DB.notify(s.customer.email, 'Bukti pembayaran ditolak', `${NO(s)}: ${why}. Silakan unggah ulang bukti yang benar.`, 'pesanan?tab=beli');
         toast('Bukti pembayaran ditolak. Customer diminta mengunggah ulang.'); res = 'reject'; m.close();
       });
@@ -1748,12 +1759,14 @@
       /* Ada bukti transfer → jendela "Cek pembayaran" (bukti, nominal, rekening tujuan) dengan pilihan Tolak / Sesuai */
       if (s.paymentStatus === 'verifying') { const ok = await checkSalePay(s); if (ok === 'reject') { fin(); return; } if (!ok) return; }
       else if (!(await confirmBox({ title: `Tandai ${NO(s)} sudah dibayar?`, text: `${rupiah(s.total)} dari ${s.customer.name} sudah diterima.`, ok: 'Sudah dibayar' }))) return;
-      const short = s.items.filter((i) => DB.saleableStock(DB.product(i.productId), i.size) < i.qty);
+      /* Pesanan online: stok sudah dikurangi server saat customer memesan, jadi tidak dicek / dikurangi lagi di sini */
+      const online = s.channel !== 'offline';
+      const short = online ? [] : s.items.filter((i) => DB.saleableStock(DB.product(i.productId), i.size) < i.qty);
       if (short.length) { toast(`Stok tidak cukup: ${short.map((i) => i.name).join(', ')}. Tambah stok dulu di Data Barang.`, 'err'); return; }
-      DB.sellStock(s.items, 1);
+      const sv = await srvSale(s, 'lunas', { payment_method: s.method || 'Tunai' }); if (!sv) return;
+      DB.sellStock(s.items, 1, online ? { unitsOnly: true } : undefined);
       s.payments.push({ at: D.nowStamp(), amount: s.total, type: 'Pembayaran' }); s.paymentStatus = 'paid'; s.status = 'diproses';
-      syncVerify(s, 'Verifikasi pembayaran');
-      log(s, 'Pembayaran diverifikasi, pesanan diproses', 'penjualan', `Memverifikasi pembayaran ${NO(s)} (${rupiah(s.total)})`, chg('Status pesanan', sl('menunggu_pembayaran'), sl('diproses'))); DB.saveSale(s);
+      log(s, 'Pembayaran diverifikasi, pesanan diproses', 'penjualan', `Memverifikasi pembayaran ${NO(s)} (${rupiah(s.total)})`, chg('Status pesanan', sl('menunggu_pembayaran'), sl('diproses'))); DB.saveSale(s); srvSaleMerge(sv);
       DB.notify(s.customer.email, 'Pembayaran diterima', `Pesanan ${NO(s)} sedang diproses.`, 'pesanan?tab=beli');
       toast('Pembayaran diverifikasi.'); fin();
     }
@@ -1763,9 +1776,10 @@
       /* Ambil di toko → "Serahkan barang": cocokkan pesanan dulu, opsional kirim terima kasih + minta ulasan */
       let thanks = false;
       if (pickupSale && next === 'selesai') { const h = await handoverSale(s); if (!h) return; thanks = h.thanks; }
+      const sv = await srvSale(s, next); if (!sv) return;
       const from = s.status; s.status = next;
       const txt = { dikemas: 'Pesanan dikemas', siap_diambil: saleDeliv(s) ? 'Pesanan siap diantar' : 'Pesanan siap diambil di toko', selesai: saleDeliv(s) ? 'Barang sudah diantar, pesanan selesai' : 'Barang sudah diambil, pesanan selesai' }[next];
-      log(s, txt, 'penjualan', `Mengubah status pesanan ${NO(s)} menjadi ${sl(next)}`, chg('Status pesanan', sl(from), sl(next))); DB.saveSale(s);
+      log(s, txt, 'penjualan', `Mengubah status pesanan ${NO(s)} menjadi ${sl(next)}`, chg('Status pesanan', sl(from), sl(next))); DB.saveSale(s); srvSaleMerge(sv);
       DB.notify(s.customer.email, txt, `${NO(s)}: ${txt.toLowerCase()}.${next === 'selesai' ? ' Beri ulasan untuk barang yang kamu beli, yuk!' : ''}`, next === 'selesai' ? `pesanan?tab=riwayat&review=${s.id}` : 'pesanan?tab=beli');
       toast(`${NO(s)}: ${STATUS.sale[next].label}.`); fin();
       /* Kabari customer lewat WhatsApp (dulu hanya notifikasi di website) */
@@ -1775,8 +1789,12 @@
     if (act === 'scancel') {
       const r = await confirmBox({ title: `Batalkan ${NO(s)}?`, text: s.paymentStatus === 'paid' ? 'Pembayaran customer perlu dikembalikan secara manual.' : 'Pesanan akan dibatalkan.', ok: 'Batalkan pesanan', danger: true, input: { label: 'Alasan pembatalan' } });
       if (r === false) return;
-      const from = s.status; if (s.paymentStatus === 'paid') DB.sellStock(s.items, -1); s.status = 'dibatalkan'; log(s, `Pesanan dibatalkan admin${val(r) ? ': ' + val(r) : ''}`, 'pembatalan', `Membatalkan pesanan ${NO(s)}${val(r) ? `: ${val(r)}` : ''}`, chg('Status pesanan', sl(from), sl('dibatalkan'))); DB.saveSale(s);
-      DB.notify(s.customer.email, 'Pesanan dibatalkan', `${NO(s)} dibatalkan oleh admin.`, 'pesanan?tab=beli');
+      const sv = await srvSale(s, 'dibatalkan', { reason: val(r) || null }); if (!sv) return;
+      /* Stok pesanan online dikembalikan server; tampilan hanya mengembalikan unit fisik (barang sewa yang dijual).
+         Penjualan kasir (offline) tetap dikembalikan tampilan seperti sebelumnya. */
+      const online = s.channel !== 'offline';
+      const from = s.status; if (s.paymentStatus === 'paid' || online) DB.sellStock(s.items, -1, online ? { unitsOnly: true } : undefined); s.status = 'dibatalkan'; log(s, `Pesanan dibatalkan admin${val(r) ? ': ' + val(r) : ''}`, 'pembatalan', `Membatalkan pesanan ${NO(s)}${val(r) ? `: ${val(r)}` : ''}`, chg('Status pesanan', sl(from), sl('dibatalkan'))); DB.saveSale(s); srvSaleMerge(sv);
+      DB.notify(s.customer.email, 'Pesanan dibatalkan', `${NO(s)} dibatalkan oleh admin${val(r) ? ': ' + val(r) : ''}.`, 'pesanan?tab=riwayat');   /* pesanan batal tampil di tab Riwayat */
       toast('Pesanan dibatalkan.'); fin();
     }
   }

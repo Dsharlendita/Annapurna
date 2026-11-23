@@ -1128,3 +1128,16 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - `admin.js` (`startPulse`): cek tiap 20 detik saat tab dilihat, 60 detik saat tab di belakang, dan langsung saat tab dibuka lagi. Daftar pesanan lengkap hanya diambil ulang bila tanda berubah → event `ann:orders` → halaman & badge sidebar digambar ulang + toast "Pesanan baru masuk: …". Judul tab diberi angka `(n)` bila pesanan masuk saat tab tidak dilihat. Pembaruan ditunda selama ada jendela (modal) terbuka.
 - Pesanan online baru tampil untuk staf setelah customer mengunggah bukti bayar (aturan lama `hiddenFromStaff`).
 - Tes: `DenyutPesananTest`. Uji dua browser: pesanan muncul di dashboard admin ±19 detik setelah customer mengunggah bukti, tanpa refresh. `ASSET_VERSION` = `20261123.5`.
+
+## C.55 Status pesanan beli disimpan di server; stok online tidak terhitung dua kali — 23 Nov 2026 (Aji)
+
+- **Masalah:** aksi admin untuk pesanan beli (verifikasi tanpa bukti, tolak bukti, dikemas, siap diambil, selesai, batalkan) hanya tersimpan di browser admin. Customer tetap melihat "menunggu dicek admin" walau notifikasinya "dibatalkan", dan status di layar admin bisa kembali ke status lama setelah data server dimuat ulang.
+- **Endpoint baru `POST api/admin/sale/{id}/status`** (`OrderController::adminSaleStatus`) `{ status: lunas | tolak_bukti | dikemas | siap_diambil | selesai | dibatalkan, reason?, payment_method? }`:
+  - `lunas`: verifikasi bukti yang menunggu, atau catat pembayaran tanpa bukti (`PaymentService::verify`, pemasukan sekali).
+  - `tolak_bukti`: bukti → rejected, pesanan kembali menunggu pembayaran dengan batas waktu baru.
+  - Status maju saja (tidak bisa mundur), harus sudah lunas.
+  - `dibatalkan`: stok pesanan online dikembalikan (`App\Support\SaleStock::restore`), bukti yang belum dicek ditolak, `payment_status` verifying → unpaid.
+- `admin.js` (`srvSale`): semua aksi di atas dikirim ke server lebih dulu; perubahan lokal hanya bila server menerima, lalu data server digabung (`srvSaleMerge`).
+- **Stok:** server mengurangi stok saat customer memesan; dulu tampilan admin mengurangi lagi saat verifikasi (lewat sinkron selisih stok) → stok berkurang dua kali, dan stok terakhir tidak bisa diverifikasi. Sekarang `DB.sellStock(..., { unitsOnly: true })` untuk pesanan online (unit fisik saja). Pembatalan otomatis karena tidak dibayar (`bookings:expire-unpaid`) juga mengembalikan stok.
+- Notifikasi pembatalan membuka tab **Riwayat** (tempat pesanan batal tampil) dan menyertakan alasan.
+- Tes: `StatusPenjualanTest` (5). PHP 106 lulus. Uji tampilan: verifikasi → siap diambil, batal → customer melihat "Dibatalkan", stok 6 → 5 (2 dibeli, 1 batal). `ASSET_VERSION` = `20261123.6`.

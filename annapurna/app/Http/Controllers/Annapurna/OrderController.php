@@ -268,6 +268,85 @@ class OrderController extends Controller
         return response()->json(['ok' => true, 'data' => OrderPresenter::booking($b)]);
     }
 
+    /**
+     * POST /api/admin/sale/{id}/status  { status, reason?, payment_method? }
+     * Status pesanan beli disimpan di server supaya customer & perangkat admin lain melihat perubahan yang sama.
+     *   lunas        : bukti transfer yang menunggu diverifikasi, atau (tanpa bukti) catat pembayaran diterima → diproses
+     *   tolak_bukti  : bukti ditolak, pesanan kembali menunggu pembayaran dengan batas waktu baru
+     *   dikemas | siap_diambil | selesai : maju sesuai alur (pembayaran harus sudah lunas)
+     *   dibatalkan   : stok pesanan online dikembalikan, bukti yang belum dicek ditandai ditolak
+     */
+    public function adminSaleStatus(Request $request, string $id): JsonResponse
+    {
+        $v = $request->validate([
+            'status' => 'required|in:lunas,tolak_bukti,dikemas,siap_diambil,selesai,dibatalkan',
+            'reason' => 'nullable|string|max:255',
+            'payment_method' => 'nullable|string|max:50',
+        ]);
+
+        return $this->tx(function () use ($id, $v) {
+            $s = $this->lockSale($id);
+            if (in_array($s->status, ['selesai', 'dibatalkan'], true)) {
+                throw new \DomainException('Pesanan ini sudah ' . str_replace('_', ' ', $s->status) . ', statusnya tidak bisa diubah lagi.');
+            }
+            $to = $v['status'];
+            if ($to === 'lunas') {
+                if ($s->payment_status === 'paid') {
+                    throw new \DomainException('Pesanan ini sudah lunas.');
+                }
+                $p = $s->payments()->where('status', 'pending')->latest('id')->first()
+                    ?? Payment::create([
+                        'sale_id' => $s->id, 'payment_type' => 'Penjualan', 'amount' => max(1, (int) $s->total_amount),
+                        'payment_method' => $v['payment_method'] ?? 'Tunai', 'status' => 'pending', 'paid_at' => now(),
+                        'notes' => 'Dicatat admin (tanpa bukti unggahan)',
+                    ]);
+                PaymentService::verify($p);   // status → diproses, pemasukan tercatat sekali
+            } elseif ($to === 'tolak_bukti') {
+                if (! $s->payments()->where('status', 'pending')->exists()) {
+                    throw new \DomainException('Tidak ada bukti pembayaran yang menunggu dicek.');
+                }
+                $s->payments()->where('status', 'pending')->update(['status' => 'rejected']);
+                $s->update([
+                    'status' => 'menunggu_pembayaran',
+                    'payment_status' => 'unpaid',
+                    'expired_at' => now()->addHours(max(1, (int) Setting::get('pay_window_hours', 2))),
+                ]);
+            } elseif ($to === 'dibatalkan') {
+                \App\Support\SaleStock::restore($s);
+                $s->payments()->where('status', 'pending')->update(['status' => 'rejected']);
+                $s->update([
+                    'status' => 'dibatalkan',
+                    // Bukti yang belum dicek ikut ditolak; yang sudah lunas tetap "paid" (dikembalikan manual oleh toko)
+                    'payment_status' => $s->payment_status === 'verifying' ? 'unpaid' : $s->payment_status,
+                    'cancel_at' => now(),
+                    'cancel_reason' => trim((string) ($v['reason'] ?? '')) ?: 'Dibatalkan admin',
+                    'cancel_auto' => false,
+                ]);
+            } else {
+                if ($s->payment_status !== 'paid') {
+                    throw new \DomainException('Pembayaran pesanan ini belum diverifikasi.');
+                }
+                $flow = ['menunggu_pembayaran', 'diproses', 'dikemas', 'siap_diambil', 'selesai'];
+                if (array_search($to, $flow, true) <= array_search($s->status, $flow, true)) {
+                    throw new \DomainException('Status pesanan tidak bisa dimundurkan.');
+                }
+                $s->update(['status' => $to]);
+            }
+
+            return response()->json(['ok' => true, 'data' => OrderPresenter::sale($s->fresh(OrderPresenter::SALE_WITH))]);
+        });
+    }
+
+    private function lockSale(string $id): Sale
+    {
+        $q = Sale::query();
+        is_numeric($id) ? $q->whereKey((int) $id) : $q->where('sale_code', $id)->orWhere('nota_no', $id);
+        $found = $q->first();
+        abort_unless($found, 404, 'Pesanan tidak ditemukan.');
+
+        return Sale::whereKey($found->id)->lockForUpdate()->first();
+    }
+
     /** Jalankan dalam transaksi; DomainException = ditolak (rollback) dengan pesan untuk pengguna. */
     private function tx(\Closure $work): JsonResponse
     {

@@ -1445,7 +1445,9 @@
       all.forEach(syncUnits); write('products', all);
     },
     /* Unit yang dijual → status terjual. Barang tanpa unit (khusus jual) → stok berkurang. */
-    sellStock(items, sign) {
+    /* opts.unitsOnly: hanya unit fisik (barang sewa yang dijual). Stok angka pesanan ONLINE sudah diurus server
+       (dikurangi saat customer memesan, dikembalikan saat batal), jadi tidak diubah lagi di tampilan. */
+    sellStock(items, sign, opts = {}) {
       const all = read('products', PRODUCTS); const taken = [];
       items.forEach((it) => { const p = all.find((x) => x.id === it.productId); if (!p) return;
         if (tracked(p)) {
@@ -1455,6 +1457,7 @@
             for (let k = 0; k < it.qty && cand[k]; k++) { cand[k].status = 'terjual'; cand[k].log.push({ at: nowStamp(), text: 'Terjual' }); it.soldUnits.push(cand[k].code); } }
           syncUnits(p);
         } else {
+          if (opts.unitsOnly) return;
           const d = sign < 0 ? it.qty : -it.qty;
           if (hasVariant(p) && it.size) { const o = p.variant.options.find((x) => x.name === it.size); if (o) o.stock = Math.max(0, o.stock + d); p.stock = p.variant.options.reduce((a, o) => a + o.stock, 0); }
           else p.stock = Math.max(0, p.stock + d);

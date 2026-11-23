@@ -73,12 +73,20 @@ class ExpireUnpaidBookings extends Command
 
         $saleCount = 0;
         foreach ($expiredSales as $s) {
-            $s->update([
-                'status' => 'dibatalkan',
-                'cancel_at' => $now,
-                'cancel_reason' => "Melewati batas waktu pembayaran ({$hours} jam)",
-                'cancel_auto' => true,
-            ]);
+            \Illuminate\Support\Facades\DB::transaction(function () use ($s, $now, $hours) {
+                $s = Sale::whereKey($s->id)->lockForUpdate()->first();
+                if (! $s || $s->status !== 'menunggu_pembayaran') {
+                    return;                                   // sudah diproses di tempat lain
+                }
+                // Stok yang dipesan dikembalikan (dulu tetap berkurang walau pesanan batal)
+                \App\Support\SaleStock::restore($s);
+                $s->update([
+                    'status' => 'dibatalkan',
+                    'cancel_at' => $now,
+                    'cancel_reason' => "Melewati batas waktu pembayaran ({$hours} jam)",
+                    'cancel_auto' => true,
+                ]);
+            });
             $saleCount++;
         }
 

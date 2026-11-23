@@ -33,15 +33,6 @@
       @if (config('mail.default') !== 'log')
       <button type="button" class="btn btn-light btn-block" id="otpBtn" style="margin-top:10px"><i class="fa-regular fa-envelope"></i> Masuk dengan kode lewat email</button>
       @endif
-      {{-- Akun demo hanya tampil saat develop (APP_ENV=local). Di server online (production) tidak ditampilkan. --}}
-      @if (app()->environment('local'))
-      <div class="demo-acc">
-        <strong>Akun demo</strong> — klik untuk mengisi otomatis
-        <button type="button" data-demo="customer@annapurna.id|customer123"><span><i class="fa-regular fa-user"></i> Customer</span><code>customer@annapurna.id</code></button>
-        <button type="button" data-demo="owner@annapurna.id|owner123"><span><i class="fa-solid fa-crown"></i> Owner · Pak Ikun</span><code>owner@annapurna.id</code></button>
-        <button type="button" data-demo="dita@annapurna.id|dita123"><span><i class="fa-solid fa-user-shield"></i> Admin · Dita</span><code>dita@annapurna.id</code></button>
-      </div>
-      @endif
     </div>
   </div>
 </div>

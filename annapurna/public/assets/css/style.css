@@ -485,7 +485,7 @@ button.cal-day:hover:not(:disabled) { border-color: var(--g600); }
 .timeline small { color: var(--muted); display: block; }
 
 .auth { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
-.auth-art { position: relative; background: var(--g900) url('../img/hero.jpg') 72% center / cover; color: #fff; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; isolation: isolate; }
+.auth-art { position: relative; background: var(--g900) url('../img/hero-masuk.jpg') center / cover; color: #fff; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; isolation: isolate; }
 .auth-art::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(12, 30, 18, .55), rgba(12, 30, 18, .2) 45%, rgba(12, 30, 18, .75)); }
 .auth-art .brandw img { height: 58px; }
 .auth-art h2 { font-family: var(--script); font-weight: 400; font-size: clamp(34px, 4vw, 52px); line-height: 1.1; }

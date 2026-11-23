@@ -1810,11 +1810,21 @@
   /* Logout ke server (Laravel) DAN hapus sesi di browser. Sebelumnya hanya sesi browser yang dihapus,
      sehingga sesi Laravel masih hidup dan user otomatis "login lagi" saat halaman dimuat ulang. */
   async function serverLogout(to) {
-    const token = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-    try { await fetch(url('keluar'), { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' }); } catch (e) { /* tanpa server: cukup hapus sesi lokal */ }
+    const post = (token) => fetch(url('keluar'), { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' }).catch(() => null);
+    let res = await post((document.querySelector('meta[name="csrf-token"]') || {}).content || '');
+    /* 419 = token CSRF halaman sudah kedaluwarsa (halaman dibuka sebelum login ulang): ambil token baru lalu kirim lagi */
+    if (res && res.status === 419) {
+      try {
+        const html = await (await fetch(url('masuk'), { credentials: 'same-origin' })).text();
+        const m = html.match(/<meta name="csrf-token" content="([^"]+)"/);
+        res = await post(m ? m[1] : '');
+      } catch (e) { res = null; }
+    }
     /* Logout: tanggal sewa & keranjang ikut dikosongkan (perangkat bisa dipakai orang lain) */
     try { Cart.clear(); DB.setTrip(null); } catch (e) { /* abaikan */ }
     DB.logout();
+    /* Server belum benar-benar keluar (tanpa koneksi / token tetap ditolak): keluar lewat rute GET */
+    if (res && !res.ok && res.status !== 404) { location.href = url('keluar'); return; }
     location.href = to || url('masuk');
   }
 

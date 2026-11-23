@@ -34,6 +34,9 @@ Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->middlewar
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:20,1')->name('auth.google.callback');
 
 // Kode verifikasi lewat email: masuk dengan kode & lupa kata sandi (tanpa login, dibatasi 10x/menit per IP)
+// Cek status pesanan tanpa login (nomor pesanan + nomor WhatsApp), dibatasi 10x/menit per IP
+Route::get('/api/cek-pesanan', [OrderController::class, 'lookup'])->middleware('throttle:10,1')->name('api.cek-pesanan');
+
 Route::middleware('throttle:10,1')->controller(VerificationController::class)->group(function () {
     Route::post('/api/kode/kirim', 'send')->name('api.kode.kirim');
     Route::post('/api/kode/cek', 'verify')->name('api.kode.cek');

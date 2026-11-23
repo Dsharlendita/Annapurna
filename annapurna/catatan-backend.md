@@ -1157,3 +1157,13 @@ Laporan: `docs/Laporan-Uji-Menyeluruh-2026-11-23.md` (tidak di-commit; repo publ
 - **Data publik** `boot.js`: email pemberi ulasan tidak ikut.
 - Jendela detail booking (error `m.$(...).forEach`), simpan Pengaturan toko (data 8 kolom menimpa seluruh pengaturan).
 - Tes: `PerbaikanTahap1Test` (8). PHP 114 lulus. Uji tampilan dua browser: 10/10 lulus + regresi sewa, beli, detail, CSP. `ASSET_VERSION` = `20261124.1`.
+
+## C.57 Perbaikan Tahap 2 — 24 Nov 2026 (Aji)
+
+- **Notifikasi ke staf:** `DB.notifyStaff` kini mengirim ke `@staff`; server (`SyncController::notifications` → `UserNotification::sendToStaff`) meneruskan ke SEMUA owner/admin aktif, kecuali pengirim. Dulu hanya akun bawaan di browser (owner@ / dita@), staf baru tidak pernah menerima.
+- **Daftar staf Owner** dikirim lewat `boot-staff.js` (`staffList`) dan menggantikan akun bawaan di browser (dashboard, histori, Manajemen Staff).
+- **Profil customer** disimpan ke `POST api/akun/profil` (kini menerima `address`). Dulu hanya di browser lalu kembali ke data lama.
+- **Cek pesanan tanpa login:** `GET api/cek-pesanan?no=&hp=` (throttle 10/menit, wajib cocok nomor pesanan + WhatsApp, tanpa data pribadi). Halaman Kontak memakainya.
+- **Notifikasi otomatis dari server:** selamat datang (daftar, checkout, Google) dan pembatalan otomatis karena tidak dibayar (`bookings:expire-unpaid`).
+- **Halaman pembayaran** mengambil pesanan dari server bila tagihan belum ada di perangkat itu (dulu "Tagihan tidak ditemukan").
+- Tes: `PerbaikanTahap2Test` (6). Uji tampilan 5/5 lulus. `ASSET_VERSION` = `20261124.2`.

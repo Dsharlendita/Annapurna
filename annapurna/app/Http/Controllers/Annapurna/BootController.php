@@ -14,6 +14,7 @@ use App\Models\Promo;
 use App\Models\ReportArchive;
 use App\Models\Review;
 use App\Models\Setting;
+use App\Models\User;
 use App\Models\UserNotification;
 use App\Support\FeData;
 use App\Support\Rekap;
@@ -113,6 +114,14 @@ class BootController extends Controller
             'customerMeta' => (object) FeData::customerMeta(),   // objek {email: …}, bukan array kosong []
             'expenses' => $manual->where('type', 'expense')->map(fn ($f) => FeData::toFeFinance($f))->values()->all(),
             'incomes' => $manual->where('type', 'income')->map(fn ($f) => FeData::toFeFinance($f))->values()->all(),
+            // Owner: daftar staf yang sebenarnya (dashboard, histori, Manajemen Staff). Dulu memakai daftar bawaan di browser.
+            'staffList' => $isOwner ? User::whereIn('role', ['owner', 'admin'])->orderBy('id')->get()->map(fn ($u) => [
+                'id' => 'u' . $u->id, 'userId' => $u->id, 'name' => $u->name, 'email' => $u->email, 'phone' => $u->phone ?? '',
+                'role' => $u->role, 'status' => $u->status ?? 'aktif', 'mustChangePw' => (bool) $u->must_change_password,
+                'lastLogin' => $u->last_login_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z'),
+                'lastLogout' => $u->last_logout_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z'),
+                'createdAt' => $u->created_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z'),
+            ])->all() : null,
         ], true);
     }
 

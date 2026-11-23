@@ -55,6 +55,9 @@ class ExpireUnpaidBookings extends Command
                 'cancel_reason' => "Melewati batas waktu pembayaran ({$hours} jam)",
                 'cancel_auto' => true,
             ]);
+            // Customer dikabari (dulu dibatalkan diam-diam)
+            \App\Models\UserNotification::send((string) $b->customer_email, 'Booking dibatalkan otomatis',
+                ($b->nota_no ?: $b->booking_code) . " dibatalkan karena DP tidak dibayar dalam {$hours} jam. Silakan buat booking baru bila masih ingin menyewa.", 'pesanan?tab=riwayat');
             $bookingCount++;
         }
 
@@ -86,6 +89,8 @@ class ExpireUnpaidBookings extends Command
                     'cancel_reason' => "Melewati batas waktu pembayaran ({$hours} jam)",
                     'cancel_auto' => true,
                 ]);
+                \App\Models\UserNotification::send((string) $s->customer_email, 'Pesanan dibatalkan otomatis',
+                    ($s->nota_no ?: $s->sale_code) . " dibatalkan karena belum dibayar dalam {$hours} jam. Silakan pesan ulang bila masih ingin membeli.", 'pesanan?tab=riwayat');
             });
             $saleCount++;
         }

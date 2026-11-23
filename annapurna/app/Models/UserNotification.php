@@ -27,6 +27,24 @@ class UserNotification extends Model
      * Kirim notifikasi ke akun berdasarkan email. Notifikasi yang sama (judul + tautan)
      * yang belum dibaca digabung menjadi satu, sama seperti perilaku di tampilan.
      */
+    /**
+     * Kirim ke SEMUA staf aktif (owner & admin), kecuali pengirimnya sendiri.
+     * Dulu tampilan hanya mengenal akun staf bawaan, jadi staf yang ditambahkan Owner tidak pernah menerima notifikasi.
+     */
+    public static function sendToStaff(string $title, string $body, ?string $link = null, ?int $exceptUserId = null): int
+    {
+        $n = 0;
+        User::whereIn('role', ['owner', 'admin'])->where('status', 'aktif')
+            ->when($exceptUserId, fn ($q) => $q->where('id', '!=', $exceptUserId))
+            ->pluck('email')->each(function ($email) use ($title, $body, $link, &$n) {
+                if (static::send($email, $title, $body, $link)) {
+                    $n++;
+                }
+            });
+
+        return $n;
+    }
+
     public static function send(string $email, string $title, string $body, ?string $link = null): ?self
     {
         $user = User::where('email', $email)->first();

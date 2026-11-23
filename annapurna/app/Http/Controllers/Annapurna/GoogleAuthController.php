@@ -89,6 +89,7 @@ class GoogleAuthController extends Controller
                 'password_set' => false,
             ]);
             $user->forceFill(['email_verified_at' => now()])->save();
+            \App\Models\UserNotification::send($user->email, 'Selamat datang di Annapurna!', 'Akunmu sudah aktif. Yuk cek alat yang tersedia untuk petualangan berikutnya.', 'katalog');
         } elseif (! $user->google_id) {
             $user->forceFill(['google_id' => $g->getId(), 'email_verified_at' => $user->email_verified_at ?? now()])->save();
         }

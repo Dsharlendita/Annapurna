@@ -30,12 +30,17 @@
   if (tf) {
     const { DB: DB2, D: D2, rupiah: rp, STATUS: ST } = Ann;
     const qp = new URLSearchParams(location.search); if (qp.get('id')) document.getElementById('tId').value = NOREF(qp.get('id')); /* tampilkan nomor nota, bukan kode internal */
-    tf.addEventListener('submit', (e) => {
+    tf.addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = document.getElementById('tId').value, ph = document.getElementById('tPh').value;
       const out = document.getElementById('trackRes');
       if (!id.trim() || !ph.trim()) { out.innerHTML = '<p class="promo-msg no"><i class="fa-solid fa-circle-xmark"></i> Isi nomor pesanan dan nomor WhatsApp.</p>'; return; }
-      const x = DB2.lookupOrder(id, ph);
+      /* Dicari di server (pesanan dari HP / laptop mana pun). Data di perangkat ini hanya cadangan bila server tidak menjawab. */
+      const btn = tf.querySelector('[type="submit"]');
+      const r = await Api.busy(btn, () => Api.get(`api/cek-pesanan?no=${encodeURIComponent(id.trim())}&hp=${encodeURIComponent(ph.trim())}`, { redirectOn401: false }), 'Mencari…');
+      if (r === undefined) return;
+      if (r && r.status === 429) { out.innerHTML = `<p class="promo-msg no"><i class="fa-solid fa-circle-xmark"></i> ${UI.esc(r.msg)}</p>`; return; }
+      const x = r && r.ok && r.data && r.data.id ? r.data : DB2.lookupOrder(id, ph);
       if (!x) { out.innerHTML = '<p class="promo-msg no"><i class="fa-solid fa-circle-xmark"></i> Pesanan tidak ditemukan. Periksa lagi nomor pesanan dan nomor WhatsApp yang dipakai saat memesan.</p>'; return; }
       const rent = !!x.start; const label = rent ? ST.rental[x.status].label : ST.sale[x.status].label;
       out.innerHTML = `<div class="track-res"><div class="tr-h"><div><strong>${NO(x)}</strong><small>${rent ? `Sewa ${D2.fmtRange(x.start, x.end)}` : 'Pembelian'} · ${UI.esc(x.customer.name)}</small></div><span class="pill green plain">${label}</span></div>

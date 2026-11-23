@@ -28,7 +28,7 @@
     }
     const data = r.raw || {};
     DB.adoptSession(data.user);
-    DB.notify(data.user.email, 'Selamat datang di Annapurna!', 'Akunmu sudah aktif. Yuk cek alat yang tersedia untuk petualangan berikutnya.', 'katalog');
+    /* Notifikasi selamat datang dibuat server saat akun dibuat */
     toast('Akun berhasil dibuat.');
     setTimeout(() => (location.href = data.redirect || next || './'), 450);
   });

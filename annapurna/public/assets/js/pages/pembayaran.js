@@ -3,6 +3,19 @@
   const user = Site.requireLogin(); if (!user) return;
   const st = DB.settings();
   const ids = (param('ids') || '').split(',').filter(Boolean);
+  /* Tagihan belum ada di perangkat ini (dibuka dari HP lain / tautan notifikasi): ambil pesanan dari server sekali, lalu tampilkan ulang */
+  const missing = ids.filter((id) => !(id.startsWith('RNT') ? DB.booking(id) : DB.sale(id)));
+  let synced = false; try { synced = sessionStorage.getItem('ann-pay-sync') === ids.join(','); } catch (e) { synced = false; }
+  if (missing.length && !synced && window.Api) {
+    try { sessionStorage.setItem('ann-pay-sync', ids.join(',')); } catch (e) { /* abaikan */ }
+    $('#root').innerHTML = '<div class="card empty-state"><div class="ic"><i class="fa-solid fa-spinner fa-spin"></i></div><h3>Memuat tagihan…</h3></div>';
+    Api.get('api/pesanan', { redirectOn401: false }).then((r) => {
+      if (r && r.ok && r.data) { DB.mergeServer('bookings', r.data.bookings || []); DB.mergeServer('sales', r.data.sales || []); }
+      location.reload();
+    });
+    return;
+  }
+  try { sessionStorage.removeItem('ann-pay-sync'); } catch (e) { /* abaikan */ }
   const orders = ids.map((id) => (id.startsWith('RNT') ? Object.assign({ _t: 'rent' }, DB.booking(id)) : Object.assign({ _t: 'buy' }, DB.sale(id)))).filter((o) => o.id && (o.customer.email === user.email || DB.isStaff(user)));
   const root = $('#root');
   const pending = orders.filter((o) => o.paymentStatus === 'unpaid' && o.status !== 'dibatalkan');

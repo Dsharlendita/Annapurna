@@ -500,6 +500,11 @@ class SyncController extends Controller
                 }
                 continue;
             }
+            // "@staff" = semua staf aktif (diteruskan server; tampilan tidak tahu daftar staf yang sebenarnya)
+            if ($email === '@staff') {
+                UserNotification::sendToStaff(mb_substr((string) ($x['title'] ?? ''), 0, 150), (string) ($x['text'] ?? ''), $x['link'] ?? null, $u->id);
+                continue;
+            }
             // Notifikasi baru: customer hanya boleh mengirim ke staff atau ke dirinya sendiri
             if (! $isStaff && ! in_array($email, $staffEmails, true) && $email !== strtolower($u->email)) {
                 $this->skipped[] = $x['id'] ?? '?';

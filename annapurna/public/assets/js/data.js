@@ -2037,7 +2037,9 @@
       write('notifications', all);
     },
     clearRead(email) { write('notifications', read('notifications', []).filter((n) => !(n.email === email && n.read))); },
-    notifyStaff(title, text, link) { DB.staff().filter((u) => u.status !== 'nonaktif').forEach((u) => DB.notify(u.email, title, text, link)); },
+    /* Ke SEMUA staf aktif: server meneruskan "@staff" ke setiap owner/admin aktif. Tampilan tidak memakai daftar staf lokal
+       (dulu hanya berisi akun bawaan, sehingga staf baru tidak pernah menerima notifikasi). */
+    notifyStaff(title, text, link) { DB.notify('@staff', title, text, link); },
     markRead(email, id) { const all = read('notifications', []); all.forEach((n) => { if (n.email === email && (!id || n.id === id)) n.read = true; }); write('notifications', all); },
 
     /* Terima data dari server (lihat "Sinkronisasi dengan server"). snap.scope: public | staff | user */
@@ -2051,6 +2053,11 @@
         if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; }); }
         ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications', 'audit'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
         if (snap.customerMeta) write('customerMeta', Array.isArray(snap.customerMeta) ? {} : snap.customerMeta);
+        /* Owner: daftar staf dari server menggantikan akun staf bawaan di browser (customer lokal tetap) */
+        if (Array.isArray(snap.staffList)) {
+          const U = read('users', USERS).filter((u) => u.role !== 'admin' && u.role !== 'owner');
+          write('users', U.concat(snap.staffList.map((s) => Object.assign({ password: '' }, s))));
+        }
       } finally { syncApplying = false; }
       Object.keys(SYNC).forEach((k) => { if (snap[k] && k !== 'settings') syncSnapshot(k, read(k, SYNC[k].map ? {} : [])); });
       /* Histori: catatan yang sudah ada di perangkat ini dianggap lama; hanya catatan baru yang dikirim */

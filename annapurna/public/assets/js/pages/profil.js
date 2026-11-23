@@ -14,10 +14,15 @@
   }
   const f = $('#fData');
   f.elements.fullname.value = user.name; f.elements.phone.value = user.phone || ''; f.elements.address.value = user.address || ''; $('#email').value = user.email;
-  f.addEventListener('submit', (e) => {
+  f.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!validate(f, { fullname: (v) => (v.length < 3 ? 'Nama minimal 3 huruf.' : ''), phone: (v) => (!isPhone(v) ? 'Nomor WhatsApp tidak valid (contoh 0812xxxxxxx).' : '') })) return;
-    DB.updateProfile({ name: f.elements.fullname.value.trim(), phone: f.elements.phone.value.trim(), address: f.elements.address.value.trim() });
+    const data = { name: f.elements.fullname.value.trim(), phone: f.elements.phone.value.trim(), address: f.elements.address.value.trim() };
+    /* Disimpan ke server dulu (dulu hanya di browser, lalu kembali ke data lama saat halaman dimuat ulang) */
+    const r = await Api.busy(f.querySelector('[type="submit"]'), () => Api.post('api/akun/profil', data, { redirectOn401: false }), 'Menyimpan…');
+    if (!r) return;
+    if (!r.ok) { toast(r.msg || 'Profil belum tersimpan. Coba lagi.', 'err'); return; }
+    DB.updateProfile(data);
     Site.renderHeader(); head(); toast('Profil berhasil diperbarui.');
   });
 

@@ -369,6 +369,43 @@ class OrderController extends Controller
         });
     }
 
+    /**
+     * GET /api/cek-pesanan?no=…&hp=… — cek status pesanan tanpa login (halaman Kontak).
+     * Wajib cocok nomor pesanan DAN nomor WhatsApp. Hanya status yang dikembalikan, tanpa data pribadi
+     * (email, alamat, bukti bayar, rekening). Dulu hanya mencari di data browser sendiri.
+     */
+    public function lookup(Request $request): JsonResponse
+    {
+        $v = $request->validate(['no' => 'required|string|max:60', 'hp' => 'required|string|max:30']);
+        $no = strtoupper(preg_replace('/\s+/', '', $v['no']));
+        $hp = fn ($p) => preg_replace('/^62/', '0', preg_replace('/\D/', '', (string) $p));
+        $want = $hp($v['hp']);
+        $notFound = response()->json(['ok' => false, 'msg' => 'Pesanan tidak ditemukan. Periksa lagi nomor pesanan dan nomor WhatsApp.'], 404);
+        if (strlen($want) < 8) {
+            return $notFound;
+        }
+
+        $b = Booking::with(OrderPresenter::BOOKING_WITH)->where(fn ($q) => $q->whereRaw('UPPER(nota_no) = ?', [$no])->orWhereRaw('UPPER(booking_code) = ?', [$no]))->first();
+        $s = $b ? null : Sale::with(OrderPresenter::SALE_WITH)->where(fn ($q) => $q->whereRaw('UPPER(nota_no) = ?', [$no])->orWhereRaw('UPPER(sale_code) = ?', [$no]))->first();
+        $x = $b ?: $s;
+        if (! $x || $hp($x->customer_phone) !== $want) {
+            return $notFound;
+        }
+        $full = $b ? OrderPresenter::booking($b) : OrderPresenter::sale($s);
+        $keep = ['id', 'no', 'status', 'paymentStatus', 'start', 'end', 'days', 'total', 'dp', 'createdAt', 'delivery', 'channel'];
+        $out = array_intersect_key($full, array_flip($keep));
+        $out['customer'] = ['name' => (string) ($full['customer']['name'] ?? '')];
+        $out['items'] = array_map(fn ($i) => ['name' => $i['name'] ?? '', 'qty' => $i['qty'] ?? 1], $full['items'] ?? []);
+        if (! empty($full['cancel'])) {
+            $out['cancel'] = array_intersect_key($full['cancel'], array_flip(['at', 'auto', 'refundable', 'refundStatus']));
+        }
+        if (! empty($full['deliv'])) {
+            $out['deliv'] = array_intersect_key($full['deliv'], array_flip(['date', 'time', 'backDate', 'backTime']));
+        }
+
+        return response()->json(['ok' => true, 'data' => $out]);
+    }
+
     /** Pesanan beli milik customer yang sedang login (404 bila bukan miliknya). */
     private function lockOwnSale(string $id): Sale
     {

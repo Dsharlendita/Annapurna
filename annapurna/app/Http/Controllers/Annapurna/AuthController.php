@@ -156,6 +156,9 @@ class AuthController extends Controller
             'last_login_at' => now(),
         ]);
 
+        // Notifikasi selamat datang dibuat server (dulu hanya di browser halaman daftar, lalu hilang)
+        \App\Models\UserNotification::send($user->email, 'Selamat datang di Annapurna!', 'Akunmu sudah aktif. Yuk cek alat yang tersedia untuk petualangan berikutnya.', 'katalog');
+
         Auth::login($user);
         $request->session()->regenerate();
 

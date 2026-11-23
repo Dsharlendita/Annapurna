@@ -116,10 +116,15 @@ class AdminController extends Controller
         $validated = $request->validate([
             'name'  => ['required', 'string', 'min:3', 'max:100'],
             'phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user->name = trim($validated['name']);
         $user->phone = isset($validated['phone']) ? trim($validated['phone']) : null;
+        // Alamat dipakai customer (halaman Profil). Hanya diubah bila dikirim, supaya form staf yang tidak punya kolom alamat aman.
+        if ($request->has('address')) {
+            $user->address = isset($validated['address']) ? trim($validated['address']) : null;
+        }
         $user->save();
 
         Audit::log('staff', "Memperbarui profil mandiri akun {$user->name}", $user);

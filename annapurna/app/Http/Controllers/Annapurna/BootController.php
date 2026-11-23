@@ -65,6 +65,9 @@ class BootController extends Controller
             $parts[] = Finance::where('source', 'manual')->max('updated_at') . '#' . Finance::where('source', 'manual')->count();
             $parts[] = self::stamp(CustomerFlag::class);
             $parts[] = self::stamp(\App\Models\ProductUnit::class);
+            // Riwayat restock & daftar staf ikut dikirim di data staf: versi harus berubah bila keduanya berubah
+            $parts[] = self::stamp(\App\Models\Restock::class);
+            $parts[] = User::whereIn('role', ['owner', 'admin'])->max('updated_at') . '#' . User::whereIn('role', ['owner', 'admin'])->count();
             $parts[] = Auth::user()?->role;
         }
 

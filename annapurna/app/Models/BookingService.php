@@ -22,6 +22,7 @@ class BookingService extends Model
         'total_service',
         'status',
         'notes',
+        'customer_wa_at',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ class BookingService extends Model
             'total_service' => 'integer',
             'scheduled_date' => 'date',
             'back_date' => 'date',
+            'customer_wa_at' => 'datetime',
         ];
     }
 

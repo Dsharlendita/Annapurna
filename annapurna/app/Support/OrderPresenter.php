@@ -198,6 +198,8 @@ class OrderPresenter
                 // Ongkir & jasa yang sudah diisi admin (status "menunggu" = ongkir belum disepakati)
                 'ongkir' => $svc->status !== 'menunggu' ? (int) $svc->ongkir : null,
                 'jasa' => $svc->status !== 'menunggu' && (int) $svc->fee > 0 ? (int) $svc->fee : null,
+                // Customer sudah mengirim konfirmasi layanan lewat WhatsApp
+                'waAt' => self::stamp($svc->customer_wa_at),
             ], fn ($v) => $v !== null && $v !== '') : null,
         ], $svc ? ['svc' => self::servicePayments($svc)] : [],
             // Uang jaminan (hanya bila ada, supaya data lama di browser tidak tertimpa nol)
@@ -272,6 +274,7 @@ class OrderPresenter
                 'courier' => $d->courier_name,
                 'ongkir' => $d->ongkir ? (int) $d->ongkir : null,
                 'shipStatus' => $d->ship_status,
+                'waAt' => self::stamp($d->customer_wa_at),
                 'shipDate' => $d->ship_date ? substr((string) $d->ship_date, 0, 10) : null,
             ], fn ($v) => $v !== null && $v !== '') : null,
             'notes' => $s->notes ?? '',

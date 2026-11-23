@@ -1159,7 +1159,10 @@
         waLabel: `Kirim ke ${esc(nm.split(' ')[0])}`,
         text: DB.waText(key, { nama: nm, nama_depan: nm.split(' ')[0], no_nota: NO(b), jumlah_refund: rupiah(e.amount), rekening: e.method === 'transfer' ? `${e.bank} ${e.account} a.n. ${e.holder}` : '', ref_transfer: e.ref || '', tgl_refund: D.fmtDateTime(e.at) }).split('\n').filter((l) => !/^[^:\n]{1,40}:\s*$/.test(l)).join('\n'),
         note: blob ? '' : 'Belum ada foto bukti. Pesan tetap bisa dikirim tanpa lampiran.',
-        onSent: () => { e.waAt = D.nowStamp(); DB.saveBooking(b); if (window.Api) Api.post(`api/admin/permintaan/refund/${encodeURIComponent(b.id)}/notified`, {}, { redirectOn401: false }).catch(() => {}); } });
+        onSent: () => { e.waAt = D.nowStamp(); DB.saveBooking(b);
+          /* Tanda "konfirmasi refund sudah dikirim" disimpan di server; gagal = diberi tahu (dulu diam-diam) */
+          if (window.Api) Api.post(`api/admin/permintaan/refund/${encodeURIComponent(b.id)}/notified`, {}, { redirectOn401: false })
+            .then((r) => { if (r && !r.ok && r.status !== 404) toast(`Tanda konfirmasi refund ${NO(b)} belum tersimpan di server: ${r.msg || 'coba lagi'}`, 'err'); }); } });
     },
     /* Metode tunai: kabari customer bahwa DP sudah bisa diambil di toko */
     refundReady(b) {

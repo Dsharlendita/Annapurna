@@ -296,6 +296,8 @@ class FeData
             'reply' => $r->reply ?? '',
             'replyAt' => self::stamp($r->reply_at),
             'seen' => $r->seen_at !== null,
+            // Balasan toko sudah dibaca customer? (null bila belum ada balasan). Balasan yang diubah lagi = belum dibaca.
+            'replySeen' => $r->reply ? ($r->reply_seen_at !== null && ($r->reply_at === null || $r->reply_seen_at->gte($r->reply_at))) : null,
         ]);
     }
 

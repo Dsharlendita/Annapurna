@@ -26,6 +26,7 @@ class Review extends Model
         'is_visible',
         'featured_order',
         'seen_at',
+        'reply_seen_at',
     ];
 
     protected function casts(): array
@@ -38,6 +39,7 @@ class Review extends Model
             'featured_order' => 'integer',
             'reply_at' => 'datetime',
             'seen_at' => 'datetime',
+            'reply_seen_at' => 'datetime',
         ];
     }
 

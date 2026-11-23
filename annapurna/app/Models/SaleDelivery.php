@@ -19,6 +19,7 @@ class SaleDelivery extends Model
         'ship_status',
         'ship_date',
         'notified_at',
+        'customer_wa_at',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class SaleDelivery extends Model
             'ongkir' => 'integer',
             'ship_date' => 'date',
             'notified_at' => 'datetime',
+            'customer_wa_at' => 'datetime',
         ];
     }
 

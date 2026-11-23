@@ -150,6 +150,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/pesanan', [OrderController::class, 'myOrders'])->name('api.pesanan');
     Route::post('/api/pesanan/{id}/batal', [OrderController::class, 'customerCancel'])->name('api.pesanan.batal');
     // Pesanan beli: customer membatalkan (belum dibayar) / menandai sudah diterima
+    // Customer menekan tombol WhatsApp konfirmasi layanan antar / tenda (atau tanya ongkir pesanan beli)
+    Route::post('/api/pesanan/{id}/konfirmasi-layanan', [OrderController::class, 'customerServiceConfirm'])->name('api.pesanan.konfirmasi-layanan');
     Route::post('/api/pesanan/beli/{id}/batal', [OrderController::class, 'customerSaleCancel'])->name('api.pesanan.beli.batal');
     Route::post('/api/pesanan/beli/{id}/diterima', [OrderController::class, 'customerSaleReceived'])->name('api.pesanan.beli.diterima');
     // Customer mengajukan perpanjangan / ganti barang (menunggu persetujuan admin)

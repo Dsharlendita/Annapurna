@@ -1363,7 +1363,10 @@
     },
     dismissChatMiss(key) {
       write('chatMiss', read('chatMiss', []).filter((m) => m.key !== key));
-      try { fetch((document.body.dataset.base || '/') + 'api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }).catch(() => {}); } catch (e) {}
+      /* Diabaikan juga di server (semua pemilik melihat daftar yang sama). Gagal = diberi tahu, bukan diam-diam muncul lagi. */
+      if (typeof window === 'undefined' || !window.Api) return Promise.resolve(true);
+      return window.Api.post('api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', {}, { redirectOn401: false })
+        .then((r) => { if (r && !r.ok && window.UI) window.UI.toast('Pertanyaan belum bisa diabaikan di server: ' + (r.msg || 'coba lagi') + '. Pertanyaan ini muncul lagi saat halaman dimuat ulang.', 'err'); return !!(r && r.ok); });
     },
     lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per malam keterlambatan` : st.lateFeePercent === 100 ? 'sebesar harga sewa per malam untuk setiap barang, setiap malam keterlambatan' : `${st.lateFeePercent}% harga sewa per malam untuk setiap barang, setiap malam keterlambatan`; },
     /* Simpan satu bagian konfigurasi + catat di histori */

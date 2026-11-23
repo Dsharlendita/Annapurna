@@ -1183,3 +1183,15 @@ Laporan: `docs/Laporan-Uji-Menyeluruh-2026-11-23.md` (tidak di-commit; repo publ
 - **Hak admin:** boleh mengubah `attributes`, `laundry`, `laundryOther` (Data Barang & gambar laundry). Kiriman sinkron yang ditolak server kini memunculkan pesan untuk staf.
 - **Pengiriman pesanan beli** (`api/admin/sales/{id}/delivery`): server dulu & ditunggu.
 - Tes: `PerbaikanTahap3Test` (6) + 1 tes JS (unit). PHP 126, JS 13 lulus. Uji tampilan Tahap 3 10/10 + regresi lengkap lulus. `ASSET_VERSION` = `20261124.3`.
+
+## C.59 Perbaikan kecil-kecil — 24 Nov 2026 (Aji)
+
+**Ada migration baru** → di hosting jalankan `php artisan migrate --force`: `2026_11_24_000003_add_small_flags_to_reviews_and_services` (`reviews.reply_seen_at`, `booking_services.customer_wa_at`, `sale_deliveries.customer_wa_at`).
+
+- **Balasan ulasan dibaca:** disimpan di server (`reply_seen_at`); presenter mengirim `replySeen` (balasan baru / diubah = belum dibaca). Customer yang hanya membuka balasan tidak lagi menandai ulasannya "baru" bagi staf (dulu `seen_at` direset). Customer mengubah isi ulasan tetap menandainya baru.
+- **Konfirmasi layanan via WhatsApp:** `POST api/pesanan/{id}/konfirmasi-layanan` (sewa dengan layanan, atau pesanan beli diantar) → `deliv.waAt` terlihat admin di perangkat mana pun. Tombol WA tetap bisa dipakai walau pencatatan gagal (hanya muncul pesan).
+- **Tanda konfirmasi refund terkirim:** gagal simpan ke server kini diberitahukan (dulu diam).
+- **Abaikan pertanyaan chatbot:** `DB.dismissChatMiss` kini mengembalikan hasil dan memberi tahu bila gagal (dulu diam).
+- **Versi data staf** (`boot-staff.js`) kini ikut berubah saat riwayat restock atau daftar staf berubah. Sebelumnya file itu di-cache lama dan perangkat lain tidak melihat staf baru / restock baru sampai data lain berubah.
+- Tes: `PerbaikanKecilTest` (4). PHP 130 lulus. Uji tampilan 6/6 + regresi Tahap 1–3, sewa, beli, CSP lulus. `ASSET_VERSION` = `20261124.4`.
+- Catatan uji: jangan menjalankan skrip uji sewa pada database yang Tenda 4P-nya diberi jaminan (alur barang keluar menunggu centang "jaminan diterima").

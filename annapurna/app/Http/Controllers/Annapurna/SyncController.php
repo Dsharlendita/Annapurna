@@ -334,7 +334,8 @@ class SyncController extends Controller
                     'seen_at' => ! empty($x['seen']) ? ($review?->seen_at ?? now()) : null,
                 ];
                 if ($replyChanged || (! $review && ! empty($x['reply']))) {
-                    $attrs += ['reply_at' => now(), 'replied_by' => $u->id];
+                    // Balasan baru / diubah: customer perlu membacanya lagi
+                    $attrs += ['reply_at' => now(), 'replied_by' => $u->id, 'reply_seen_at' => null];
                 }
                 if (! $review) {
                     $attrs['customer_email'] = $x['email'] ?? null;
@@ -342,7 +343,13 @@ class SyncController extends Controller
             } elseif (! $review) {
                 $attrs += ['customer_label' => $sale ? 'Pembeli' : 'Penyewa', 'is_visible' => true];
             } else {
-                $attrs['seen_at'] = null;   // diubah customer â†’ tandai belum dibaca staff
+                $changed = (int) $review->rating !== $attrs['rating'] || (string) $review->comment !== $attrs['comment'];
+                if (! $changed && ! empty($x['replySeen']) && $review->reply) {
+                    // Customer hanya membuka balasan toko: catat "sudah dibaca", ulasan TIDAK ditandai baru bagi staf
+                    $attrs = ['reply_seen_at' => now()];
+                } else {
+                    $attrs['seen_at'] = null;   // ulasan diubah customer: tandai belum dibaca staf
+                }
             }
 
             $review ? $review->update($attrs) : $review = Review::create($attrs);

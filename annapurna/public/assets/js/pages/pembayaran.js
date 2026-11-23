@@ -173,7 +173,10 @@
       <p class="muted" style="font-size:12.5px;margin-top:12px"><i class="fa-solid fa-circle-info"></i> Tombol yang sama juga ada di Pesanan Saya. ${sale ? 'Ongkir dibayar langsung ke admin, tidak masuk total belanja.' : 'Biaya jasa &amp; ongkir dibayar langsung ke admin, tidak masuk DP.'}</p>
     </div>`; }).join('');
     root.addEventListener('click', (e) => { const a = e.target.closest('[data-svc]'); if (!a) return;
-      const sl = !String(a.dataset.svc).startsWith('RNT'); const b = sl ? DB.sale(a.dataset.svc) : DB.booking(a.dataset.svc); if (b && !(b.deliv || {}).waAt) { b.deliv = Object.assign({}, b.deliv, { waAt: D.nowStamp() }); b.history.push({ at: D.nowStamp(), text: sl ? 'Customer menghubungi admin via WhatsApp untuk ongkir antar' : 'Customer mengirim konfirmasi layanan ke admin via WhatsApp' }); sl ? DB.saveSale(b) : DB.saveBooking(b); }
+      const sl = !String(a.dataset.svc).startsWith('RNT'); const b = sl ? DB.sale(a.dataset.svc) : DB.booking(a.dataset.svc); if (b && !(b.deliv || {}).waAt) { b.deliv = Object.assign({}, b.deliv, { waAt: D.nowStamp() }); b.history.push({ at: D.nowStamp(), text: sl ? 'Customer menghubungi admin via WhatsApp untuk ongkir antar' : 'Customer mengirim konfirmasi layanan ke admin via WhatsApp' }); sl ? DB.saveSale(b) : DB.saveBooking(b);
+        /* Tanda ini juga disimpan di server supaya admin di perangkat mana pun melihat "customer sudah konfirmasi" */
+        Api.post(`api/pesanan/${encodeURIComponent(a.dataset.svc)}/konfirmasi-layanan`, {}, { redirectOn401: false })
+          .then((r) => { if (r && !r.ok && r.status !== 404) toast('Konfirmasi belum tercatat di toko. Pesan WhatsApp tetap bisa dikirim.', 'err'); }); }
       setTimeout(() => { location.href = 'pesanan?paid=1'; }, 1200); });
   }
 })();

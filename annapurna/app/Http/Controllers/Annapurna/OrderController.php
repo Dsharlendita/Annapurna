@@ -406,6 +406,33 @@ class OrderController extends Controller
         return response()->json(['ok' => true, 'data' => $out]);
     }
 
+    /**
+     * POST /api/pesanan/{id}/konfirmasi-layanan — customer menekan tombol WhatsApp untuk mengonfirmasi layanan antar / tenda
+     * (sewa) atau menanyakan ongkir (pesanan beli). Admin di perangkat mana pun melihat tandanya di nota.
+     */
+    public function customerServiceConfirm(string $id): JsonResponse
+    {
+        $u = Auth::user();
+        $owns = fn ($o) => ($o->user_id && $o->user_id === $u->id) || strtolower((string) $o->customer_email) === strtolower($u->email);
+
+        $b = Booking::findByRef($id);
+        if ($b) {
+            abort_unless($owns($b), 404, 'Pesanan tidak ditemukan.');
+            $svc = $b->service;
+            abort_unless($svc, 404, 'Pesanan ini tidak memakai layanan antar / tenda.');
+            $svc->update(['customer_wa_at' => $svc->customer_wa_at ?? now()]);
+
+            return response()->json(['ok' => true]);
+        }
+        $s = Sale::where('sale_code', $id)->orWhere('nota_no', $id)->first();
+        abort_unless($s && $owns($s), 404, 'Pesanan tidak ditemukan.');
+        $d = $s->delivery;
+        abort_unless($d, 404, 'Pesanan ini tidak diantar.');
+        $d->update(['customer_wa_at' => $d->customer_wa_at ?? now()]);
+
+        return response()->json(['ok' => true]);
+    }
+
     /** Pesanan beli milik customer yang sedang login (404 bila bukan miliknya). */
     private function lockOwnSale(string $id): Sale
     {

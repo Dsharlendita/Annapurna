@@ -261,6 +261,11 @@ class FinanceController extends Controller
             'expense_id' => ['nullable', 'string', 'max:50'],
             // Total satu nota (beberapa baris restock dengan expense_id yang sama): dipakai untuk jumlah pengeluaran
             'expense_total' => ['nullable', 'integer', 'min:0'],
+            // Dikirim tampilan admin: unit fisik, stok & pengeluaran SUDAH ikut sinkronisasi barang & keuangan
+            // (api/sync/products, api/sync/expenses). Di sini cukup riwayat restock, supaya tidak tercatat dua kali.
+            'from_app' => ['nullable', 'boolean'],
+            'unit_codes' => ['nullable', 'array', 'max:200'],
+            'unit_codes.*' => ['string', 'max:50'],
         ]);
 
         $qty = (int) $validated['qty'];
@@ -273,6 +278,24 @@ class FinanceController extends Controller
         $restockDate = $validated['restock_date'] ?? $validated['date'] ?? Carbon::now('Asia/Jakarta')->toDateString();
         $supplier = $validated['supplier'] ?? null;
         $note = $validated['note'] ?? null;
+
+        if ($request->boolean('from_app')) {
+            return DB::transaction(function () use ($product, $qty, $unitCost, $totalCost, $kind, $variant, $restockDate, $supplier, $note, $expenseId, $validated) {
+                if ($unitCost > 0) {
+                    $product->update(['cost_price' => $unitCost]);
+                }
+                $finance = $expenseId ? Finance::where('finance_code', $expenseId)->where('type', 'expense')->first() : null;
+                $restock = Restock::create([
+                    'product_id' => $product->id, 'kind' => $kind, 'variant' => $variant, 'qty' => $qty,
+                    'unit_cost' => $unitCost, 'total_cost' => $totalCost, 'supplier' => $supplier, 'note' => $note,
+                    'unit_codes' => $validated['unit_codes'] ?? [], 'restock_date' => $restockDate,
+                    'finance_id' => $finance?->id, 'created_by' => Auth::id(),
+                ]);
+                Audit::log('restock', "Restock {$kind} {$product->name}: +{$qty} unit @ Rp" . number_format($unitCost), $product);
+
+                return response()->json(['ok' => true, 'msg' => "Restock {$product->name} berhasil dicatat.", 'restock' => $restock], 201);
+            });
+        }
 
         return DB::transaction(function () use ($product, $qty, $unitCost, $totalCost, $kind, $variant, $restockDate, $supplier, $note, $expenseId, $expenseTotal) {
             $user = Auth::user();

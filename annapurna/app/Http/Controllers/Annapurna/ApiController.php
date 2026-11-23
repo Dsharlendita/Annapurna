@@ -288,10 +288,19 @@ class ApiController extends Controller
                 }
             }
 
+            // Diskon manual kasir (hanya staf). Dulu tidak dikirim/diterima, sehingga total di server lebih besar dari nota kasir.
+            $discReason = null;
+            if (in_array(Auth::user()?->role, ['admin', 'owner'], true) && (int) $request->input('discount_amount', 0) > 0) {
+                $discount = min($subtotal, $discount + (int) $request->input('discount_amount'));
+                $discReason = mb_substr((string) $request->input('discount_reason', 'Diskon kasir'), 0, 150);
+            } elseif ($discount > 0) {
+                $discReason = 'Promo ' . strtoupper((string) $validated['promo_code']);
+            }
+
             $total = max(0, $subtotal - $discount);
             $dpPercent = (int)Setting::get('dp_percent', 50);
             $dpAmount = (int)round($total * $dpPercent / 100);
-            $payWindowHours = (int)Setting::get('pay_window_hours', 2);
+            $payWindowHours = (int)Setting::get('pay_window_hours', 1);
 
             // Kode sementara unik; diganti RNT-YYYYMMDD-{id} setelah insert (count()+1 bentrok bila ada data terhapus / checkout bersamaan)
             $code = 'RNT-TMP-' . bin2hex(random_bytes(6));
@@ -316,7 +325,7 @@ class ApiController extends Controller
                 'days' => $days,
                 'subtotal' => $subtotal,
                 'discount_amount' => $discount,
-                'discount_reason' => $request->input('discount_reason'),
+                'discount_reason' => $discReason,
                 'total_amount' => $total,
                 'dp_amount' => $dpAmount,
                 'payment_method' => $validated['payment_method'] ?? 'Transfer Bank',
@@ -360,6 +369,7 @@ class ApiController extends Controller
             'delivery_mode' => 'nullable|string',
             'notes' => 'nullable|string',
             'is_walk_in' => 'nullable|boolean',
+            'promo_code' => 'nullable|string|max:50',
         ]);
 
         // Walk-in (langsung lunas) & diskon manual hanya boleh dari kasir (staf), bukan dari checkout publik
@@ -406,10 +416,20 @@ class ApiController extends Controller
 
             $code = 'ORD-TMP-' . bin2hex(random_bytes(6)); // diganti ORD-YYYYMMDD-{id} setelah insert
             $notaNo = DocumentSequence::nextNota('sale');
-            $payWindowHours = (int) Setting::get('pay_window_hours', 2);
+            $payWindowHours = (int) Setting::get('pay_window_hours', 1);
 
             $isWalkIn = $request->boolean('is_walk_in');
             $discount = (int) $request->input('discount_amount', 0);
+            // Kode promo pembelian (checkout online). Dulu tidak dikirim tampilan, sehingga total di server tanpa diskon promo.
+            if (! empty($validated['promo_code'])) {
+                $promo = Promo::where('code', strtoupper($validated['promo_code']))->lockForUpdate()->first();
+                $check = $promo?->calculateDiscount($subtotal, 'buy');
+                if ($check && $check['valid'] && $check['discount'] > 0) {
+                    $discount = min($subtotal, $discount + (int) $check['discount']);
+                    $request->merge(['discount_reason' => trim(($request->input('discount_reason') ? $request->input('discount_reason') . ' + ' : '') . 'Promo ' . $promo->code)]);
+                    $promo->increment('used_count');
+                }
+            }
             $total = max(0, $subtotal - $discount);
 
             $sale = Sale::create([
@@ -436,6 +456,25 @@ class ApiController extends Controller
 
             foreach ($itemsData as $item) {
                 $sale->items()->create($item);
+            }
+
+            // Penjualan kasir dibayar langsung di toko: catat pembayaran + pemasukan SEKALI di server
+            // (dulu tidak ada baris pembayaran, sehingga omzet kasir hilang dari Keuangan setelah sinkron).
+            if ($isWalkIn && $total > 0) {
+                $ref = $sale->nota_no ?: $sale->sale_code;
+                $sale->payments()->create(Payment::receivedInStore($total, 'Penjualan', $validated['payment_method'] ?? 'Tunai', Auth::id(), 'Dibayar di kasir'));
+                \App\Models\Finance::create([
+                    'finance_code' => \App\Models\Finance::generateCode('income'),
+                    'ref' => $ref,
+                    'type' => 'income',
+                    'category' => 'Penjualan',
+                    'line' => 'sale',
+                    'amount' => $total,
+                    'transaction_date' => now('Asia/Jakarta')->toDateString(),
+                    'description' => "Penjualan kasir {$ref} via " . ($validated['payment_method'] ?? 'Tunai'),
+                    'status' => 'aktif',
+                    'created_by' => Auth::id(),
+                ]);
             }
 
             if (($validated['delivery_mode'] ?? 'ambil') === 'antar') {

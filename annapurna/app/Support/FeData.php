@@ -36,7 +36,8 @@ class FeData
 
     private static function stamp($dt): ?string
     {
-        return $dt ? $dt->copy()->timezone(config('app.timezone'))->format('Y-m-d\TH:i:s') : null;
+        // UTC dengan penanda "Z" supaya browser tidak salah menganggapnya jam lokal (selisih 7 jam)
+        return $dt ? $dt->copy()->utc()->format('Y-m-d\TH:i:s\Z') : null;
     }
 
     /** Hapus nilai null supaya nilai bawaan di tampilan tetap dipakai. */

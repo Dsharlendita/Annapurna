@@ -754,23 +754,37 @@
      Setelah selesai, event 'ann:orders' dikirim supaya halaman menggambar ulang dengan data server. */
   /* Laundry dari server (semua status). Isi lokal yang tidak ada di server (data contoh lama, catatan yang gagal tersimpan)
      dibuang, sama seperti booking & penjualan, supaya laporan keuangan tidak menghitung pemasukan fiktif. */
+  /* Pesanan laundry dari server → bentuk tampilan. Data lokal (riwayat, catatan kasir) tetap dipertahankan. */
+  function ldFromServer(so, loc) {
+    const id = so.order_code || 'DRY-' + so.id;
+    const srv = {
+      id, no: so.nota_no || so.order_code, order_code: so.order_code, nota_no: so.nota_no,
+      customer: { name: so.customer_name, phone: so.customer_phone, email: so.customer_email || '' },
+      items: (so.items || []).map((i) => ({ id: i.laundry_item_id, name: i.item_name, cat: i.category, price: i.unit_price, qty: i.qty, custom: i.is_custom })),
+      discount: so.discount_amount || 0, discountReason: so.discount_reason, notifiedReady: so.notified_ready, notes: so.notes, status: so.status, paymentStatus: so.payment_status,
+      total: so.total_amount, createdAt: so.created_at, pickedAt: so.picked_at,
+      payments: (so.payments || []).map((p) => ({ at: p.paid_at, amount: p.amount, type: p.payment_type, via: p.payment_method })),
+    };
+    if (so.est_done) srv.estDone = D.day(so.est_done);
+    const out = Object.assign({ history: [] }, loc || {}, srv);
+    if (!Array.isArray(out.history)) out.history = [];
+    return out;
+  }
+  /* Simpan jawaban server untuk satu pesanan laundry ke data tampilan (id lama diganti bila berbeda) */
+  function ldSaveServer(so, localId) {
+    if (!so || !so.id) return null;
+    const loc = DB.laundryOrder(localId) || DB.laundryOrder(so.order_code);
+    const x = ldFromServer(so, loc);
+    DB.saveLaundry(x, loc && loc.id !== x.id ? loc.id : undefined);
+    return x;
+  }
+  /* Kode laundry untuk alamat API: kode server (DRY-…), bukan nomor nota yang berisi garis miring */
+  const ldRef = (o) => encodeURIComponent(o.order_code || o.id);
   async function syncLaundryAll() {
     const r = await Api.get('api/admin/laundry?tab=semua', { redirectOn401: false });
     if (!(r && r.ok && Array.isArray(r.data))) return false;
     const local = Object.fromEntries(DB.laundry().map((o) => [o.id, o]));
-    const list = r.data.map((so) => {
-      const id = so.order_code || 'DRY-' + so.id;
-      const srv = {
-        id, no: so.nota_no || so.order_code, order_code: so.order_code, nota_no: so.nota_no,
-        customer: { name: so.customer_name, phone: so.customer_phone, email: so.customer_email || '' },
-        items: (so.items || []).map((i) => ({ id: i.laundry_item_id, name: i.item_name, cat: i.category, price: i.unit_price, qty: i.qty, custom: i.is_custom })),
-        discount: so.discount_amount || 0, discountReason: so.discount_reason, notifiedReady: so.notified_ready, notes: so.notes, status: so.status, paymentStatus: so.payment_status,
-        total: so.total_amount, createdAt: so.created_at, pickedAt: so.picked_at,
-        payments: (so.payments || []).map((p) => ({ at: p.paid_at, amount: p.amount, type: p.payment_type, via: p.payment_method })),
-      };
-      if (so.est_done) srv.estDone = D.day(so.est_done);
-      return Object.assign({ history: [] }, local[id] || {}, srv);
-    });
+    const list = r.data.map((so) => ldFromServer(so, local[so.order_code || 'DRY-' + so.id]));
     DB.set('laundry', list);
     return true;
   }
@@ -1466,10 +1480,12 @@
   }
   /* Laundry SIAP DIAMBIL: staff WAJIB mengabari customer via WhatsApp (pesan + nota). Tidak perlu cetak struk di tahap ini. */
   function ldNotify(o, done) {
-    if (o) Api.try('POST', `api/admin/laundry/${o.order_code || o.no || o.id}/notify`, {});
     let sent = false;
     Promise.resolve(ldContact(DB.laundryOrder(o.id), { title: `Kabari siap diambil · ${o.no}`, logText: 'Customer dikabari via WhatsApp (siap diambil)', patch: () => ({ notifiedReady: D.nowStamp() }),
-      note: '<b>Cucian sudah selesai.</b> Wajib kabari customer bahwa laundry-nya siap diambil.', onSent: () => { sent = true; } })).then((cm) => {
+      note: '<b>Cucian sudah selesai.</b> Wajib kabari customer bahwa laundry-nya siap diambil.', onSent: () => {
+        sent = true;
+        Api.post(`api/admin/laundry/${ldRef(o)}/notify`, {}, { redirectOn401: false }).then((r) => { if (!r || !r.ok) toast(`Tanda "sudah dikabari" ${o.no} belum tersimpan di server: ${(r && r.msg) || 'coba lagi'}`, 'err'); });
+      } })).then((cm) => {
       if (!cm || !cm.el) { done && done(); return; }
       const obs = new MutationObserver(() => { if (document.body.contains(cm.el)) return; obs.disconnect();
         if (sent) toast('Customer sudah dikabari.'); else toast(`${o.no} belum dikabari. Tetap muncul di Dashboard sampai pesan dikirim.`, 'err');
@@ -1482,14 +1498,15 @@
      - belum lunas → terima pelunasan dulu, lalu WAJIB cetak struk pelunasan */
   function ldPickup(o, done) {
     if (Laundry.paid(o) >= Laundry.total(o)) { ldAdvance(o, 'selesai', done); return; }
-    ldPay(o, () => {
-      const x = DB.laundryOrder(o.id); if (Laundry.paid(x) < Laundry.total(x)) { toast('Masih ada sisa tagihan. Laundry belum bisa ditandai diambil.', 'err'); done && done(); return; }
-      ldAdvance(x, 'selesai'); let printed = false;
+    ldPay(o, async (paidX) => {
+      const x = paidX || DB.laundryOrder(o.id); if (Laundry.paid(x) < Laundry.total(x)) { toast('Masih ada sisa tagihan. Laundry belum bisa ditandai diambil.', 'err'); done && done(); return; }
+      if (!(await ldAdvance(x, 'selesai'))) { done && done(); return; }
+      let printed = false;
       const m = modal({ title: `${x.no}: Lunas & diambil`, locked: true, body: `
         <div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div>Pelunasan ${rupiah(Laundry.paid(x))} tercatat dan laundry ditandai <b>diambil</b>.</div></div>
         <p style="font-size:13.5px"><b>Wajib cetak struk pelunasan</b> dan berikan ke customer sebagai bukti pembayaran.</p>`,
         foot: `<button class="btn btn-primary" id="lpPrint"><i class="fa-solid fa-print"></i> Cetak struk</button><button class="btn btn-light" id="lpDone" disabled>Selesai</button>` });
-      m.$('#lpPrint').addEventListener('click', () => { ldStruk(DB.laundryOrder(x.id)); printed = true; m.$('#lpDone').disabled = false; });
+      m.$('#lpPrint').addEventListener('click', () => { ldStruk(DB.laundryOrder(x.id) || x); printed = true; m.$('#lpDone').disabled = false; });
       m.$('#lpDone').addEventListener('click', () => { if (!printed) return; m.close(); done && done(); });
     }, true);
   }
@@ -1499,26 +1516,33 @@
       <div class="field" style="margin-top:10px"><label>Jumlah dibayar (Rp)</label><input class="input" type="number" id="lpAmt" value="${due}"></div>
       <div class="field"><label>Metode</label><select class="select" id="lpVia">${['Tunai', 'Transfer', 'QRIS'].map((x) => `<option>${x}</option>`).join('')}</select></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="lpOk"><i class="fa-solid fa-check"></i> Simpan</button>' });
-    m.$('#lpOk').addEventListener('click', () => {
+    m.$('#lpOk').addEventListener('click', async () => {
       const amt = +String(m.$('#lpAmt').value).replace(/[^\d]/g, '') || 0; if (!amt) { toast('Isi jumlah pembayaran.', 'err'); return; }
-      const via = 'Kasir · ' + m.$('#lpVia').value; const at = D.nowStamp();
-      o.payments = o.payments || []; o.payments.push({ at, amount: amt, type: Laundry.paid(o) + amt >= Laundry.total(o) ? 'Lunas' : 'Sebagian', via });
-      o.paymentStatus = Laundry.paid(o) >= Laundry.total(o) ? 'paid' : 'unpaid';
-      o.history.push({ at, text: `Pembayaran ${rupiah(amt)} (${via}) dicatat oleh ${me.name}` });
-      Api.try('POST', `api/admin/laundry/${o.order_code || o.no || o.id}/bayar`, { amount: amt, payment_method: S.method });
-      DB.saveLaundry(o);
-      DB.audit({ type: 'laundry', action: `Pembayaran laundry ${o.no} (${o.customer.name}) ${rupiah(amt)} · ${via}`, ref: o.id, changes: [{ field: 'Jumlah', from: '', to: rupiah(amt) }, { field: 'Lini usaha', from: '', to: 'Rental' }] });
-      m.close(); toast('Pembayaran laundry tercatat di Keuangan (Rental).'); done && done();
+      const method = m.$('#lpVia').value; const via = 'Kasir · ' + method; const at = D.nowStamp();
+      /* Simpan ke server dulu (pembayaran + buku kas); bila ditolak, tidak ada yang berubah */
+      const r = await Api.busy(m.$('#lpOk'), () => Api.post(`api/admin/laundry/${ldRef(o)}/bayar`, { amount: amt, payment_method: method }, { redirectOn401: false }), 'Menyimpan…');
+      if (!r) return;
+      if (!r.ok) { toast(r.msg || 'Pembayaran belum tersimpan. Coba lagi.', 'err'); return; }
+      const x = ldSaveServer(r.raw && r.raw.order, o.id) || o;
+      (x.history = x.history || []).push({ at, text: `Pembayaran ${rupiah(amt)} (${via}) dicatat oleh ${me.name}` });
+      DB.saveLaundry(x);
+      DB.audit({ type: 'laundry', action: `Pembayaran laundry ${x.no} (${x.customer.name}) ${rupiah(amt)} · ${via}`, ref: x.id, changes: [{ field: 'Jumlah', from: '', to: rupiah(amt) }] });
+      m.close(); toast('Pembayaran laundry tercatat.'); done && done(x);
     });
   }
-  function ldAdvance(o, to, done) {
-    const from = o.status; o.status = to; const at = D.nowStamp(); if (to === 'selesai') o.pickedAt = at; if (to === 'siap') o.readyAt = at;
-    o.history.push({ at, text: `${(STATUS.laundry[to] || {}).label || to} · ${me.name}` });
-    Api.try('POST', `api/admin/laundry/${o.order_code || o.no || o.id}/status`, { status: to });
+  async function ldAdvance(o, to, done) {
+    const from = o.status; const at = D.nowStamp();
+    const r = await Api.post(`api/admin/laundry/${ldRef(o)}/status`, Object.assign({ status: to }, o.cancelReason && to === 'dibatalkan' ? { note: 'Dibatalkan: ' + o.cancelReason } : {}), { redirectOn401: false });
+    if (!r || !r.ok) { toast((r && r.msg) || 'Status laundry belum tersimpan. Coba lagi.', 'err'); if (done) done(); return false; }
+    const reason = o.cancelReason;
+    o = ldSaveServer(r.raw && r.raw.order, o.id) || o; if (reason) o.cancelReason = reason;
+    o.status = to; if (to === 'selesai') o.pickedAt = o.pickedAt || at; if (to === 'siap') o.readyAt = at;
+    (o.history = o.history || []).push({ at, text: `${(STATUS.laundry[to] || {}).label || to} · ${me.name}` });
     DB.saveLaundry(o);
     DB.audit({ type: 'laundry', action: `Status laundry ${o.no} (${o.customer.name}): ${(STATUS.laundry[from] || {}).label} → ${(STATUS.laundry[to] || {}).label}`, ref: o.id, changes: [{ field: 'Status', from: (STATUS.laundry[from] || {}).label, to: (STATUS.laundry[to] || {}).label }] });
     toast(`${o.no}: ${(STATUS.laundry[to] || {}).label}.`); refreshShell();
     if (to === 'siap') ldNotify(DB.laundryOrder(o.id), done); else if (done) done();
+    return true;
   }
   /* Nota digital laundry: pratinjau nota seperti invoice sewa, salin/unduh gambar, lalu kirim pesan WA berisi tautan nota. */
   /* Gambar nota laundry (PNG): gaya sama dengan nota booking / invoice di website (logo, stempel, QR, tabel, ringkasan, riwayat, ketentuan) */
@@ -1686,7 +1710,7 @@
     m.$('[data-bcontact]').addEventListener('click', async (e) => { const bt = e.currentTarget; bt.disabled = true; try { await contactBooking(DB.booking(id)); } finally { bt.disabled = false; } });
     m.$$('[data-svcact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); (btn.dataset.svcact === 'edit' ? svcEdit : svcPay)(DB.booking(id), () => { refreshShell(); done && done(); bookingModal(id, done); }); }));
     const fin2 = () => { refreshShell(); done && done(); };
-    m.$('[data-rqok]').forEach((x) => x.addEventListener('click', async () => { const ch = b.changes.find((c) => c.id === x.dataset.rqok); if (await BK.approveChange(b, ch)) { m.close(); fin2(); } }));
+    m.$$('[data-rqok]').forEach((x) => x.addEventListener('click', async () => { const ch = b.changes.find((c) => c.id === x.dataset.rqok); if (await BK.approveChange(b, ch)) { m.close(); fin2(); } }));
     m.$$('[data-rqno]').forEach((x) => x.addEventListener('click', async () => { const ch = b.changes.find((c) => c.id === x.dataset.rqno); m.close(); if (await BK.rejectChange(b, ch)) fin2(); }));
     m.$$('[data-rqext]').forEach((x) => x.addEventListener('click', () => { const r = b.extensions.find((y) => y.id === x.dataset.rqext); m.close(); BK.extend(b, fin2, r); }));
     if ((opts && opts.focusReq || UI.param('req')) && m.$('#reqSec')) setTimeout(() => m.$('#reqSec').scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
@@ -2130,5 +2154,5 @@ ${pay}
     e.preventDefault(); e.stopPropagation();
     UI.waCompose({ title: 'Kirim pesan WhatsApp', text: t, phone: u.pathname.replace(/\D/g, ''), waLabel: 'Buka WhatsApp' });
   }, true);
-  window.Admin = { syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
+  window.Admin = { ldFromServer, ldSaveServer, syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
 })();

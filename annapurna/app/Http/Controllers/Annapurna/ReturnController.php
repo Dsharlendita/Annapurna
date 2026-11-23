@@ -189,7 +189,7 @@ class ReturnController extends Controller
                 };
                 $u->out_ref = null;
                 $u->care = in_array($res, ['perbaikan', 'cuci'], true) ? $res : null;
-                $u->care_info = $u->care ? ['issue' => $r['issue'] ?? null, 'since' => now()->format('Y-m-d\TH:i:s'), 'by' => Auth::user()?->name] : null;
+                $u->care_info = $u->care ? ['issue' => $r['issue'] ?? null, 'since' => now()->utc()->format('Y-m-d\TH:i:s\Z'), 'by' => Auth::user()?->name] : null;
                 $u->condition = $r['cond'] ?? match ($res) {
                     'perbaikan' => 'Rusak',
                     'hilang' => 'Hilang',

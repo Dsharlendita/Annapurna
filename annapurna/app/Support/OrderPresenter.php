@@ -22,7 +22,9 @@ class OrderPresenter
 
     private static function stamp($dt): ?string
     {
-        return $dt ? $dt->copy()->timezone(config('app.timezone'))->format('Y-m-d\TH:i:s') : null;
+        // Selalu UTC dengan penanda "Z": tanpa penanda, browser membacanya sebagai jam lokal (WIB) sehingga waktu bergeser
+        // 7 jam (pesanan baru langsung dianggap lewat batas bayar dan tampil "dibatalkan" di HP customer).
+        return $dt ? $dt->copy()->utc()->format('Y-m-d\TH:i:s\Z') : null;
     }
 
     /** Metode pengembalian DP → { method, bank, account, holder } (null bila belum dipilih). */

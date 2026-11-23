@@ -103,7 +103,7 @@ class Rekap
     {
         return [
             'period' => $a->period,
-            'createdAt' => $a->updated_at?->copy()->timezone(self::TZ)->format('Y-m-d\TH:i:s'),
+            'createdAt' => $a->updated_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z'),
             'by' => $a->is_auto ? 'Sistem (terjadwal)' : ($a->created_by_name ?: '-'),
             'auto' => $a->is_auto,
             'version' => $a->version,

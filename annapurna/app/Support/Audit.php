@@ -97,7 +97,7 @@ class Audit
     {
         return array_filter([
             'id' => 'L' . $l->id,
-            'at' => $l->created_at?->copy()->timezone(config('app.timezone'))->format('Y-m-d\TH:i:s'),
+            'at' => $l->created_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z'),
             'userId' => $l->user_id ? 'u' . $l->user_id : 'system',
             'userName' => $l->user_name,
             'role' => $l->role,

@@ -342,6 +342,7 @@
           payment_method: common.method,
           delivery_mode: SB.pick === 'antar' ? 'antar' : 'ambil',
           notes: common.notes || null,
+          promo_code: usePr && usePr.promo && usePr.buy ? usePr.promo.code : null,
         };
 
         const svSale = await Api.post('api/sale', salePayload, { redirectOn401: false });

@@ -35,7 +35,8 @@
     const banks = $$('.bank-row').map((r) => ({ bank: r.querySelector('[data-k=bank]').value.trim(), number: r.querySelector('[data-k=number]').value.trim(), holder: r.querySelector('[data-k=holder]').value.trim() })).filter((b) => b.bank && b.number);
     if (!banks.length) { show('bayar'); toast('Isi minimal satu rekening yang lengkap.', 'err'); return; }
     const lines = (id) => $$(`#${id} textarea`).map((t) => t.value.trim()).filter(Boolean);
-    const next = Object.assign({}, S, { banks });
+    /* Server hanya mengirim 8 kolom profil toko: gabungkan dengan pengaturan lengkap supaya ketentuan, kebijakan, dll. tidak hilang */
+    const next = Object.assign({}, DB.settings(), S, { banks });
     FIELDS.forEach((k) => (next[k] = E[k].value.trim()));
     const btn = F.querySelector('[type="submit"]');
     const r = await Api.busy(btn, () => Api.try('POST', 'api/admin/pengaturan', next, () => DB.saveSettings(next)), 'Menyimpan…');

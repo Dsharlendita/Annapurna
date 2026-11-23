@@ -229,7 +229,7 @@
   /* Simpan ke server DULU (aturan H-n & nominal refund dihitung server, metode pengembalian ikut dikirim).
      Ditolak server → batal tidak disimpan. Booking yang belum ada di server (404/405) tetap dibatalkan lokal. */
   async function doCancel(b, reason, { hasDp, refundable, refund }) {
-    const r = await Api.try('POST', `api/pesanan/${encodeURIComponent(b.id)}/batal`, Object.assign({ reason }, UI.refundPayload(refund)), () => ({ ok: true }));
+    const r = await Api.post(`api/pesanan/${encodeURIComponent(b.id)}/batal`, Object.assign({ reason }, UI.refundPayload(refund)), { redirectOn401: false });
     if (!r.ok) { toast(r.msg || 'Gagal membatalkan booking.', 'err'); return false; }
     if (r.source === 'server' && r.data && r.data.id) { DB.mergeServer('bookings', [r.data]); b = DB.booking(b.id); }
     b.status = 'dibatalkan';
@@ -260,7 +260,7 @@
     m.$('#xEnd').addEventListener('change', () => { syncQ(); calc(); }); calc();
     m.$('#xOk').addEventListener('click', async () => { const r = calc(); if (!r.ok) return; const to = m.$('#xEnd').value;
       /* Dikirim ke server (biaya dihitung server); booking contoh lama yang belum ada di server tetap diproses lokal */
-      const sv = await Api.busy(m.$('#xOk'), () => Api.try('POST', `api/pesanan/${encodeURIComponent(b.id)}/perpanjang`, { to_date: to, reason: m.$('#xWhy').value.trim() }, () => ({ ok: true })), 'Mengirim…');
+      const sv = await Api.busy(m.$('#xOk'), () => Api.post(`api/pesanan/${encodeURIComponent(b.id)}/perpanjang`, { to_date: to, reason: m.$('#xWhy').value.trim() }, { redirectOn401: false }), 'Mengirim…');
       if (!sv) return; if (!sv.ok) { toast(sv.msg || 'Permintaan gagal dikirim.', 'err'); return; }
       if (sv.source === 'server' && sv.data && sv.data.id) {
         DB.mergeServer('bookings', [sv.data]);
@@ -275,7 +275,7 @@
 
   function change(b) {
     UI.changeModal(b, { mode: 'customer', onSubmit: async (r) => {
-      const sv = await Api.try('POST', `api/pesanan/${encodeURIComponent(b.id)}/ganti`, { from_id: r.line.refId, to_id: r.p.id, to_size: r.size || null, qty: r.qty, reason: r.reason || '' }, () => ({ ok: true }));
+      const sv = await Api.post(`api/pesanan/${encodeURIComponent(b.id)}/ganti`, { from_id: r.line.refId, to_id: r.p.id, to_size: r.size || null, qty: r.qty, reason: r.reason || '' }, { redirectOn401: false });
       if (!sv.ok) { toast(sv.msg || 'Permintaan gagal dikirim.', 'err'); return false; }
       if (sv.source === 'server' && sv.data && sv.data.id) {
         DB.mergeServer('bookings', [sv.data]);
@@ -310,9 +310,18 @@
     if (act === 'review') reviewModal(id.startsWith('RNT') ? DB.booking(id) : DB.sale(id), draw);
     if (act === 'scancel') {
       if (!(await confirmBox({ title: `Batalkan ${id}?`, text: 'Pesanan pembelian ini belum dibayar dan akan dibatalkan.', ok: 'Batalkan pesanan', danger: true }))) return;
-      const s = DB.sale(id); s.status = 'dibatalkan'; s.history.push({ at: D.nowStamp(), text: 'Customer membatalkan pesanan' }); DB.saveSale(s); toast('Pesanan dibatalkan.'); draw();
+      /* Disimpan ke server: stok dikembalikan & toko melihat pembatalannya */
+      const r = await Api.post(`api/pesanan/beli/${encodeURIComponent(id)}/batal`, {}, { redirectOn401: false });
+      if (!r || !r.ok) { toast((r && r.msg) || 'Pesanan belum bisa dibatalkan. Coba lagi.', 'err'); return; }
+      const s = DB.sale(id); if (s) { (s.history = s.history || []).push({ at: D.nowStamp(), text: 'Customer membatalkan pesanan' }); DB.saveSale(s); }
+      if (r.data && r.data.id) DB.mergeServer('sales', [r.data]);
+      toast('Pesanan dibatalkan.'); draw();
     }
-    if (act === 'received') { const s = DB.sale(id); s.status = 'selesai'; s.history.push({ at: D.nowStamp(), text: 'Barang sudah diambil customer' }); DB.saveSale(s); toast('Terima kasih! Pesanan selesai.'); draw(); setTimeout(() => reviewModal(DB.sale(id), draw), 500); }
+    if (act === 'received') {
+      const r = await Api.post(`api/pesanan/beli/${encodeURIComponent(id)}/diterima`, {}, { redirectOn401: false });
+      if (!r || !r.ok) { toast((r && r.msg) || 'Belum tersimpan. Coba lagi.', 'err'); return; }
+      const s = DB.sale(id); if (s) { s.status = 'selesai'; (s.history = s.history || []).push({ at: D.nowStamp(), text: 'Barang sudah diambil customer' }); DB.saveSale(s); }
+      if (r.data && r.data.id) DB.mergeServer('sales', [r.data]); toast('Terima kasih! Pesanan selesai.'); draw(); setTimeout(() => reviewModal(DB.sale(id), draw), 500); }
     if (act === 'buyagain') { const s = DB.sale(id); s.items.forEach((i) => UI.Cart.add(Object.assign({ type: 'buy', kind: 'product', refId: i.productId, qty: i.qty }, i.size ? { size: i.size } : {}))); location.href = 'keranjang'; }
   });
 

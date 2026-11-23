@@ -126,7 +126,7 @@ class OrderController extends Controller
                     'status' => 'menunggu_pembayaran',
                     'payment_status' => 'unpaid',
                     // beri waktu unggah ulang; tanpa ini scheduler langsung membatalkan
-                    'expired_at' => now()->addHours((int) Setting::get('pay_window_hours', 2)),
+                    'expired_at' => now()->addHours((int) Setting::get('pay_window_hours', 1)),
                 ]);
                 Audit::log('rental', "Menolak bukti pembayaran {$this->ref($b)}" . (!empty($v['reason']) ? " ({$v['reason']})" : ''), $b);
             }
@@ -309,7 +309,7 @@ class OrderController extends Controller
                 $s->update([
                     'status' => 'menunggu_pembayaran',
                     'payment_status' => 'unpaid',
-                    'expired_at' => now()->addHours(max(1, (int) Setting::get('pay_window_hours', 2))),
+                    'expired_at' => now()->addHours(max(1, (int) Setting::get('pay_window_hours', 1))),
                 ]);
             } elseif ($to === 'dibatalkan') {
                 \App\Support\SaleStock::restore($s);
@@ -335,6 +335,49 @@ class OrderController extends Controller
 
             return response()->json(['ok' => true, 'data' => OrderPresenter::sale($s->fresh(OrderPresenter::SALE_WITH))]);
         });
+    }
+
+    /**
+     * POST /api/pesanan/beli/{id}/batal — customer membatalkan pesanan beli yang BELUM dibayar.
+     * Stok dikembalikan. Pesanan yang sudah mengunggah bukti / lunas harus dibatalkan lewat toko.
+     */
+    public function customerSaleCancel(string $id): JsonResponse
+    {
+        return $this->tx(function () use ($id) {
+            $s = $this->lockOwnSale($id);
+            if ($s->status !== 'menunggu_pembayaran' || $s->payment_status !== 'unpaid' || $s->payments()->where('status', 'pending')->exists()) {
+                throw new \DomainException('Pesanan ini sudah dibayar atau sedang diperiksa toko. Hubungi admin untuk membatalkan.');
+            }
+            \App\Support\SaleStock::restore($s);
+            $s->update(['status' => 'dibatalkan', 'cancel_at' => now(), 'cancel_reason' => 'Dibatalkan customer', 'cancel_auto' => false]);
+
+            return response()->json(['ok' => true, 'data' => OrderPresenter::sale($s->fresh(OrderPresenter::SALE_WITH))]);
+        });
+    }
+
+    /** POST /api/pesanan/beli/{id}/diterima — customer menandai pesanan beli sudah diambil / diterima. */
+    public function customerSaleReceived(string $id): JsonResponse
+    {
+        return $this->tx(function () use ($id) {
+            $s = $this->lockOwnSale($id);
+            if ($s->status !== 'siap_diambil' || $s->payment_status !== 'paid') {
+                throw new \DomainException('Pesanan ini belum siap diambil.');
+            }
+            $s->update(['status' => 'selesai']);
+
+            return response()->json(['ok' => true, 'data' => OrderPresenter::sale($s->fresh(OrderPresenter::SALE_WITH))]);
+        });
+    }
+
+    /** Pesanan beli milik customer yang sedang login (404 bila bukan miliknya). */
+    private function lockOwnSale(string $id): Sale
+    {
+        $s = $this->lockSale($id);
+        $u = Auth::user();
+        $owns = $u && (($s->user_id && $s->user_id === $u->id) || strtolower((string) $s->customer_email) === strtolower($u->email));
+        abort_unless($owns, 404, 'Pesanan tidak ditemukan.');
+
+        return $s;
     }
 
     private function lockSale(string $id): Sale

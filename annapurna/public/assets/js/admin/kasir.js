@@ -309,31 +309,27 @@
       const o = { id: DB.nextId('DRY', DB.laundry()), no: DB.nextLaundryNo(at), customer: { name: S.name, phone: S.phone, email: '' }, items, discount: t.disc || 0, ...(t.disc ? { discountReason: discReason() } : {}), estDone: S.ldEst || D.addDays(T, Laundry.days()),
         notes: S.note, channel: 'kasir', by: me.name, kasir, createdAt: at, status: 'diterima', payments: t.payNow ? [{ at, amount: t.payNow, type: 'Lunas', via }] : [], paymentStatus: t.payNow ? 'paid' : 'unpaid',
         history: [{ at, text: `Barang diterima di toko dan dicatat di kasir oleh ${me.name}${t.payNow ? ` · dibayar ${rupiah(t.payNow)} (${S.method})` : ' · dibayar saat diambil'}` }] };
-      // Simpan ke database MySQL server Laravel
-      Api.try('POST', 'api/admin/laundry', {
+      /* Simpan ke server dulu dan DITUNGGU. Bila gagal, form tidak dikosongkan supaya bisa dicoba lagi. */
+      saving = true;
+      const sv = await Api.post('api/admin/laundry', {
         customer_name: S.name,
         customer_phone: S.phone,
         customer_email: null,
         items: items,
         discount: t.disc || 0,
         discount_reason: discReason() || null,
-        est_done: S.ldEst || null,
+        est_done: o.estDone || null,
         notes: S.note || null,
         payment_method: S.method,
         pay_now: t.payNow || 0,
         channel: 'kasir',
-      }).then((sv) => {
-        if (sv && sv.ok && sv.data && sv.data.order) {
-          const localId = o.id;
-          o.id = sv.data.order.order_code || o.id;
-          o.no = sv.data.order.nota_no || o.no;
-          o.order_code = sv.data.order.order_code;
-          o.nota_no = sv.data.order.nota_no;
-          DB.saveLaundry(o, localId);
-        }
-      });
-
-      DB.saveLaundry(o);
+      }, { redirectOn401: false });
+      saving = false;
+      const so = sv && sv.ok && sv.raw && sv.raw.order;
+      if (!so) { toast(`Laundry belum tersimpan: ${(sv && sv.msg) || 'server tidak menjawab'}. Coba lagi.`, 'err'); return; }
+      const localId = o.id;
+      Object.assign(o, Admin.ldFromServer(so, o), { kasir, channel: 'kasir', by: me.name, history: o.history });
+      DB.saveLaundry(o, localId);
       reset();
       DB.audit({ type: 'laundry', action: `Kasir: laundry ${o.no} · ${items.map((i) => `${i.qty}× ${i.name}`).join(', ')} · ${rupiah(Laundry.total(o))}${t.payNow ? ` · dibayar ${rupiah(t.payNow)} (${S.method})` : ' · belum dibayar'}`, ref: o.id });
       doneLaundry(o);
@@ -344,26 +340,24 @@
       const o = { id: DB.nextId('ORD', DB.sales()), customer, userEmail: '', method: S.method, delivery: 'ambil', notes: S.note, channel: 'offline', kasir, createdAt: D.nowStamp(), items, subtotal: t.sub, total: t.total,
         ...(t.disc ? { discount: { code: discReason() || 'KASIR', reason: discReason(), type: S.dType === 'pct' ? 'persen' : 'nominal', value: +S.dVal || 0, amount: t.disc } } : {}), status: 'selesai', paymentStatus: 'paid', payments: [{ at: D.nowStamp(), amount: t.total, type: 'Pembayaran', via }],
         history: [{ at: D.nowStamp(), text: `Penjualan offline di kasir oleh ${me.name} (${S.method})` }] };
-      DB.sellStock(o.items, 1);
-      
-      // Kirim pesanan penjualan offline ke database server Laravel
-      Api.try('POST', 'api/sale', {
+      /* Server dulu (ditunggu): penjualan, pembayaran & pemasukan dicatat sekali di server. Bila gagal, stok tidak dikurangi
+         dan form tidak dikosongkan. */
+      saving = true;
+      const sv = await Api.post('api/sale', {
         customer_name: customer.name,
         customer_phone: customer.phone || null,
         is_walk_in: true,
         payment_method: S.method,
         notes: S.note || null,
+        discount_amount: t.disc || 0,
+        discount_reason: t.disc ? (discReason() || 'Diskon kasir') : null,
         items: S.items.map((it) => ({ product_id: it.refId, qty: it.qty })),
-      }).then((sv) => {
-        if (sv && sv.ok && sv.data && sv.data.sale) {
-          o.id = sv.data.sale.sale_code || o.id;
-          o.sale_code = sv.data.sale.sale_code;
-          o.nota_no = sv.data.sale.nota_no;
-          o.notaNo = sv.data.sale.nota_no;
-          DB.saveSale(o);
-        }
-      });
-
+      }, { redirectOn401: false });
+      saving = false;
+      const ss = sv && sv.ok && sv.data && sv.data.sale;
+      if (!ss) { toast(`Penjualan belum tersimpan: ${(sv && sv.msg) || 'server tidak menjawab'}. Coba lagi.`, 'err'); return; }
+      o.id = ss.sale_code || o.id; o.sale_code = ss.sale_code; o.nota_no = ss.nota_no; o.notaNo = ss.nota_no; o.no = ss.nota_no || o.no; o._srv = true;
+      DB.sellStock(o.items, 1);
       DB.saveSale(o);
       reset(); /* form langsung kosong setelah tersimpan (mencegah tersimpan dua kali) */
       DB.audit({ type: 'penjualan', action: `Kasir: penjualan offline ${NO(o)} · ${items.map((i) => `${i.qty}× ${i.name}`).join(', ')} · ${rupiah(o.total)} (${S.method})`, ref: o.id });
@@ -392,7 +386,7 @@
     // Kirim sewa offline ke database server Laravel — DITUNGGU, supaya kode booking & ID server sudah ada
     // sebelum barang dicatat keluar (endpoint pickup butuh ID server; mencegah booking tercatat ganda)
     saving = true;
-    const sv = await Api.try('POST', 'api/booking', {
+    const sv = await Api.post('api/booking', {
       customer_name: customer.name,
       customer_phone: customer.phone,
       customer_email: customer.email || null,
@@ -406,6 +400,8 @@
       delivery_mode: S.svcMode || 'ambil',
       notes: S.note || null,
       guarantee_type: S.idType || null,
+      discount_amount: t.disc || 0,
+      discount_reason: t.disc ? (discReason() || 'Diskon kasir') : null,
       items: lns.map((it) => ({
         product_id: it.refId,
         qty: it.qty,
@@ -413,7 +409,9 @@
         price_per_day: it.pricePerDay,
       })),
     });
-    if (sv && sv.ok && sv.data && sv.data.booking) {
+    saving = false;
+    if (!(sv && sv.ok && sv.data && sv.data.booking)) { toast(`Sewa belum tersimpan: ${(sv && sv.msg) || 'server tidak menjawab'}. Coba lagi.`, 'err'); return; }
+    {
       b.id = sv.data.booking.booking_code || b.id;
       b.booking_code = sv.data.booking.booking_code;
       b.nota_no = sv.data.booking.nota_no;
@@ -421,7 +419,17 @@
       if (sv.data.booking.id) b.serverId = sv.data.booking.id;
       /* Uang yang diterima di kasir dicatat SEKALI ke server lewat endpoint pelunasan yang sudah ada
          (api/admin/booking/{kode}/settle). Form barang keluar berikutnya mengirim 0 karena sudah lunas/terbayar. */
-      if (t.payNow > 0) Api.post(`api/admin/booking/${encodeURIComponent(b.id)}/settle`, { payment_amount: t.payNow, payment_method: `Kasir · ${S.method}`, settle_later: false, settle_disc_amount: 0 }, { redirectOn401: false }).catch(() => {});
+      /* Hanya uang SEWA yang dicatat lewat pelunasan; biaya jasa tenda & ongkir dicatat di layanan (di bawah),
+         supaya tidak terhitung dua kali. */
+      const rentPay = t.svc ? t.rentNow : t.payNow;
+      if (rentPay > 0) {
+        const ps = await Api.post(`api/admin/booking/${encodeURIComponent(b.id)}/settle`, { payment_amount: rentPay, payment_method: `Kasir · ${S.method}`, settle_later: false, settle_disc_amount: 0 }, { redirectOn401: false });
+        if (!ps || !ps.ok) toast(`Booking ${b.nota_no || b.id} tersimpan, tetapi pembayaran ${rupiah(rentPay)} belum tercatat di server: ${(ps && ps.msg) || 'coba lagi'}. Catat lewat menu Pelunasan.`, 'err');
+      }
+      if (S.svcMode && window.Admin && Admin.svcServer) {
+        const okSvc = await Admin.svcServer(b);
+        if (!okSvc) toast(`Layanan antar/tenda ${b.nota_no || b.id} belum tersimpan di server. Isi ulang lewat detail booking.`, 'err');
+      }
     }
 
     DB.saveBooking(b);

@@ -30,7 +30,7 @@ class ExpireUnpaidBookings extends Command
      */
     public function handle(): int
     {
-        $hours = (int) Setting::get('pay_window_hours', 2);
+        $hours = (int) Setting::get('pay_window_hours', 1);
         $threshold = Carbon::now()->subHours($hours);
         $now = Carbon::now();
 

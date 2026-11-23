@@ -90,7 +90,8 @@ class BootController extends Controller
             'products' => Product::orderBy('sort_order')->orderBy('id')->get()->map(fn ($p) => FeData::toFeProduct($p, false))->all(),
             'packages' => Package::with('items')->orderBy('sort_order')->orderBy('id')->get()->map(fn ($k) => FeData::toFePackage($k))->all(),
             'promos' => Promo::orderBy('id')->get()->map(fn ($p) => FeData::toFePromo($p))->all(),
-            'reviews' => Review::with(['booking', 'sale'])->where('is_visible', true)->latest('id')->get()->map(fn ($r) => FeData::toFeReview($r))->all(),
+            // Data publik (dibaca siapa pun): email pemberi ulasan tidak ikut. Staf mendapatkannya lewat boot-staff.js.
+            'reviews' => Review::with(['booking', 'sale'])->where('is_visible', true)->latest('id')->get()->map(fn ($r) => array_merge(FeData::toFeReview($r), ['email' => '']))->all(),
             // Data staff yang mungkin tertinggal dari data demo di browser pengunjung dibersihkan
             'clear' => ['expenses', 'incomes', 'customerMeta'],
         ], false);

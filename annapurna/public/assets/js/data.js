@@ -1071,7 +1071,7 @@
       /* Pengunjung tanpa login / customer pada data staff: perubahan hanya lokal (server tetap sumber kebenaran) */
       if (!sess || (cfg.staff && !staff)) { accept(); return; }
       const prevStock = k === 'products' ? Object.assign({}, syncStockFrom) : null;
-      const body = { items: cfg.map ? Object.fromEntries(changed.map(([id, x]) => [id, x])) : changed.map(([, x]) => (k === 'products' && syncStockFrom[x.id] != null ? Object.assign({ _stockFrom: syncStockFrom[x.id] }, syncStrip(k, x)) : syncStrip(k, x))), removed };
+      const body = { items: cfg.map ? Object.fromEntries(changed.map(([id, x]) => [id, x])) : changed.map(([id, x]) => (k === 'products' && syncStockFrom[x.id] != null ? Object.assign({ _stockFrom: syncStockFrom[x.id] }, syncStrip(k, x)) : (k === 'expenses' || k === 'incomes') && !base.has(id) ? Object.assign({ _new: true }, syncStrip(k, x)) : syncStrip(k, x))), removed };
       if (k === 'products') changed.forEach(([, x]) => { syncStockFrom[x.id] = +x.stock || 0; });
       const root = (typeof document !== 'undefined' && document.body && document.body.dataset.base) || '/';
       const csrf = ((typeof document !== 'undefined' && document.querySelector('meta[name="csrf-token"]')) || {}).content || '';

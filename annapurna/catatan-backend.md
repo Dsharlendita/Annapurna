@@ -1141,3 +1141,19 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - **Stok:** server mengurangi stok saat customer memesan; dulu tampilan admin mengurangi lagi saat verifikasi (lewat sinkron selisih stok) → stok berkurang dua kali, dan stok terakhir tidak bisa diverifikasi. Sekarang `DB.sellStock(..., { unitsOnly: true })` untuk pesanan online (unit fisik saja). Pembatalan otomatis karena tidak dibayar (`bookings:expire-unpaid`) juga mengembalikan stok.
 - Notifikasi pembatalan membuka tab **Riwayat** (tempat pesanan batal tampil) dan menyertakan alasan.
 - Tes: `StatusPenjualanTest` (5). PHP 106 lulus. Uji tampilan: verifikasi → siap diambil, batal → customer melihat "Dibatalkan", stok 6 → 5 (2 dibeli, 1 batal). `ASSET_VERSION` = `20261123.6`.
+
+## C.56 Perbaikan Tahap 1 dari laporan uji menyeluruh — 24 Nov 2026 (Aji)
+
+Laporan: `docs/Laporan-Uji-Menyeluruh-2026-11-23.md` (tidak di-commit; repo publik).
+
+- **Laundry:** bayar / ubah status / batal / kabari siap kini server dulu (`ldPay`, `ldAdvance`, `ldNotify` di admin.js). Bayar dulu error karena `o.history` kosong & `S.method` tidak ada. Pemetaan server → tampilan disatukan di `Admin.ldFromServer` / `Admin.ldSaveServer` (dipakai juga halaman Laundry). Tanda "sudah dikabari" dikirim setelah WhatsApp benar-benar terkirim.
+- **Kasir:** jual / sewa / laundry menunggu jawaban server; gagal = pesan error, form tidak dikosongkan, stok tidak dikurangi. Diskon manual dikirim (`discount_amount`, diterima server hanya dari staf). Penjualan kasir kini mencatat Payment + Finance di server (dulu tidak ada → omzet Rp 0 di Keuangan). Sewa kasir dengan layanan: pelunasan hanya uang sewa (biaya layanan tidak dobel).
+- **Kode keuangan:** catatan baru dikirim dengan `_new`; bila kodenya sudah dipakai catatan lain, server memberi kode baru (dulu catatan staf lain tertimpa).
+- **Restock dari aplikasi** (`from_app`): server hanya mencatat riwayat (+ `unit_codes`), tidak membuat unit / stok / pengeluaran lagi (dulu unit dobel).
+- **Pesanan beli customer:** `POST api/pesanan/beli/{id}/batal` (belum dibayar, stok kembali) dan `/diterima`. Batal / perpanjang / ganti sewa oleh customer tidak lagi "berhasil" diam-diam saat server menolak.
+- **Promo** untuk pesanan beli dihitung server (`promo_code` di `api/sale`). Booking menerima diskon kasir (staf saja).
+- **Jam dari server** kini UTC bertanda `Z` (OrderPresenter, FeData, Audit, Rekap, ReturnController). Dulu tanpa penanda → browser membaca sebagai WIB (geser 7 jam) → pesanan baru langsung tampil "dibatalkan" di HP customer.
+- **Batas bayar** bawaan server 1 jam (sama dengan tampilan & teks ketentuan).
+- **Data publik** `boot.js`: email pemberi ulasan tidak ikut.
+- Jendela detail booking (error `m.$(...).forEach`), simpan Pengaturan toko (data 8 kolom menimpa seluruh pengaturan).
+- Tes: `PerbaikanTahap1Test` (8). PHP 114 lulus. Uji tampilan dua browser: 10/10 lulus + regresi sewa, beli, detail, CSP. `ASSET_VERSION` = `20261124.1`.

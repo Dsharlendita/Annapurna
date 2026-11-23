@@ -372,10 +372,20 @@ class SyncController extends Controller
                 $this->skipped[] = $x['id'] ?? '?';
                 continue;
             }
-            $f = Finance::where('finance_code', $x['id'])->first();
+            $f = Finance::where('finance_code', $x['id'])->lockForUpdate()->first();
             if ($f && ($f->source !== 'manual' || $f->type !== $type)) {
-                $f = null;   // kode sama milik baris lain â†’ buat kode baru
+                $f = null;   // kode sama milik baris lain: buat kode baru
                 $newCode = Finance::generateCode($type);
+            } elseif ($f && ! empty($x['_new'])) {
+                // Catatan BARU dari tampilan, tapi kodenya sudah dipakai catatan lain (dibuat perangkat staf lain dengan
+                // nomor urut yang sama). Catatan lama tidak boleh ditimpa: beri kode baru. Pengecualian: kiriman ulang
+                // catatan yang sama dari staf yang sama (respons sebelumnya hilang) dianggap catatan yang sama.
+                $same = (int) $f->created_by === (int) $u->id && (int) $f->amount === $amount
+                    && (string) $f->description === (string) ($x['desc'] ?? '-');
+                if (! $same) {
+                    $f = null;
+                    $newCode = Finance::generateCode($type);
+                }
             }
             $line = in_array($x['line'] ?? null, ['rent', 'sale', 'umum'], true) ? $x['line'] : null;
             $attrs = [

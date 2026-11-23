@@ -655,7 +655,7 @@
       const date = m.$('#rsDate').value || T, supplier = m.$('#rsSup').value, note = m.$('#rsNote').value;
       const r = DB.restockBatch({ productId: pid, kind: rent ? 'rent' : 'sale', lines, cost, date, supplier, note });
       if (!r.ok) { toast(r.msg, 'err'); return; }
-      r.restocks.forEach((rec, i) => syncRestock({ productId: pid, qty: rec.qty, cost, size: rec.size, date, supplier, note, expenseId: r.expenseId, expenseTotal: i === 0 ? r.amount : null }, rent));
+      r.restocks.forEach((rec, i) => syncRestock({ productId: pid, qty: rec.qty, cost, size: rec.size, date, supplier, note, expenseId: r.expenseId, expenseTotal: i === 0 ? r.amount : null, units: rec.units || null }, rent));
       m.close(); draw();
       if (rent) {
         modal({ title: 'Restock barang sewa tersimpan', body: `<div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div><b>+${r.total} unit ${esc(p.name)}</b> siap disewakan. Satu pengeluaran ${rupiah(r.amount)} tercatat di Keuangan (lini Rental).</div></div>
@@ -682,7 +682,7 @@
      404 = barang belum ada di server (dibuat di perangkat ini) → diabaikan. */
   function syncRestock(a, rent) {
     if (!window.Api) return;
-    Api.post(`api/admin/products/${encodeURIComponent(a.productId)}/restock`, { qty: a.qty, unit_cost: a.cost, kind: rent ? 'rent' : 'sale', size: a.size || (a.newCombo ? [a.newCombo.v1, a.newCombo.v2].filter(Boolean).join(DB.VSEP || ' / ') : '') || null, supplier: a.supplier || null, restock_date: a.date || null, note: a.note || null, expense_id: a.expenseId || null, expense_total: a.expenseTotal || null }, { redirectOn401: false })
+    Api.post(`api/admin/products/${encodeURIComponent(a.productId)}/restock`, { qty: a.qty, unit_cost: a.cost, kind: rent ? 'rent' : 'sale', size: a.size || (a.newCombo ? [a.newCombo.v1, a.newCombo.v2].filter(Boolean).join(DB.VSEP || ' / ') : '') || null, supplier: a.supplier || null, restock_date: a.date || null, note: a.note || null, expense_id: a.expenseId || null, expense_total: a.expenseTotal || null, from_app: true, unit_codes: a.units || null }, { redirectOn401: false })
       .then((r) => { if (r && !r.ok && r.status && ![404, 405].includes(r.status)) toast(`Restock tersimpan, tetapi gagal dikirim ke server: ${r.msg}`, 'err'); });
   }
   /* Restock beberapa barang sekaligus (satu nota supplier). Setiap baris memakai fungsi restock yang sama seperti
@@ -728,7 +728,7 @@
       const date = m.$('#rmDate').value || T, supplier = m.$('#rmSup').value, note = m.$('#rmNote').value;
       const done = []; const fail = [];
       lines.forEach((l) => { const args = { newCombo: null, productId: l.x.id, size: l.sz, qty: l.q, cost: l.c, date, supplier, note };
-        const r = rent ? DB.restockRent(args) : DB.restock(args); if (r && r.ok) { done.push({ l, r }); syncRestock(Object.assign({ expenseId: r.restock && r.restock.expenseId }, args), rent); } else fail.push(`${l.x.name}: ${(r && r.msg) || 'gagal'}`); });
+        const r = rent ? DB.restockRent(args) : DB.restock(args); if (r && r.ok) { done.push({ l, r }); syncRestock(Object.assign({ expenseId: r.restock && r.restock.expenseId, units: (r.restock && r.restock.units) || r.units || null }, args), rent); } else fail.push(`${l.x.name}: ${(r && r.msg) || 'gagal'}`); });
       m.close(); draw();
       const tot = done.reduce((a, d) => a + d.l.q * d.l.c, 0);
       modal({ title: 'Restock tersimpan', body: `${done.length ? `<div class="notice green" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i><div><b>${done.length} barang</b> di-restock, total belanja <b>${rupiah(tot)}</b> tercatat di Keuangan (Pembelian Barang).</div></div>` : ''}

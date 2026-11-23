@@ -12,7 +12,7 @@ class HeaderKeamananTest extends TestCase
 
     public function test_halaman_publik_membawa_header_keamanan(): void
     {
-        foreach (['/', '/masuk', '/kontak'] as $url) {
+        foreach (['/', '/masuk', '/kontak', '/privasi'] as $url) {
             $r = $this->get($url)->assertOk();
             $csp = (string) $r->headers->get('Content-Security-Policy');
             $this->assertMatchesRegularExpression("/script-src 'self' 'nonce-[A-Za-z0-9+\/=]{20,}'/", $csp, $url);
@@ -47,6 +47,12 @@ class HeaderKeamananTest extends TestCase
         }
         // Token CSRF tetap tersedia lewat <meta> untuk tampilan
         $this->assertMatchesRegularExpression('/<meta name="csrf-token" content="[^"]{20,}"/', $r->getContent());
+    }
+
+    public function test_halaman_kebijakan_privasi_ada(): void
+    {
+        // Dibutuhkan Google (Branding → Privacy policy link) sebelum aplikasi login Google bisa di-Publish
+        $this->get('/privasi')->assertOk()->assertSee('Kebijakan privasi')->assertSee('Google Gemini')->assertSee('tidak menjual', false);
     }
 
     public function test_nonce_berbeda_tiap_permintaan(): void

@@ -54,6 +54,7 @@ Route::controller(PageController::class)->group(function () {
     Route::get('/laundry', 'laundry')->name('laundry');
     Route::get('/tentang', 'tentang')->name('tentang');
     Route::get('/ketentuan', 'ketentuan')->name('ketentuan');
+    Route::get('/privasi', 'privasi')->name('privasi');
     Route::get('/kontak', 'kontak')->name('kontak');
 
     Route::get('/masuk', 'masuk')->name('masuk');

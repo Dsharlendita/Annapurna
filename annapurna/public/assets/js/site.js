@@ -171,7 +171,7 @@
           <div class="f-deco"><span style="color:#b9d3a6">${MTN.line}</span><span class="script">Jangan Cuma Mimpi,<br>Rasakan Petualangannya!</span></div>
         </div>
       </div>
-      <div class="wrap footer-bottom"><span>Annapurna Adventure</span><span><a href="${url('ketentuan')}">Ketentuan Sewa</a> &nbsp;·&nbsp; <a href="${url('tentang#faq')}">FAQ</a></span></div>
+      <div class="wrap footer-bottom"><span>Annapurna Adventure</span><span><a href="${url('ketentuan')}">Ketentuan Sewa</a> &nbsp;·&nbsp; <a href="${url('privasi')}">Kebijakan Privasi</a> &nbsp;·&nbsp; <a href="${url('tentang#faq')}">FAQ</a></span></div>
     </footer>
     <button class="to-top" id="toTop" aria-label="Kembali ke atas"><i class="fa-solid fa-arrow-up"></i></button>`;
     $('#toTop').addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));

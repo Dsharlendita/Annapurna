@@ -1108,3 +1108,9 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
   - Jangan memuat skrip/CSS/font dari CDN; simpan di `public/assets/vendor/`. Gambar dari situs luar juga diblokir (`img-src 'self' data: blob:`).
   - Cek error di Console browser (F12) setelah mengubah tampilan: pesan "Refused to … Content Security Policy" berarti aturan di atas dilanggar.
 - Tes baru: `AkunCheckoutTest` (5), `HeaderKeamananTest` (5). Total PHP 99 lulus, JS 12 lulus. Semua halaman publik/admin/owner dicek di Chrome: tanpa pelanggaran CSP; ekspor Excel/PDF, cetak, peta, serta tombol Unit fisik/Restock di Data Barang berfungsi. `ASSET_VERSION` = `20261123.2`.
+
+## C.52 Halaman Kebijakan Privasi — 23 Nov 2026 (Aji)
+
+- Halaman baru **`/privasi`** (`resources/views/annapurna/pages/privasi.blade.php`), tautannya ada di footer. Dibutuhkan Google Cloud (**Branding → Privacy policy link**) sebelum aplikasi login Google bisa di-**Publish**.
+- Isinya mengikuti data yang benar-benar disimpan website: akun, pesanan (termasuk jenis kartu identitas jaminan & bukti transfer), login Google, Google Drive toko, Gemini (tanpa data pribadi). Bila menambah fitur yang menyimpan data pribadi baru, perbarui halaman ini dan tanggal berlakunya.
+- `ASSET_VERSION` = `20261123.3`. PHP 100 tes lulus.

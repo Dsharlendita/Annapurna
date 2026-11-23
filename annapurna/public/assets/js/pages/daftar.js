@@ -1,6 +1,6 @@
 (function () {
   const { DB } = Ann; const { $, $$, validate, isEmail, isPhone, toast, param } = UI;
-  const next = param('next');
+  const next = UI.safeNext(param('next'));
   if (next) $('#toLogin').href = 'masuk?next=' + encodeURIComponent(next);
   $$('.toggle-pw').forEach((b) => b.addEventListener('click', () => { const i = b.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; }));
   const form = $('#regForm');

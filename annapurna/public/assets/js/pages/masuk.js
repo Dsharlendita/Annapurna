@@ -1,6 +1,6 @@
 (function () {
   const { DB } = Ann; const { $, $$, esc, validate, isEmail, toast, modal, param } = UI;
-  const next = param('next');
+  const next = UI.safeNext(param('next'));
   if (param('nonaktif')) setTimeout(() => toast('Akun kamu dinonaktifkan oleh Owner. Hubungi Owner untuk informasi lebih lanjut.', 'err'), 300);
   if (param('idle')) setTimeout(() => toast(`Kamu otomatis keluar karena tidak ada aktivitas selama ${DB.settings().idleLogoutMin || 60} menit. Silakan masuk lagi.`), 300);
   if (next) $('#toRegister').href = 'daftar?next=' + encodeURIComponent(next);

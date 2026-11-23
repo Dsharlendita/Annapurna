@@ -12,7 +12,7 @@
 
   <script src="{{ asset('assets/js/data.js') }}?v={{ config('app.asset_version') }}"></script>
   @guest
-  <script>if (window.Ann && window.Ann.DB && window.Ann.DB.session()) window.Ann.DB.clearSession();</script>
+  <script nonce="{{ $cspNonce ?? '' }}">if (window.Ann && window.Ann.DB && window.Ann.DB.session()) window.Ann.DB.clearSession();</script>
   @endguest
   <script src="{{ asset('assets/js/ui.js') }}?v={{ config('app.asset_version') }}"></script>
   <script src="{{ asset('assets/js/api.js') }}?v={{ config('app.asset_version') }}"></script>

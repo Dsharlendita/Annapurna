@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Annapurna;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Support\AuthPayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -56,9 +58,12 @@ class AuthController extends Controller
             ]);
         }
 
-        // Akun dibuat lewat Google dan belum pernah membuat kata sandi sendiri
+        // Akun belum punya kata sandi sendiri: dibuat lewat Google, atau dibuat otomatis saat checkout
         if ($user->password_set === false) {
-            $msg = 'Akun ini dibuat dengan Google. Klik "Masuk dengan Google", lalu buat kata sandi di halaman Profil bila ingin masuk memakai kata sandi.';
+            $msg = $user->google_id
+                ? 'Akun ini dibuat dengan Google. Klik "Masuk dengan Google", lalu buat kata sandi di halaman Profil bila ingin masuk memakai kata sandi.'
+                : 'Akun ini dibuat otomatis saat checkout dan belum punya kata sandi. Klik "Lupa kata sandi?" untuk membuat kata sandi lewat kode yang dikirim ke email ini'
+                    . (GoogleAuthController::enabled() ? ', atau klik "Masuk dengan Google" bila email ini Gmail.' : '.');
             if ($request->wantsJson()) {
                 return response()->json(['ok' => false, 'field' => 'password', 'msg' => $msg], 422);
             }
@@ -119,11 +124,14 @@ class AuthController extends Controller
      */
     public function register(Request $request): JsonResponse|RedirectResponse
     {
+        // Akun dari checkout tanpa daftar: belum punya kata sandi sendiri (dibuat nanti lewat Pesanan/Profil,
+        // kode email, atau Google). Kata sandi acak dibuat server, tidak dikirim dari tampilan.
+        $auto = $request->boolean('auto_created');
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['required', 'string', 'max:20'],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => $auto ? ['nullable', 'string'] : ['required', 'string', 'min:6'],
             'address' => ['nullable', 'string'],
         ], [
             'name.required' => 'Nama lengkap wajib diisi.',
@@ -138,10 +146,12 @@ class AuthController extends Controller
             'name' => trim($validated['name']),
             'email' => strtolower(trim($validated['email'])),
             'phone' => trim($validated['phone']),
-            'password' => $validated['password'], // otomatis di-hash oleh casts 'password' => 'hashed' di User model
+            // otomatis di-hash oleh casts 'password' => 'hashed' di User model
+            'password' => $auto ? Str::random(40) : $validated['password'],
+            'password_set' => ! $auto,
             'role' => 'customer',
             'status' => 'aktif',
-            'auto_created' => $request->boolean('auto_created', false),
+            'auto_created' => $auto,
             'address' => $validated['address'] ?? null,
             'last_login_at' => now(),
         ]);
@@ -149,25 +159,12 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        $redirectUrl = route('home');
-        if ($request->filled('next')) {
-            $redirectUrl = $request->input('next');
-        }
+        $redirectUrl = AuthPayload::redirect($user, $request->input('next'));
 
         if ($request->wantsJson()) {
             return response()->json([
                 'ok' => true,
-                'user' => [
-                    'id' => 'u' . $user->id,
-                    'userId' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                    'status' => $user->status,
-                    'phone' => $user->phone ?? '',
-                    'address' => $user->address ?? '',
-                    'mustChangePw' => (bool)$user->must_change_password,
-                ],
+                'user' => AuthPayload::user($user),
                 'redirect' => $redirectUrl,
             ]);
         }

@@ -28,7 +28,7 @@
   @endif
   @endauth
   @auth
-  <script>
+  <script nonce="{{ $cspNonce ?? '' }}">
     /* Sinkronkan sesi Laravel ke frontend. Dicocokkan lewat EMAIL (bukan ID), karena ID di database bisa berbeda dengan ID data demo. */
     if (window.Ann && window.Ann.DB) {
       window.Ann.DB.adoptSession({
@@ -46,10 +46,10 @@
     }
   </script>
   {{-- Notifikasi akun ini dari server --}}
-  <script>window.Ann && window.Ann.DB && window.Ann.DB.applyServer(@json(\App\Http\Controllers\Annapurna\BootController::userData()));</script>
+  <script nonce="{{ $cspNonce ?? '' }}">window.Ann && window.Ann.DB && window.Ann.DB.applyServer(@json(\App\Http\Controllers\Annapurna\BootController::userData()));</script>
   @endauth
   @guest
-  <script>
+  <script nonce="{{ $cspNonce ?? '' }}">
     /* Server sudah logout / sesi habis: hapus juga sesi di browser supaya tidak "nyangkut". */
     if (window.Ann && window.Ann.DB && window.Ann.DB.session()) window.Ann.DB.clearSession();
   </script>

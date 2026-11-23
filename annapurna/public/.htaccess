@@ -23,3 +23,14 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Header keamanan untuk file statis (CSS, JS, gambar) yang dikirim langsung oleh Apache tanpa lewat Laravel.
+# Halaman & API mendapat header lengkap (termasuk CSP) dari App\Http\Middleware\SecurityHeaders.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|mjs|map|json|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot|txt|pdf)$">
+        Header set X-Content-Type-Options "nosniff"
+        Header set X-Frame-Options "SAMEORIGIN"
+        Header set Referrer-Policy "strict-origin-when-cross-origin"
+    </FilesMatch>
+    Header unset X-Powered-By
+</IfModule>

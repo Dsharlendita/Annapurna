@@ -1096,3 +1096,15 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - Gambar baru dikecilkan (total ±22 MB → ±4,5 MB, lebar maks 2400 px, kualitas 82).
 - Tes baru: `PaketSewaTest` (2). Total PHP 89 lulus, JS 12 lulus. `ASSET_VERSION` = `20261123.1`.
 - **Untuk tim:** selalu `git pull` sebelum mulai mengedit, dan jangan menyalin folder/file dari salinan lama ke repo.
+
+## C.51 Akun dari checkout & header keamanan — 23 Nov 2026 (Aji)
+
+- **Akun dari checkout tanpa daftar** sekarang dibuat server tanpa kata sandi yang diketahui (`auto_created=true` → `password_set=false`). Customer bisa membuat kata sandi lewat kartu di **Pesanan Saya** (tersimpan ke server, tanpa kata sandi lama), lewat **Lupa kata sandi** (kode email), atau masuk dengan Google. Bila mencoba masuk dengan kata sandi sebelum membuatnya, muncul petunjuk yang jelas. Sebelumnya akun ini memakai kata sandi acak yang tidak diketahui siapa pun.
+- **Open redirect ditutup:** `?next=` hanya boleh halaman di website ini (`AuthPayload::safeNext`, `UI.safeNext`). `https://…`, `//…`, `\…`, `javascript:` diabaikan.
+- **Header keamanan** (`App\Http\Middleware\SecurityHeaders`, temuan OWASP ZAP): Content-Security-Policy dengan **nonce** per permintaan (tanpa `unsafe-inline` untuk skrip), `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` (kamera tetap boleh untuk scan QR), HSTS saat https, `X-Powered-By` dan cookie `XSRF-TOKEN` (tanpa HttpOnly, tidak dipakai tampilan) tidak dikirim. Skrip di jendela cetak struk ikut memakai nonce. File statis diberi header lewat `public/.htaccess`.
+- **ATURAN UNTUK TIM (wajib):**
+  - Skrip inline di Blade harus ditulis `<script nonce="{{ $cspNonce ?? '' }}">`. `<script>` tanpa nonce **tidak dijalankan** browser.
+  - Jangan memakai `onclick="…"`, `onchange="…"`, dsb. (di Blade maupun di string HTML dari JS). Pakai `addEventListener`, atau atribut `data-print` (cetak) / `data-after-close="units:ID"`.
+  - Jangan memuat skrip/CSS/font dari CDN; simpan di `public/assets/vendor/`. Gambar dari situs luar juga diblokir (`img-src 'self' data: blob:`).
+  - Cek error di Console browser (F12) setelah mengubah tampilan: pesan "Refused to … Content Security Policy" berarti aturan di atas dilanggar.
+- Tes baru: `AkunCheckoutTest` (5), `HeaderKeamananTest` (5). Total PHP 99 lulus, JS 12 lulus. Semua halaman publik/admin/owner dicek di Chrome: tanpa pelanggaran CSP; ekspor Excel/PDF, cetak, peta, serta tombol Unit fisik/Restock di Data Barang berfungsi. `ASSET_VERSION` = `20261123.2`.

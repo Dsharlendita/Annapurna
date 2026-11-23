@@ -186,16 +186,29 @@
     addEventListener('scroll', () => { if (!fq.matches) return; document.body.classList.add('is-scrolling'); clearTimeout(scrT); scrT = setTimeout(() => document.body.classList.remove('is-scrolling'), 700); }, { passive: true });
   }
 
-  /* Akun dibuat otomatis saat checkout → tawarkan buat kata sandi (opsional) */
+  /* Akun belum punya kata sandi (dibuat otomatis saat checkout / lewat Google) → tawarkan buat kata sandi (opsional).
+     hasPassword=false datang dari server; needsPassword hanya untuk akun lokal saat server tidak tersedia. */
   function pwCard(s) {
-    /* Tidak ditampilkan di halaman pembayaran supaya customer fokus membayar; muncul di Pesanan Saya setelah bukti terkirim */
-    if (!s || !s.needsPassword || !['pesanan', 'profil'].includes(page)) return;
+    const srv = !!s && s.role === 'customer' && s.hasPassword === false;
+    /* Tidak ditampilkan di halaman pembayaran supaya customer fokus membayar; muncul di Pesanan Saya setelah bukti terkirim.
+       Di Profil, akun server memakai form Ganti Kata Sandi yang sudah menyesuaikan (tanpa kata sandi lama). */
+    if (!s || !(srv || s.needsPassword) || !['pesanan', 'profil'].includes(page) || (srv && page === 'profil')) return;
     let skip = false; try { skip = sessionStorage.getItem('ann-pw-skip') === '1'; } catch (e) { skip = false; }
     const root = document.getElementById('root') || document.getElementById('list');
     if (skip || !root || document.getElementById('pwCard')) return;
-    root.insertAdjacentHTML('beforebegin', `<div class="card pw-card" id="pwCard"><span class="pw-ic"><i class="fa-solid fa-user-check"></i></span><div class="pw-t"><strong>Akunmu sudah dibuat otomatis</strong><small>Kamu bisa masuk lagi kapan saja dengan kode verifikasi ke ${esc(s.email)}. Mau lebih cepat? Buat kata sandi (opsional).</small></div>
+    root.insertAdjacentHTML('beforebegin', `<div class="card pw-card" id="pwCard"><span class="pw-ic"><i class="fa-solid fa-user-check"></i></span><div class="pw-t"><strong>Buat kata sandi untuk akunmu</strong><small>Akunmu belum punya kata sandi. Buat sekarang supaya nanti bisa masuk lagi dengan ${esc(s.email)} dan kata sandi ini.</small></div>
       <form class="pw-f" id="pwF"><input class="input" type="password" id="pwNew" placeholder="Kata sandi baru (min. 6 karakter)" autocomplete="new-password"><button class="btn btn-primary btn-sm">Simpan</button><button type="button" class="btn btn-ghost btn-sm" id="pwSkip">Nanti saja</button></form></div>`);
-    $('#pwF').addEventListener('submit', (e) => { e.preventDefault(); const v = $('#pwNew').value; if (v.length < 6) { $('#pwNew').classList.add('err'); toast('Kata sandi minimal 6 karakter.', 'err'); return; } DB.setOwnPassword(v); $('#pwCard').remove(); toast('Kata sandi tersimpan.'); });
+    $('#pwF').addEventListener('submit', async (e) => {
+      e.preventDefault(); const v = $('#pwNew').value;
+      if (v.length < 6) { $('#pwNew').classList.add('err'); toast('Kata sandi minimal 6 karakter.', 'err'); return; }
+      if (srv) {
+        /* Disimpan di server (tanpa kata sandi lama, karena akun ini memang belum punya) */
+        const r = await Api.busy($('#pwF button.btn-primary'), () => Api.changePassword('', v), 'Menyimpan…'); if (!r) return;
+        if (!r.ok) { toast(r.msg || 'Kata sandi belum tersimpan. Coba lagi.', 'err'); return; }
+        const cur = DB.session(); if (cur) { cur.hasPassword = true; cur.needsPassword = false; try { localStorage.setItem('annapurna:session', JSON.stringify(cur)); } catch (_) { /* abaikan */ } }
+      } else DB.setOwnPassword(v);
+      $('#pwCard').remove(); toast('Kata sandi tersimpan. Berikutnya kamu bisa masuk dengan email dan kata sandi ini.');
+    });
     $('#pwSkip').addEventListener('click', () => { $('#pwCard').remove(); try { sessionStorage.setItem('ann-pw-skip', '1'); } catch (e) { /* abaikan */ } });
   }
   /* Menu bawah untuk HP */

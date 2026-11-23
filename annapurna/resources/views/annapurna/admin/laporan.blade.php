@@ -13,7 +13,7 @@
       <div class="rep-f"><label for="from">Periode</label><div class="rep-range"><input class="input" type="date" id="from" aria-label="Dari tanggal"><span>–</span><input class="input" type="date" id="to" aria-label="Sampai tanggal"></div></div>
       <div class="rep-f"><label for="order">Urutan</label><select class="select" id="order" aria-label="Urutan baris"><option value="desc">Terbaru di atas</option><option value="asc">Terlama di atas</option></select></div>
       <div class="rep-act"><span class="exp" id="exp"><button class="btn btn-light btn-sm" data-export="xlsx"><i class="fa-solid fa-file-excel" style="color:#1d6f42"></i> Excel</button><button class="btn btn-light btn-sm" data-export="pdf"><i class="fa-solid fa-file-pdf" style="color:#c0392b"></i> PDF</button></span>
-        <button class="btn btn-primary btn-sm" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak</button></div>
+        <button class="btn btn-primary btn-sm" data-print><i class="fa-solid fa-print"></i> Cetak</button></div>
     </div>
     <div class="rep-quick no-print" id="quick" aria-label="Pintasan periode"></div>
     <div class="report-head"><img src="{{ asset('assets/img/logo.png') }}" alt=""><div style="text-align:right"><strong id="rhTitle"></strong><br><span id="rhRange"></span></div></div>

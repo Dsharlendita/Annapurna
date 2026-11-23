@@ -8,6 +8,11 @@
   const asset = (p) => (!p ? '' : /^(data:|https?:|blob:)/.test(p) ? p : BASE + p);
   const url = (p) => BASE + p;
   const param = (k) => new URLSearchParams(location.search).get(k);
+  /* Nonce CSP halaman ini (dari <script nonce> di layout). Dipakai skrip di jendela cetak struk, yang mewarisi CSP halaman. */
+  const cspNonce = () => { const el = document.querySelector('script[nonce]'); return el ? (el.nonce || el.getAttribute('nonce') || '') : ''; };
+  /* Tujuan setelah masuk/daftar (?next=) hanya boleh halaman di website ini: alamat situs lain ditolak (open redirect).
+     Garis miring di depan dibuang supaya tetap relatif terhadap BASE (website di subfolder). */
+  const safeNext = (v) => { v = String(v || '').trim(); if (!v || v.length > 300 || /[\u0000-\u001f\u007f]/.test(v) || v.includes(String.fromCharCode(92)) || /^([a-z][a-z0-9+.\-]*:|\/\/)/i.test(v)) return null; return v.replace(/^\/+/, '') || null; };
 
   /* Isi toast boleh memuat format sederhana (<b>, <strong>, <i>, <em>, <br>), tapi tidak pernah HTML lain.
      Teks dari pengguna (nama, nama barang, pesan server) aman walau lupa di-esc() di pemanggil. */
@@ -1416,7 +1421,7 @@
       ${x.total - paid > 0 ? row('Sisa bayar saat ambil', rupiah(x.total - paid), 'b') : ''}
       ${(x.svc || []).length ? `<hr>${x.svc.map((v) => row(v.kind === 'pasang' ? 'Jasa tenda' + (v.note ? ' (' + esc(v.note) + ')' : '') : 'Ongkir antar/jemput', rupiah(v.amount))).join('')}${row('Layanan dibayar', rupiah(x.svc.reduce((a, v) => a + v.amount, 0)), 'b')}` : ''}<hr>
       <div class="c s">${esc((kind === 'rent' ? RC.footerRent : RC.footerSale) || '')}<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '@annapurnaadv')}</div>
-      <script>window.onload = () => { /* Tinggi kertas = panjang isi struk (bukan A4) */ const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 120); };<\/script></body></html>`;
+      <script nonce="${cspNonce()}">window.onload = () => { /* Tinggi kertas = panjang isi struk (bukan A4) */ const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 120); };<\/script></body></html>`;
   }
   function printStruk(x, kind, mm) {
     const w = window.open('', '_blank', 'width=420,height=640');
@@ -1476,7 +1481,7 @@
       <div class="sign"><div><div class="ln">${o.pickedAt ? esc(D.fmtDate(o.pickedAt)) : 'Tgl ambil'}</div></div><div><div class="ln">Paraf pelanggan</div></div></div>
       <pre>${line('=')}</pre>
       <div class="c s">Simpan struk ini untuk pengambilan.<br><b>Terima kasih!</b><br>IG ${esc(st.instagram || '')}</div>
-      <script>window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 150); };<\/script></body></html>`);
+      <script nonce="${cspNonce()}">window.onload = () => { const h = Math.ceil(document.body.scrollHeight * 25.4 / 96) + 4; const s = document.createElement('style'); s.textContent = '@page { size: ${mm}mm ' + h + 'mm; margin: 0; }'; document.head.appendChild(s); setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 150); };<\/script></body></html>`);
     w.document.close();
   }
   /* kind: 'rent' | 'sale' | 'laundry'. mm kosong = ukuran dari Konfigurasi → Nota & Struk */
@@ -1947,7 +1952,16 @@
     document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement !== cur) hide(); }, 80));
     window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
   })();
-  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  /* Pengganti onclick inline (diblokir Content-Security-Policy):
+     data-print = cetak halaman; data-after-close="units:ID" / "restock:ID" = buka modal lain setelah modal ini tertutup */
+  document.addEventListener('click', (e) => {
+    const pr = e.target.closest('[data-print]'); if (pr) { e.preventDefault(); window.print(); return; }
+    const ac = e.target.closest('[data-after-close]'); if (!ac) return;
+    const v = ac.dataset.afterClose || ''; const i = v.indexOf(':'); const k = v.slice(0, i), id = v.slice(i + 1);
+    if (!['units', 'restock'].includes(k)) return;
+    setTimeout(() => { const t = document.querySelector(`[data-${k}="${CSS.escape(id)}"]`); if (t) t.click(); }, 220);
+  });
+  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, safeNext, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();
 
 /* Kolom angka (stok, jumlah, harga): saat diklik isinya terseleksi, dan 0 di depan otomatis hilang saat diketik (9 → 9, bukan 09) */

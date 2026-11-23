@@ -176,8 +176,9 @@
       if (pre.status === 'staff') { toast('Email/nomor ini milik akun staff. Gunakan data pribadi customer.', 'err'); return; }
       if (pre.status === 'exists') { loginFirst(pre, F); return; }
       const btn = form.querySelector('[type=submit]');
-      const pw = Math.random().toString(36).slice(2, 10) + 'Aa1';
-      const sv = await Api.busy(btn, () => Api.post('daftar', { name: F.name, email: F.email, phone: F.phone, password: pw }, { redirectOn401: false }), 'Menyiapkan pesanan…');
+      /* auto_created: server membuat akun TANPA kata sandi yang diketahui; customer membuat kata sandi sendiri
+         nanti (kartu di Pesanan Saya / Profil), atau masuk lagi lewat kode email / Google */
+      const sv = await Api.busy(btn, () => Api.post('daftar', { name: F.name, email: F.email, phone: F.phone, auto_created: true }, { redirectOn401: false }), 'Menyiapkan pesanan…');
       if (sv === undefined) return; /* tombol sedang diproses (klik ganda) */
       if (sv && sv.ok && sv.raw && sv.raw.user) {
         user = DB.adoptSession(sv.raw.user);

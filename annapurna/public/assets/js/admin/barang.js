@@ -675,7 +675,7 @@
       <div class="var-mx var-mx-ro"><table><thead><tr><th>${esc(A.label)} \\ ${esc(B.label)}</th>${B.values.map((b) => `<th>${esc(b)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
       ${A.values.map((a) => `<tr><td>${esc(a)}</td>${B.values.map((b) => cell(a, b)).join('')}<td><b>${p.variant.options.filter((o) => DB.vParts(p, o.name)[0] === a).reduce((x, o) => x + (+o.stock || 0), 0)}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td>Total</td>${B.values.map((b) => `<td>${p.variant.options.filter((o) => DB.vParts(p, o.name)[1] === b).reduce((x, o) => x + (+o.stock || 0), 0)}</td>`).join('')}<td>${p.stock}</td></tr></tfoot></table></div>`,
-      foot: `<button class="btn btn-light" data-close>Tutup</button>${rent ? `<button class="btn btn-light" data-close onclick="setTimeout(()=>document.querySelector('[data-units=&quot;${p.id}&quot;]').click(),220)"><i class="fa-solid fa-barcode"></i> Unit fisik</button>` : ''}<button class="btn btn-primary" data-close onclick="setTimeout(()=>document.querySelector('[data-restock=&quot;${p.id}&quot;]').click(),220)"><i class="fa-solid fa-truck-ramp-box"></i> Restock</button>` });
+      foot: `<button class="btn btn-light" data-close>Tutup</button>${rent ? `<button class="btn btn-light" data-close data-after-close="units:${esc(p.id)}"><i class="fa-solid fa-barcode"></i> Unit fisik</button>` : ''}<button class="btn btn-primary" data-close data-after-close="restock:${esc(p.id)}"><i class="fa-solid fa-truck-ramp-box"></i> Restock</button>` });
   }
   /* Sambungkan restock ke backend yang sudah ada: POST api/admin/products/{id}/restock
      (server mencatat stok/unit fisik + pengeluaran "Pembelian Barang" + riwayat restock). Satu panggilan per barang.

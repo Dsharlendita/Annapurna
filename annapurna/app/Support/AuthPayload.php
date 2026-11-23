@@ -24,9 +24,25 @@ class AuthPayload
         ];
     }
 
+    /**
+     * Tujuan setelah masuk hanya boleh halaman di website ini (mis. "checkout" atau "/pesanan").
+     * Alamat situs lain ("https://…", "//…", "\\…", "javascript:…") ditolak supaya tautan masuk
+     * tidak bisa dipakai untuk mengarahkan pengguna ke situs palsu (open redirect).
+     */
+    public static function safeNext(?string $next): ?string
+    {
+        $next = trim((string) $next);
+        if ($next === '' || strlen($next) > 300 || preg_match('/[\x00-\x1f\x7f\\\\]/', $next)
+            || preg_match('#^([a-z][a-z0-9+.\-]*:|//)#i', $next)) {
+            return null;
+        }
+
+        return $next;
+    }
+
     public static function redirect(User $user, ?string $next = null): string
     {
-        if ($next) {
+        if ($next = self::safeNext($next)) {
             return $next;
         }
 

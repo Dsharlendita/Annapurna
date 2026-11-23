@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'password.changed' => \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
         $middleware->validateCsrfTokens(except: ['api/*', 'akun/kata-sandi']);
+        // Header keamanan (CSP + nonce, anti-clickjacking, nosniff, dll.) untuk semua jawaban Laravel
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
     })

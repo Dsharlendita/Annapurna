@@ -62,6 +62,6 @@
 @endsection
 
 @push('scripts')
-  <script>window.CATALOG_MODE = 'buy';</script>
+  <script nonce="{{ $cspNonce ?? '' }}">window.CATALOG_MODE = 'buy';</script>
   <script src="{{ asset('assets/js/pages/katalog.js') }}?v={{ config('app.asset_version') }}"></script>
 @endpush

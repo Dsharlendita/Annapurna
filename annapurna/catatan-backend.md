@@ -1213,3 +1213,5 @@ Temuan uji di hosting: admin melihat notifikasi tetapi daftar booking baru muncu
 - Route memakai method controller (bukan closure) supaya `php artisan route:cache` / `optimize` di hosting tidak gagal.
 - Tes: `PembaruanOtomatisTest` (2). PHP 132. Uji dua browser: booking baru muncul di halaman admin ±20 detik, status baru + notifikasi muncul di Pesanan Saya ±20–30 detik, tanpa refresh. `ASSET_VERSION` = `20261124.6`.
 - Regresi menangkap error baru pada pengunjung tanpa login (`s` null di `site.js`), sudah diperbaiki sebelum rilis.
+
+- **C.62 Sesi customer habis di tab yang masih terbuka.** Sesi server 120 menit; tab HP (Safari dibekukan di latar belakang) tetap menampilkan data lama dari penyimpanan lokal, sinkron & denyut gagal 401 secara diam-diam (status pesanan usang, mis. masih "Rental berjalan / menunggu verifikasi" padahal sudah selesai). Kini 401 pada denyut/sinkron Pesanan Saya memunculkan pesan lalu mengarahkan ke halaman masuk (`Site.sessionExpired`).

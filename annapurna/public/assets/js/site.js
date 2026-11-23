@@ -192,6 +192,15 @@
      tanda perubahan pesanan & notifikasi milik akun ini. Hanya bila tanda berubah (mis. admin memverifikasi pembayaran),
      pesanan & notifikasi diambil ulang, lalu halaman digambar ulang lewat event 'ann:orders' (dipakai Pesanan Saya).
      Ditunda selama ada jendela (modal) terbuka supaya isian tidak terganggu. */
+  /* Sesi login di server sudah habis (mis. tab HP lama terbuka di latar belakang) padahal data lama masih tersimpan di perangkat:
+     tanpa ini halaman tampil data usang selamanya. Keluarkan akun & arahkan masuk lagi supaya status pesanan tidak menyesatkan. */
+  let expiredShown = false;
+  function sessionExpired() {
+    if (expiredShown) return; expiredShown = true;
+    try { toast('Sesi login berakhir. Silakan masuk lagi supaya status pesananmu terbaru.', 'err'); } catch (e) { /* abaikan */ }
+    DB.clearSession();
+    setTimeout(() => location.replace(url('masuk?next=' + encodeURIComponent(location.pathname.split('/').pop() + location.search))), 1800);
+  }
   let myPulseOn = false;
   function startMyPulse(s) {
     if (myPulseOn || !window.Api) return;
@@ -202,6 +211,7 @@
       if (busy) return; busy = true; last = Date.now();
       try {
         const r = await Api.get('api/pesanan/denyut', { redirectOn401: false });
+        if (r && r.status === 401) { sessionExpired(); return; }
         const sig = r && r.ok && r.raw && r.raw.sig;
         if (!sig) return;
         if (sig0 === null) { sig0 = sig; return; }          /* pertama kali: data halaman ini sudah termuat */
@@ -326,7 +336,7 @@
   const startMotion = () => setTimeout(() => { reveal(); parallax(); document.documentElement.classList.add('ready'); }, 0);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startMotion); else startMotion();
 
-  window.Site = { renderHeader, renderFooter, requireLogin, reveal, MTN };
+  window.Site = { renderHeader, renderFooter, requireLogin, sessionExpired, reveal, MTN };
   renderHeader();
   renderFooter();
 })();

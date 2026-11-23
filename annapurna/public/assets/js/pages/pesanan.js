@@ -329,6 +329,7 @@
      Salinan lokal milik email ini yang tidak ada di server (data contoh / data lama) dibuang. */
   async function syncMine() {
     const r = await Api.get('api/pesanan', { redirectOn401: false });
+    if (r.status === 401) { Site.sessionExpired(); return false; }
     if (!r.ok || !r.data || !Array.isArray(r.data.bookings)) return false;
     const own = (x) => x.customer && String(x.customer.email || '').toLowerCase() === String(user.email || '').toLowerCase();
     DB.mergeServer('bookings', r.data.bookings, { prune: own });

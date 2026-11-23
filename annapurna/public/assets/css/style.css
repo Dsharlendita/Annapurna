@@ -4722,3 +4722,12 @@ body[data-page="home"] .svc-visual p b { color: #fff; }
 .trip-wrap .trip-chip.set { width: auto; padding: 0 10px; justify-content: center; }
 .trip-wrap .trip-x { position: static; transform: none; right: auto; top: auto; flex: none; width: 22px; height: 22px; font-size: 10px; background: var(--g100); color: var(--g800); border: 0; }
 .trip-wrap .trip-x:hover { background: var(--g700); color: #fff; }
+
+/* Layar HP: gambar hero versi kecil (101 KB, bukan 460 KB). Halaman dengan gambar hero sendiri (.page-hero.hp-*) tidak terpengaruh
+   karena aturannya lebih spesifik. */
+@media (max-width: 900px) {
+  .hero-bg::before { background-image: url('../img/hero-m.jpg'); }
+  .page-hero { background-image: url('../img/hero-m.jpg'); }
+  .ab-cta-bg { background-image: url('../img/hero-m.jpg'); }
+  .bestseller::before { background-image: linear-gradient(rgba(239, 235, 226, .82), rgba(239, 235, 226, .9)), url('../img/hero-m.jpg'); }
+}

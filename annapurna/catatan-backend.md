@@ -1195,3 +1195,12 @@ Laporan: `docs/Laporan-Uji-Menyeluruh-2026-11-23.md` (tidak di-commit; repo publ
 - **Versi data staf** (`boot-staff.js`) kini ikut berubah saat riwayat restock atau daftar staf berubah. Sebelumnya file itu di-cache lama dan perangkat lain tidak melihat staf baru / restock baru sampai data lain berubah.
 - Tes: `PerbaikanKecilTest` (4). PHP 130 lulus. Uji tampilan 6/6 + regresi Tahap 1–3, sewa, beli, CSP lulus. `ASSET_VERSION` = `20261124.4`.
 - Catatan uji: jangan menjalankan skrip uji sewa pada database yang Tenda 4P-nya diberi jaminan (alur barang keluar menunggu centang "jaminan diterima").
+
+## C.60 Halaman lebih ringan (hosting terasa lambat) — 24 Nov 2026 (Aji)
+
+Pengukuran: server hosting tidak kewalahan (CPU/memori 0%), tetapi throughput unduhan hanya ±70–100 KB/detik, jadi berat halaman sangat menentukan. Perubahan (tidak mengubah tampilan):
+- `hero.jpg` (460 KB) dulu di-*preload* di SEMUA halaman (`layouts/app.blade.php`), padahal halaman selain beranda memakai gambar hero sendiri. Kini preload hanya di beranda (`pages/index.blade.php`), dengan varian `media` untuk layar ≤900 px.
+- Gambar hero versi HP baru: `public/assets/img/hero-m.jpg` (101 KB). `style.css` memakainya di layar ≤900 px untuk `.hero-bg`, `.page-hero`, `.ab-cta-bg`, `.bestseller` (bagian "Produk Terlaris" ternyata juga memuat `hero.jpg` penuh). HP tidak lagi mengunduh `hero.jpg`.
+- `wa/cat-*.jpg` 600 px → 420 px (237 KB → 102 KB), `cta.jpg` 2400 → 1600 px (118 KB → 55 KB).
+- Hasil beranda: laptop −198 KB; HP ±−650 KB; halaman lain −460 KB pada kunjungan pertama.
+- Catatan: gambar bernama sama di-cache browser sampai 7 hari, jadi pengunjung lama baru memakai versi kecil setelah cache habis. `ASSET_VERSION` = `20261124.5`.

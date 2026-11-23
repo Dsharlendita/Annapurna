@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <link rel="preload" as="image" href="{{ asset('assets/img/hero.jpg') }}">
   @include('annapurna.layouts.partials-head')
   <title>@yield('title')@yield('title_suffix', ' — Annapurna Adventure')</title>
   <meta name="theme-color" content="#1f4d2f">

@@ -5,6 +5,9 @@
 @section('title_suffix', '')
 
 @section('head')
+  {{-- Gambar hero dimuat lebih awal HANYA di beranda (dulu di semua halaman), dan versi kecil untuk layar HP --}}
+  <link rel="preload" as="image" href="{{ asset('assets/img/hero.jpg') }}" media="(min-width: 901px)">
+  <link rel="preload" as="image" href="{{ asset('assets/img/hero-m.jpg') }}" media="(max-width: 900px)">
   <meta name="description" content="Sewa dan beli perlengkapan camping dan outdoor di Annapurna Adventure, Purwokerto. Tenda, carrier, footwear, jaket, sleeping bag, cooking set, paket tenda, BBQ, dan tektok. Sewa per malam, kegiatan 3 hari, atau ekspedisi 5 hari.">
 @endsection
 

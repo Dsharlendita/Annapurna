@@ -298,6 +298,22 @@ class ApiController extends Controller
             }
 
             $total = max(0, $subtotal - $discount);
+            // Uang jaminan = jaminan per barang × jumlah (paket: jaminan isi paket), sama dengan rumus tampilan checkout.
+            // Sewa kasir (walk-in) tanpa jaminan uang, seperti di tampilan kasir.
+            $depositAmount = 0;
+            if (! $request->boolean('is_walk_in')) {
+                foreach ($validated['items'] as $it) {
+                    $qty = max(1, (int) ($it['qty'] ?? 1));
+                    $pkg = Package::with('items')->find($it['product_id']);
+                    if ($pkg) {
+                        foreach ($pkg->items as $pi) {
+                            $depositAmount += (int) (Product::whereKey($pi->product_id)->value('deposit') ?? 0) * (int) $pi->qty * $qty;
+                        }
+                    } else {
+                        $depositAmount += (int) (Product::whereKey($it['product_id'])->value('deposit') ?? 0) * $qty;
+                    }
+                }
+            }
             $dpPercent = (int)Setting::get('dp_percent', 50);
             $dpAmount = (int)round($total * $dpPercent / 100);
             $payWindowHours = (int)Setting::get('pay_window_hours', 1);
@@ -328,6 +344,7 @@ class ApiController extends Controller
                 'discount_reason' => $discReason,
                 'total_amount' => $total,
                 'dp_amount' => $dpAmount,
+                'deposit_amount' => $depositAmount,
                 'payment_method' => $validated['payment_method'] ?? 'Transfer Bank',
                 'status' => $status,
                 'payment_status' => $paymentStatus,
@@ -342,6 +359,26 @@ class ApiController extends Controller
 
             foreach ($itemsData as $item) {
                 $booking->items()->create($item);
+            }
+
+            // Layanan antar / jemput / pasang tenda yang diminta saat checkout: jadwal & alamat disimpan di server
+            // (dulu hanya di browser customer, sehingga admin di perangkat lain tidak melihat alamat & jam antar).
+            // Status "menunggu": ongkir belum disepakati, diisi admin lewat "Isi ongkir".
+            $svcIn = (array) $request->input('service', []);
+            if (($validated['delivery_mode'] ?? 'ambil') !== 'ambil' && $svcIn) {
+                $date = fn ($v) => is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) ? $v : null;
+                $time = fn ($v) => is_string($v) && preg_match('/^\d{1,2}[:.]\d{2}$/', $v) ? str_replace('.', ':', $v) : null;
+                \App\Models\BookingService::create([
+                    'booking_id' => $booking->id,
+                    'service_mode' => (string) $validated['delivery_mode'],
+                    'tents_count' => max(0, min(50, (int) ($svcIn['tents_count'] ?? 0))),
+                    'address' => mb_substr((string) ($svcIn['address'] ?? $validated['customer_address'] ?? ''), 0, 500) ?: null,
+                    'scheduled_date' => $date($svcIn['scheduled_date'] ?? null) ?? $validated['start_date'],
+                    'scheduled_time' => $time($svcIn['scheduled_time'] ?? null),
+                    'back_date' => $date($svcIn['back_date'] ?? null) ?? $validated['end_date'],
+                    'back_time' => $time($svcIn['back_time'] ?? null),
+                    'status' => 'menunggu',
+                ]);
             }
 
             return response()->json([
@@ -370,6 +407,7 @@ class ApiController extends Controller
             'notes' => 'nullable|string',
             'is_walk_in' => 'nullable|boolean',
             'promo_code' => 'nullable|string|max:50',
+            'items.*.size' => 'nullable|string|max:100',
         ]);
 
         // Walk-in (langsung lunas) & diskon manual hanya boleh dari kasir (staf), bukan dari checkout publik
@@ -396,9 +434,11 @@ class ApiController extends Controller
                 $lineSubtotal = $price * $qty;
                 $subtotal += $lineSubtotal;
 
+                $size = isset($it['size']) && $it['size'] !== '' ? mb_substr((string) $it['size'], 0, 100) : null;
                 $itemsData[] = [
                     'product_id' => $product->id,
                     'product_name' => $product->name,
+                    'size' => $size,
                     'product_img' => $product->img,
                     'qty' => $qty,
                     'unit_price' => $price,
@@ -410,7 +450,21 @@ class ApiController extends Controller
                 // Penjualan kasir (staff): stok dikurangi tampilan kasir lalu ikut sinkronisasi barang
                 // (api/sync/products). Penjualan online dari customer dikurangi di sini.
                 if (! $request->boolean('is_walk_in')) {
-                    $product->decrement('stock', $qty);
+                    // Barang berukuran / bervarian: stok ukuran itu ikut dikurangi (dulu hanya stok total)
+                    $vd = $product->variant_data;
+                    if ($size && is_array($vd) && ! empty($vd['options'])) {
+                        $i = collect($vd['options'])->search(fn ($o) => ($o['name'] ?? null) === $size);
+                        if ($i === false) {
+                            throw \Illuminate\Validation\ValidationException::withMessages(['items' => "Ukuran {$size} untuk {$product->name} tidak tersedia."]);
+                        }
+                        if ((int) ($vd['options'][$i]['stock'] ?? 0) < $qty) {
+                            throw \Illuminate\Validation\ValidationException::withMessages(['items' => "Stok {$product->name} ukuran {$size} tinggal " . (int) ($vd['options'][$i]['stock'] ?? 0) . '.']);
+                        }
+                        $vd['options'][$i]['stock'] = (int) $vd['options'][$i]['stock'] - $qty;
+                        $product->variant_data = $vd;
+                    }
+                    $product->stock = (int) $product->stock - $qty;
+                    $product->save();
                 }
             }
 
@@ -677,14 +731,23 @@ class ApiController extends Controller
                 ]);
             }
 
-            // Hitung total terbayar
-            $totalPaid = $booking->payments()->where('status', 'verified')->sum('amount');
-            $netTotal = max(0, $booking->total_amount - $settleDisc);
+            // Status & piutang dihitung dari pembayaran yang benar-benar tercatat di server.
+            // Dulu: tanda "bayar saat kembali / piutang" yang masih terkirim membuat booking yang SUDAH lunas tetap "DP dibayar"
+            // dan piutangnya tidak pernah hilang.
+            $totalPaid = (int) $booking->payments()->where('status', 'verified')->sum('amount');
+            $netTotal = max(0, (int) $booking->total_amount - $settleDisc);
+            $remaining = max(0, $netTotal - $totalPaid);
 
-            if ($totalPaid >= $netTotal && !$settleLater) {
-                $booking->update(['payment_status' => 'lunas']);
-            } elseif ($settleLater) {
-                $booking->update(['payment_status' => 'dp_paid']);
+            if ($remaining === 0) {
+                $booking->update(['payment_status' => 'lunas', 'settle_later' => false, 'piutang_amount' => 0, 'piutang_note' => null]);
+                $settleLater = false;
+            } else {
+                // Piutang hanya untuk barang yang SUDAH kembali; selama disewa ini sekadar "bayar saat kembali"
+                $booking->update([
+                    'payment_status' => in_array($booking->payment_status, ['unpaid'], true) ? 'unpaid' : 'dp_paid',
+                    'piutang_amount' => $settleLater && $booking->status === 'selesai' ? $remaining : 0,
+                ]);
+                $piutangAmt = (int) $booking->piutang_amount;
             }
 
             Audit::log(

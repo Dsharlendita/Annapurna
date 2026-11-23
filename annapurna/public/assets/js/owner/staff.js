@@ -119,7 +119,7 @@
       const F = m.$('#rpf'), E = F.elements;
       if (!validate(F, { rpw: () => pwError(E.rpw.value), rpw2: () => (!E.rpw2.value ? 'Ketik ulang kata sandi.' : E.rpw2.value !== E.rpw.value ? 'Kata sandi tidak sama.' : '') })) return;
       const body = { password: E.rpw.value, password_confirmation: E.rpw2.value, mustChangePw: E.rmust.checked, sendEmail: E.rmail.checked };
-      const r = await Api.busy(m.$('#rpOk'), () => Api.try('POST', 'api/owner/staff/' + u.id + '/reset-password', body, () => DB.resetStaffPassword(u.id, body)));
+      const r = await Api.busy(m.$('#rpOk'), () => Api.post('api/owner/staff/' + u.id + '/reset-password', body, { redirectOn401: false }));
       if (r && r.ok) {
         document.querySelectorAll('.modal').forEach((x) => x.remove()); document.body.style.overflow = ''; await fetchStaff();
         const me0 = DB.session();
@@ -181,7 +181,7 @@
           mustChangePw: E.smust.checked,
           sendEmail: E.smail.checked
         };
-        const r = await Api.busy(m.$('#sSave'), () => Api.try('POST', 'api/owner/staff', payload, () => DB.addStaff(payload)), 'Menyimpan…');
+        const r = await Api.busy(m.$('#sSave'), () => Api.post('api/owner/staff', payload, { redirectOn401: false }), 'Menyimpan…');
         if (!r || !r.ok) {
           if (r && r.errors) Api.showErrors(F, r);
           else toast((r && r.msg) || 'Gagal menambahkan staff.', 'err');
@@ -199,7 +199,7 @@
           phone: E.sphone.value.trim(),
           status
         };
-        const r = await Api.busy(m.$('#sSave'), () => Api.try('PATCH', 'api/owner/staff/' + u.id, payload, () => DB.updateStaff(u.id, payload)), 'Menyimpan…');
+        const r = await Api.busy(m.$('#sSave'), () => Api.patch('api/owner/staff/' + u.id, payload, { redirectOn401: false }), 'Menyimpan…');
         if (!r || !r.ok) {
           if (r && r.errors) Api.showErrors(F, r);
           else toast((r && r.msg) || 'Gagal memperbarui staff.', 'err');
@@ -225,7 +225,7 @@
         : { title: `Nonaktifkan ${esc(u.name)}?`, text: 'Staff tidak bisa login lagi dan sesi yang sedang berjalan akan ditutup. Akun dan histori aktivitasnya tetap tersimpan.', ok: 'Nonaktifkan', danger: true });
       if (!ok) return;
 
-      const r = await Api.try('POST', 'api/owner/staff/' + u.id + '/toggle', null, () => DB.updateStaff(u.id, { status: off ? 'aktif' : 'nonaktif' }));
+      const r = await Api.post('api/owner/staff/' + u.id + '/toggle', null, { redirectOn401: false });
       if (r && r.ok) {
         toast(off ? 'Staff diaktifkan.' : 'Staff dinonaktifkan.');
         await fetchStaff();
@@ -236,7 +236,7 @@
     if (rs) {
       const u = getStaff(rs.dataset.reset);
       if (!(await confirmBox({ title: `Atur ulang kata sandi ${esc(u.name)}?`, text: `Kata sandi sementara baru dibuat dan dikirim ke ${esc(u.email)}. Kata sandi lama langsung tidak berlaku.`, ok: 'Kirim kata sandi baru' }))) return;
-      const r = await Api.try('POST', 'api/owner/staff/' + u.id + '/reset-password', null, () => DB.resetStaffPassword(u.id));
+      const r = await Api.post('api/owner/staff/' + u.id + '/reset-password', null, { redirectOn401: false });
       if (r && r.ok) {
         await fetchStaff();
         sentModal('Kata sandi diatur ulang', u, r);

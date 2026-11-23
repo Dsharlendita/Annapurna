@@ -298,6 +298,8 @@
           customer_phone: customer.phone,
           customer_email: customer.email,
           customer_address: (b.deliv && b.deliv.address) || null,
+          /* Jadwal & alamat layanan antar / jemput / pasang tenda (ongkir diisi admin setelah disepakati) */
+          service: b.deliv ? { address: b.deliv.address || null, scheduled_date: b.deliv.date || null, scheduled_time: b.deliv.time || null, back_date: b.deliv.backDate || null, back_time: b.deliv.backTime || null, tents_count: b.deliv.tents || 0 } : null,
           start_date: start,
           end_date: end,
           items: apiItems,
@@ -338,6 +340,7 @@
           items: buy.map((it) => ({
             product_id: it.refId,
             qty: it.qty,
+            size: it.size || null,   /* ukuran / varian: stok per ukuran dikurangi server */
           })),
           payment_method: common.method,
           delivery_mode: SB.pick === 'antar' ? 'antar' : 'ambil',

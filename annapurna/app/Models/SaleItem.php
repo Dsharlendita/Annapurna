@@ -11,6 +11,7 @@ class SaleItem extends Model
         'sale_id',
         'product_id',
         'product_name',
+        'size',
         'product_img',
         'qty',
         'unit_price',

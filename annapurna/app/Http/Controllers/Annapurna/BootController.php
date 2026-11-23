@@ -114,6 +114,14 @@ class BootController extends Controller
             'customerMeta' => (object) FeData::customerMeta(),   // objek {email: …}, bukan array kosong []
             'expenses' => $manual->where('type', 'expense')->map(fn ($f) => FeData::toFeFinance($f))->values()->all(),
             'incomes' => $manual->where('type', 'income')->map(fn ($f) => FeData::toFeFinance($f))->values()->all(),
+            // Riwayat restock dari server (dulu hanya tersimpan di browser yang mencatatnya)
+            'restocks' => \App\Models\Restock::with(['product:id,name', 'finance:id,finance_code', 'creator:id,name'])->latest('id')->limit(500)->get()->map(fn ($r) => [
+                'id' => 'RST' . $r->id, 'productId' => $r->product_id, 'name' => $r->product?->name ?? $r->product_id, 'size' => $r->variant ?? '',
+                'qty' => (int) $r->qty, 'cost' => (int) $r->unit_cost, 'date' => $r->restock_date?->toDateString() ?? (string) $r->restock_date,
+                'supplier' => $r->supplier ?? '', 'note' => $r->note ?? '', 'by' => $r->creator?->name ?? '',
+                'at' => $r->created_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z'), 'expenseId' => $r->finance?->finance_code,
+                'kind' => $r->kind, 'units' => $r->unit_codes ?: [],
+            ])->all(),
             // Owner: daftar staf yang sebenarnya (dashboard, histori, Manajemen Staff). Dulu memakai daftar bawaan di browser.
             'staffList' => $isOwner ? User::whereIn('role', ['owner', 'admin'])->orderBy('id')->get()->map(fn ($u) => [
                 'id' => 'u' . $u->id, 'userId' => $u->id, 'name' => $u->name, 'email' => $u->email, 'phone' => $u->phone ?? '',

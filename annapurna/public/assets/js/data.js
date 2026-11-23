@@ -1029,6 +1029,12 @@
   /* Stok barang dikirim sebagai selisih (_stockFrom → stock), bukan angka mutlak, supaya penjualan online
      yang dikurangi server tidak tertimpa angka lama dari perangkat staff. */
   const syncStockFrom = {};
+  /* Barang → { nama ukuran → stok terakhir dari server } (stok per ukuran juga dikirim sebagai selisih) */
+  const syncVarFrom = {};
+  const varStocks = (p) => (p && p.variant && Array.isArray(p.variant.options) && p.variant.options.length ? Object.fromEntries(p.variant.options.map((o) => [o.name, +o.stock || 0])) : null);
+  /* Barang → { kode unit → sidik unit terakhir yang sama dengan server }: hanya unit yang berubah yang dikirim */
+  const syncUnitBase = {};
+  const unitBaseOf = (p) => Object.fromEntries((p && Array.isArray(p.units) ? p.units : []).filter((u) => u && u.code).map((u) => [u.code, stableJson(u)]));
   const syncPending = new Set();
   let syncApplying = false, syncTimer = null, syncWarned = 0;
   const syncStrip = (k, v) => { const st = SYNC[k].strip; if (!st || !v || typeof v !== 'object' || Array.isArray(v)) return v; const c = Object.assign({}, v); st.forEach((x) => delete c[x]); return c; };
@@ -1038,7 +1044,15 @@
       : JSON.stringify(v === undefined ? null : v));
   const syncHash = (k, v) => stableJson(syncStrip(k, v));
   const syncEntries = (k, v) => (SYNC[k].map ? Object.entries(v || {}) : (Array.isArray(v) ? v : []).filter((x) => x && x.id != null).map((x) => [String(x.id), x]));
-  const syncSnapshot = (k, v) => { syncBase[k] = new Map(syncEntries(k, v).map(([id, x]) => [id, syncHash(k, x)])); };
+  const syncSnapshot = (k, v) => { syncBase[k] = new Map(syncEntries(k, v).map(([id, x]) => [id, syncHash(k, x)])); if (k === 'products') syncEntries(k, v).forEach(([id, x]) => { syncUnitBase[id] = unitBaseOf(x); }); };
+  /* Hanya unit yang berbeda dari kiriman terakhir; barang tanpa perubahan unit dikirim tanpa daftar unit */
+  const unitDiff = (p, out) => {
+    if (!Array.isArray(out.units)) return out;
+    const b = syncUnitBase[p.id] || {};
+    const units = out.units.filter((u) => u && u.code && b[u.code] !== stableJson(u));
+    const o = Object.assign({}, out); if (units.length) o.units = units; else delete o.units;
+    return o;
+  };
   const syncQueue = (k) => { syncPending.add(k); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncFlush(false), 40); };
   const syncSession = () => { try { return JSON.parse(localStorage.getItem(KEY('session')) || 'null'); } catch (e) { return null; } };
   function syncWarn(label, e) {
@@ -1071,8 +1085,10 @@
       /* Pengunjung tanpa login / customer pada data staff: perubahan hanya lokal (server tetap sumber kebenaran) */
       if (!sess || (cfg.staff && !staff)) { accept(); return; }
       const prevStock = k === 'products' ? Object.assign({}, syncStockFrom) : null;
-      const body = { items: cfg.map ? Object.fromEntries(changed.map(([id, x]) => [id, x])) : changed.map(([id, x]) => (k === 'products' && syncStockFrom[x.id] != null ? Object.assign({ _stockFrom: syncStockFrom[x.id] }, syncStrip(k, x)) : (k === 'expenses' || k === 'incomes') && !base.has(id) ? Object.assign({ _new: true }, syncStrip(k, x)) : syncStrip(k, x))), removed };
-      if (k === 'products') changed.forEach(([, x]) => { syncStockFrom[x.id] = +x.stock || 0; });
+      const body = { items: cfg.map ? Object.fromEntries(changed.map(([id, x]) => [id, x])) : changed.map(([id, x]) => (k === 'products' ? unitDiff(x, Object.assign(syncStockFrom[x.id] != null ? { _stockFrom: syncStockFrom[x.id] } : {}, syncVarFrom[x.id] ? { _variantFrom: syncVarFrom[x.id] } : {}, syncStrip(k, x))) : (k === 'expenses' || k === 'incomes') && !base.has(id) ? Object.assign({ _new: true }, syncStrip(k, x)) : syncStrip(k, x))), removed };
+      const prevUnits = k === 'products' ? Object.fromEntries(changed.map(([id]) => [id, syncUnitBase[id]])) : null;
+      const prevVar = k === 'products' ? Object.fromEntries(changed.map(([, x]) => [x.id, syncVarFrom[x.id]])) : null;
+      if (k === 'products') changed.forEach(([id, x]) => { syncStockFrom[x.id] = +x.stock || 0; syncVarFrom[x.id] = varStocks(x); syncUnitBase[id] = unitBaseOf(x); });
       const root = (typeof document !== 'undefined' && document.body && document.body.dataset.base) || '/';
       const csrf = ((typeof document !== 'undefined' && document.querySelector('meta[name="csrf-token"]')) || {}).content || '';
       accept(); /* dianggap terkirim; bila gagal ditandai lagi supaya ikut terkirim pada penyimpanan berikutnya */
@@ -1081,8 +1097,10 @@
         .then(({ ok, j, status }) => {
           if (!ok) throw new Error((j && (j.msg || j.message)) || 'kode ' + status);
           if (j.map && Object.keys(j.map).length) syncRemap(k, j.map);
+          /* Sebagian kiriman ditolak server (mis. hak akses): dulu diam-diam, sekarang staf diberi tahu */
+          if (staff && Array.isArray(j.skipped) && j.skipped.length) syncWarn(cfg.label, { message: `${j.skipped.length} perubahan ditolak server (${j.skipped.slice(0, 3).join(', ')})` });
         })
-        .catch((e) => { changed.forEach(([id]) => base.delete(id)); removed.forEach((id) => base.set(id, '?')); if (prevStock) { Object.keys(syncStockFrom).forEach((id) => delete syncStockFrom[id]); Object.assign(syncStockFrom, prevStock); } syncWarn(cfg.label, e); });
+        .catch((e) => { changed.forEach(([id]) => base.delete(id)); if (prevUnits) Object.keys(prevUnits).forEach((id) => { syncUnitBase[id] = prevUnits[id]; }); if (prevVar) Object.assign(syncVarFrom, prevVar); removed.forEach((id) => base.set(id, '?')); if (prevStock) { Object.keys(syncStockFrom).forEach((id) => delete syncStockFrom[id]); Object.assign(syncStockFrom, prevStock); } syncWarn(cfg.label, e); });
     });
   }
   if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => { if (syncPending.size) syncFlush(true); });
@@ -2050,9 +2068,11 @@
         (snap.clear || []).forEach((k) => { if (!(k in snap)) write(k, k === 'customerMeta' ? {} : []); });
         if (snap.settings && Object.keys(snap.settings).length) write('settings', Object.assign({}, read('settings', SETTINGS), snap.settings));
         if (snap.categories) write('categories', snap.categories);
-        if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; }); }
+        if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; syncVarFrom[p.id] = varStocks(p); }); }
         ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications', 'audit'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
         if (snap.customerMeta) write('customerMeta', Array.isArray(snap.customerMeta) ? {} : snap.customerMeta);
+        /* Riwayat restock dari server (semua perangkat staf melihat riwayat yang sama) */
+        if (Array.isArray(snap.restocks)) write('restocks', snap.restocks);
         /* Owner: daftar staf dari server menggantikan akun staf bawaan di browser (customer lokal tetap) */
         if (Array.isArray(snap.staffList)) {
           const U = read('users', USERS).filter((u) => u.role !== 'admin' && u.role !== 'owner');

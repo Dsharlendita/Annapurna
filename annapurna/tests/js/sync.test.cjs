@@ -67,6 +67,17 @@ let pass = 0; const ok = (name, fn) => Promise.resolve(fn()).then(() => { pass++
     assert.strictEqual(calls().length, 1);
     const it = calls()[0].body.items[0];
     assert.ok(Array.isArray(it.units)); assert.strictEqual(it.units[0].notes, 'catatan unit');
+    /* Hanya unit yang berubah yang dikirim: unit lain tidak boleh menimpa data perangkat lain */
+    assert.strictEqual(it.units.length, 1, 'hanya 1 unit yang berubah, tapi terkirim ' + it.units.length);
+  });
+
+  // 4b. Perubahan lain pada barang (bukan unit) → daftar unit tidak ikut dikirim
+  reset();
+  R(`Ann.DB.saveProduct(Object.assign({}, Ann.DB.product('tnd-4'), { name: 'Tenda 4P Baru' }))`);
+  await wait(80);
+  await ok('ubah nama barang → unit tidak ikut terkirim', () => {
+    const it = calls()[0].body.items[0];
+    assert.strictEqual(it.name, 'Tenda 4P Baru'); assert.strictEqual(it.units, undefined);
   });
 
   // 5. Stok dikirim sebagai selisih

@@ -116,7 +116,7 @@ class OrderPresenter
             'discount' => $b->discount_amount > 0 ? ['amount' => (int) $b->discount_amount, 'reason' => $b->discount_reason] : null,
             'settleDisc' => $settle > 0 ? ['amount' => $settle, 'reason' => $b->settle_disc_reason] : null,
             'settleLater' => (bool) $b->settle_later,
-            'piutang' => $b->settle_later ? ['amount' => (int) $b->piutang_amount, 'note' => $b->piutang_note] : null,
+            'piutang' => $b->settle_later && (int) $b->piutang_amount > 0 ? ['amount' => (int) $b->piutang_amount, 'note' => $b->piutang_note] : null,
             'status' => $b->status,
             'paymentStatus' => $b->payment_status,
             'method' => $b->payment_method,
@@ -195,8 +195,41 @@ class OrderPresenter
                 'backDate' => $svc->back_date?->toDateString(),
                 'backTime' => $svc->back_time,
                 'tents' => $svc->tents_count ?: null,
+                // Ongkir & jasa yang sudah diisi admin (status "menunggu" = ongkir belum disepakati)
+                'ongkir' => $svc->status !== 'menunggu' ? (int) $svc->ongkir : null,
+                'jasa' => $svc->status !== 'menunggu' && (int) $svc->fee > 0 ? (int) $svc->fee : null,
             ], fn ($v) => $v !== null && $v !== '') : null,
-        ], self::proof($b->payments));
+        ], $svc ? ['svc' => self::servicePayments($svc)] : [],
+            // Uang jaminan (hanya bila ada, supaya data lama di browser tidak tertimpa nol)
+            (int) $b->deposit_amount > 0 ? ['deposit' => (int) $b->deposit_amount] : [],
+            $b->deposit_in ? ['depositIn' => $b->deposit_in] : [],
+            $b->deposit_out ? ['depositOut' => $b->deposit_out] : [],
+            self::proof($b->payments));
+    }
+
+    /**
+     * Pembayaran layanan (jasa tenda + ongkir) untuk tampilan: dibagi seperti di kasir, jasa tenda dulu lalu ongkir.
+     * Dulu tidak dikirim, sehingga perangkat lain tidak tahu layanan sudah dibayar.
+     */
+    private static function servicePayments(\App\Models\BookingService $svc): array
+    {
+        $jasaLeft = (int) $svc->fee;
+        $out = [];
+        foreach ($svc->payments()->where('status', 'verified')->orderBy('id')->get() as $p) {
+            $amt = (int) $p->amount;
+            $toJasa = min($amt, $jasaLeft);
+            $jasaLeft -= $toJasa;
+            $at = $p->paid_at?->copy()->utc()->format('Y-m-d\TH:i:s\Z');
+            $via = $p->payment_method ?: 'Tunai';
+            if ($toJasa > 0) {
+                $out[] = ['id' => 'SVP' . $p->id . 'P', 'kind' => 'pasang', 'amount' => $toJasa, 'at' => $at, 'via' => $via];
+            }
+            if ($amt - $toJasa > 0) {
+                $out[] = ['id' => 'SVP' . $p->id . 'O', 'kind' => 'ongkir', 'amount' => $amt - $toJasa, 'at' => $at, 'via' => $via];
+            }
+        }
+
+        return $out;
     }
 
     public static function sale(Sale $s): array

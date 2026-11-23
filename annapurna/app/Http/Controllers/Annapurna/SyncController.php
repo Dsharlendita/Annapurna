@@ -144,6 +144,18 @@ class SyncController extends Controller
             if ($p && isset($x['_stockFrom']) && is_numeric($x['_stockFrom'])) {
                 $attrs['stock'] = max(0, (int) $p->stock + ($attrs['stock'] - (int) $x['_stockFrom']));
             }
+            // Stok per ukuran / varian juga sebagai selisih (pesanan online mengurangi stok ukuran di server)
+            $vFrom = $x['_variantFrom'] ?? null;
+            $srvOpts = $p && is_array($p->variant_data) ? collect($p->variant_data['options'] ?? [])->keyBy('name') : collect();
+            if ($p && is_array($vFrom) && ! empty($attrs['variant_data']['options']) && $srvOpts->isNotEmpty()) {
+                foreach ($attrs['variant_data']['options'] as $i => $o) {
+                    $name = $o['name'] ?? null;
+                    if ($name !== null && array_key_exists($name, $vFrom) && $srvOpts->has($name)) {
+                        $attrs['variant_data']['options'][$i]['stock'] = max(0, (int) ($srvOpts[$name]['stock'] ?? 0) + ((int) ($o['stock'] ?? 0) - (int) $vFrom[$name]));
+                    }
+                }
+                $attrs['stock'] = array_sum(array_map(fn ($o) => (int) ($o['stock'] ?? 0), $attrs['variant_data']['options']));
+            }
             $p ? $p->update($attrs) : Product::create($attrs + ['sort_order' => (int) Product::max('sort_order') + 1]);
             $this->saveUnits($attrs['id'], $x['units'] ?? null);
         }

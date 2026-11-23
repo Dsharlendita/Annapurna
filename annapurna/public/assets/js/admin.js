@@ -537,8 +537,25 @@
     };
   }
   /* Terapkan hasil settleBox ke booking (diskon → total turun; pelunasan → pembayaran tercatat & masuk keuangan) */
-  function settleApply(b, r, payType) {
+  /* Pelunasan / diskon pelunasan: disimpan ke server DULU (ditunggu). Mengembalikan daftar perubahan untuk histori,
+     atau null bila server menolak (pesan sudah tampil, tidak ada yang dicatat di perangkat ini). */
+  async function settleApply(b, r, payType) {
     if (!r) return [];
+    const disc = r.disc ? r.disc.amount : (b.settleDisc ? b.settleDisc.amount : 0);
+    const later = !!(r.later || b.settleLater);
+    const sv = await Api.post(`api/admin/booking/${encodeURIComponent(b.id)}/settle`, {
+      settle_disc_amount: disc,
+      settle_disc_reason: r.disc ? r.disc.reason : (b.settleDisc ? b.settleDisc.reason : ''),
+      settle_later: later,
+      piutang_amount: later ? (r.due || 0) : 0,
+      piutang_note: r.note || '',
+      payment_amount: r.pay ? r.pay.amount : 0,
+      payment_method: r.pay ? r.pay.via : 'Kasir · Tunai',
+    }, { redirectOn401: false });
+    if (!sv || !sv.ok) {
+      toast(`Pembayaran ${NO(b)} BELUM tersimpan di server: ${(sv && sv.msg) || 'koneksi terputus'}. Catat ulang lewat Pelunasan.`, 'err');
+      return null;
+    }
     const ch = [];
     if (r.disc) { b.settleDisc = r.disc; Rules.recalc(b); b.history = b.history || []; b.history.push({ at: r.disc.at, text: `Diskon pelunasan ${rupiah(r.disc.amount)} (${r.disc.reason}) oleh ${me.name}` }); ch.push({ field: 'Diskon pelunasan', from: '', to: `${rupiah(r.disc.amount)} · ${r.disc.reason}` }); }
     if (r.pay && r.pay.amount > 0) {
@@ -546,23 +563,6 @@
       b.history.push({ at: D.nowStamp(), text: `${payType || 'Pelunasan'} ${rupiah(r.pay.amount)} diterima via ${r.pay.via}${r.pay.proof ? ' (bukti terlampir)' : ''} · diverifikasi ${me.name}` });
       ch.push({ field: payType || 'Pelunasan', from: '', to: `${rupiah(r.pay.amount)} via ${r.pay.via}` });
     }
-    try {
-      const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-      fetch(`/api/admin/booking/${b.id}/settle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-        body: JSON.stringify({
-          settle_disc_amount: b.settleDisc ? b.settleDisc.amount : 0,
-          settle_disc_reason: b.settleDisc ? b.settleDisc.reason : '',
-          settle_later: !!(r.later || b.settleLater),
-          piutang_amount: (r.later || b.settleLater) ? (r.due || 0) : 0,
-          piutang_note: r.note || '',
-          payment_amount: r.pay ? r.pay.amount : 0,
-          payment_method: r.pay ? r.pay.via : 'Kasir · Tunai'
-        })
-      }).then((res) => { if (!res.ok && res.status !== 404) toast('Pembayaran tersimpan di perangkat ini, tetapi GAGAL tersimpan di server. Cek koneksi lalu catat ulang.', 'err'); })
-        .catch(() => toast('Tidak terhubung ke server: pembayaran belum tersimpan di server.', 'err'));
-    } catch (e) {}
     return ch;
   }
   /* Pelunasan dari Detail booking (diantar & bayar transfer / tunai di lokasi, atau menagih piutang) */
@@ -571,9 +571,10 @@
     const m = modal({ title: `Pelunasan · ${NO(b)}`, body: `<p class="muted" style="font-size:13px;margin:0 0 10px">${esc(b.customer.name)} · ${esc(itemsText(b))} · ${D.fmtRange(b.start, b.end)}${b.piutang ? ' · <b style="color:var(--red)">piutang setelah barang kembali</b>' : ''}</p><div id="stl"></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="stlOk"><i class="fa-solid fa-check"></i> Simpan pelunasan</button>' });
     const sb = settleBox(m, b, { stage: 'detail', via: 'Transfer' });
-    m.$('#stlOk').addEventListener('click', () => {
+    m.$('#stlOk').addEventListener('click', async () => {
       const r = sb.read(); if (!r) return; if (!r.pay && !r.disc) { toast('Belum ada pelunasan / diskon yang dicatat.', 'err'); return; }
-      const x = DB.booking(id); const ch = settleApply(x, r, x.piutang ? 'Pelunasan piutang' : 'Pelunasan');
+      const x = DB.booking(id); const ch = await Api.busy(m.$('#stlOk'), () => settleApply(x, r, x.piutang ? 'Pelunasan piutang' : 'Pelunasan'), 'Menyimpan…');
+      if (!ch) return;
       if (!sisa(x)) { x.paymentStatus = 'lunas'; if (x.piutang) { x.piutang.paidAt = D.nowStamp(); x.history.push({ at: D.nowStamp(), text: 'Piutang lunas · kartu identitas boleh dikembalikan' }); delete x.piutang; } x.settleLater = false; }
       log(x, `Pelunasan dicatat${r.pay ? ` ${rupiah(r.pay.amount)} via ${r.pay.via}` : ''}`, 'pembayaran', `Mencatat pelunasan ${NO(x)}`, ch);
       DB.saveBooking(x); m.close(); toast(sisa(x) ? `Tersimpan. Sisa ${rupiah(sisa(x))}.` : 'Pelunasan tercatat. Booking lunas.'); done && done();
@@ -922,11 +923,11 @@
         /* Simpan ke server dulu. Bila ditolak (mis. DP belum diverifikasi, unit sedang dipakai), tidak ada yang berubah. */
         /* Uang pelunasan TIDAK dikirim di sini: settleApply() di bawah sudah mengirimnya ke /settle (cegah tercatat dobel) */
         const okSrv = await Api.busy(m.$('#oSave'), () => srvBooking(b, 'pickup', {
-          condition: OUT_COND, notes: note, unit_ids: picks || {},
+          condition: OUT_COND, notes: note, unit_ids: picks || {}, deposit_in: b.deposit || 0,
         }, { merge: false }), 'Menyimpan…');
         if (!okSrv) return;
         DB.assignUnits(b, picks);
-        const stCh = settleApply(b, st0, 'Pelunasan');
+        const stCh = (await settleApply(b, st0, 'Pelunasan')) || [];
         b.out = { at: D.nowStamp(), cond: OUT_COND, idCard: idc.value, by: me.name, note, photo: ex.photo, extra: ex.extra, paidAtPickup: st0.pay ? st0.pay.amount : 0, payLater: st0.later, payLaterNote: st0.note || '', checklist: [...m.el.querySelectorAll('.sop-chk input:checked, .chk-line input:checked')].map((c) => (c.closest('label') || {}).innerText || '').map((t) => t.trim()).filter(Boolean).slice(0, 8) };
         if (b.deposit) b.depositIn = { at: D.nowStamp(), amount: b.deposit, by: me.name };
         b.paymentStatus = sisa(b) ? 'dp_paid' : 'lunas'; b.settleLater = !!st0.later; b.status = 'disewa';
@@ -1019,13 +1020,14 @@
           late_days: r.late, late_fee: r.lf, damage_fee: r.dmg, total_fine: r.fine, notes: note,
           pay_fine: r.ded || 0, payment_method: 'Potong jaminan',
           unit_results: uc || {},
+          ...(b.depositIn ? { deposit_back: r.depBack || 0, deposit_deducted: r.ded || 0 } : {}),
         }, { merge: false }), 'Menyimpan…');
         if (!okSrv) return;
         DB.releaseUnits(b, uc);
         b.ret = { at: new Date(`${r.date}T${t}:00`).toISOString(), cond: m.$('#rCond').value, lateDays: r.late, lateFee: r.lf, damageFee: r.dmg, fine: r.fine, by: me.name, note, photo: ex.photo, extra: ex.extra, units: uc || null };
         b.fine = (b.fine || 0) + r.fine; Rules.recalc(b);
         if (r.ded) b.payments.push({ at: D.nowStamp(), amount: r.ded, type: 'Denda', note: 'dipotong dari jaminan' });
-        const stCh = settleApply(b, st0, r.fine - (r.ded || 0) ? 'Pelunasan & denda' : 'Pelunasan');
+        const stCh = (await settleApply(b, st0, r.fine - (r.ded || 0) ? 'Pelunasan & denda' : 'Pelunasan')) || [];
         if (b.depositIn) b.depositOut = { at: D.nowStamp(), amount: r.depBack, deducted: r.ded || 0, by: me.name };
         b.paymentStatus = sisa(b) ? 'dp_paid' : 'lunas'; b.settleLater = false;
         /* Belum bisa bayar → piutang: identitas tetap ditahan, muncul di Dashboard untuk ditagih */
@@ -1341,7 +1343,7 @@
       const r = m.$('#svRet'); if (r) r.addEventListener('change', () => { d.returnMode = r.value; m.$('#svBackRow').hidden = r.value !== 'jemput'; });
     };
     m.$('#svMode').addEventListener('change', draw); draw();
-    m.$('#svOk').addEventListener('click', () => {
+    m.$('#svOk').addEventListener('click', async () => {
       const md = m.$('#svMode').value; const sp = Svc.spec(md); const old = Svc.brief(b) || 'Ambil di toko'; const oldMode = Svc.label(b);
       if (md === 'ambil') { b.delivery = 'ambil'; delete b.deliv; }
       else {
@@ -1354,6 +1356,12 @@
       }
       const now = Svc.brief(b) || 'Ambil di toko';
       if (now === old && oldMode === Svc.label(b)) { m.close(); return; }
+      const d = b.deliv || {};
+      const sv = await Api.post(`api/admin/booking/${encodeURIComponent(b.booking_code || b.id)}/service`, md === 'ambil' ? { service_mode: 'ambil' } : {
+        service_mode: md, address: d.address || null, scheduled_date: d.date || null, scheduled_time: d.time || null,
+        back_date: d.backDate || null, back_time: d.backTime || null, tents_count: d.tents || 0,
+      }, { redirectOn401: false });
+      if (!sv || !sv.ok) { toast((sv && sv.msg) || 'Perubahan layanan belum tersimpan. Coba lagi.', 'err'); return; }
       b.history.push({ at: D.nowStamp(), text: `Layanan diubah oleh ${me.name}: ${Svc.label(b)}${Svc.has(b) ? ' · ' + now : ''}` });
       DB.saveBooking(b);
       DB.audit({ type: 'layanan', action: `Mengubah layanan ${NO(b)} (${b.customer.name})`, ref: b.id, changes: [{ field: 'Layanan', from: oldMode, to: Svc.label(b) }, { field: 'Jadwal & lokasi', from: old, to: now }] });
@@ -1392,12 +1400,20 @@
     m.$('#spWhen').addEventListener('click', (e) => { const x = e.target.closest('[data-w]'); if (!x) return; when = x.dataset.w; m.$$('#spWhen [data-w]').forEach((y) => y.classList.toggle('active', y === x)); m.$('#spPayBox').hidden = when !== 'now'; sum(); });
     if (m.$('#spCour')) m.$('#spCour').addEventListener('change', () => { const u = staff.find((x) => x.name.toLowerCase() === m.$('#spCour').value.trim().toLowerCase()); if (u && u.phone && !m.$('#spCPh').value) m.$('#spCPh').value = u.phone; });
     sum();
-    m.$('#spOk').addEventListener('click', () => {
+    m.$('#spOk').addEventListener('click', async () => {
       if (!has('#spOng')) { toast('Isi ongkir yang sudah disepakati (isi 0 bila gratis).', 'err'); m.$('#spOng').focus(); return; }
       if (m.$('#spCPh') && m.$('#spCPh').value.trim() && !UI.isPhone(m.$('#spCPh').value.trim())) { toast('No. HP staff tidak valid.', 'err'); m.$('#spCPh').focus(); return; }
       const c = calc(); const amt = when === 'now' ? n('#spAmt') : 0;
       if (when === 'now' && !amt) { toast('Isi jumlah yang dibayar.', 'err'); return; }
       const at = D.nowStamp(); const note = m.$('#spNote').value.trim(); const via = 'Kasir · ' + m.$('#spVia').value;
+      /* Server dulu: ongkir, jasa & pembayaran layanan tersimpan untuk semua perangkat (dulu hasilnya diabaikan) */
+      const sv = await Api.busy(m.$('#spOk'), () => Api.post(`api/admin/booking/${encodeURIComponent(b.booking_code || b.id)}/service`, {
+        service_mode: Svc.mode(b) || 'antar', fee: c.jasa, ongkir: c.ong, pay_now: amt,
+        payment_method: m.$('#spVia') ? m.$('#spVia').value : 'Tunai', notes: note || null,
+        ...(b.deliv && b.deliv.address ? { address: b.deliv.address } : {}),
+      }, { redirectOn401: false }), 'Menyimpan…');
+      if (!sv) return;
+      if (!sv.ok) { toast(sv.msg || 'Nota layanan belum tersimpan. Coba lagi.', 'err'); return; }
       const before = Svc.bill(b);
       b.deliv = Object.assign({}, b.deliv || {}, { ongkir: c.ong, notaAt: at, notaBy: me.name }, tent && c.jasa !== Svc.setupTotal(b) ? { jasa: c.jasa } : { jasa: null },
         m.$('#spCour') ? { courier: m.$('#spCour').value.trim(), courierPhone: m.$('#spCPh').value.trim() } : {});
@@ -1415,21 +1431,23 @@
         b.history.push({ at, text: `Pembayaran layanan ${rupiah(amt)} · ${via}` });
         changes.push({ field: 'Dibayar', from: '', to: rupiah(amt) }, { field: 'Lini usaha', from: '', to: 'Rental' });
       }
-      Api.try('POST', `api/admin/booking/${b.booking_code || b.id}/service`, {
-        service_mode: Svc.mode(b) || 'antar',
-        fee: c.jasa,
-        ongkir: c.ong,
-        pay_now: amt,
-        payment_method: m.$('#spVia') ? m.$('#spVia').value : 'Tunai',
-        address: (b.deliv && b.deliv.address) || null,
-        notes: note || null,
-      });
       DB.saveBooking(b);
       DB.audit({ type: amt ? 'keuangan' : 'layanan', action: `Memperbarui nota layanan ${NO(b)} (${b.customer.name})${amt ? ` · dibayar ${rupiah(amt)}` : ''}`, ref: b.id, changes });
       DB.notify(b.customer.email, 'Nota layanan diperbarui', `${Svc.ongkirText(b).replace(/^o/, 'O')} ${NO(b)}: ${rupiah(c.ong)}. Total layanan ${rupiah(c.total)}.`, 'pesanan');
       m.close(); refreshShell();
       svcNotaSent(DB.booking(b.id), done);
     });
+  }
+  /* Layanan sewa dari kasir → server (jadwal, jasa, ongkir & uang yang sudah dibayar di kasir). true bila tersimpan. */
+  async function svcServer(b) {
+    const d = b.deliv || {}; const bl = Svc.bill(b); const paid = Svc.paid(b);
+    const svcVia = ((b.svc || [])[0] || {}).via || 'Kasir · Tunai';
+    const r = await Api.post(`api/admin/booking/${encodeURIComponent(b.booking_code || b.id)}/service`, {
+      service_mode: Svc.mode(b) || b.delivery, address: d.address || null, scheduled_date: d.date || null, scheduled_time: d.time || null,
+      back_date: d.backDate || null, back_time: d.backTime || null, tents_count: d.tents || 0,
+      fee: bl.jasa, ongkir: bl.ongkir, pay_now: paid, payment_method: String(svcVia).replace(/^Kasir · /, '').split(' · ')[0] || 'Tunai',
+    }, { redirectOn401: false });
+    return !!(r && r.ok);
   }
   /* Setelah nota diperbarui: kirim ringkasan + link nota ke WhatsApp customer */
   async function svcNotaSent(b, done) {
@@ -1931,24 +1949,12 @@ ${pay}
       s.deliv = Object.assign({}, s.deliv || {}, nd);
       const brief = Svc.shipBrief(s);
       s.history = s.history || []; s.history.push({ at, text: `Pengiriman diatur oleh ${me.name}: ${brief}${ongLog}${ongPaid && ongDue > 0 ? ` · ongkir dibayar ${rupiah(ongDue)} (${ongVia})` : ''}` });
+      const sv = await Api.post(`api/admin/sales/${encodeURIComponent(s.id)}/delivery`, {
+        method: mode, expedition: exp, tracking_no: nd.resi || '', courier_name: nd.courier || '', courier_phone: nd.courierPhone || '',
+        ongkir: nd.ongkir || 0, address: rec.addr || '', ship_status: 'dikirim',
+      }, { redirectOn401: false });
+      if (!sv || !sv.ok) { toast(`Pengiriman ${NO(s)} belum tersimpan: ${(sv && sv.msg) || 'koneksi terputus'}. Coba lagi.`, 'err'); return; }
       DB.saveSale(s);
-      try {
-        const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-        fetch(`/api/admin/sales/${s.id}/delivery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-          body: JSON.stringify({
-            method: mode,
-            expedition: exp,
-            tracking_no: nd.resi || '',
-            courier_name: nd.courier || '',
-            courier_phone: nd.courierPhone || '',
-            ongkir: nd.ongkir || 0,
-            address: rec.addr || '',
-            ship_status: 'dikirim'
-          })
-        }).catch(() => {});
-      } catch (e) {}
       DB.audit({ type: 'layanan', action: `Mengatur pengiriman ${NO(s)} (${s.customer.name}): ${brief}`, ref: s.id, changes: [{ field: 'Pengiriman', from: before || '—', to: brief }] });
       DB.notify(s.customer.email, 'Pesananmu sedang dikirim', `${NO(s)}: ${brief}.`, 'pesanan?tab=beli');
       m.close(); refreshShell(); done && done();
@@ -2154,5 +2160,5 @@ ${pay}
     e.preventDefault(); e.stopPropagation();
     UI.waCompose({ title: 'Kirim pesan WhatsApp', text: t, phone: u.pathname.replace(/\D/g, ''), waLabel: 'Buka WhatsApp' });
   }, true);
-  window.Admin = { ldFromServer, ldSaveServer, syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
+  window.Admin = { svcServer, ldFromServer, ldSaveServer, syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
 })();

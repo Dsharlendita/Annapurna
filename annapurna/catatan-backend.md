@@ -1167,3 +1167,19 @@ Laporan: `docs/Laporan-Uji-Menyeluruh-2026-11-23.md` (tidak di-commit; repo publ
 - **Notifikasi otomatis dari server:** selamat datang (daftar, checkout, Google) dan pembatalan otomatis karena tidak dibayar (`bookings:expire-unpaid`).
 - **Halaman pembayaran** mengambil pesanan dari server bila tagihan belum ada di perangkat itu (dulu "Tagihan tidak ditemukan").
 - Tes: `PerbaikanTahap2Test` (6). Uji tampilan 5/5 lulus. `ASSET_VERSION` = `20261124.2`.
+
+## C.58 Perbaikan Tahap 3 — 24 Nov 2026 (Aji)
+
+**Ada migration baru** → di hosting jalankan `php artisan migrate --force`:
+`2026_11_24_000001_add_deposit_to_bookings_table` (deposit_amount, deposit_in, deposit_out) dan `2026_11_24_000002_add_size_to_sale_items_table` (size).
+
+- **Pelunasan sewa** (`settleApply`, admin.js): server dulu & ditunggu; gagal = tidak dicatat di browser (dulu `fetch('/api/…')` tanpa ditunggu). Server (`ApiController::settleBooking`) menghitung lunas & piutang dari pembayaran yang tercatat: lunas → piutang hilang walau tanda "bayar nanti" masih terkirim; piutang hanya untuk barang yang sudah kembali.
+- **Layanan antar/jemput/tenda:** checkout mengirim `service` (alamat, jam, tenda) → `BookingService` status `menunggu`. `BookingServiceController::store` hanya mengubah kolom yang dikirim (dulu tenda & jam terhapus saat isi ongkir), `ambil` = hapus layanan. Presenter mengirim `deliv.ongkir`, `deliv.jasa`, dan `svc` (pembayaran layanan, dibagi jasa dulu lalu ongkir). "Isi ongkir", "Ubah layanan", dan layanan kasir (`Admin.svcServer`) kini server dulu.
+- **Jaminan:** dihitung server saat checkout (jaminan barang × qty, paket = isi paket; walk-in 0), `deposit_in` saat barang keluar, `deposit_out` saat kembali; dikirim ke semua perangkat.
+- **Stok per ukuran:** pesanan online mengurangi/mengembalikan stok ukuran (`sale_items.size`, `SaleStock::restore`). Sinkron barang mengirim stok ukuran sebagai selisih (`_variantFrom`), seperti `_stockFrom`.
+- **Unit fisik:** sinkron barang hanya mengirim unit yang berubah di perangkat itu (perangkat dengan data lama tidak lagi menimpa unit).
+- **Riwayat restock** dari server (`boot-staff.js` → `restocks`).
+- **Manajemen Staff:** tambah/ubah/nonaktif/reset tidak lagi "berhasil" di browser saat server menolak.
+- **Hak admin:** boleh mengubah `attributes`, `laundry`, `laundryOther` (Data Barang & gambar laundry). Kiriman sinkron yang ditolak server kini memunculkan pesan untuk staf.
+- **Pengiriman pesanan beli** (`api/admin/sales/{id}/delivery`): server dulu & ditunggu.
+- Tes: `PerbaikanTahap3Test` (6) + 1 tes JS (unit). PHP 126, JS 13 lulus. Uji tampilan Tahap 3 10/10 + regresi lengkap lulus. `ASSET_VERSION` = `20261124.3`.

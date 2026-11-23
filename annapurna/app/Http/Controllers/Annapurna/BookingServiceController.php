@@ -135,28 +135,41 @@ class BookingServiceController extends Controller
 
         return DB::transaction(function () use ($validated, $booking, $request) {
             $user = Auth::user();
-            $fee = (int) ($validated['fee'] ?? 0);
-            $ongkir = (int) ($validated['ongkir'] ?? 0);
-            $totalService = $fee + $ongkir;
             $payNow = (int) ($validated['pay_now'] ?? 0);
+            $service = BookingService::where('booking_id', $booking->id)->lockForUpdate()->first();
 
-            $service = BookingService::updateOrCreate(
-                ['booking_id' => $booking->id],
-                [
-                    'service_mode' => $validated['service_mode'],
-                    'tents_count' => $validated['tents_count'] ?? 0,
-                    'address' => $validated['address'] ?? null,
-                    'scheduled_date' => $validated['scheduled_date'] ?? $booking->start_date,
-                    'scheduled_time' => $validated['scheduled_time'] ?? null,
-                    'back_date' => $validated['back_date'] ?? $booking->end_date,
-                    'back_time' => $validated['back_time'] ?? null,
-                    'fee' => $fee,
-                    'ongkir' => $ongkir,
-                    'total_service' => $totalService,
-                    'status' => 'dijadwalkan',
-                    'notes' => $validated['notes'] ?? null,
-                ]
-            );
+            // Kembali ke "ambil di toko": layanan dihapus (bila belum ada pembayaran layanan)
+            if ($validated['service_mode'] === 'ambil') {
+                if ($service && ! $service->payments()->exists()) {
+                    $service->delete();
+                }
+                $booking->update(['delivery_mode' => 'ambil']);
+
+                return response()->json(['ok' => true, 'msg' => 'Layanan dihapus. Barang diambil di toko.', 'service' => null]);
+            }
+
+            // Hanya kolom yang DIKIRIM yang diubah. Dulu kolom yang tidak dikirim (jumlah tenda, jam antar / jemput)
+            // ditimpa 0 / kosong setiap kali ongkir diisi.
+            $attrs = ['service_mode' => $validated['service_mode']];
+            foreach (['tents_count', 'address', 'scheduled_date', 'scheduled_time', 'back_date', 'back_time', 'fee', 'ongkir', 'notes'] as $k) {
+                if ($request->exists($k)) {
+                    $attrs[$k] = $validated[$k] ?? null;
+                }
+            }
+            foreach (['tents_count', 'fee', 'ongkir'] as $k) {
+                if (array_key_exists($k, $attrs)) {
+                    $attrs[$k] = (int) ($attrs[$k] ?? 0);
+                }
+            }
+            if (! $service) {
+                $attrs += ['scheduled_date' => $booking->start_date, 'back_date' => $booking->end_date, 'status' => 'menunggu'];
+            }
+            // Ongkir sudah disepakati & diisi admin → layanan terjadwal (tampilan lain berhenti menampilkan "ongkir belum diinput")
+            if ($request->exists('ongkir')) {
+                $attrs['status'] = 'dijadwalkan';
+            }
+            $service = $service ? tap($service)->update($attrs) : BookingService::create($attrs + ['booking_id' => $booking->id]);
+            $service->update(['total_service' => (int) $service->fee + (int) $service->ongkir]);
 
             // Perbarui juga delivery_mode di booking
             $booking->update([
@@ -183,7 +196,7 @@ class BookingServiceController extends Controller
                 ]);
             }
 
-            Audit::log('rental', "Layanan {$validated['service_mode']} ditambahkan pada booking {$booking->nota_no} · Total Rp " . number_format($totalService, 0, ',', '.'), $booking);
+            Audit::log('rental', "Layanan {$validated['service_mode']} ditambahkan pada booking {$booking->nota_no} · Total Rp " . number_format((int) $service->total_service, 0, ',', '.'), $booking);
 
             return response()->json([
                 'ok' => true,

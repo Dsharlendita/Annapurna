@@ -42,6 +42,9 @@ class Booking extends Model
         'expired_at',
         'guarantee_type',
         'guarantee_file',
+        'deposit_amount',
+        'deposit_in',
+        'deposit_out',
     ];
 
     protected function casts(): array
@@ -57,6 +60,9 @@ class Booking extends Model
             'dp_amount' => 'integer',
             'settle_later' => 'boolean',
             'piutang_amount' => 'integer',
+            'deposit_amount' => 'integer',
+            'deposit_in' => 'array',
+            'deposit_out' => 'array',
             'cancel_auto' => 'boolean',
             'cancel_at' => 'datetime',
             'expired_at' => 'datetime',

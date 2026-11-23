@@ -85,6 +85,7 @@ class ReturnController extends Controller
             'pay_now' => 'nullable|integer|min:0',
             'payment_method' => 'nullable|string|max:100',
             'unit_ids' => 'nullable|array',
+            'deposit_in' => 'nullable|integer|min:0',   // uang jaminan yang diterima saat barang keluar
         ]);
 
         return $this->tx($id, function (Booking $booking) use ($validated) {
@@ -97,6 +98,9 @@ class ReturnController extends Controller
             $payNow = (int) ($validated['pay_now'] ?? 0);
 
             $booking->status = 'disewa';
+            if ((int) ($validated['deposit_in'] ?? 0) > 0) {
+                $booking->deposit_in = ['amount' => (int) $validated['deposit_in'], 'at' => now()->utc()->format('Y-m-d\TH:i:s\Z'), 'by' => $user?->name];
+            }
             $this->assignUnits($booking, $validated['unit_ids'] ?? []);
 
             if ($payNow > 0) {
@@ -143,9 +147,11 @@ class ReturnController extends Controller
             'pay_fine' => 'nullable|integer|min:0',
             'payment_method' => 'nullable|string|max:100',
             'unit_results' => 'nullable|array',
+            'deposit_back' => 'nullable|integer|min:0',       // jaminan yang dikembalikan ke customer
+            'deposit_deducted' => 'nullable|integer|min:0',   // jaminan yang dipotong untuk denda
         ]);
 
-        return $this->tx($id, function (Booking $booking) use ($validated) {
+        return $this->tx($id, function (Booking $booking) use ($validated, $request) {
             if ($booking->status !== 'disewa') {
                 throw new \DomainException("Booking tidak sedang disewa (status: {$this->statusLabel($booking->status)}).");
             }
@@ -205,6 +211,10 @@ class ReturnController extends Controller
             }
 
             $booking->status = 'selesai';
+            if ($booking->deposit_in && ($request->exists('deposit_back') || $request->exists('deposit_deducted'))) {
+                $booking->deposit_out = ['amount' => (int) ($validated['deposit_back'] ?? 0), 'deducted' => (int) ($validated['deposit_deducted'] ?? 0),
+                    'at' => now()->utc()->format('Y-m-d\TH:i:s\Z'), 'by' => $user?->name];
+            }
             if ($totalFine > 0) {
                 // Nilai denda tersimpan di booking_returns.total_fine; total booking ikut naik
                 $booking->total_amount = ($booking->total_amount ?? 0) + $totalFine;

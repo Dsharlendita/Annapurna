@@ -27,7 +27,8 @@ class FeData
     public const PRIVATE_SETTINGS = ['integration'];
 
     /** Pengaturan yang boleh diubah Admin (profil toko & rekening). Sisanya hanya Owner. */
-    public const ADMIN_SETTINGS = ['storeName', 'hours', 'phone', 'whatsapp', 'email', 'instagram', 'tiktok', 'address', 'banks'];
+    // Kunci pengaturan yang boleh diubah admin: profil toko + nilai varian barang (Data Barang) + gambar item laundry
+    public const ADMIN_SETTINGS = ['storeName', 'hours', 'phone', 'whatsapp', 'email', 'instagram', 'tiktok', 'address', 'banks', 'attributes', 'laundry', 'laundryOther'];
 
     private static function date($d): ?string
     {

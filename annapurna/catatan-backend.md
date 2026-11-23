@@ -1204,3 +1204,12 @@ Pengukuran: server hosting tidak kewalahan (CPU/memori 0%), tetapi throughput un
 - `wa/cat-*.jpg` 600 px → 420 px (237 KB → 102 KB), `cta.jpg` 2400 → 1600 px (118 KB → 55 KB).
 - Hasil beranda: laptop −198 KB; HP ±−650 KB; halaman lain −460 KB pada kunjungan pertama.
 - Catatan: gambar bernama sama di-cache browser sampai 7 hari, jadi pengunjung lama baru memakai versi kecil setelah cache habis. `ASSET_VERSION` = `20261124.5`.
+
+## C.61 Pembaruan otomatis di halaman Booking, Laundry, dan Pesanan Saya — 24 Nov 2026 (Aji)
+
+Temuan uji di hosting: admin melihat notifikasi tetapi daftar booking baru muncul setelah pindah halaman, dan customer harus refresh untuk melihat status baru.
+- **Admin:** pengecekan otomatis `api/admin/denyut` (C.54) sudah berjalan, tetapi halaman **Booking Rental** (`admin/booking.js`) dan **Laundry** (`admin/laundry.js`) tidak mendengarkan event `ann:orders`, jadi daftarnya tidak digambar ulang. Kini keduanya mendengarkan.
+- **Customer (baru):** `GET api/pesanan/denyut` (`OrderController::myPulse`) = tanda perubahan pesanan, pembayaran, perpanjangan, ganti barang, refund, pengembalian, layanan, dan notifikasi MILIK AKUN ITU. `site.js` (`startMyPulse`) memeriksanya tiap ±30 detik (±90 detik bila tab tidak dilihat); bila berubah mengambil `api/pesanan` + `api/akun/data` (`BootController::account`, notifikasi), menyegarkan header, dan mengirim event `ann:orders` yang didengar `pages/pesanan.js`. Ditunda selama ada jendela (modal) terbuka. Hanya untuk customer yang login.
+- Route memakai method controller (bukan closure) supaya `php artisan route:cache` / `optimize` di hosting tidak gagal.
+- Tes: `PembaruanOtomatisTest` (2). PHP 132. Uji dua browser: booking baru muncul di halaman admin ±20 detik, status baru + notifikasi muncul di Pesanan Saya ±20–30 detik, tanpa refresh. `ASSET_VERSION` = `20261124.6`.
+- Regresi menangkap error baru pada pengunjung tanpa login (`s` null di `site.js`), sudah diperbaiki sebelum rilis.

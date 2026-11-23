@@ -85,5 +85,7 @@
     if (!ok) toast('Data booking dari server gagal dimuat. Yang tampil adalah data tersimpan di perangkat ini.', 'err');
     if (param('id')) Admin.bookingModal(param('id'), draw);
   });
+  /* Pesanan baru / perubahan dari perangkat lain (pengecekan otomatis tiap ±20 detik): daftar digambar ulang tanpa pindah halaman */
+  document.addEventListener('ann:orders', () => { drawLate(); draw(); });
 })();
 

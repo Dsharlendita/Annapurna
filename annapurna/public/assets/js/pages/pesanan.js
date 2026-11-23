@@ -343,6 +343,8 @@
     if (revId) { const x = revId.startsWith('RNT') ? DB.booking(revId) : DB.sale(revId); if (x && x.customer.email === user.email && x.status === 'selesai') reviewModal(x, draw); }
   }
   draw();
+  /* Status baru dari toko (verifikasi pembayaran, barang keluar, dibatalkan, dll.) tampil tanpa refresh */
+  document.addEventListener('ann:orders', () => draw());
   syncMine().then((ok) => {
     draw();
     if (!ok) toast('Pesanan terbaru gagal dimuat dari server. Yang tampil adalah data tersimpan di perangkat ini.', 'err');

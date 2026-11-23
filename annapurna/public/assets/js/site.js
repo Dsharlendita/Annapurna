@@ -113,6 +113,7 @@
     else bottomNav(s);
     remindCustomer(s);
     setTimeout(() => pwCard(s), 0);
+    if (s && s.role === 'customer') startMyPulse(s);   /* status pesanan & notifikasi terbarui sendiri (tanpa refresh) */
 
     const pop = $('#searchPop'), inp = $('#searchInput'), res = $('#searchRes');
     const open = (q) => { pop.classList.add('open'); inp.value = q || ''; draw(); setTimeout(() => inp.focus(), 30); };
@@ -186,6 +187,41 @@
     addEventListener('scroll', () => { if (!fq.matches) return; document.body.classList.add('is-scrolling'); clearTimeout(scrT); scrT = setTimeout(() => document.body.classList.remove('is-scrolling'), 700); }, { passive: true });
   }
 
+  /* ---------- Pembaruan otomatis untuk customer ----------
+     Tiap ±30 detik (±90 detik bila tab tidak dilihat) halaman memanggil GET api/pesanan/denyut: satu jawaban kecil berisi
+     tanda perubahan pesanan & notifikasi milik akun ini. Hanya bila tanda berubah (mis. admin memverifikasi pembayaran),
+     pesanan & notifikasi diambil ulang, lalu halaman digambar ulang lewat event 'ann:orders' (dipakai Pesanan Saya).
+     Ditunda selama ada jendela (modal) terbuka supaya isian tidak terganggu. */
+  let myPulseOn = false;
+  function startMyPulse(s) {
+    if (myPulseOn || !window.Api) return;
+    myPulseOn = true;
+    let sig0 = null, busy = false, last = Date.now();
+    const own = (x) => x.customer && String(x.customer.email || '').toLowerCase() === String(s.email || '').toLowerCase();
+    const tick = async () => {
+      if (busy) return; busy = true; last = Date.now();
+      try {
+        const r = await Api.get('api/pesanan/denyut', { redirectOn401: false });
+        const sig = r && r.ok && r.raw && r.raw.sig;
+        if (!sig) return;
+        if (sig0 === null) { sig0 = sig; return; }          /* pertama kali: data halaman ini sudah termuat */
+        if (sig === sig0 || document.querySelector('.modal')) return;
+        const o = await Api.get('api/pesanan', { redirectOn401: false });
+        if (o && o.ok && o.data && Array.isArray(o.data.bookings)) {
+          DB.mergeServer('bookings', o.data.bookings, { prune: own });
+          DB.mergeServer('sales', o.data.sales || [], { prune: own });
+        }
+        const a = await Api.get('api/akun/data', { redirectOn401: false });
+        if (a && a.ok && a.raw) DB.applyServer(a.raw);
+        sig0 = sig;
+        renderHeader();
+        document.dispatchEvent(new CustomEvent('ann:orders', { detail: { customer: true } }));
+      } catch (e) { /* jaringan putus: coba lagi di putaran berikut */ } finally { busy = false; }
+    };
+    setInterval(() => { if (Date.now() - last >= (document.hidden ? 90e3 : 30e3)) tick(); }, 5e3);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - last > 10e3) tick(); });
+    tick();
+  }
   /* Akun belum punya kata sandi (dibuat otomatis saat checkout / lewat Google) → tawarkan buat kata sandi (opsional).
      hasPassword=false datang dari server; needsPassword hanya untuk akun lokal saat server tidak tersedia. */
   function pwCard(s) {

@@ -370,6 +370,35 @@ class OrderController extends Controller
     }
 
     /**
+     * GET /api/pesanan/denyut — tanda perubahan pesanan & notifikasi milik customer yang sedang login.
+     * Dipanggil Pesanan Saya tiap ±30 detik (ringan: beberapa query agregat); daftar lengkap hanya diambil bila tanda berubah,
+     * sehingga status baru (mis. admin memverifikasi pembayaran) tampil tanpa refresh.
+     */
+    public function myPulse(): JsonResponse
+    {
+        $u = Auth::user();
+        $mine = fn ($q) => $q->where('user_id', $u->id)->orWhere('customer_email', strtolower($u->email));
+        $agg = fn ($q) => $q->selectRaw('COUNT(*) as c, MAX(updated_at) as u')->first();
+        $one = fn ($r) => ($r->c ?? 0) . ':' . ($r->u ?? '');
+
+        $bIds = Booking::where($mine)->pluck('id')->all();
+        $sIds = Sale::where($mine)->pluck('id')->all();
+        $parts = [
+            $one($agg(Booking::where($mine))),
+            $one($agg(Sale::where($mine))),
+            $one($agg(DB::table('payments')->where(fn ($q) => $q->whereIn('booking_id', $bIds)->orWhereIn('sale_id', $sIds)))),
+        ];
+        foreach (['booking_extensions', 'booking_changes', 'refunds', 'booking_returns', 'booking_services'] as $t) {
+            $parts[] = $one($agg(DB::table($t)->whereIn('booking_id', $bIds)));
+        }
+        $n = DB::table('user_notifications')->where('user_id', $u->id)
+            ->selectRaw('COUNT(*) as c, MAX(id) as m, MAX(updated_at) as u, SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) as r')->first();
+        $parts[] = 'n' . ($n->c ?? 0) . ':' . ($n->m ?? 0) . ':' . ($n->u ?? '') . ':' . ($n->r ?? 0);
+
+        return response()->json(['ok' => true, 'sig' => sha1(implode('|', $parts))]);
+    }
+
+    /**
      * GET /api/cek-pesanan?no=…&hp=… — cek status pesanan tanpa login (halaman Kontak).
      * Wajib cocok nomor pesanan DAN nomor WhatsApp. Hanya status yang dikembalikan, tanpa data pribadi
      * (email, alamat, bukti bayar, rekening). Dulu hanya mencari di data browser sendiri.

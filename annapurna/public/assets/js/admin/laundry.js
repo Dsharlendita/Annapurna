@@ -103,6 +103,8 @@
 
   $('#ldView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; $$('#ldView [data-v]').forEach((x) => x.classList.toggle('active', x === b)); $('#vOrders').hidden = b.dataset.v !== 'orders'; $('#vPrices').hidden = b.dataset.v !== 'prices'; if (b.dataset.v === 'prices') drawPrices(); });
   draw();
+  /* Pembaruan otomatis dari perangkat lain: daftar laundry digambar ulang (pembaruan tertunda bila ada jendela terbuka, diatur di admin.js) */
+  document.addEventListener('ann:orders', draw);
   if (param('id')) Admin.laundryModal(param('id'), draw);
   if (param('view') === 'prices') { const b = $('#ldView [data-v=prices]'); if (b) b.click(); }
 })();

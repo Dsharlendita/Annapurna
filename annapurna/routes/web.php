@@ -148,6 +148,9 @@ Route::middleware('auth')->group(function () {
 
     // Pesanan Saya (customer): data dari database, bukan localStorage
     Route::get('/api/pesanan', [OrderController::class, 'myOrders'])->name('api.pesanan');
+    // Pembaruan otomatis Pesanan Saya: tanda perubahan + data akun (notifikasi) terbaru
+    Route::get('/api/pesanan/denyut', [OrderController::class, 'myPulse'])->name('api.pesanan.denyut');
+    Route::get('/api/akun/data', [\App\Http\Controllers\Annapurna\BootController::class, 'account'])->name('api.akun.data');
     Route::post('/api/pesanan/{id}/batal', [OrderController::class, 'customerCancel'])->name('api.pesanan.batal');
     // Pesanan beli: customer membatalkan (belum dibayar) / menandai sudah diterima
     // Customer menekan tombol WhatsApp konfirmasi layanan antar / tenda (atau tanya ongkir pesanan beli)

@@ -136,6 +136,12 @@ class BootController extends Controller
         ], true);
     }
 
+    /** GET /api/akun/data — data akun yang sama dengan yang ditulis layout (notifikasi dll.), untuk pembaruan otomatis tanpa muat ulang. */
+    public function account(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json(self::userData());
+    }
+
     /** Data milik akun yang sedang masuk, ditulis langsung di layout (tidak di-cache). */
     public static function userData(): array
     {

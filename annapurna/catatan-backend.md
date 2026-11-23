@@ -1121,3 +1121,10 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - **Checkout:** `api/booking` / `api/sale` dulu memakai `Api.try` dengan cadangan lokal, dan hasil yang gagal (422/500/koneksi putus) diabaikan; pesanan tetap disimpan di browser customer sehingga tidak pernah sampai ke admin. Sekarang memakai `Api.post`; bila ditolak muncul jendela "Pesanan belum terkirim" + alasannya, keranjang tetap utuh, dan tidak ada pesanan yang disimpan hanya di browser.
 - **Unggah bukti bayar** (`pembayaran.js`): bila gagal sampai ke server, muncul pesan error dan pesanan tidak ditandai "sudah dibayar".
 - Diuji di Chrome: beli berhasil → halaman pembayaran; server menolak → tetap di checkout dengan pesan; admin di browser baru langsung melihat badge & pesanan di tab Penjualan. `ASSET_VERSION` = `20261123.4`.
+
+## C.54 Pesanan baru muncul di panel admin tanpa refresh — 23 Nov 2026 (Aji)
+
+- Endpoint baru **`GET api/admin/denyut`** (`OrderController::adminPulse`, staf saja): tanda perubahan (jumlah baris + `updated_at` terakhir) tabel bookings, sales, laundry_orders, payments, booking_extensions, booking_changes, refunds, booking_returns. Ringan: satu query agregat per tabel.
+- `admin.js` (`startPulse`): cek tiap 20 detik saat tab dilihat, 60 detik saat tab di belakang, dan langsung saat tab dibuka lagi. Daftar pesanan lengkap hanya diambil ulang bila tanda berubah → event `ann:orders` → halaman & badge sidebar digambar ulang + toast "Pesanan baru masuk: …". Judul tab diberi angka `(n)` bila pesanan masuk saat tab tidak dilihat. Pembaruan ditunda selama ada jendela (modal) terbuka.
+- Pesanan online baru tampil untuk staf setelah customer mengunggah bukti bayar (aturan lama `hiddenFromStaff`).
+- Tes: `DenyutPesananTest`. Uji dua browser: pesanan muncul di dashboard admin ±19 detik setelah customer mengunggah bukti, tanpa refresh. `ASSET_VERSION` = `20261123.5`.

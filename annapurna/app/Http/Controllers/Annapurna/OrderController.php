@@ -24,6 +24,25 @@ class OrderController extends Controller
 {
     private const ACTIVE = ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi'];
 
+    /** Tabel yang perubahannya berarti "ada pesanan baru / berubah" bagi panel admin. */
+    private const PULSE_TABLES = ['bookings', 'sales', 'laundry_orders', 'payments', 'booking_extensions', 'booking_changes', 'refunds', 'booking_returns'];
+
+    /**
+     * GET /api/admin/denyut — tanda perubahan data pesanan (jumlah baris + waktu ubah terakhir per tabel).
+     * Dipanggil panel admin tiap beberapa detik; ringan (satu query agregat per tabel), sehingga daftar pesanan
+     * lengkap hanya diambil ulang bila tanda ini berubah.
+     */
+    public function adminPulse(): JsonResponse
+    {
+        $parts = [];
+        foreach (self::PULSE_TABLES as $t) {
+            $row = DB::table($t)->selectRaw('COUNT(*) as c, MAX(updated_at) as u')->first();
+            $parts[] = $t . ':' . ($row->c ?? 0) . ':' . ($row->u ?? '');
+        }
+
+        return response()->json(['ok' => true, 'sig' => sha1(implode('|', $parts))]);
+    }
+
     /** GET /api/admin/bookings — semua booking (FE sendiri menyembunyikan pesanan online yang belum dibayar). */
     public function adminBookings(): JsonResponse
     {

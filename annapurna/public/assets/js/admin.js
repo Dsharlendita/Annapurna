@@ -367,7 +367,7 @@
     Admin.active = active;
     dueTodayNotices(); stockNotices();
     shellState = { active, title }; renderShell(active, title);
-    if (window.Api) syncOrders();   /* data pesanan dari server untuk semua halaman panel */
+    if (window.Api) { syncOrders(); startPulse(); }   /* data pesanan dari server + cek pesanan baru otomatis */
     document.title = `${title} — ${isOwner ? 'Owner' : 'Admin'} Annapurna`;
     DB.touch();
     const s = DB.session(); s.seen = s.seen || {};
@@ -765,12 +765,53 @@
     return true;
   }
   let ordersSync = null;
-  function syncOrders() {
-    if (!ordersSync) ordersSync = Promise.all([syncBookings(), syncSales(), syncLaundryAll()]).then(([b, s]) => {
+  /* force = ambil ulang walau halaman ini sudah pernah memuat (dipakai pengecekan pesanan baru otomatis) */
+  function syncOrders(force) {
+    if (!ordersSync || force) ordersSync = Promise.all([syncBookings(), syncSales(), syncLaundryAll()]).then(([b, s]) => {
       document.dispatchEvent(new CustomEvent('ann:orders', { detail: { bookings: b, sales: s } }));
       return b && s;
     });
     return ordersSync;
+  }
+
+  /* ---------- Pesanan baru tanpa refresh ----------
+     Tiap 20 detik (60 detik bila tab tidak dilihat) panel memanggil GET api/admin/denyut: satu jawaban kecil berisi
+     tanda perubahan data pesanan. Daftar pesanan lengkap baru diambil bila tanda itu berubah, lalu halaman digambar
+     ulang lewat event 'ann:orders'. Saat jendela (modal) sedang terbuka, pembaruan ditunda supaya isian tidak terganggu. */
+  let pulseSig = null, pulseBusy = false, pulseNew = 0;
+  const baseTitle = () => document.title.replace(/^\(\d+\) /, '');
+  const orderIds = () => ({ b: new Set(DB.staffBookings().map((x) => x.id)), s: new Set(DB.staffSales().map((x) => x.id)) });
+  async function pulse() {
+    if (pulseBusy || !window.Api) return;
+    pulseBusy = true;
+    try {
+      const r = await Api.get('api/admin/denyut', { redirectOn401: false });
+      const sig = r && r.ok && r.raw && r.raw.sig;
+      if (!sig) return;
+      if (pulseSig === null) { pulseSig = sig; return; }   /* pertama kali: data halaman ini sudah dimuat Admin.init */
+      if (sig === pulseSig || document.querySelector('.modal')) return;
+      await ordersSync;                                    /* tunggu pemuatan awal bila masih berjalan */
+      const before = orderIds();
+      await syncOrders(true);
+      pulseSig = sig;
+      refreshShell();
+      const fresh = [...DB.staffBookings().filter((x) => !before.b.has(x.id)), ...DB.staffSales().filter((x) => !before.s.has(x.id))];
+      if (fresh.length) {
+        const f = fresh[0];
+        toast(`Pesanan baru masuk: ${NO(f)} · ${(f.customer && f.customer.name) || 'customer'}${fresh.length > 1 ? ` (+${fresh.length - 1} lainnya)` : ''}`);
+        if (document.hidden) { pulseNew += fresh.length; document.title = `(${pulseNew}) ${baseTitle()}`; }
+      }
+    } finally { pulseBusy = false; }
+  }
+  function startPulse() {
+    let last = Date.now();
+    setInterval(() => { const gap = document.hidden ? 60e3 : 20e3; if (Date.now() - last >= gap) { last = Date.now(); pulse(); } }, 5e3);
+    pulse();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      if (pulseNew) { pulseNew = 0; document.title = baseTitle(); }
+      if (Date.now() - last > 10e3) { last = Date.now(); pulse(); }
+    });
   }
   /* Kirim aksi booking ke server lebih dulu. Hasil server langsung digabung ke data lokal.
      Booking yang belum ada di server (404, mis. data contoh lama) tetap diproses lokal seperti sebelumnya.

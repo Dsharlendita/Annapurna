@@ -1,0 +1,42 @@
+# Deploy otomatis ke hosting setiap push ke main (atau dijalankan manual dari tab Actions).
+# Rahasia (SSH_HOST, SSH_PORT, SSH_USER, SSH_KEY, SSH_PASSPHRASE) disimpan di GitHub Secrets, bukan di kode.
+name: Deploy ke hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Tarik kode terbaru di server & segarkan
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script_stop: true
+          script: |
+            set -e
+            cd ~/annapurna-app
+            OLD=$(git rev-parse HEAD)
+            git pull --ff-only
+            NEW=$(git rev-parse HEAD)
+            echo "Kode: $OLD -> $NEW"
+            cd annapurna
+            if [ "$OLD" != "$NEW" ] && git diff --name-only "$OLD" "$NEW" | grep -q '^annapurna/composer.lock$'; then
+              echo "composer.lock berubah: menjalankan composer install"
+              composer install --no-dev --optimize-autoloader --no-interaction
+            fi
+            php artisan migrate --force
+            php artisan optimize
+            echo "Deploy selesai: $(git rev-parse --short HEAD)"

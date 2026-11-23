@@ -256,6 +256,7 @@
     const grp = Object.keys(groups).length > 1 ? 'GRP-' + Date.now().toString(36).toUpperCase() : null;
 
     await Api.busy(submitBtn, async () => {
+      let failed = null; /* jawaban server yang menolak pesanan (bila ada) */
       for (const [k, items] of Object.entries(groups)) {
         const [start, end] = k.split('|');
         const days = Rules.rentalDays(start, end);
@@ -307,8 +308,11 @@
           guarantee_type: common.idType || null,
         };
 
-        const svRes = await Api.try('POST', 'api/booking', apiPayload, () => ({ ok: true, data: { booking: { booking_code: b.id, nota_no: b.id } } }));
-        if (svRes && svRes.ok && svRes.data && svRes.data.booking) {
+        /* Pesanan WAJIB tercatat di server. Bila ditolak (stok habis, data tidak valid, server error, koneksi putus),
+           jangan disimpan hanya di browser: pesanan seperti itu tidak pernah sampai ke admin. */
+        const svRes = await Api.post('api/booking', apiPayload, { redirectOn401: false });
+        if (!svRes || !svRes.ok || !svRes.data || !svRes.data.booking) { failed = svRes || { msg: '' }; break; }
+        {
           b.id = svRes.data.booking.booking_code || b.id;
           if (svRes.data.booking.id) b.serverId = svRes.data.booking.id; /* ID angka di server: dipakai endpoint pickup / return */
           b.booking_code = svRes.data.booking.booking_code;
@@ -340,17 +344,29 @@
           notes: common.notes || null,
         };
 
-        const svSale = await Api.try('POST', 'api/sale', salePayload, () => ({ ok: true, data: { sale: { sale_code: o.id, nota_no: o.id } } }));
-        if (svSale && svSale.ok && svSale.data && svSale.data.sale) {
+        const svSale = await Api.post('api/sale', salePayload, { redirectOn401: false });
+        if (!svSale || !svSale.ok || !svSale.data || !svSale.data.sale) failed = svSale || { msg: '' };
+        else {
           o.id = svSale.data.sale.sale_code || o.id;
           if (svSale.data.sale.id) o.serverId = svSale.data.sale.id;
           o.sale_code = svSale.data.sale.sale_code;
           o.nota_no = svSale.data.sale.nota_no;
           o.notaNo = svSale.data.sale.nota_no;
+          DB.saveSale(o);
+          ids.push(o.id);
         }
+      }
 
-        DB.saveSale(o);
-        ids.push(o.id);
+      if (failed) {
+        const why = failed.offline ? 'Koneksi internet terputus.' : (failed.msg || 'Server sedang bermasalah.');
+        if (!ids.length) {
+          /* Tidak ada yang tercatat: keranjang tetap utuh supaya bisa dicoba lagi */
+          UI.modal({ title: 'Pesanan belum terkirim', body: `<div class="notice red"><i class="fa-solid fa-circle-exclamation"></i><div><b>Pesananmu belum masuk ke toko.</b> ${esc(why)}<br>Keranjangmu masih utuh. Coba lagi, atau hubungi kami lewat WhatsApp bila masalah berlanjut.</div></div>`,
+            foot: `<a class="btn btn-light" href="${UI.waLink('Halo Annapurna, saya gagal checkout di website: ' + why)}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a><button class="btn btn-primary" data-close>Coba lagi</button>` });
+          return;
+        }
+        /* Sebagian booking (durasi berbeda) sudah tercatat: lanjut bayar yang sudah masuk, sisanya dipesan ulang */
+        toast(`Sebagian pesanan belum terkirim: ${why} Pesan ulang barang yang belum masuk setelah membayar.`, 'err');
       }
 
       if (usePr) DB.usePromo(usePr.promo.code);

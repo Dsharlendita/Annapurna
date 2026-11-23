@@ -107,8 +107,14 @@
           fd.append('proof_file', fileBlob, 'proof.jpg');
 
           /* Server mengembalikan data pembayaran: ID-nya disimpan untuk tombol Verifikasi admin (api/admin/pembayaran/{id}/verifikasi) */
-          const up = await Api.try('POST', 'api/pembayaran/upload', fd, () => null);
-          const pay = up && up.ok && up.raw && up.raw.payment;
+          const up = await Api.post('api/pembayaran/upload', fd, { redirectOn401: false });
+          /* Bukti WAJIB sampai di server; bila gagal jangan ditandai "sudah dibayar" di browser (admin tidak akan melihatnya) */
+          if (!up || !up.ok) {
+            const why = up && up.offline ? 'Koneksi internet terputus.' : ((up && up.msg) || 'Server sedang bermasalah.');
+            toast(`Bukti pembayaran ${NO(o)} belum terkirim: ${why} Coba lagi.`, 'err');
+            return;
+          }
+          const pay = up.raw && up.raw.payment;
           if (pay && pay.id) o.serverPaymentId = pay.id;
         }
 

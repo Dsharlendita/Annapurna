@@ -256,8 +256,8 @@
     if (r && r.ok && Array.isArray(r.data)) { SRV_SVC = r.data; draw(); }
   }
 
-  const B0 = DB.staffBookings(); $('#cntSewa').textContent = (B0.filter((b) => b.paymentStatus === 'dp_verifying').length + B0.filter((b) => b.status === 'disewa' && b.end <= T).length) || '';
-  drawJual(); drawLaundry();
+  const cntSewa = () => { const B0 = DB.staffBookings(); $('#cntSewa').textContent = (B0.filter((b) => b.paymentStatus === 'dp_verifying').length + B0.filter((b) => b.status === 'disewa' && b.end <= T).length) || ''; };
+  cntSewa(); drawJual(); drawLaundry();
   const VIEWS = { sewa: '#dashSewa', jual: '#dashJual', laundry: '#dashLaundry' };
   const showView = (v) => {
     if (!VIEWS[v]) v = 'sewa';
@@ -271,7 +271,8 @@
   if (param('tab') === 'jual' || param('tab') === 'laundry') showView(param('tab'));
   syncLaundry(); syncServices();
   /* Gambar ulang setelah booking & penjualan terbaru dari server selesai dimuat */
-  document.addEventListener('ann:orders', () => draw());
+  /* Semua tab ikut digambar ulang (dulu hanya tab Sewa, sehingga pesanan beli baru tidak muncul di tab Penjualan sampai halaman dimuat ulang) */
+  document.addEventListener('ann:orders', () => { draw(); drawJual(); cntSewa(); });
 })();
 /* Chip "Antar & jemput" / "Bongkar pasang" menuju jadwal yang dilipat → buka lipatannya dulu */
 document.addEventListener('click', (e) => { const a = e.target.closest('a[href$="#svcSec"]'); if (!a) return; const f = document.getElementById('svcFold'); if (f) f.open = true; });

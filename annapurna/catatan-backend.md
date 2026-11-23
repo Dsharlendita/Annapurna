@@ -1114,3 +1114,10 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - Halaman baru **`/privasi`** (`resources/views/annapurna/pages/privasi.blade.php`), tautannya ada di footer. Dibutuhkan Google Cloud (**Branding → Privacy policy link**) sebelum aplikasi login Google bisa di-**Publish**.
 - Isinya mengikuti data yang benar-benar disimpan website: akun, pesanan (termasuk jenis kartu identitas jaminan & bukti transfer), login Google, Google Drive toko, Gemini (tanpa data pribadi). Bila menambah fitur yang menyimpan data pribadi baru, perbarui halaman ini dan tanggal berlakunya.
 - `ASSET_VERSION` = `20261123.3`. PHP 100 tes lulus.
+
+## C.53 Pesanan beli tidak tampil di dashboard admin; checkout gagal diam-diam — 23 Nov 2026 (Aji)
+
+- **Dashboard admin, tab Penjualan:** tab ini digambar sebelum data pesanan dari server selesai dimuat, lalu tidak pernah digambar ulang (event `ann:orders` hanya memanggil `draw()` tab Sewa). Akibatnya pesanan beli baru tidak tampil sampai halaman dimuat ulang. Sekarang `ann:orders` menggambar ulang semua tab + badge (`dashboard.js`). Ditemukan saat uji di hosting: pesanan `ORD-20261123-0001` sudah ada di database server tapi tidak terlihat oleh admin.
+- **Checkout:** `api/booking` / `api/sale` dulu memakai `Api.try` dengan cadangan lokal, dan hasil yang gagal (422/500/koneksi putus) diabaikan; pesanan tetap disimpan di browser customer sehingga tidak pernah sampai ke admin. Sekarang memakai `Api.post`; bila ditolak muncul jendela "Pesanan belum terkirim" + alasannya, keranjang tetap utuh, dan tidak ada pesanan yang disimpan hanya di browser.
+- **Unggah bukti bayar** (`pembayaran.js`): bila gagal sampai ke server, muncul pesan error dan pesanan tidak ditandai "sudah dibayar".
+- Diuji di Chrome: beli berhasil → halaman pembayaran; server menolak → tetap di checkout dengan pesan; admin di browser baru langsung melihat badge & pesanan di tab Penjualan. `ASSET_VERSION` = `20261123.4`.

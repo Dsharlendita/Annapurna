@@ -1089,3 +1089,10 @@ Selama `MAIL_MAILER=log`, email tidak dikirim. Isinya (termasuk kode) ada di `st
 - Panel **Setel ulang data demo** (Pengaturan) hanya tampil saat `APP_ENV=local`.
 - Pencatatan pertanyaan chatbot memakai alamat relatif (aman bila website di subfolder).
 - `SEED_OWNER_PASSWORD` / `SEED_ADMIN_PASSWORD` dibaca lewat `config('app.seed_passwords')`, jadi tetap terbaca setelah `config:cache`. `ASSET_VERSION` = `20261115.7`.
+
+## C.50 Gabung kerja Dita dengan versi terbaru — 23 Nov 2026 (Aji)
+
+- Commit Dita (`b68a152`, `2645aba`) dibuat dari salinan lama, jadi beberapa fitur sempat hilang. Sudah digabung ulang: semua fitur baru Dita tetap ada (paket tektok + sinkron `api/sync/packages`, Data Barang, restock per batch `expense_total`, hero per halaman, akun demo dihapus dari halaman masuk), dan fitur yang sempat hilang kembali (unit fisik ikut tersinkron, sinkron audit, rekap Google Drive, `syncLaundryAll`, Gemini hibrida, `ann-v20` tanpa data demo).
+- Gambar baru dikecilkan (total ±22 MB → ±4,5 MB, lebar maks 2400 px, kualitas 82).
+- Tes baru: `PaketSewaTest` (2). Total PHP 89 lulus, JS 12 lulus. `ASSET_VERSION` = `20261123.1`.
+- **Untuk tim:** selalu `git pull` sebelum mulai mengedit, dan jangan menyalin folder/file dari salinan lama ke repo.

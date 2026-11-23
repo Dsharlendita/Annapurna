@@ -10,6 +10,7 @@ use App\Models\Finance;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\Promo;
 use App\Models\Review;
 use App\Models\Sale;
@@ -53,6 +54,7 @@ class SyncController extends Controller
             'customerMeta' => 'customerMeta',
             'settings' => 'settings',
             'notifications' => 'notifications',
+            'audit' => 'audit',
             default => null,
         };
         abort_unless($handler !== null, 404, 'Jenis data tidak dikenal.');
@@ -143,6 +145,7 @@ class SyncController extends Controller
                 $attrs['stock'] = max(0, (int) $p->stock + ($attrs['stock'] - (int) $x['_stockFrom']));
             }
             $p ? $p->update($attrs) : Product::create($attrs + ['sort_order' => (int) Product::max('sort_order') + 1]);
+            $this->saveUnits($attrs['id'], $x['units'] ?? null);
         }
         foreach ($removed as $id) {
             // Produk yang pernah dipakai transaksi hanya dinonaktifkan agar nota lama tetap utuh
@@ -155,6 +158,27 @@ class SyncController extends Controller
         }
         if ($items || $removed) {
             Audit::log('katalog', 'Memperbarui barang: ' . implode(', ', array_slice(array_column($items, 'name'), 0, 5) ?: $removed));
+        }
+    }
+
+    /** Unit fisik dari tampilan: disimpan per kode unit. Unit tidak pernah dihapus (cukup dinonaktifkan). */
+    private function saveUnits(string $productId, $units): void
+    {
+        if (! is_array($units)) {
+            return;
+        }
+        foreach ($units as $u) {
+            $code = is_array($u) ? trim((string) ($u['code'] ?? '')) : '';
+            if ($code === '' || strlen($code) > 50) {
+                continue;
+            }
+            $row = ProductUnit::where('unit_code', $code)->lockForUpdate()->first();
+            if ($row && $row->product_id !== $productId) {
+                $this->skipped[] = $code;              // kode unit sudah dipakai barang lain
+                continue;
+            }
+            $attrs = FeData::fromFeUnit($u);
+            $row ? $row->update($attrs) : ProductUnit::create($attrs + ['product_id' => $productId, 'unit_code' => $code, 'purchase_cost' => isset($u['cost']) ? max(0, (int) $u['cost']) : null]);
         }
     }
 
@@ -415,11 +439,34 @@ class SyncController extends Controller
                 $this->skipped[] = $key;
                 continue;
             }
+            if ($key === 'integration' && is_array($value)) {
+                unset($value['driveConnected'], $value['driveAccount']);   // diatur lewat tombol Hubungkan (server)
+            }
             Setting::set($key, $value);
             $changed[] = $key;
         }
         if ($changed) {
             Audit::log('konfigurasi', 'Mengubah pengaturan: ' . implode(', ', $changed));
+        }
+    }
+
+    // ------------------------------------------------------------------ Histori aktivitas
+
+    /** Catatan histori dari tampilan. Hanya bertambah: tidak bisa diubah atau dihapus. */
+    private function audit(array $items, array $removed): void
+    {
+        $this->staffOnly();
+        foreach ($items as $e) {
+            if (! is_array($e) || empty($e['id'])) {
+                continue;
+            }
+            if (str_starts_with((string) $e['id'], 'L')) {
+                continue;                                // sudah dari server
+            }
+            $log = Audit::fromClient($e, $this->user());
+            if ($log) {
+                $this->map[$e['id']] = 'L' . $log->id;
+            }
         }
     }
 

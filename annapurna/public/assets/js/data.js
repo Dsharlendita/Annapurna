@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = 'ann-v19'; /* v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
+  const VERSION = 'ann-v20'; /* v20: transaksi, histori, email & notifikasi contoh tidak dibuat lagi (semua dari server). v19: nomor nota RNT/…/bulan/tahun & ODR/…/bulan/tahun, data contoh disesuaikan */
   const KEY = (k) => `annapurna:${k}`;
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -1011,7 +1011,7 @@
      - Koleksi yang belum pernah menerima data server (mis. data demo) tidak dikirim.
      ========================================================================== */
   const SYNC = {
-    products: { staff: true, label: 'data barang', strip: ['units'] },
+    products: { staff: true, label: 'data barang' },   /* unit fisik ikut terkirim */
     packages: { staff: true, label: 'paket sewa' },
     categories: { staff: true, label: 'kategori' },
     promos: { staff: true, label: 'promo', strip: ['used'] },
@@ -1021,7 +1021,10 @@
     customerMeta: { staff: true, label: 'status pelanggan', map: true },
     settings: { staff: true, label: 'pengaturan', map: true },
     notifications: { staff: false, label: 'notifikasi' },
+    audit: { staff: true, label: 'histori aktivitas' },
   };
+  let serverAuditCheck = null; /* hasil pemeriksaan rantai histori di server (halaman Histori) */
+  let srvDrive = null, srvRekapDue = null; /* status Google Drive & rekap yang jatuh tempo (dari BootController::userData) */
   const syncBase = {}; /* koleksi → Map(id → sidik data yang sama dengan server) */
   /* Stok barang dikirim sebagai selisih (_stockFrom → stock), bukan angka mutlak, supaya penjualan online
      yang dikurangi server tidak tertimpa angka lama dari perangkat staff. */
@@ -1115,24 +1118,26 @@
     const PR = JSON.parse(JSON.stringify(PRODUCTS));
     write('packages', PACKAGES);
     write('settings', SETTINGS);
-    const B = seedBookings(), S = seedSales(), E = seedExpenses().map((e) => Object.assign({ status: 'aktif' }, e));
+    /* Transaksi, histori, email & notifikasi contoh TIDAK dibuat lagi: semuanya datang dari server (MySQL).
+       Fungsi seedBookings()/seedSales()/… tetap ada untuk bahan uji, tapi tidak dipakai. */
+    const B = [], S = [], E = [];
     seedUnits(PR, B);
     PR.find((p) => p.id === 'gas').minStock = 10; PR.forEach((p) => { if (p.price && p.minStock == null) p.minStock = 2; });
     write('products', PR);
     write('bookings', B);
     write('sales', S);
-    write('laundry', seedLaundry());
+    write('laundry', []);
     localStorage.removeItem(KEY('restocks')); /* dibuat ulang dari catatan pembelian barang contoh (lihat migrateRestock) */
     write('promos', seedPromos());
-    write('customerMeta', { 'fajar@mail.com': { flag: 'normal', note: 'Pernah terlambat 1 hari, tapi kooperatif.' }, 'laras@mail.com': { flag: 'jaminan', note: 'Sering batal mendadak. Minta jaminan KTP + KTM.' } });
+    write('customerMeta', {});
     const users = USERS.map((u) => Object.assign({}, u));
     write('expenses', E);
-    write('incomes', seedIncomes());
-    write('audit', seedAudit(B, S, E, users));
+    write('incomes', []);
+    write('audit', []);
     write('users', users);
-    write('outbox', seedOutbox(users));
+    write('outbox', []);
     write('archives', []);
-    write('notifications', seedNotifications());
+    write('notifications', []);
     write('reviews', seedReviews());
     write('cart', []);
     write('version', VERSION);
@@ -1219,7 +1224,12 @@
     if (!o.no) delete o.no;
     SRV_NULLABLE.forEach((k) => { if (o[k] == null) o[k] = null; });
     if (kind === 'bookings') {
-      o.items = loc && loc.items && loc.items.length ? loc.items : (s.items || []).map((it) => {
+      /* Barang lokal (berisi paket & tarif) dipakai selama isinya sama dengan server; bila berbeda
+         (mis. barang diganti / ditambah di perangkat lain) pakai barang dari server */
+      const ids = (list) => list.slice().sort().join('|');
+      const locIds = loc && loc.items ? ids(loc.items.flatMap((it) => (it.components && it.components.length ? it.components.map((c) => c.productId) : [it.refId]))) : '';
+      const sameItems = loc && loc.items && loc.items.length && locIds === ids((s.items || []).map((it) => it.refId));
+      o.items = sameItems ? loc.items : (s.items || []).map((it) => {
         const p = DB.product(it.refId);
         return Object.assign({}, it, { tiers: p ? productTiers(p) : { d1: it.pricePerDay || 0 }, components: [it.size ? { productId: it.refId, qty: 1, size: it.size } : { productId: it.refId, qty: 1 }] });
       });
@@ -1331,11 +1341,11 @@
       const L = read('chatMiss', []); const x = L.find((m) => m.key === k);
       if (x) { x.count += 1; x.last = nowStamp(); } else L.unshift({ key: k, text: String(text).slice(0, 200), count: 1, first: nowStamp(), last: nowStamp() });
       write('chatMiss', L.slice(0, 200));
-      try { fetch('/api/chat/miss', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ question: text }) }).catch(() => {}); } catch (e) {}
+      try { fetch((document.body.dataset.base || '/') + 'api/chat/miss', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }, body: JSON.stringify({ question: text }) }).catch(() => {}); } catch (e) {}
     },
     dismissChatMiss(key) {
       write('chatMiss', read('chatMiss', []).filter((m) => m.key !== key));
-      try { fetch('/api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }).catch(() => {}); } catch (e) {}
+      try { fetch((document.body.dataset.base || '/') + 'api/owner/chat/misses/' + encodeURIComponent(key) + '/abaikan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' } }).catch(() => {}); } catch (e) {}
     },
     lateFeeText() { const st = DB.settings(); return st.lateFeeMode === 'nominal' ? `${rupiah(st.lateFeeAmount)} per barang per malam keterlambatan` : st.lateFeePercent === 100 ? 'sebesar harga sewa per malam untuk setiap barang, setiap malam keterlambatan' : `${st.lateFeePercent}% harga sewa per malam untuk setiap barang, setiap malam keterlambatan`; },
     /* Simpan satu bagian konfigurasi + catat di histori */
@@ -1541,7 +1551,8 @@
     /* ---------- Laundry (diinput staff di kasir; customer website hanya menghubungi admin via WhatsApp) ---------- */
     laundry: () => read('laundry', []),
     laundryOrder: (id) => read('laundry', []).find((x) => x.id === id || x.no === id),
-    saveLaundry(o) { const all = read('laundry', []); const i = all.findIndex((x) => x.id === o.id); if (i >= 0) all[i] = o; else all.unshift(o); write('laundry', all); },
+    /* replaceId: id sementara di browser yang diganti kode dari server (DRY-1004 → DRY-20261115-0004), supaya tidak tercatat dua kali */
+    saveLaundry(o, replaceId) { let all = read('laundry', []); if (replaceId && replaceId !== o.id) all = all.filter((x) => x.id !== replaceId); const i = all.findIndex((x) => x.id === o.id); if (i >= 0) all[i] = o; else all.unshift(o); write('laundry', all); },
     /* Nomor nota laundry: DRY / nomor urut / bulan Romawi / tahun, urut dimulai lagi dari 001 setiap bulan */
     nextLaundryNo(at) {
       const d = new Date(at || Date.now()); const mon = ROMAN[d.getMonth()], y = d.getFullYear();
@@ -1845,24 +1856,7 @@
       return { status: 'created', user: r.user };
     },
     /* Masuk dengan kode verifikasi (OTP). Di frontend kode ditampilkan langsung; di backend dikirim via WhatsApp/email. */
-    sendLoginCode(identifier) {
-      const users = read('users', USERS); const id = String(identifier || '').trim().toLowerCase(); const ph = DB.normPhone(id);
-      const u = users.find((x) => x.email.toLowerCase() === id || (ph.length >= 9 && DB.normPhone(x.phone) === ph));
-      if (!u) return { ok: false, msg: 'Email atau nomor WhatsApp belum terdaftar.' };
-      if (isStaff(u)) return { ok: false, msg: 'Akun staff: minta Owner mengatur ulang kata sandi lewat Manajemen Staff.' };
-      if (u.status === 'nonaktif') return { ok: false, msg: 'Akun ini sedang dinonaktifkan.' };
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      write('loginCode', { uid: u.id, code, exp: Date.now() + 5 * 60000 });
-      const dest = /@/.test(id) ? u.email.replace(/^(.{2}).*(@.*)$/, '$1•••$2') : 'WhatsApp ••••' + String(u.phone).slice(-4);
-      return { ok: true, code, dest, name: u.name };
-    },
-    verifyLoginCode(code) {
-      const c = read('loginCode', null); if (!c || Date.now() > c.exp) return { ok: false, msg: 'Kode sudah kedaluwarsa. Kirim ulang kode.' };
-      if (String(code).trim() !== c.code) return { ok: false, msg: 'Kode tidak cocok.' };
-      const u = read('users', USERS).find((x) => x.id === c.uid); localStorage.removeItem(KEY('loginCode'));
-      const sess = { id: u.id, name: u.name, email: u.email, role: u.role, phone: u.phone, address: u.address, needsPassword: !!u.needsPassword, loginAt: nowStamp(), seen: {} };
-      write('session', sess); return { ok: true, user: sess };
-    },
+    /* Kode verifikasi login / lupa kata sandi sekarang dibuat, dikirim (email) & dicek server: lihat Api.code di api.js */
     setOwnPassword(pw) {
       const s = DB.session(); const users = read('users', USERS); const u = users.find((x) => x.id === s.id); if (!u) return false;
       Object.assign(u, { password: pwHash(pw), needsPassword: false }); write('users', users); write('session', Object.assign(s, { needsPassword: false })); return true;
@@ -1917,7 +1911,7 @@
       else Object.assign(u, { name: su.name || u.name, role: su.role || u.role, status: su.status || u.status, phone: su.phone || u.phone, address: su.address || u.address });
       write('users', users);
       const prev = DB.session(); const same = prev && String(prev.email).toLowerCase() === email;
-      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw,
+      const s = { id: u.id, userId: su.userId, name: u.name, email: u.email, role: u.role, status: u.status, phone: u.phone, address: u.address, mustChangePw: !!su.mustChangePw, hasPassword: su.hasPassword !== false,
         loginAt: (same && prev.loginAt) || su.loginAt || nowStamp(), seen: (same && prev.seen) || {} };
       write('session', s);
       return s;
@@ -1992,6 +1986,8 @@
       return entry;
     },
     verifyAudit() {
+      /* Histori dari server: keutuhan rantai diperiksa server (ActivityLog::firstBrokenId) */
+      if (serverAuditCheck) return serverAuditCheck;
       const list = read('audit', []); let prev = 'GENESIS';
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
@@ -2001,7 +1997,12 @@
       return { ok: true, count: list.length };
     },
 
-    /* ---------- Email keluar & arsip Google Drive (simulasi frontend) ---------- */
+    /* ---------- Google Drive (status dari server) ---------- */
+    driveInfo: () => srvDrive,         /* { enabled, connected, email, rootUrl, mailOn } — hanya Owner; null = belum dimuat */
+    rekapDue: () => srvRekapDue,       /* '2026-10' bila rekap otomatis bulan itu sudah jatuh tempo, atau null */
+    setRekapDone(period) { if (srvRekapDue === period) srvRekapDue = null; },
+
+    /* ---------- Email keluar & arsip rekap (arsip dari server; snap/purged tetap per perangkat) ---------- */
     outbox: () => read('outbox', []).slice().sort((a, b) => b.at.localeCompare(a.at)),
     sendMail(m) {
       const all = read('outbox', []);
@@ -2011,6 +2012,12 @@
     archives: () => read('archives', []).slice().sort((a, b) => b.period.localeCompare(a.period)),
     archive: (period) => read('archives', []).find((a) => a.period === period),
     saveArchive(a) { const all = read('archives', []); const i = all.findIndex((x) => x.period === a.period); if (i >= 0) all[i] = a; else all.push(a); write('archives', all); },
+    /* Arsip dari server = yang benar-benar ada di Google Drive. Isi laporan (snap), status pembersihan (purged)
+       & id email lokal milik perangkat ini dipertahankan. Arsip lama hasil simulasi (tanpa server) dibuang. */
+    mergeArchives(list) {
+      const local = Object.fromEntries(read('archives', []).map((a) => [a.period, a]));
+      write('archives', list.map((s) => { const o = local[s.period] || {}; const keep = {}; ['snap', 'purged', 'mailId'].forEach((k) => { if (o[k] != null) keep[k] = o[k]; }); return Object.assign({}, s, keep); }));
+    },
 
     notifications(email) { return read('notifications', []).filter((n) => n.email === email).sort((a, b) => b.at.localeCompare(a.at)); },
     /* Notifikasi yang sama (judul + tautan) yang belum dibaca digabung jadi satu, bukan ditumpuk.
@@ -2039,10 +2046,16 @@
         if (snap.settings && Object.keys(snap.settings).length) write('settings', Object.assign({}, read('settings', SETTINGS), snap.settings));
         if (snap.categories) write('categories', snap.categories);
         if (snap.products) { write('products', mergeServerProducts(snap.products, snap.scope)); snap.products.forEach((p) => { syncStockFrom[p.id] = +p.stock || 0; }); }
-        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
+        ['packages', 'promos', 'reviews', 'expenses', 'incomes', 'notifications', 'audit'].forEach((k) => { if (Array.isArray(snap[k])) write(k, snap[k]); });
         if (snap.customerMeta) write('customerMeta', Array.isArray(snap.customerMeta) ? {} : snap.customerMeta);
       } finally { syncApplying = false; }
       Object.keys(SYNC).forEach((k) => { if (snap[k] && k !== 'settings') syncSnapshot(k, read(k, SYNC[k].map ? {} : [])); });
+      /* Histori: catatan yang sudah ada di perangkat ini dianggap lama; hanya catatan baru yang dikirim */
+      if (snap.auditTrack && !syncBase.audit) syncSnapshot('audit', read('audit', []));
+      if (snap.auditCheck) serverAuditCheck = snap.auditCheck;
+      if ('rekapDue' in snap) srvRekapDue = snap.rekapDue || null;
+      if (snap.drive) srvDrive = snap.drive;
+      if (Array.isArray(snap.archives)) DB.mergeArchives(snap.archives);
       if (snap.settings) syncSnapshot('settings', Object.assign({}, SETTINGS, read('settings', SETTINGS)));
     },
     /* Kirim perubahan yang masih menunggu sekarang juga (dipakai tes / sebelum pindah halaman) */
@@ -2387,9 +2400,12 @@
     const B = read('bookings', []), S = read('sales', []);
     const bDone = (b) => (b.status === 'dibatalkan' || (b.status === 'selesai' && Rules.paidTotal(b) >= (b.total || 0))) && old((b.ret && b.ret.at) || (b.cancel && b.cancel.at) || b.end || b.createdAt);
     const sDone = (s) => (s.status === 'dibatalkan' || (s.status === 'selesai' && s.paymentStatus === 'paid')) && old(s.createdAt);
-    const rmB = B.filter(bDone), rmS = S.filter(sDone);
+    /* Data dari server (booking/penjualan bertanda _srv, pemasukan & pengeluaran) TIDAK dihapus:
+       server menyimpannya permanen untuk pembukuan, dan bila dihapus di browser akan termuat lagi.
+       Yang dibersihkan hanya sisa data lama yang memang cuma ada di browser ini. */
+    const rmB = B.filter((b) => bDone(b) && !b._srv), rmS = S.filter((s) => sDone(s) && !s._srv);
     const A = read('audit', []), N = read('notifications', []), O = read('outbox', []), E = read('expenses', []), I = read('incomes', []);
-    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at)), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = E.filter((e) => old(e.date)), rmI = I.filter((e) => old(e.date));
+    const rmA = A.filter((a) => old(a.at)), rmN = N.filter((n) => old(n.at) && n.read), rmO = O.filter((o) => o.kind !== 'monthly_report' && old(o.at || o.sentAt)), rmE = [], rmI = [];
     const photos = [...rmB, ...rmS].filter((x) => x.proof || (x.out && x.out.photo) || (x.ret && x.ret.photo)).length;
     const counts = { bookings: rmB.length, sales: rmS.length, logs: rmA.length, notifications: rmN.length, emails: rmO.length, finance: rmE.length + rmI.length, photos };
     const total = counts.bookings + counts.sales + counts.logs + counts.notifications + counts.emails + counts.finance;
@@ -2414,9 +2430,10 @@
   try { DB.expireUnpaid(); } catch (e) { /* abaikan */ }
   /* Tanggal sewa lama yang tersimpan permanen di localStorage dihapus (sekarang per sesi) */
   try { localStorage.removeItem(KEY('trip')); } catch (e) { /* abaikan */ }
+  try { localStorage.removeItem(KEY('loginCode')); } catch (e) { /* kode verifikasi lama dari versi sebelumnya */ }
   /* Revisi layanan: kategori pemasukan laundry, bongkar pasang & ongkir ditambahkan ke pengaturan yang sudah tersimpan */
   /* Data contoh laundry untuk penyimpanan lama (sebelum fitur laundry ada) */
-  if (read('laundry', null) === null) write('laundry', seedLaundry());
+  if (read('laundry', null) === null) write('laundry', []);
   (function migrateServiceCats() {
     const st = read('settings', null); if (!st || st.svcV1) return;
     const fc = st.financeCats || JSON.parse(JSON.stringify(SETTINGS.financeCats));

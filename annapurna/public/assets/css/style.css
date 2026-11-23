@@ -4634,6 +4634,10 @@ body:has(.modal.open) .toasts { top: auto; bottom: 18px; align-items: center; }
   .nav-links a { padding: 10px 12px; }
   .nav-links a.active::after { left: 12px; right: 12px; }
 }
+/* Tombol "Masuk / Daftar dengan Google" */
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink); font-weight: 600; }
+.btn-google svg { flex: none; }
+.btn-google:hover { border-color: var(--g600); }
 
 /* Data Barang: aksi per baris tetap satu baris */
 .table .acts-compact { flex-wrap: nowrap; }

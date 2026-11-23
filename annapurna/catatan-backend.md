@@ -1215,3 +1215,5 @@ Temuan uji di hosting: admin melihat notifikasi tetapi daftar booking baru muncu
 - Regresi menangkap error baru pada pengunjung tanpa login (`s` null di `site.js`), sudah diperbaiki sebelum rilis.
 
 - **C.62 Sesi customer habis di tab yang masih terbuka.** Sesi server 120 menit; tab HP (Safari dibekukan di latar belakang) tetap menampilkan data lama dari penyimpanan lokal, sinkron & denyut gagal 401 secara diam-diam (status pesanan usang, mis. masih "Rental berjalan / menunggu verifikasi" padahal sudah selesai). Kini 401 pada denyut/sinkron Pesanan Saya memunculkan pesan lalu mengarahkan ke halaman masuk (`Site.sessionExpired`).
+
+- **C.63 Kirim nota ke WhatsApp toko.** Di HP, menu Bagikan bawaan HP membuat customer harus memilih sendiri kontak toko. Kini tombol utama "Chat WhatsApp Annapurna" selalu membuka wa.me ke nomor toko (pesan + link nota); "Bagikan gambar nota" menjadi tombol kedua khusus HP. Pesan admin ke customer tidak berubah.

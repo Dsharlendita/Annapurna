@@ -1589,11 +1589,14 @@
     const sess = DB.session(); const owner = sess && sess.role === 'owner';
     const tpl = tplKey ? (DB.WA_TPL.find((x) => x.key === tplKey) || null) : null;
     const label = waLabel || 'Buka WhatsApp';
+    /* Alur customer → toko (waUrl): tombol utama SELALU membuka chat nomor toko; bagikan gambar lewat menu HP jadi tombol kedua */
+    const direct = !!waUrl;
     /* Satu tombol utama "Kirim ke WhatsApp":
        - HP (bisa berbagi file): gambar + pesan langsung dibagikan lewat menu bagikan HP.
        - Komputer: gambar nota otomatis disalin (atau diunduh bila browser tidak mendukung), lalu WhatsApp terbuka
          dengan pesannya → tinggal tempel gambar (Ctrl+V). Tanpa petunjuk bernomor yang membingungkan. */
-    const hint = blob ? (canShare ? 'Gambar nota & pesan dikirim bersamaan lewat menu bagikan HP.'
+    const hint = blob ? (direct && canShare ? 'Pesan + link nota langsung ke chat Annapurna. Mau kirim gambar notanya juga? Pakai tombol "Bagikan gambar nota", lalu pilih kontak Annapurna.'
+      : canShare ? 'Gambar nota & pesan dikirim bersamaan lewat menu bagikan HP.'
       : canCopy ? 'Gambar nota ikut tersalin otomatis — di chat WhatsApp, tempel dengan <b>Ctrl+V</b> lalu kirim.'
       : 'Gambar nota ikut terunduh otomatis — lampirkan di chat WhatsApp lalu kirim.') : '';
     const m = modal({ title, size: blob ? 'xl' : 'lg', body: `
@@ -1612,7 +1615,7 @@
           <div class="wc-side-acts"><button type="button" class="link-btn" id="wcDl"><i class="fa-solid fa-download"></i> Unduh</button>${canCopy ? '<button type="button" class="link-btn" id="wcCopy"><i class="fa-regular fa-copy"></i> Salin</button>' : ''}<button type="button" class="link-btn" id="wcCopyTxt"><i class="fa-regular fa-clipboard"></i> Salin teks</button></div></div>` : ''}
       </div>
       ${blob ? '' : '<button type="button" class="link-btn" id="wcCopyTxt" style="margin-top:6px"><i class="fa-regular fa-clipboard"></i> Salin teks pesan</button>'}`,
-      foot: `${hint ? `<span class="wc-hint"><i class="fa-solid fa-circle-info"></i> ${hint}</span>` : ''}<button class="btn btn-light" data-close>Tutup</button><button class="btn btn-wa" id="wcWa" ${noPhone && !canShare ? 'disabled' : ''}><i class="fa-brands fa-whatsapp"></i> ${esc(waLabel ? waLabel.replace(/^Hubungi /, 'Kirim ke ') : 'Kirim ke WhatsApp')}</button>` });
+      foot: `${hint ? `<span class="wc-hint"><i class="fa-solid fa-circle-info"></i> ${hint}</span>` : ''}<button class="btn btn-light" data-close>Tutup</button>${direct && canShare ? '<button class="btn btn-light" id="wcShare"><i class="fa-solid fa-share-nodes"></i> Bagikan gambar nota</button>' : ''}<button class="btn btn-wa" id="wcWa" ${noPhone && !canShare && !direct ? 'disabled' : ''}><i class="fa-brands fa-whatsapp"></i> ${direct ? 'Chat WhatsApp Annapurna' : esc(waLabel ? waLabel.replace(/^Hubungi /, 'Kirim ke ') : 'Kirim ke WhatsApp')}</button>` });
     m.$('.modal-box').classList.add('wc-modal');
     const ta = m.$('#wcText'); const orig = text || '';
     const len = () => { m.$('#wcLen').textContent = `${ta.value.length} karakter`; m.$('#wcReset').hidden = ta.value === orig; };
@@ -1628,11 +1631,15 @@
     let sent = false; const done = (how) => { if (sent) return; sent = true; onSent && onSent(how || '', ta.value); };
     m.$('#wcWa').addEventListener('click', async () => {
       const t = ta.value.trim(); if (!t) { toast('Isi pesan masih kosong.', 'err'); ta.focus(); return; }
-      if (canShare) { try { await navigator.share({ files: [file], text: t }); done('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ } return; }
+      if (canShare && !direct) { try { await navigator.share({ files: [file], text: t }); done('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ } return; }
       let extra = '';
-      if (blob) { if (canCopy && (await copyImg())) extra = 'Gambar nota sudah tersalin — tempel dengan Ctrl+V di chat.'; else { download(); extra = 'Gambar nota terunduh — lampirkan di chat WhatsApp.'; } }
+      if (blob && !(direct && canShare)) { if (canCopy && (await copyImg())) extra = 'Gambar nota sudah tersalin — tempel dengan Ctrl+V di chat.'; else { download(); extra = 'Gambar nota terunduh — lampirkan di chat WhatsApp.'; } }
       window.open(num ? `https://wa.me/${num}?text=${encodeURIComponent(t)}` : waLink(t), '_blank', 'noopener');
       if (extra) toast(extra); done('');
+    });
+    if (m.$('#wcShare')) m.$('#wcShare').addEventListener('click', async () => {
+      const t = ta.value.trim(); if (!t) { toast('Isi pesan masih kosong.', 'err'); ta.focus(); return; }
+      try { await navigator.share({ files: [file], text: t }); done('dibagikan dari HP'); m.close(); } catch (e) { /* dibatalkan */ }
     });
     return m;
   }
@@ -1668,10 +1675,7 @@
       const name = `nota-${pick.map((o) => NO(o.x).replace(/\//g, '_')).join('_')}.png`;
       const file = blob && typeof File !== 'undefined' ? new File([blob], name, { type: 'image/png' }) : null;
       m.close();
-      /* HP: menu Bagikan (gambar + pesan sekaligus). Laptop: pratinjau → salin gambar / buka WhatsApp / unduh */
-      if (matchMedia('(pointer: coarse)').matches && file && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], text: body }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
-      }
+      /* Tombol utama = chat langsung ke nomor toko (pesan + link nota). HP: tombol kedua membagikan gambar nota lewat menu Bagikan */
       sendPreview({ title: 'Kirim nota ke admin', blob, name, text: body, waUrl: waLink(body), waLabel: 'Buka WhatsApp admin' });
     });
   }

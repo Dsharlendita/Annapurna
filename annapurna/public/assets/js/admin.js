@@ -341,7 +341,7 @@
   function pwReminder() {
     try { if (sessionStorage.getItem('ann_pw_later')) return; } catch (e) { /* abaikan */ }
     const box = document.querySelector('.content'); if (!box || document.getElementById('pwRemind')) return;
-    box.insertAdjacentHTML('afterbegin', `<div class="notice pw-remind" id="pwRemind"><i class="fa-solid fa-key"></i><div><b>Kata sandi kamu masih kata sandi dari Owner.</b> Ganti dengan kata sandi buatanmu sendiri supaya hanya kamu yang tahu.</div>
+    box.insertAdjacentHTML('afterbegin', `<div class="notice pw-remind" id="pwRemind"><i class="fa-solid fa-key"></i><div><b>${me.role === 'owner' ? 'Kata sandi kamu masih kata sandi awal sistem.' : 'Kata sandi kamu masih kata sandi dari Owner.'}</b> Ganti dengan kata sandi buatanmu sendiri supaya hanya kamu yang tahu.</div>
       <div class="pw-remind-acts"><button type="button" class="btn btn-primary btn-sm" id="pwNow"><i class="fa-solid fa-key"></i> Ganti sekarang</button><button type="button" class="btn btn-light btn-sm" id="pwLater">Nanti saja</button></div></div>`);
     document.getElementById('pwLater').addEventListener('click', () => { try { sessionStorage.setItem('ann_pw_later', '1'); } catch (e) { /* abaikan */ } document.getElementById('pwRemind').remove(); });
     document.getElementById('pwNow').addEventListener('click', changePasswordModal);
@@ -349,7 +349,7 @@
   function changePasswordModal() {
     const m = UI.modal({ title: 'Ganti kata sandi', body: `
       <form id="fpw" novalidate>
-        <div class="field"><label>Kata sandi sekarang <span class="opt">(yang diberikan Owner)</span></label><input class="input" type="password" name="old" autocomplete="current-password"></div>
+        <div class="field"><label>Kata sandi sekarang <span class="opt">(${me.role === 'owner' ? 'kata sandi awal sistem' : 'yang diberikan Owner'})</span></label><input class="input" type="password" name="old" autocomplete="current-password"></div>
         <div class="field"><label>Kata sandi baru</label><input class="input" type="password" name="npw" autocomplete="new-password"><span class="hint">Minimal 6 karakter.</span></div>
         <div class="field"><label>Ulangi kata sandi baru</label><input class="input" type="password" name="npw2" autocomplete="new-password"></div>
       </form>`,

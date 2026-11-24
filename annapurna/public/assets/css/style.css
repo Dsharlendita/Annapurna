@@ -4754,3 +4754,13 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-width: 0
   /* Menu notifikasi: tetap di dalam layar (sebelumnya terpotong di sisi kiri) */
   .dropdown-menu.notif-menu { position: fixed; left: 12px; right: 12px; top: 64px; width: auto; max-width: none; }
 }
+/* ===== Perbaikan HP (panel admin/owner) ===== */
+@media (max-width: 900px) {
+  .kd-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .kd-row .input { max-width: 100%; box-sizing: border-box; }
+}
+@media (max-width: 760px) {
+  /* Kolom aksi yang menempel terlalu lebar di HP sampai menutupi nama barang: di HP ikut bergeser bersama tabel */
+  .table-wrap .table td:has(> .acts), .table-wrap .table:has(td > .acts) thead th:last-child { position: static; box-shadow: none; }
+  .table-wrap .table td:has(> .acts) { background: transparent; }
+}

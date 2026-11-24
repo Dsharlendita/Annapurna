@@ -4764,3 +4764,10 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-width: 0
   .table-wrap .table td:has(> .acts), .table-wrap .table:has(td > .acts) thead th:last-child { position: static; box-shadow: none; }
   .table-wrap .table td:has(> .acts) { background: transparent; }
 }
+/* ===== Kartu ringkasan di HP: angka jutaan tidak keluar kartu ===== */
+@media (max-width: 560px) {
+  .content .stat strong { font-size: clamp(14px, 4.5vw, 17px); letter-spacing: -.01em; }
+  .content .stat-grid .stat { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
+  .content .stat-grid .stat .ic { width: 36px; height: 36px; font-size: 15px; border-radius: 10px; }
+  .content .stat-grid .stat > div { flex: 1 1 auto; min-width: 0; }
+}

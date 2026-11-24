@@ -70,7 +70,7 @@
   $('#sort').addEventListener('change', (e) => { state.sort = e.target.value; draw(); });
   let t; $('#q').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim(); draw(); }, 180); });
   const syncTrip = () => { const t = DB.trip(); state.start = t ? t.start : ''; state.end = t ? t.end : ''; if (!t) { state.only = false; $('#fOnlyAvail').checked = false; } draw(); };
-  UI.tripBar($('#tripBar'), syncTrip);
+  if (state.mode !== 'buy') UI.tripBar($('#tripBar'), syncTrip); /* kotak Ambil/Kembali hanya untuk Sewa */
   $('#fOnlyAvail').addEventListener('change', (e) => { if (e.target.checked && !DB.trip()) { e.target.checked = false; UI.tripModal(() => { syncTrip(); UI.tripBar($('#tripBar'), syncTrip); }); return; } state.only = e.target.checked; draw(); });
 
   const panel = $('#filterPanel'), bg = $('#filterBg');

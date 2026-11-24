@@ -4731,3 +4731,12 @@ body[data-page="home"] .svc-visual p b { color: #fff; }
   .ab-cta-bg { background-image: url('../img/hero-m.jpg'); }
   .bestseller::before { background-image: linear-gradient(rgba(239, 235, 226, .82), rgba(239, 235, 226, .9)), url('../img/hero-m.jpg'); }
 }
+/* ===== Perbaikan HP: kotak tanggal Ambil/Kembali & breadcrumb ===== */
+@media (max-width: 560px) {
+  .trip-bar { padding: 14px; gap: 12px; }
+  .tb-t { min-width: 0; flex: 1 1 100%; }
+  .tb-in { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+  .tb-in label { min-width: 0; }
+  .tb-in .input { min-width: 0; width: 100%; box-sizing: border-box; font-size: 14px; padding: 10px; }
+  .crumbs { align-items: center; }
+}

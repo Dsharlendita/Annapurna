@@ -107,8 +107,8 @@
     Object.keys(places).forEach((k) => { if (!plan.place && q.includes(k)) plan.place = places[k]; });
     if (has(q, ['naik gunung', 'mendaki', 'hiking', 'pendakian', 'muncak', 'summit', 'tektok', 'trekking']) || ['Gunung Slamet', 'Gunung Prau', 'Gunung Sindoro', 'Gunung Sumbing'].includes(plan.place)) plan.type = 'hiking';
     else if (has(q, ['camping', 'kemah', 'berkemah', 'camp', 'glamping', 'piknik', 'camping ground']) || ['Baturraden', 'pantai', 'telaga', 'Dieng', 'Curug'].includes(plan.place)) plan.type = 'camping';
-    const own = [['tenda', 'tent'], ['sleeping bag', 'sb', 'kantong tidur'], ['matras'], ['carrier', 'tas', 'ransel'], ['kompor', 'masak'], ['lampu', 'senter', 'headlamp'], ['kursi']];
-    if (/(sudah|udah|sdh|punya|bawa sendiri)/.test(q)) own.forEach((ws, i) => { if (ws.some((w) => new RegExp(`(sudah|udah|sdh|punya|bawa)[a-z ]{0,20}${w}`).test(q))) plan.own.push(['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair'][i]); });
+    const own = [['tenda', 'tent'], ['sleeping bag', 'sb', 'kantong tidur'], ['matras'], ['carrier', 'tas', 'ransel'], ['kompor', 'masak'], ['lampu', 'senter', 'headlamp'], ['kursi'], ['sepatu'], ['jaket'], ['trekking pole', 'tongkat', 'pole'], ['kacamata']];
+    if (/(sudah|udah|sdh|punya|bawa sendiri)/.test(q)) own.forEach((ws, i) => { if (ws.some((w) => new RegExp(`(sudah|udah|sdh|punya|bawa)[a-z ]{0,20}${w}`).test(q))) plan.own.push(['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair', 'shoes', 'jacket', 'pole', 'glasses'][i]); });
     return plan;
   }
 
@@ -137,6 +137,12 @@
     if (!own.has('cook') && nights > 0) { add(people >= 4 ? 'ck-ds300' : 'ck-ds200', Math.ceil(people / 6), 'Nesting untuk masak dan bikin kopi', 'cook'); add('ck-kompor', Math.ceil(people / 6), 'Kompor kotak camping', 'cook'); }
     if (!own.has('light')) { if (type === 'hiking') add('oe-headlamp', people, 'Penerangan di jalur malam', 'light'); else add('oe-lampu', Math.max(1, Math.ceil(people / 4)), 'Penerangan di dalam tenda', 'light'); }
     if (!own.has('chair') && type === 'camping' && nights > 0) add('oe-kursi', people, 'Santai di camping ground', 'chair');
+    if (type === 'hiking') {
+      if (!own.has('shoes')) add('fw-std', people, 'Sepatu gunung, grip aman di jalur licin', 'shoes');
+      if (!own.has('jacket')) add('fs-jkt', people, 'Jaket penahan dingin & angin di ketinggian', 'jacket');
+      if (!own.has('pole')) add('oe-tp', people, 'Trekking pole, bantu tumpuan naik-turun', 'pole');
+      if (!own.has('glasses') && nights === 0) add('fs-kcm', people, 'Kacamata pelindung debu & silau', 'glasses');
+    }
     const days = Math.max(1, D.diffDays(start, end));
     const priced = lines.map((l) => { const p = P(l.pid); const avail = Rules.available(l.pid, start, end); const unit = Rules.unitPrice(p, days); return { ...l, p, price: unit, sub: unit * l.qty, avail, ok: avail >= l.qty }; });
     const custom = priced.reduce((s, l) => s + l.sub, 0);
@@ -374,7 +380,7 @@
     const r = await Api.post('api/ai/rencana', { teks: String(text).slice(0, 500), mulai: start || null, selesai: end || null }, { timeout: AI_TIMEOUT, redirectOn401: false });
     if (!r.ok || !r.data || typeof r.data !== 'object') return base;
     const d = r.data; const int = (v, lo, hi) => { const n = parseInt(v, 10); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
-    const OWN = ['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair'];
+    const OWN = ['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair', 'shoes', 'jacket', 'pole', 'glasses'];
     const people = int(d.orang, 1, 50), nights = int(d.malam, 0, 14);
     return {
       people: people != null ? people : base.people,
@@ -600,7 +606,7 @@
       if (!plan.type) missing.push('jenis kegiatan');
       m.$('#tpOut').innerHTML = (missing.length ? `<p class="tp-hint"><i class="fa-regular fa-lightbulb"></i> Aku belum menemukan ${missing.join(' dan ')} di ceritamu, jadi pakai perkiraan. Tambahkan detailnya untuk hasil lebih pas.</p>` : '') + planResultHtml(last);
       const addAll = m.$('#tpAddCustom');
-      if (addAll) addAll.addEventListener('click', () => { last.lines.forEach((l) => Cart.add({ type: 'rent', kind: 'product', refId: l.pid, qty: l.qty, start: last.start, end: last.end })); m.close(); toast(`${last.lines.length} alat masuk ke keranjang.`); setTimeout(() => (location.href = url('keranjang')), 700); });
+      if (addAll) addAll.addEventListener('click', () => { last.lines.forEach((l) => { const sz = DB.hasVariant(P(l.pid)) ? UI.firstAvailSize(Rules.sizeAvailability(l.pid, last.start, last.end), null) : null; Cart.add(Object.assign({ type: 'rent', kind: 'product', refId: l.pid, qty: l.qty, start: last.start, end: last.end }, sz ? { size: sz } : {})); }); m.close(); toast(`${last.lines.length} alat masuk ke keranjang.`); setTimeout(() => (location.href = url('keranjang')), 700); });
       const addPk = m.$('#tpAddPkg');
       if (addPk) addPk.addEventListener('click', () => { Cart.add({ type: 'rent', kind: 'package', refId: last.pkg.pk.id, qty: 1, start: last.start, end: last.end }); m.close(); toast(`${last.pkg.pk.name} masuk ke keranjang.`); setTimeout(() => (location.href = url('keranjang')), 700); });
     };

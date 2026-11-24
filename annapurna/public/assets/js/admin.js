@@ -339,6 +339,7 @@
   /* Kata sandi dari Owner belum diganti staff: cukup PENGINGAT (tidak mengunci panel, tidak ada tombol yang mengeluarkan staff).
      Pengingat muncul di atas halaman; "Nanti saja" menyembunyikannya sampai login berikutnya. */
   function pwReminder() {
+    if (me.role === 'owner') return;   /* Owner tidak diberi sandi oleh siapa pun: pengingat hanya untuk staff (akun baru / sandi direset Owner) */
     try { if (sessionStorage.getItem('ann_pw_later')) return; } catch (e) { /* abaikan */ }
     const box = document.querySelector('.content'); if (!box || document.getElementById('pwRemind')) return;
     box.insertAdjacentHTML('afterbegin', `<div class="notice pw-remind" id="pwRemind"><i class="fa-solid fa-key"></i><div><b>${me.role === 'owner' ? 'Kata sandi kamu masih kata sandi awal sistem.' : 'Kata sandi kamu masih kata sandi dari Owner.'}</b> Ganti dengan kata sandi buatanmu sendiri supaya hanya kamu yang tahu.</div>

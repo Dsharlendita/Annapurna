@@ -4771,3 +4771,10 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-width: 0
   .content .stat-grid .stat .ic { width: 36px; height: 36px; font-size: 15px; border-radius: 10px; }
   .content .stat-grid .stat > div { flex: 1 1 auto; min-width: 0; }
 }
+/* ===== Rekening pembayaran di HP: satu rekening = satu kartu (bank, nomor rekening, nama, hapus) ===== */
+@media (max-width: 760px) {
+  .bank-row { grid-template-columns: minmax(0, 1fr) 46px; gap: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--g50); }
+  .bank-row .input { grid-column: 1 / -1; min-width: 0; }
+  .bank-row .input[data-k="holder"] { grid-column: 1; }
+  .bank-row .btn { grid-column: 2; width: 46px; height: 100%; min-height: 44px; padding: 0; border-radius: 12px; justify-content: center; }
+}

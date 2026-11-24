@@ -4742,3 +4742,15 @@ body[data-page="home"] .svc-visual p b { color: #fff; }
   .tb-in input[type=date]::-webkit-date-and-time-value { text-align: left; min-width: 0; }
   .crumbs { align-items: center; }
 }
+/* ===== Perbaikan HP (Safari iPhone): kotak tanggal & menu notifikasi ===== */
+input[type="date"].input, input[type="time"].input { min-width: 0; max-width: 100%; box-sizing: border-box; -webkit-appearance: none; appearance: none; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; min-width: 0; }
+.grid-2 > * { min-width: 0; }
+.ai-dates { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ai-dates label, .tp-dates label { min-width: 0; }
+@media (max-width: 560px) {
+  input[type="date"].input { min-height: 44px; font-size: 16px; display: block; width: 100%; background-color: #fff; }
+  .tp-dates label { flex: 1 1 130px; min-width: 0; }
+  /* Menu notifikasi: tetap di dalam layar (sebelumnya terpotong di sisi kiri) */
+  .dropdown-menu.notif-menu { position: fixed; left: 12px; right: 12px; top: 64px; width: auto; max-width: none; }
+}

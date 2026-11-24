@@ -4735,8 +4735,10 @@ body[data-page="home"] .svc-visual p b { color: #fff; }
 @media (max-width: 560px) {
   .trip-bar { padding: 14px; gap: 12px; }
   .tb-t { min-width: 0; flex: 1 1 100%; }
-  .tb-in { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
-  .tb-in label { min-width: 0; }
-  .tb-in .input { min-width: 0; width: 100%; box-sizing: border-box; font-size: 14px; padding: 10px; }
+  .tb-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; width: 100%; }
+  .tb-in label { min-width: 0; max-width: 100%; }
+  /* Safari iOS memberi input tanggal lebar bawaan; paksa mengikuti kolom */
+  .tb-in .input { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 16px; padding: 10px; -webkit-appearance: none; appearance: none; display: block; min-height: 44px; background-color: #fff; }
+  .tb-in input[type=date]::-webkit-date-and-time-value { text-align: left; min-width: 0; }
   .crumbs { align-items: center; }
 }

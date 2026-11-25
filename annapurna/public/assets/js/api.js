@@ -59,6 +59,15 @@
       if (ctrl && ctrl.signal.aborted) return { ok: false, status: 408, data: null, msg: MSG[408], field: null, errors: null, raw: null, source: 'server', timeout: true };
       return { ok: false, status: 0, data: null, msg: MSG[0], field: null, errors: null, raw: null, source: 'server', offline: true };
     } finally { if (timer) clearTimeout(timer); }
+    /* Token CSRF kedaluwarsa (419: sesi diperbarui di tab lain / login ulang): ambil token baru dari halaman, ulangi SATU kali */
+    if (res.status === 419 && !opts._retried) {
+      try {
+        const html = await (await fetch(toUrl('masuk'), { credentials: 'same-origin', headers: { Accept: 'text/html' } })).text();
+        const m = html.match(/<meta name="csrf-token" content="([^"]+)"/);
+        const el = document.querySelector('meta[name="csrf-token"]');
+        if (m && el) { el.setAttribute('content', m[1]); return request(method, path, body, Object.assign({}, opts, { _retried: true })); }
+      } catch (e) { /* lanjut ke pesan 419 biasa */ }
+    }
     let raw = null;
     const type = res.headers.get('content-type') || '';
     if (type.includes('application/json')) { try { raw = await res.json(); } catch (e) { raw = null; } }

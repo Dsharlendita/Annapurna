@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\EnsureRole::class,
             'password.changed' => \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
-        $middleware->validateCsrfTokens(except: ['api/*', 'akun/kata-sandi']);
+        // Pemeriksaan CSRF AKTIF untuk semua request POST/PUT/PATCH/DELETE (tanpa pengecualian). Front-end mengirim header X-CSRF-TOKEN dari meta csrf-token.
         // Header keamanan (CSP + nonce, anti-clickjacking, nosniff, dll.) untuk semua jawaban Laravel
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })

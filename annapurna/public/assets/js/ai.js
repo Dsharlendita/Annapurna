@@ -107,8 +107,8 @@
     Object.keys(places).forEach((k) => { if (!plan.place && q.includes(k)) plan.place = places[k]; });
     if (has(q, ['naik gunung', 'mendaki', 'hiking', 'pendakian', 'muncak', 'summit', 'tektok', 'trekking']) || ['Gunung Slamet', 'Gunung Prau', 'Gunung Sindoro', 'Gunung Sumbing'].includes(plan.place)) plan.type = 'hiking';
     else if (has(q, ['camping', 'kemah', 'berkemah', 'camp', 'glamping', 'piknik', 'camping ground']) || ['Baturraden', 'pantai', 'telaga', 'Dieng', 'Curug'].includes(plan.place)) plan.type = 'camping';
-    const own = [['tenda', 'tent'], ['sleeping bag', 'sb', 'kantong tidur'], ['matras'], ['carrier', 'tas', 'ransel'], ['kompor', 'masak'], ['lampu', 'senter', 'headlamp'], ['kursi'], ['sepatu'], ['jaket'], ['trekking pole', 'tongkat', 'pole'], ['kacamata']];
-    if (/(sudah|udah|sdh|punya|bawa sendiri)/.test(q)) own.forEach((ws, i) => { if (ws.some((w) => new RegExp(`(sudah|udah|sdh|punya|bawa)[a-z ]{0,20}${w}`).test(q))) plan.own.push(['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair', 'shoes', 'jacket', 'pole', 'glasses'][i]); });
+    const own = [['tenda', 'tent'], ['sleeping bag', 'sb', 'kantong tidur'], ['matras'], ['carrier', 'tas', 'ransel'], ['kompor', 'masak'], ['lampu', 'senter', 'headlamp'], ['kursi'], ['sepatu'], ['jaket'], ['trekking pole', 'tongkat', 'pole'], ['kacamata'], ['flysheet', 'fly', 'tarp', 'terpal'], ['meja']];
+    if (/(sudah|udah|sdh|punya|bawa sendiri)/.test(q)) own.forEach((ws, i) => { if (ws.some((w) => new RegExp(`(sudah|udah|sdh|punya|bawa)[a-z ]{0,20}${w}`).test(q))) plan.own.push(['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair', 'shoes', 'jacket', 'pole', 'glasses', 'fly', 'table'][i]); });
     return plan;
   }
 
@@ -134,9 +134,13 @@
     if (!own.has('sleep') && nights > 0) add('oe-sb', people, 'Satu sleeping bag per orang', 'sleep');
     if (!own.has('mat') && nights > 0) add('oe-matras', people, 'Alas tidur di dalam tenda', 'mat');
     if (!own.has('bag') && type === 'hiking') add(nights > 0 ? 'crr-60s' : 'tas-hydro', people, nights > 0 ? 'Carrier 60 L untuk bawa semua alat' : 'Hydropack untuk naik-turun sehari', 'bag');
-    if (!own.has('cook') && nights > 0) { add(people >= 4 ? 'ck-ds300' : 'ck-ds200', Math.ceil(people / 6), 'Nesting untuk masak dan bikin kopi', 'cook'); add('ck-kompor', Math.ceil(people / 6), 'Kompor kotak camping', 'cook'); }
+    if (!own.has('cook') && nights > 0) { const st = Math.ceil(people / 6); add(people >= 4 ? 'ck-ds300' : 'ck-ds200', st, 'Nesting untuk masak dan bikin kopi', 'cook'); add('ck-kompor', st, 'Kompor kotak camping', 'cook'); add('gas-sewa', st * nights, 'Gas kaleng untuk kompor, kira-kira 1 kaleng per malam', 'cook'); }
     if (!own.has('light')) { if (type === 'hiking') add('oe-headlamp', people, 'Penerangan di jalur malam', 'light'); else add('oe-lampu', Math.max(1, Math.ceil(people / 4)), 'Penerangan di dalam tenda', 'light'); }
     if (!own.has('chair') && type === 'camping' && nights > 0) add('oe-kursi', people, 'Santai di camping ground', 'chair');
+    if (type === 'camping' && nights > 0) {
+      if (!own.has('fly')) add(people >= 4 ? 'oe-fly33' : 'oe-fly23', 1, 'Flysheet, atap teduh untuk masak & santai saat hujan atau panas', 'fly');
+      if (!own.has('table')) add('oe-meja', Math.ceil(people / 6), 'Meja lipat untuk masak dan makan bersama', 'table');
+    }
     if (type === 'hiking') {
       if (!own.has('shoes')) add('fw-std', people, 'Sepatu gunung, grip aman di jalur licin', 'shoes');
       if (!own.has('jacket')) add('fs-jkt', people, 'Jaket penahan dingin & angin di ketinggian', 'jacket');
@@ -380,7 +384,7 @@
     const r = await Api.post('api/ai/rencana', { teks: String(text).slice(0, 500), mulai: start || null, selesai: end || null }, { timeout: AI_TIMEOUT, redirectOn401: false });
     if (!r.ok || !r.data || typeof r.data !== 'object') return base;
     const d = r.data; const int = (v, lo, hi) => { const n = parseInt(v, 10); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
-    const OWN = ['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair', 'shoes', 'jacket', 'pole', 'glasses'];
+    const OWN = ['tent', 'sleep', 'mat', 'bag', 'cook', 'light', 'chair', 'shoes', 'jacket', 'pole', 'glasses', 'fly', 'table'];
     const people = int(d.orang, 1, 50), nights = int(d.malam, 0, 14);
     return {
       people: people != null ? people : base.people,

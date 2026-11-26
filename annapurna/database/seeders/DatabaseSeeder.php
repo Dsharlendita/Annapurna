@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
 
         $owner = User::updateOrCreate(['email' => 'owner@annapurna.id'], [
             'name' => 'Pak Ikun',
-            'phone' => '081200001111',
+            'phone' => '085742202043',
             'role' => 'owner',
             'status' => 'aktif',
             'password' => $this->password('SEED_OWNER_PASSWORD', 'owner123'),

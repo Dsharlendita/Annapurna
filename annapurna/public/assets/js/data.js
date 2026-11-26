@@ -636,7 +636,7 @@
   ];
 
   const USERS = [
-    { id: 'u1', name: 'Pak Ikun', email: 'owner@annapurna.id', role: 'owner', status: 'aktif', phone: '081200001111', address: SETTINGS.address, createdAt: stampRel(-120, 8) },
+    { id: 'u1', name: 'Pak Ikun', email: 'owner@annapurna.id', role: 'owner', status: 'aktif', phone: '085742202043', address: SETTINGS.address, createdAt: stampRel(-120, 8) },
     { id: 'u2', name: 'Dimas Saputra', email: 'customer@annapurna.id', role: 'customer', status: 'aktif', phone: '081390001122', address: 'Jl. Dr. Soeparno No. 12, Karangwangkal, Purwokerto Utara' },
     { id: 'u3', name: 'Dita', email: 'dita@annapurna.id', role: 'admin', status: 'aktif', phone: '085711223344', address: '', createdAt: stampRel(-60, 8), createdBy: 'u1' },
   ];

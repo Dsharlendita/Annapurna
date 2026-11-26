@@ -142,7 +142,7 @@ class StaffController extends Controller
             'name.min' => 'Nama minimal 3 huruf.',
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email belum benar.',
-            'email.unique' => 'Email ini sudah terdaftar.',
+            'email.unique' => 'Email ini sudah dipakai akun lain (bisa jadi akun customer). Pakai email lain untuk akun staff.',
             'role.in' => 'Owner hanya bisa membuat akun Admin / Staff.',
             'password.required' => 'Buat kata sandi untuk staff.',
             'password.min' => 'Kata sandi minimal 8 karakter.',

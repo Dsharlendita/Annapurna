@@ -117,12 +117,15 @@
   }
 
   /* Tandai isian form sesuai error dari server (422 / field), memakai UI.validate yang sudah ada. */
-  function showErrors(form, r) {
-    if (!form || !window.UI || !UI.validate) return;
+  /* Tampilkan error server di bawah isian form. `map` = nama field server → nama isian form (mis. { email: 'semail' }).
+     Error yang tidak punya isian di form tetap ditampilkan sebagai toast, supaya tombol tidak terlihat "macet" tanpa pesan. */
+  function showErrors(form, r, map) {
     const errs = r.errors || (r.field ? { [r.field]: r.msg } : null);
-    if (!errs) return;
-    const rules = {}; Object.keys(errs).forEach((k) => { if (form.elements[k]) rules[k] = () => errs[k]; });
-    if (Object.keys(rules).length) UI.validate(form, rules);
+    if (!errs) { if (window.UI && r.msg) UI.toast(r.msg, 'err'); return; }
+    const rules = {}; const lost = [];
+    Object.keys(errs).forEach((k) => { const n = (map && map[k]) || k; if (form && form.elements[n]) rules[n] = () => errs[k]; else lost.push(errs[k]); });
+    if (form && window.UI && UI.validate && Object.keys(rules).length) UI.validate(form, rules);
+    if (window.UI && (lost.length || !Object.keys(rules).length)) UI.toast(lost[0] || r.msg || 'Periksa kembali isian form.', 'err');
   }
 
   /* Ganti kata sandi akun yang sedang masuk.

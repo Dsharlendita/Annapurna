@@ -64,6 +64,9 @@
     }).join('') : '<tr><td colspan="6"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid fa-users"></i></div><h3>Tidak ada staff</h3><p>Coba ubah filter pencarian.</p></div></td></tr>';
   }
 
+  /* Nama field di server → nama isian di form Tambah/Edit staff (supaya error server tampil di bawah isiannya) */
+  const SF_MAP = { name: 'sname', email: 'semail', phone: 'sphone', status: 'sstatus', password: 'spw', password_confirmation: 'spw2' };
+
   function sentModal(title, u, res) {
     const tempPw = res.temp || res.temp_password || '';
     const m = modal({ title, body: `
@@ -185,7 +188,7 @@
         };
         const r = await Api.busy(m.$('#sSave'), () => Api.post('api/owner/staff', payload, { redirectOn401: false }), 'Menyimpan…');
         if (!r || !r.ok) {
-          if (r && r.errors) Api.showErrors(F, r);
+          if (r && r.errors) Api.showErrors(F, r, SF_MAP);
           else toast((r && r.msg) || 'Gagal menambahkan staff.', 'err');
           return;
         }
@@ -203,7 +206,7 @@
         };
         const r = await Api.busy(m.$('#sSave'), () => Api.patch('api/owner/staff/' + u.id, payload, { redirectOn401: false }), 'Menyimpan…');
         if (!r || !r.ok) {
-          if (r && r.errors) Api.showErrors(F, r);
+          if (r && r.errors) Api.showErrors(F, r, SF_MAP);
           else toast((r && r.msg) || 'Gagal memperbarui staff.', 'err');
           return;
         }

@@ -10,20 +10,44 @@
   const gMsg = { batal: 'Masuk dengan Google dibatalkan.', gagal: 'Masuk dengan Google gagal. Coba lagi.', email: 'Email akun Google belum terverifikasi.', 'belum-aktif': 'Masuk dengan Google belum diaktifkan toko.' }[param('google')];
   if (gMsg) setTimeout(() => toast(gMsg, 'err'), 300);
   $$('.toggle-pw').forEach((b) => b.addEventListener('click', () => { const i = b.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; b.innerHTML = `<i class="fa-regular fa-eye${i.type === 'text' ? '-slash' : ''}"></i>`; }));
-  /* Lupa kata sandi: kode dikirim server ke email akun → kata sandi baru → langsung masuk */
+  /* Lupa kata sandi. Langkah 1: server memeriksa email akun (api/lupa-sandi).
+     - Staff  → Owner langsung dapat notifikasi + tombol WhatsApp ke nomor Owner (nomornya hanya dikirim server untuk akun staff).
+     - Customer → masuk dengan Google lalu buat kata sandi di Profil, atau kode email bila email toko sudah aktif.
+       Customer TIDAK diarahkan ke Owner. */
+  const googleBtnHtml = () => `<a class="btn btn-light btn-block btn-google" href="${esc($('#googleBtn') ? $('#googleBtn').href : UI.url('auth/google'))}">${$('#googleBtn') ? $('#googleBtn').innerHTML : 'Masuk dengan Google'}</a>`;
   $('#forgot').addEventListener('click', (e) => {
     e.preventDefault();
-    /* Email pengirim kode belum dipasang: tawarkan Google atau bantuan admin lewat WhatsApp */
-    if (!hasMail) {
-      modal({ title: 'Lupa kata sandi', body: `${hasGoogle ? `<p style="font-size:14px;margin-bottom:12px">Akunmu memakai <b>Gmail</b>? Masuk saja dengan Google tanpa kata sandi, lalu buat kata sandi baru di halaman <b>Profil</b>.</p>
-          <a class="btn btn-light btn-block btn-google" href="${esc($('#googleBtn') ? $('#googleBtn').href : UI.url('auth/google'))}">${$('#googleBtn') ? $('#googleBtn').innerHTML : 'Masuk dengan Google'}</a><div class="or-sep"><span>atau</span></div>` : ''}
-        <p class="muted" style="font-size:13.5px">Hubungi Owner Annapurna lewat WhatsApp untuk mengatur ulang kata sandi akunmu.</p>`,
-        foot: `<button class="btn btn-light" data-close>Tutup</button><a class="btn btn-primary" href="${UI.waLink('Halo Annapurna, saya lupa kata sandi akun website. Email akun saya: ' + ($('#email').value || ''))}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Hubungi Owner</a>` });
-      return;
-    }
+    const m = modal({ title: 'Lupa kata sandi', body: `<div id="fgAsk"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Masukkan email akunmu untuk melihat cara mengatur ulang kata sandi.</p>
+        <div class="field"><label for="fgAskId">Email akun</label><input class="input" id="fgAskId" type="email" autocomplete="email" value="${esc($('#email').value || '')}" placeholder="nama@email.com"></div></div>`,
+      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="fgAskGo">Lanjut</button>' });
+    const ask = m.$('#fgAskGo');
+    m.$('#fgAskId').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ask.click(); } });
+    ask.addEventListener('click', async () => {
+      const id = m.$('#fgAskId').value.trim();
+      if (!id) { m.$('#fgAskId').classList.add('err'); toast('Isi email akunmu.', 'err'); return; }
+      const r = await Api.busy(ask, () => Api.post('api/lupa-sandi', { identifier: id }, { redirectOn401: false }), 'Memeriksa…'); if (!r) return;
+      if (!r.ok) { m.$('#fgAskId').classList.add('err'); toast(r.msg, 'err'); return; }
+      const d = r.raw || {};
+      if (d.kind === 'staff') {
+        m.$('.modal-body').innerHTML = `<p style="font-size:14px;margin-bottom:10px"><i class="fa-solid fa-circle-check" style="color:var(--g700)"></i> Permintaanmu sudah masuk ke <b>notifikasi Owner</b>.</p>
+          <p class="muted" style="font-size:13.5px">Owner akan membuat kata sandi baru untukmu lewat <b>Manajemen Staff</b>. Agar lebih cepat, kabari Owner lewat WhatsApp.</p>`;
+        m.$('.modal-foot').innerHTML = `<button class="btn btn-light" data-close>Tutup</button><a class="btn btn-primary" href="${esc(d.wa)}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Hubungi Owner</a>`;
+        return;
+      }
+      m.close();
+      if (hasMail) { openCodeReset(id); return; }
+      modal({ title: 'Lupa kata sandi', body: hasGoogle
+        ? `<p style="font-size:14px;margin-bottom:12px">Masuk dengan <b>Google</b> memakai Gmail akunmu, tanpa kata sandi. Setelah masuk, buat kata sandi baru di halaman <b>Profil</b>.</p>${googleBtnHtml()}
+           <p class="muted" style="font-size:12.5px;margin-top:10px">Belum punya akun dengan Gmail ini? Kamu bisa <a class="link" href="${esc($('#toRegister').href)}">daftar akun baru</a>.</p>`
+        : `<p style="font-size:14px">Atur ulang kata sandi lewat website belum tersedia. Kamu tetap bisa <a class="link" href="${esc($('#toRegister').href)}">daftar akun baru</a> atau memesan tanpa akun.</p>`,
+        foot: '<button class="btn btn-light" data-close>Tutup</button>' });
+    });
+  });
+  /* Kode dikirim server ke email akun → kata sandi baru → langsung masuk (hanya bila email toko aktif) */
+  function openCodeReset(prefill) {
     const m = modal({ title: 'Atur ulang kata sandi', body: `<ol class="fg-steps"><li class="on">Verifikasi</li><li>Kata sandi baru</li></ol>
       <div id="fgA"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Masukkan email atau nomor WhatsApp akunmu. Kami kirim kode verifikasi 6 digit ke <b>email akunmu</b>.</p>
-        <div class="field"><label for="fgId">Email atau nomor WhatsApp</label><input class="input" id="fgId" value="${esc($('#email').value || '')}" placeholder="nama@email.com / 08xxxxxxxxxx"></div><div id="fgCodeBox"></div></div>
+        <div class="field"><label for="fgId">Email atau nomor WhatsApp</label><input class="input" id="fgId" value="${esc(prefill || '')}" placeholder="nama@email.com / 08xxxxxxxxxx"></div><div id="fgCodeBox"></div></div>
       <div id="fgB" hidden><div class="field"><label for="fgPw">Kata sandi baru</label><input class="input" type="password" id="fgPw" autocomplete="new-password"><span class="hint">Minimal 6 karakter.</span></div>
         <div class="field"><label for="fgPw2">Ulangi kata sandi</label><input class="input" type="password" id="fgPw2" autocomplete="new-password"></div></div>`,
       foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="fgGo">Kirim kode</button>' });
@@ -56,7 +80,7 @@
       DB.adoptSession(r.raw.user); m.close(); toast('Kata sandi baru tersimpan. Kamu sudah masuk.');
       setTimeout(() => (location.href = next ? UI.url(next) : r.raw.redirect || UI.url('./')), 500);
     });
-  });
+  }
   const form = $('#loginForm');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

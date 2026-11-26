@@ -74,7 +74,11 @@
     const errors = flatErrors(raw && raw.errors);
     const ok = res.ok && !(raw && raw.ok === false);
     const firstErr = errors ? Object.values(errors)[0] : '';
-    const msg = ok ? (raw && raw.msg) || '' : (raw && (raw.msg || raw.message)) && res.status !== 419 && res.status < 500 ? (raw.msg || raw.message) : firstErr || msgFor(res.status);
+    /* Pesan bawaan Laravel ("Too Many Attempts.", "CSRF token mismatch.") berbahasa Inggris: untuk 419/429 pakai pesan Indonesia,
+       kecuali server sendiri mengirim `msg` (mis. "Tunggu 30 detik sebelum meminta kode baru.") */
+    const own = raw && raw.msg && res.status !== 419 && res.status < 500 ? raw.msg : '';
+    const lara = raw && raw.message && res.status !== 419 && res.status !== 429 && res.status < 500 ? raw.message : '';
+    const msg = ok ? (raw && raw.msg) || '' : own || lara || firstErr || msgFor(res.status);
     const out = { ok, status: res.status, data: raw && 'data' in raw ? raw.data : raw, msg, field: (raw && raw.field) || (errors ? Object.keys(errors)[0] : null), errors, raw, source: 'server' };
     if (res.status === 401 && opts.redirectOn401 !== false && !/\/(masuk|daftar)$/.test(location.pathname)) {
       const next = encodeURIComponent(location.pathname.replace(base(), '') + location.search);

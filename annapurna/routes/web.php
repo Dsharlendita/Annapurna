@@ -37,6 +37,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->
 // Cek status pesanan tanpa login (nomor pesanan + nomor WhatsApp), dibatasi 10x/menit per IP
 Route::get('/api/cek-pesanan', [OrderController::class, 'lookup'])->middleware('throttle:10,1')->name('api.cek-pesanan');
 
+// Lupa kata sandi langkah pertama: staff → notifikasi + WhatsApp Owner; customer → Google / kode email (5x/menit per IP)
+Route::post('/api/lupa-sandi', [VerificationController::class, 'forgot'])->middleware('throttle:5,1')->name('api.lupa-sandi');
+
 Route::middleware('throttle:10,1')->controller(VerificationController::class)->group(function () {
     Route::post('/api/kode/kirim', 'send')->name('api.kode.kirim');
     Route::post('/api/kode/cek', 'verify')->name('api.kode.cek');

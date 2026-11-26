@@ -102,6 +102,36 @@ class VerifikasiKodeTest extends TestCase
         $this->assertTrue(Hash::check('baru123', $this->budi->fresh()->password));
     }
 
+    public function test_lupa_sandi_staff_ke_owner_customer_tidak(): void
+    {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);   // test ini memanggil > 5x/menit
+        $owner = User::create(['name' => 'Pak Ikun', 'email' => 'owner@annapurna.id', 'role' => 'owner', 'status' => 'aktif', 'password' => 'rahasia1']);
+        User::create(['name' => 'Dita', 'email' => 'dita@annapurna.id', 'role' => 'admin', 'status' => 'aktif', 'password' => 'rahasia1']);
+        User::create(['name' => 'Off', 'email' => 'off@annapurna.id', 'role' => 'admin', 'status' => 'nonaktif', 'password' => 'rahasia1']);
+        $ask = fn ($id) => $this->postJson('/api/lupa-sandi', ['identifier' => $id]);
+
+        // Customer, Owner, dan email tak dikenal: jawaban sama, tanpa nomor Owner
+        foreach (['budi@mail.com', '0813-1111-2222', 'owner@annapurna.id', 'tidakada@mail.com'] as $id) {
+            $r = $ask($id)->assertOk()->assertJsonPath('kind', 'customer');
+            $this->assertArrayNotHasKey('wa', $r->json());
+            $this->assertStringNotContainsString('6285742202043', $r->getContent());
+        }
+        $this->assertSame(0, \App\Models\UserNotification::where('user_id', $owner->id)->count());
+
+        // Staff: WhatsApp ke nomor Owner (bukan nomor toko) + notifikasi di lonceng Owner menuju Manajemen Staff
+        $r = $ask('dita@annapurna.id')->assertOk()->assertJsonPath('kind', 'staff');
+        $this->assertStringStartsWith('https://wa.me/6285742202043?text=', $r->json('wa'));
+        $n = \App\Models\UserNotification::where('user_id', $owner->id)->sole();
+        $this->assertSame('Dita lupa kata sandi', $n->title);
+        $this->assertSame('owner/staff', $n->link);
+        $ask('dita@annapurna.id')->assertOk();                                   // diminta lagi: digabung, tidak menumpuk
+        $this->assertSame(2, $n->fresh()->count);
+        $this->assertSame(1, \App\Models\UserNotification::where('user_id', $owner->id)->count());
+
+        $ask('off@annapurna.id')->assertStatus(403);                              // staff nonaktif tidak bisa minta
+        $ask('')->assertStatus(422);
+    }
+
     public function test_aturan_akun(): void
     {
         $mk = fn ($email, $role, $extra = []) => User::create(array_merge(['name' => 'X', 'email' => $email, 'role' => $role, 'status' => 'aktif', 'password' => 'rahasia1'], $extra));

@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Mail\LoginCodeMail;
 use App\Models\EmailLog;
 use App\Models\LoginCode;
+use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserNotification;
+use App\Support\Audit;
 use App\Support\AuthPayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -80,6 +83,41 @@ class VerificationController extends Controller
 
         return null;
     }
+
+    /**
+     * POST /api/lupa-sandi { identifier } — langkah pertama "Lupa kata sandi".
+     *   - Akun staff (admin): Owner langsung mendapat notifikasi permintaan atur ulang (lonceng, menuju
+     *     Manajemen Staff) dan staff mendapat tombol WhatsApp ke nomor Owner. Nomor Owner hanya dikirim
+     *     untuk akun staff, jadi customer tidak pernah melihatnya.
+     *   - Selain itu (customer, Owner, atau email tidak dikenal): jawaban sama, {kind: 'customer'}.
+     *     Tampilan lalu menawarkan masuk dengan Google / kode email, tanpa jalur ke Owner.
+     */
+    public function forgot(Request $request): JsonResponse
+    {
+        $v = $request->validate(['identifier' => 'required|string|max:120'], ['identifier.required' => 'Isi email akunmu.']);
+        $u = $this->findUser($v['identifier']);
+
+        if (! $u || $u->role !== 'admin') {
+            return response()->json(['ok' => true, 'kind' => 'customer']);
+        }
+        if ($u->status === 'nonaktif') {
+            return $this->fail('Akun ini sedang dinonaktifkan oleh Owner.', 403);
+        }
+
+        User::where('role', 'owner')->where('status', 'aktif')->each(fn ($o) => UserNotification::send($o->email,
+            "{$u->name} lupa kata sandi",
+            "Staff {$u->name} ({$u->email}) minta kata sandinya diatur ulang. Buka Manajemen Staff → Edit staff → Atur ulang kata sandi.",
+            'owner/staff'));
+        Audit::log('staff', "Permintaan atur ulang kata sandi staff {$u->name} dikirim dari halaman Masuk", $u, [], null, true);
+
+        $num = preg_replace('/\D/', '', (string) Setting::get('owner_whatsapp', self::OWNER_WA));
+        $text = "Halo Pak, saya {$u->name} (staff Annapurna). Saya lupa kata sandi akun panel dengan email {$u->email}. Mohon dibantu atur ulang kata sandinya. Terima kasih.";
+
+        return response()->json(['ok' => true, 'kind' => 'staff', 'wa' => 'https://wa.me/' . $num . '?text=' . rawurlencode($text)]);
+    }
+
+    /** Nomor WhatsApp Owner (Pak Ikun) bila belum diatur di tabel settings (kunci owner_whatsapp). */
+    public const OWNER_WA = '6285742202043';
 
     public function send(Request $request): JsonResponse
     {

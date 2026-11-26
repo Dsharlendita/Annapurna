@@ -70,4 +70,10 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    // Balasan customer/staff diarahkan ke email toko yang aktif dibaca (header Reply-To di semua email)
+    'reply_to' => [
+        'address' => env('MAIL_REPLY_TO_ADDRESS'),
+        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+    ],
+
 ];

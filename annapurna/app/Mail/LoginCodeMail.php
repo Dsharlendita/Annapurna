@@ -23,14 +23,15 @@ class LoginCodeMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            // Subjek transaksional yang jelas (saran filter spam JagoanHosting); kodenya ada di isi email
             subject: $this->purpose === 'reset'
-                ? "{$this->code} adalah kode atur ulang kata sandi Annapurna Adventure"
-                : "{$this->code} adalah kode masuk Annapurna Adventure",
+                ? 'Kode verifikasi atur ulang kata sandi akun Annapurna Adventure'
+                : 'Kode verifikasi masuk akun Annapurna Adventure',
         );
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.login-code');
+        return new Content(view: 'emails.login-code', text: 'emails.text.login-code');
     }
 }

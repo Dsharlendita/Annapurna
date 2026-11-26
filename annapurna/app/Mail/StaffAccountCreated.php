@@ -28,6 +28,6 @@ class StaffAccountCreated extends Mailable
 
     public function content(): Content
     {
-        return new Content(view: 'emails.staff-account-created', with: ['loginUrl' => route('masuk')]);
+        return new Content(view: 'emails.staff-account-created', text: 'emails.text.staff-account-created', with: ['loginUrl' => route('masuk')]);
     }
 }

@@ -34,6 +34,7 @@ class StaffPasswordReset extends Mailable
     {
         return new Content(
             view: 'emails.staff-password-reset',
+            text: 'emails.text.staff-password-reset',
             with: [
                 'loginUrl' => route('masuk'),
             ]

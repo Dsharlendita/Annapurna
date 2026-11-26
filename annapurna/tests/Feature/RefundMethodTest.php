@@ -160,4 +160,24 @@ class RefundMethodTest extends TestCase
         $this->assertFalse((bool) $rina->must_change_password);
         $this->assertTrue(\Illuminate\Support\Facades\Hash::check('rahasia123', $rina->password));
     }
+
+    public function test_email_staff_tidak_ditulis_terkirim_bila_server_email_belum_aktif(): void
+    {
+        Mail::fake();
+        $body = fn ($n) => ['name' => 'Feb', 'email' => "feb{$n}@mail.com", 'password' => 'rahasia123', 'password_confirmation' => 'rahasia123', 'sendEmail' => true];
+
+        // Email aktif: terkirim + data pratinjau lengkap (penerima, subjek, nama), tanpa kata sandi
+        $r = $this->actingAs($this->owner)->postJson('/api/owner/staff', $body(1))->assertCreated();
+        $this->assertSame('terkirim', $r->json('mail.status'));
+        $this->assertSame('feb1@mail.com', $r->json('mail.to'));
+        $this->assertSame('staff_invite', $r->json('mail.kind'));
+        $this->assertSame('Feb', $r->json('mail.data.name'));
+        $this->assertStringNotContainsString('rahasia123', $r->getContent());
+
+        // MAIL_MAILER=log (hosting belum memasang email): status tidak_aktif, email tidak dikirim
+        config(['mail.default' => 'log']);
+        $r = $this->actingAs($this->owner)->postJson('/api/owner/staff', $body(2))->assertCreated();
+        $this->assertSame('tidak_aktif', $r->json('mail.status'));
+        Mail::assertSentCount(1);
+    }
 }

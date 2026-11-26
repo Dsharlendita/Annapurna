@@ -130,6 +130,12 @@ class VerifikasiKodeTest extends TestCase
 
         $ask('off@annapurna.id')->assertStatus(403);                              // staff nonaktif tidak bisa minta
         $ask('')->assertStatus(422);
+
+        // Nomor HP di profil Owner dipakai untuk tombol WhatsApp (08xx → 628xx)
+        $owner->update(['phone' => '0857-4220-2043']);
+        $this->assertStringStartsWith('https://wa.me/6285742202043?text=', $ask('dita@annapurna.id')->json('wa'));
+        $owner->update(['phone' => '081200001111']);
+        $this->assertStringStartsWith('https://wa.me/6281200001111?text=', $ask('dita@annapurna.id')->json('wa'));
     }
 
     public function test_aturan_akun(): void

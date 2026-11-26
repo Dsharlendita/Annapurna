@@ -43,8 +43,8 @@
         </form>
         <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
         <form id="pf" novalidate>
-          <div class="field"><label>Kata sandi lama</label><input class="input" type="password" name="old"></div>
-          <div class="field"><label>Kata sandi baru</label><input class="input" type="password" name="npw"></div>
+          <div class="field"><label>Kata sandi lama</label><div class="pw-wrap"><input class="input" type="password" name="old"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
+          <div class="field"><label>Kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" name="npw"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
           <button class="btn btn-light btn-sm" type="submit"><i class="fa-solid fa-key"></i> Ganti kata sandi</button>
         </form>
       </div>

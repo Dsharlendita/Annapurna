@@ -52,9 +52,9 @@
 
     <section data-pane="pw" class="card" hidden>
       <form id="fPw" novalidate style="max-width:440px">
-        <div class="field"><label for="old">Kata sandi lama</label><input class="input" type="password" id="old" name="old"></div>
-        <div class="field"><label for="npw">Kata sandi baru</label><input class="input" type="password" id="npw" name="npw"><span class="hint">Minimal 6 karakter.</span></div>
-        <div class="field"><label for="cpw">Ulangi kata sandi baru</label><input class="input" type="password" id="cpw" name="cpw"></div>
+        <div class="field"><label for="old">Kata sandi lama</label><div class="pw-wrap"><input class="input" type="password" id="old" name="old"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
+        <div class="field"><label for="npw">Kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" id="npw" name="npw"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div><span class="hint">Minimal 6 karakter.</span></div>
+        <div class="field"><label for="cpw">Ulangi kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" id="cpw" name="cpw"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
         <button class="btn btn-primary" type="submit"><i class="fa-solid fa-key"></i> Ganti kata sandi</button>
       </form>
     </section>

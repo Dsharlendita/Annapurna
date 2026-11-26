@@ -110,14 +110,32 @@ class VerificationController extends Controller
             'owner/staff'));
         Audit::log('staff', "Permintaan atur ulang kata sandi staff {$u->name} dikirim dari halaman Masuk", $u, [], null, true);
 
-        $num = preg_replace('/\D/', '', (string) Setting::get('owner_whatsapp', self::OWNER_WA));
+        $num = self::ownerWa();
         $text = "Halo Pak, saya {$u->name} (staff Annapurna). Saya lupa kata sandi akun panel dengan email {$u->email}. Mohon dibantu atur ulang kata sandinya. Terima kasih.";
 
         return response()->json(['ok' => true, 'kind' => 'staff', 'wa' => 'https://wa.me/' . $num . '?text=' . rawurlencode($text)]);
     }
 
-    /** Nomor WhatsApp Owner (Pak Ikun) bila belum diatur di tabel settings (kunci owner_whatsapp). */
+    /** Nomor cadangan bila belum ada Owner aktif yang mengisi Nomor HP di profilnya. */
     public const OWNER_WA = '6285742202043';
+
+    /**
+     * Nomor WhatsApp Owner dari profil Owner (Pengaturan → Akun & Sistem → Nomor HP), format 62xxxx.
+     * Owner aktif pertama yang nomornya terisi; bila tidak ada, setting owner_whatsapp, lalu nomor cadangan.
+     */
+    public static function ownerWa(): string
+    {
+        $raw = User::where('role', 'owner')->where('status', 'aktif')->whereNotNull('phone')->where('phone', '!=', '')
+            ->orderBy('id')->value('phone') ?: Setting::get('owner_whatsapp', self::OWNER_WA);
+        $d = preg_replace('/\D/', '', (string) $raw);
+        if (str_starts_with($d, '0')) {
+            $d = '62' . substr($d, 1);
+        } elseif (str_starts_with($d, '8')) {
+            $d = '62' . $d;
+        }
+
+        return strlen($d) >= 10 ? $d : self::OWNER_WA;
+    }
 
     public function send(Request $request): JsonResponse
     {

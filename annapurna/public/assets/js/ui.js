@@ -1965,6 +1965,12 @@
     if (!['units', 'restock'].includes(k)) return;
     setTimeout(() => { const t = document.querySelector(`[data-${k}="${CSS.escape(id)}"]`); if (t) t.click(); }, 220);
   });
+  /* Tombol mata di isian kata sandi halaman (Profil, Pengaturan akun): <div class="pw-wrap"><input type="password">
+     <button class="pw-eye" data-pw-toggle></button></div>. Saat form di-reset, kata sandi kembali tersembunyi. */
+  const eyeSet = (b, show) => { const i = b.previousElementSibling; if (!i) return; i.type = show ? 'text' : 'password'; b.innerHTML = `<i class="fa-regular fa-eye${show ? '-slash' : ''}"></i>`; b.setAttribute('aria-label', show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'); };
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-pw-toggle]'); if (b) eyeSet(b, b.previousElementSibling && b.previousElementSibling.type === 'password'); });
+  document.addEventListener('reset', (e) => e.target.querySelectorAll && e.target.querySelectorAll('[data-pw-toggle]').forEach((b) => eyeSet(b, false)), true);
+
   window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, safeNext, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();
 

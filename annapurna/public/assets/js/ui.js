@@ -30,7 +30,10 @@
   function toast(msg, type) {
     let box = $('.toasts');
     if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('aria-live', 'polite'); document.body.appendChild(box); }
-    const t = document.createElement('div');
+    /* Pesan yang sama persis dan masih tampil tidak ditumpuk lagi (mis. dipanggil berulang dari loop kamera) */
+    const key = (type === 'err' ? 'e:' : 'o:') + String(msg);
+    if ([...box.children].some((x) => x.dataset.msg === key)) return;
+    const t = document.createElement('div'); t.dataset.msg = key;
     t.className = 'toast' + (type === 'err' ? ' err' : '');
     t.innerHTML = `<i class="fa-solid ${type === 'err' ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i><div>${safeHtml(msg)}</div>`;
     box.appendChild(t);

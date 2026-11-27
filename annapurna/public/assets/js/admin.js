@@ -175,25 +175,38 @@
   }
 
   /* ---------- Scan QR nota ---------- */
-  /* Kenali kode dari QR / ketikan: nomor nota (RNTL/028/X/2026, ODR/005/X/2026, rnt/28/x/2026), kode internal (RNT-1028 / ORD-2007), atau link nota (…invoice?id=RNT-1028) */
+  /* Kenali kode dari QR / ketikan:
+     - link QR di nota: …/admin/booking?id=RNT-20261127-0012, …/admin/penjualan?id=…, …/admin/laundry?id=…
+     - kode pesanan: dari server RNT-20261127-0012 / ORD-… / DRY-…, data lama RNT-1028
+     - nomor nota: RNTL/028/X/2026, ODR/005/X/2026, DRY/003/X/2026, rnt/28/x/2026
+     Dulu hanya "RNT-" + 3–6 angka yang dibaca, sehingga kode server RNT-20261127-0012 terpotong jadi RNT-202611. */
+  const REF_CODE = /\b(RNT|ORD|DRY)-(\d{8}-\d{1,6}|\d{1,10})\b/;
   function findRef(txt) {
     const raw = String(txt || '').trim(); const up = raw.toUpperCase();
+    const look = (c) => { const x = c.startsWith('RNT') ? DB.booking(c) : c.startsWith('ORD') ? DB.sale(c) : DB.laundryOrder(c);
+      return x ? { x, kind: c.startsWith('RNT') ? 'rent' : c.startsWith('ORD') ? 'sale' : 'laundry' } : null; };
+    const q = raw.match(/[?&]id=([^&#\s]+)/i);
+    let qid = ''; try { qid = q ? decodeURIComponent(q[1]).toUpperCase() : ''; } catch (e) { qid = ''; }
+    const code = (qid && (qid.match(REF_CODE) || [])[0]) || (up.match(REF_CODE) || [])[0];
+    if (code) return look(code) || { miss: code };
     const no = NOPARSE(up);
     if (no) {
-      const b = no.startsWith('RNT') && DB.bookings().find((y) => y.no === no); if (b) return { x: b, kind: 'rent' };
+      const b = no.startsWith('RNTL') && DB.bookings().find((y) => y.no === no); if (b) return { x: b, kind: 'rent' };
       const s = no.startsWith('ODR') && DB.sales().find((y) => y.no === no); if (s) return { x: s, kind: 'sale' };
+      const l = no.startsWith('DRY') && DB.laundryOrder(no); if (l) return { x: l, kind: 'laundry' };
       return { miss: no };
     }
-    const code = (up.match(/(RNT|ORD)-\d{3,6}/) || [])[0];
-    if (code) { const x = code.startsWith('RNT') ? DB.booking(code) : DB.sale(code); return x ? { x, kind: code.startsWith('RNT') ? 'rent' : 'sale' } : { miss: code }; }
     return null;
   }
-  function openRef(txt) {
-    const r = findRef(txt);
-    if (!r) { toast('Kode tidak dikenali. Ketik nomor nota (contoh: RNTL/028/X/2026 atau ODR/005/X/2026) atau scan QR di nota customer.', 'err'); return false; }
-    if (r.miss) { toast(`Pesanan ${r.miss} tidak ditemukan.`, 'err'); return false; }
-    DB.audit({ type: 'akses', action: `Membuka ${NO(r.x)} lewat scan QR / nomor nota`, ref: r.x.id });
-    location.href = A(r.kind === 'rent' ? 'booking?id=' + r.x.id : 'penjualan?id=' + r.x.id); return true;
+  /* say(pesan) = cara menampilkan kegagalan (bawaan: toast). Pesanan yang belum termuat diambil ulang dari server sekali. */
+  async function openRef(txt, say) {
+    say = say || ((t) => toast(t, 'err'));
+    let r = findRef(txt);
+    if (r && r.miss && window.Api) { try { await syncOrders(true); } catch (e) { /* abaikan */ } r = findRef(txt); }
+    if (!r) { say('Kode tidak dikenali. Ketik nomor nota (contoh: RNTL/028/X/2026 atau ODR/005/X/2026) atau scan QR di nota customer.'); return false; }
+    if (r.miss) { say(`Pesanan ${r.miss} tidak ditemukan.`); return false; }
+    DB.audit({ type: 'akses', action: `Membuka ${r.kind === 'laundry' ? (r.x.no || r.x.id) : NO(r.x)} lewat scan QR / nomor nota`, ref: r.x.id });
+    location.href = A((r.kind === 'rent' ? 'booking' : r.kind === 'laundry' ? 'laundry' : 'penjualan') + '?id=' + encodeURIComponent(r.x.id)); return true;
   }
   async function scanQR() {
     let stream = null, raf = 0, stop = false;
@@ -202,22 +215,32 @@
       foot: '<button class="btn btn-light" data-close>Tutup</button>' });
     const end = () => { stop = true; cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); };
     new MutationObserver((mu, ob) => { if (!document.body.contains(m.el)) { end(); ob.disconnect(); } }).observe(document.body, { childList: true });
-    m.$('#qrGo').addEventListener('click', () => { if (openRef(m.$('#qrCode').value)) { end(); m.close(); } });
-    m.$('#qrCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') m.$('#qrGo').click(); });
+    const go = m.$('#qrGo');
+    go.addEventListener('click', async () => { go.disabled = true; const ok = await openRef(m.$('#qrCode').value); go.disabled = false; if (ok) { end(); m.close(); } });
+    m.$('#qrCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
+    /* Kamera membaca QR puluhan kali per detik: kode yang sama hanya diperiksa sekali (diulang paling cepat 4 detik),
+       dan kegagalan ditulis di bawah kamera, bukan toast yang menumpuk. */
+    const msg = m.$('#qrMsg');
+    const say = (t) => { msg.textContent = t; msg.style.color = '#b42318'; };
+    let lastTxt = '', lastAt = 0, checking = false;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      const v = m.$('#qrV'); v.srcObject = stream; await v.play(); m.$('#qrMsg').textContent = 'Arahkan kamera ke QR code di nota customer.';
+      const v = m.$('#qrV'); v.srcObject = stream; await v.play(); msg.textContent = 'Arahkan kamera ke QR code di nota customer.';
       const det = 'BarcodeDetector' in window ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
       if (!det) await UI.loadScript(url('assets/vendor/qr/jsQR.js'));
       const c = document.createElement('canvas'); const g = c.getContext('2d', { willReadFrequently: true });
       const tick = async () => { if (stop) return;
-        if (v.readyState >= 2) { let txt = null;
+        if (v.readyState >= 2 && !checking) { let txt = null;
           if (det) { const r = await det.detect(v).catch(() => []); if (r[0]) txt = r[0].rawValue; }
           else { c.width = v.videoWidth; c.height = v.videoHeight; g.drawImage(v, 0, 0); const img = g.getImageData(0, 0, c.width, c.height); const r = window.jsQR(img.data, c.width, c.height); if (r) txt = r.data; }
-          if (txt && openRef(txt)) { end(); m.close(); return; } }
-        raf = requestAnimationFrame(tick); };
+          if (txt && (txt !== lastTxt || Date.now() - lastAt > 4000)) {
+            lastTxt = txt; lastAt = Date.now(); checking = true; msg.style.color = ''; msg.textContent = 'Memeriksa kode…';
+            const ok = await openRef(txt, say); checking = false; lastAt = Date.now();
+            if (ok) { end(); m.close(); return; }
+          } }
+        if (!stop) raf = requestAnimationFrame(tick); };
       tick();
-    } catch (e) { m.$('#qrMsg').textContent = 'Kamera tidak bisa dibuka di perangkat ini. Ketik nomor booking di bawah.'; m.$('#qrV').style.display = 'none'; }
+    } catch (e) { msg.textContent = 'Kamera tidak bisa dibuka di perangkat ini. Ketik nomor booking di bawah.'; m.$('#qrV').style.display = 'none'; }
   }
   /* Notifikasi otomatis stok menipis & jadwal perawatan unit (sekali per hari). */
   function stockNotices() {

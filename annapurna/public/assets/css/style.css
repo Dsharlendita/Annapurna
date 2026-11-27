@@ -1872,6 +1872,7 @@ label.var-row { cursor: pointer; }
 .again-items span { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px; background: var(--g50); border: 1px solid var(--g100); font-size: 13px; }
 .again-items img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
 .again-f { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 20px 18px; flex-wrap: wrap; font-size: 13px; }
+.again-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .bnav, .sticky-buy { display: none; }
 @media (max-width: 768px) {
   .bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: #fff; border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 20px -14px rgba(0,0,0,.3); }

@@ -113,7 +113,7 @@
   }
 
   /* Untuk customer yang sudah login: pesanan aktif atau "sewa lagi" trip terakhir */
-  (function mine() {
+  (function mine() {   /* dipanggil ulang setelah ulasan disimpan */
     const u = DB.session(); if (!u || DB.isStaff(u)) return;
     const B = DB.bookings().filter((b) => b.customer.email === u.email || b.userEmail === u.email).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     /* Pesanan aktif, diurutkan dari yang paling mendesak: terlambat → kembali hari ini → belum bayar → sedang disewa → siap ambil → menunggu verifikasi */
@@ -136,9 +136,15 @@
         ${more.length ? `<div class="mine-more">${more.map((b) => { const [tone, lab, txt] = rowInfo(b); return `<a class="mine-row" href="pesanan?id=${b.id}"><span class="pill ${tone}">${lab}</span><span class="mr-main"><b>${NO(b)}</b> · ${Ann.D.fmtRange(b.start, b.end)}<small>${txt}</small></span><i class="fa-solid fa-chevron-right"></i></a>`; }).join('')}${acts.length > 3 ? `<a class="mine-all" href="pesanan">Lihat semua pesanan (${acts.length})</a>` : ''}</div>` : ''}</div>`;
     } else if (last) {
       const items = last.items;
-      box.innerHTML = `<div class="mine-card again"><div class="mc-h"><div><small>Halo, ${esc(first)}</small><strong>Sewa lagi perlengkapan trip terakhirmu?</strong></div></div>
+      /* Trip terakhir yang belum diulas: ajakan ulasan tampil di sini (paling terlihat), selain di Riwayat Pesanan */
+      const rv = DB.reviewFor ? DB.reviewFor(last.id) : null;
+      const revBtn = rv
+        ? `<button class="btn btn-ghost btn-sm" id="revBtn" title="Lihat / ubah ulasan">${UI.stars(rv.rating, false)} Ulasanmu</button>`
+        : '<button class="btn btn-gold" id="revBtn"><i class="fa-regular fa-star"></i> Beri ulasan</button>';
+      box.innerHTML = `<div class="mine-card again"><div class="mc-h"><div><small>Halo, ${esc(first)}</small><strong>${rv ? 'Sewa lagi perlengkapan trip terakhirmu?' : 'Gimana trip terakhirmu? Beri ulasan, yuk!'}</strong></div></div>
         <div class="again-items">${items.map((i) => `<span><img loading="lazy" decoding="async" src="${asset(i.img)}" alt="">${i.qty}× ${esc(i.name)}</span>`).join('')}</div>
-        <div class="again-f"><span class="muted">Trip terakhir ${Ann.D.fmtRange(last.start, last.end)} · ${last.days} hari</span><button class="btn btn-primary" id="againBtn"><i class="fa-solid fa-rotate-right"></i> Sewa lagi</button></div></div>`;
+        <div class="again-f"><span class="muted">Trip terakhir ${Ann.D.fmtRange(last.start, last.end)} · ${last.days} hari</span><span class="again-acts">${revBtn}<button class="btn btn-primary" id="againBtn"><i class="fa-solid fa-rotate-right"></i> Sewa lagi</button></span></div></div>`;
+      $('#revBtn').addEventListener('click', () => UI.reviewModal(DB.booking(last.id) || last, () => mine()));
       $('#againBtn').addEventListener('click', () => UI.tripModal(() => {
         const t = DB.trip(); if (!t) return;
         items.forEach((it) => UI.Cart.add(Object.assign({ type: 'rent', kind: it.kind, refId: it.refId, qty: it.qty, start: t.start, end: t.end }, it.size ? { size: it.size } : {})));

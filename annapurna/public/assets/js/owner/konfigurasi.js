@@ -41,6 +41,10 @@
   const lines = (v) => String(v || '').split(/\n|,/).map((x) => x.trim()).filter(Boolean);
   const catName = (id) => (DB.categories(true).find((c) => c.id === id) || { name: id }).name;
   const productsRaw = () => DB.get('products');
+  /* Apakah barang memakai atribut ini? Varian bisa 2 sumbu (mis. Ukuran × Warna: attrId & attrId2); varian lama hanya
+     menyimpan nama (label / label2) tanpa id; atribut biasa ada di p.attrs. Dulu hanya attrId yang dihitung → Warna "0 barang". */
+  const usesAttr = (p, a) => { const v = p.variant || {}; const nm = String(a.name || '').toLowerCase();
+    return v.attrId === a.id || v.attrId2 === a.id || (!v.attrId && v.label && String(v.label).toLowerCase() === nm) || (!v.attrId2 && v.label2 && String(v.label2).toLowerCase() === nm) || !!(p.attrs && p.attrs[a.id]); };
   /* Tombol Hapus (merah): hanya untuk data yang tidak dipakai barang mana pun; yang dipakai cukup dinonaktifkan */
   const DEL_BTN = (k, id, title) => `<button class="btn btn-light btn-xs" data-${k}="${esc(id)}" style="color:#b42318" title="${esc(title)}"><i class="fa-solid fa-trash-can"></i> Hapus</button>`;
   const head = (t, sub, btn) => `<div class="cfg-head"><div><h2>${t}</h2><p>${sub}</p></div>${btn || ''}</div>`;
@@ -337,7 +341,7 @@
       $('#cfgMain').innerHTML = head('Atribut Barang', 'Contoh: jaket awalnya tanpa ukuran, lalu Owner menambah atribut "Ukuran" untuk kategori Jaket — form barang staff langsung menampilkan pilihan S, M, L, XL tanpa mengubah kode.', '<button class="btn btn-primary btn-sm" id="addAt"><i class="fa-solid fa-plus"></i> Tambah atribut</button>')
         + `<div class="notice" style="margin-bottom:16px"><i class="fa-solid fa-circle-info"></i><div><strong>Varian stok</strong> = stok dihitung per nilai (misalnya stok jaket M dan L terpisah) dan customer wajib memilih nilainya saat menyewa/membeli. Atribut biasa hanya menjadi informasi di halaman produk.</div></div>
         <div class="table-wrap"><table class="table"><thead><tr><th>Atribut</th><th>Nilai</th><th>Berlaku untuk</th><th>Dipakai</th><th class="num">Aksi</th></tr></thead><tbody>
-        ${A.map((a) => { const used = P.filter((p) => (p.variant && p.variant.attrId === a.id) || (p.attrs && p.attrs[a.id])).length; const off = a.active === false;
+        ${A.map((a) => { const used = P.filter((p) => usesAttr(p, a)).length; const off = a.active === false;
           return `<tr class="${off ? 'row-off' : ''}"><td><strong>${esc(a.name)}</strong><small>${TYPE_LABEL[a.type]}${a.variant ? ' · <b style="color:var(--g700)">Varian stok</b>' : ''}${a.required ? ' · wajib diisi' : ''}${off ? ' · <b>nonaktif</b>' : ''}</small></td>
             <td style="max-width:280px"><div class="chips">${a.type === 'pilihan' ? a.values.map((v) => `<span>${esc(v)}</span>`).join('') : `<span class="none">Diisi bebas (${TYPE_LABEL[a.type].toLowerCase()})</span>`}</div></td>
             <td>${(a.cats || []).length ? a.cats.map(catName).map(esc).join(', ') : 'Semua kategori'}</td><td>${used} barang</td>
@@ -658,7 +662,11 @@
   function attrForm(a) {
     const isNew = !a; a = a ? JSON.parse(JSON.stringify(a)) : { id: '', name: '', type: 'pilihan', values: [], variant: false, cats: [], required: false, active: true };
     const P = productsRaw(); const cats = DB.categories(true);
-    const usedVals = (v) => P.filter((p) => (p.variant && p.variant.attrId === a.id && p.variant.options.some((o) => o.name === v)) || (p.attrs && p.attrs[a.id] === v)).length;
+    /* Nilai yang dipakai barang (tidak boleh dikeluarkan). Varian 2 sumbu: nilai sumbu-1 / sumbu-2 diambil dari "M / Hitam" lewat DB.vParts */
+    const usedVals = (v) => P.filter((p) => { const V = p.variant;
+      if (V && V.attrId === a.id && V.options.some((o) => (V.label2 ? DB.vParts(p, o.name)[0] : o.name) === v)) return true;
+      if (V && V.attrId2 === a.id && V.options.some((o) => DB.vParts(p, o.name)[1] === v)) return true;
+      return !!(p.attrs && p.attrs[a.id] === v); }).length;
     /* Versi sederhana: 3 pertanyaan. Tipe selalu "pilihan" (atribut lama bertipe teks/angka tetap berlaku apa adanya).
        "Wajib diisi staff" mengikuti jawaban nomor 3 (stok terpisah → wajib). */
     const legacy = !isNew && a.type && a.type !== 'pilihan';
@@ -702,12 +710,12 @@
       const next = Object.assign({}, a, { id: a.id || 'at-' + Date.now().toString(36), name: E.aname.value.trim(), type: legacy ? a.type : 'pilihan', values: legacy ? [] : a.values,
         cats: pickedCats, variant: isVar, required: legacy ? !!a.required : isVar });
       const all = DB.attributes(true); const i = all.findIndex((x) => x.id === next.id); const old = i >= 0 ? all[i] : null;
-      if (old && old.variant && !next.variant && P.some((p) => p.variant && p.variant.attrId === old.id)) { toast('Atribut ini masih dipakai sebagai varian stok barang, tidak bisa diubah jadi atribut biasa.', 'err'); return; }
+      if (old && old.variant && !next.variant && P.some((p) => p.variant && (p.variant.attrId === old.id || p.variant.attrId2 === old.id))) { toast('Atribut ini masih dipakai sebagai varian stok barang, tidak bisa diubah jadi atribut biasa.', 'err'); return; }
       if (i >= 0) all[i] = next; else all.push(next);
       const ch = old ? [['name', 'Nama'], ['type', 'Tipe'], ['values', 'Nilai'], ['cats', 'Kategori'], ['variant', 'Varian stok'], ['required', 'Wajib']].filter(([k]) => JSON.stringify(old[k]) !== JSON.stringify(next[k]))
         .map(([k, l]) => ({ field: l, from: fmtA(k, old[k]), to: fmtA(k, next[k]) })) : [{ field: 'Nilai', from: '', to: next.values.join(', ') || TYPE_LABEL[next.type] }, { field: 'Kategori', from: '', to: fmtA('cats', next.cats) }];
       DB.saveConfig('attributes', all, `${old ? 'Mengubah' : 'Menambahkan'} atribut barang "${next.name}"`, ch);
-      if (old && old.name !== next.name) { const prods = productsRaw(); prods.forEach((p) => { if (p.variant && p.variant.attrId === next.id) p.variant.label = next.name; }); DB.set('products', prods); }
+      if (old && old.name !== next.name) { const prods = productsRaw(); prods.forEach((p) => { if (p.variant && p.variant.attrId === next.id) p.variant.label = next.name; if (p.variant && p.variant.attrId2 === next.id) p.variant.label2 = next.name; }); DB.set('products', prods); }
       m.close(); toast('Atribut disimpan.'); R.atribut();
     });
   }
@@ -743,7 +751,7 @@
       if (await confirmBox(off ? { title: `Aktifkan ${esc(c.name)}?`, text: 'Kategori tampil lagi di website.', ok: 'Aktifkan' } : { title: `Nonaktifkan ${esc(c.name)}?`, text: 'Kategori dan barang di dalamnya disembunyikan dari website. Tidak ada data yang dihapus.', ok: 'Nonaktifkan' })) { DB.saveCategory(Object.assign({}, c, { active: off })); R.kategori(); } }
     const ae = t.closest('[data-aedit]'); if (ae) attrForm(DB.attributes(true).find((a) => a.id === ae.dataset.aedit));
     const at = t.closest('[data-atoggle]'); if (at) { const all = DB.attributes(true); const a = all.find((x) => x.id === at.dataset.atoggle); const off = a.active === false;
-      if (!off && productsRaw().some((p) => p.variant && p.variant.attrId === a.id) && !(await confirmBox({ title: `Nonaktifkan "${esc(a.name)}"?`, text: 'Atribut tidak muncul lagi di form barang baru. Barang yang sudah memakai atribut ini tetap memakai stok per nilainya.', ok: 'Nonaktifkan' }))) return;
+      if (!off && productsRaw().some((p) => usesAttr(p, a)) && !(await confirmBox({ title: `Nonaktifkan "${esc(a.name)}"?`, text: 'Atribut tidak muncul lagi di form barang baru. Barang yang sudah memakai atribut ini tetap memakai stok per nilainya.', ok: 'Nonaktifkan' }))) return;
       a.active = off; DB.saveConfig('attributes', all, `${off ? 'Mengaktifkan' : 'Menonaktifkan'} atribut barang "${a.name}"`, [{ field: 'Status', from: off ? 'Nonaktif' : 'Aktif', to: off ? 'Aktif' : 'Nonaktif' }]); R.atribut(); }
     const se = t.closest('[data-sedit]'); if (se) sopForm(DB.sops().find((x) => x.id === se.dataset.sedit));
     const st = t.closest('[data-stoggle]'); if (st) { const all = DB.sops(); const x = all.find((y) => y.id === st.dataset.stoggle); const off = x.active === false; x.active = off;
@@ -751,7 +759,7 @@
 
     /* ---------- Hapus permanen (diperiksa ulang saat diklik) ---------- */
     const ad = t.closest('[data-adel]'); if (ad) { const all = DB.attributes(true); const a = all.find((x) => x.id === ad.dataset.adel); if (!a) return;
-      if (productsRaw().some((p) => (p.variant && p.variant.attrId === a.id) || (p.attrs && p.attrs[a.id]))) { toast(`Atribut "${a.name}" dipakai barang, jadi tidak bisa dihapus. Gunakan Nonaktifkan.`, 'err'); return; }
+      if (productsRaw().some((p) => usesAttr(p, a))) { toast(`Atribut "${a.name}" dipakai barang, jadi tidak bisa dihapus. Gunakan Nonaktifkan.`, 'err'); return; }
       if (!(await confirmBox({ title: `Hapus atribut "${esc(a.name)}"?`, text: 'Atribut belum dipakai barang mana pun, jadi bisa dihapus permanen dari daftar.', ok: 'Hapus', danger: true }))) return;
       DB.saveConfig('attributes', all.filter((x) => x.id !== a.id), `Menghapus atribut barang "${a.name}"`, [{ field: 'Atribut', from: a.name, to: '(dihapus)' }]); toast(`Atribut "${a.name}" dihapus.`); R.atribut(); return; }
     const cd = t.closest('[data-cdel]'); if (cd) { const cats = DB.categories(true); const c = cats.find((x) => x.id === cd.dataset.cdel); if (!c) return;

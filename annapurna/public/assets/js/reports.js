@@ -320,8 +320,9 @@
   /* ---------- Template email ---------- */
   function mailHtml(m) {
     const st = DB.settings(); const d = m.data || {};
+    const from = (DB.driveInfo() || {}).mailFrom || 'no-reply@annapurna.id';   /* MAIL_FROM_ADDRESS server */
     const shell = (inner) => `<div class="mail">
-      <div class="mail-meta"><div><span>Dari</span> ${esc(st.storeName)} &lt;no-reply@annapurna.id&gt;</div><div><span>Kepada</span> ${esc(m.to)}</div><div><span>Subjek</span> <strong>${esc(m.subject)}</strong></div><div><span>Waktu</span> ${D.fmtDateTime(m.at)}</div></div>
+      <div class="mail-meta"><div><span>Dari</span> ${esc(st.storeName)} &lt;${esc(from)}&gt;</div><div><span>Kepada</span> ${esc(m.to)}</div><div><span>Subjek</span> <strong>${esc(m.subject)}</strong></div><div><span>Waktu</span> ${D.fmtDateTime(m.at)}</div></div>
       <div class="mail-body"><div class="mail-brand"><img src="${url('assets/img/logo.png')}" alt=""></div>${inner}
       <p class="mail-foot">Email ini dikirim otomatis oleh sistem ${esc(st.storeName)} · ${esc(st.address)}</p></div></div>`;
     const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;

@@ -168,6 +168,7 @@ class BootController extends Controller
                         'email' => $c?->email,
                         'rootUrl' => $c?->root_folder_id ? 'https://drive.google.com/drive/folders/' . $c->root_folder_id : null,
                         'mailOn' => Rekap::mailEnabled(),
+                        'mailFrom' => (string) config('mail.from.address'),   // alamat pengirim di pratinjau email
                     ];
                     $out['archives'] = ReportArchive::orderByDesc('period')->get()->map(fn ($a) => Rekap::toFe($a))->all();
                 }

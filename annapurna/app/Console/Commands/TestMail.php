@@ -56,6 +56,9 @@ class TestMail extends Command
 
             return self::FAILURE;
         }
+        foreach (self::gmailProblems($smtp, (string) config('mail.from.address')) as $p) {
+            $this->warn('PERIKSA: ' . $p);
+        }
 
         $this->line("Mengirim email percobaan ({$jenis}) ke {$to} ...");
         try {
@@ -71,6 +74,10 @@ class TestMail extends Command
             };
         } catch (\Throwable $e) {
             $this->error('GAGAL: ' . $e->getMessage());
+            if (preg_match('/535|Username and Password not accepted|BadCredentials|authenticat/i', $e->getMessage())) {
+                $this->line('Artinya username / sandi ditolak. Untuk Gmail: MAIL_USERNAME = alamat Gmail lengkap, MAIL_PASSWORD = Sandi Aplikasi 16 huruf');
+                $this->line('(bukan kata sandi Gmail biasa; Verifikasi 2 Langkah harus aktif). Setelah mengubah .env: php artisan optimize');
+            }
 
             return self::FAILURE;
         }
@@ -79,6 +86,39 @@ class TestMail extends Command
         $this->line('Bila tidak sampai: cPanel → Track Delivery. Status "quarantine" di mail gateway = ditahan filter spam hosting.');
 
         return self::SUCCESS;
+    }
+
+    /** Kesalahan umum saat memakai SMTP Gmail (smtp.gmail.com). Kosong = tidak ada masalah terlihat. */
+    public static function gmailProblems(array $smtp, string $from): array
+    {
+        if (! str_contains(strtolower((string) ($smtp['host'] ?? '')), 'gmail.com')) {
+            return [];
+        }
+        $out = [];
+        $user = strtolower(trim((string) ($smtp['username'] ?? '')));
+        $pass = (string) ($smtp['password'] ?? '');
+        $port = (int) ($smtp['port'] ?? 0);
+        $scheme = strtolower((string) ($smtp['scheme'] ?? ''));
+        if (! filter_var($user, FILTER_VALIDATE_EMAIL)) {
+            $out[] = 'MAIL_USERNAME harus alamat Gmail lengkap, misalnya nama@gmail.com.';
+        }
+        if ($user !== '' && strtolower(trim($from)) !== $user) {
+            $out[] = "MAIL_FROM_ADDRESS ({$from}) berbeda dengan MAIL_USERNAME ({$user}). Gmail tetap mengirim atas nama {$user}; samakan keduanya.";
+        }
+        if (str_contains($pass, ' ')) {
+            $out[] = 'MAIL_PASSWORD berisi spasi. Tulis Sandi Aplikasi 16 huruf tanpa spasi.';
+        }
+        if (strlen(str_replace(' ', '', $pass)) !== 16) {
+            $out[] = 'Sandi Aplikasi Gmail selalu 16 huruf. Kata sandi Gmail biasa akan ditolak.';
+        }
+        if ($port === 465 && $scheme !== 'smtps') {
+            $out[] = 'Port 465 butuh MAIL_SCHEME=smtps.';
+        }
+        if ($port === 587 && $scheme === 'smtps') {
+            $out[] = 'Port 587 tidak memakai MAIL_SCHEME=smtps. Hapus baris MAIL_SCHEME (atau isi smtp).';
+        }
+
+        return $out;
     }
 
     private function infoText(): string

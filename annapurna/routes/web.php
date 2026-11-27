@@ -260,6 +260,7 @@ Route::prefix('api/owner')->name('api.owner.')->middleware(['auth', 'role:owner'
         Route::post('/', 'store')->name('store');
         Route::patch('/{id}', 'update')->name('update');
         Route::post('/{id}/toggle', 'toggle')->name('toggle');
+        Route::delete('/{id}', 'destroy')->name('destroy');   // hanya akun yang belum pernah dipakai
         Route::post('/{id}/reset-password', 'resetPassword')->name('reset-password');
     });
 

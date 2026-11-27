@@ -79,6 +79,7 @@ class StaffController extends Controller
             'createdAt' => $u->created_at?->toIso8601String(),
             'created_at' => $u->created_at?->toIso8601String(),
             'activity_count' => ActivityLog::where('user_id', $u->id)->count(),
+            'canDelete' => self::deleteBlocker($u, Auth::user()) === null,
         ];
     }
 
@@ -346,6 +347,50 @@ class StaffController extends Controller
             'ok' => true,
             'user' => $this->formatUser($user),
         ]);
+    }
+
+    /**
+     * Akun staf boleh DIHAPUS hanya bila belum pernah dipakai: admin (bukan Owner), bukan diri sendiri,
+     * belum pernah login, dan tidak punya satu pun catatan aktivitas. Staf yang sudah pernah bekerja hanya bisa
+     * dinonaktifkan, supaya jejaknya di histori, pembayaran & laporan tetap utuh.
+     * Mengembalikan alasan penolakan, atau null bila boleh dihapus.
+     */
+    public static function deleteBlocker(User $u, ?User $by): ?string
+    {
+        if ($u->role !== 'admin') {
+            return 'Akun Owner tidak bisa dihapus.';
+        }
+        if ($by && $by->id === $u->id) {
+            return 'Anda tidak dapat menghapus akun Anda sendiri.';
+        }
+        if ($u->last_login_at || ActivityLog::where('user_id', $u->id)->exists()) {
+            return 'Akun ini sudah pernah dipakai, jadi tidak bisa dihapus agar histori tetap utuh. Gunakan Nonaktifkan.';
+        }
+
+        return null;
+    }
+
+    /**
+     * DELETE /api/owner/staff/{id}
+     * Hapus akun staf yang belum pernah dipakai (mis. salah ketik / akun percobaan), sehingga emailnya bisa dipakai lagi.
+     */
+    public function destroy(mixed $id): JsonResponse
+    {
+        $user = User::whereIn('role', ['admin', 'owner'])->findOrFail($this->parseUserId($id));
+        if ($why = self::deleteBlocker($user, Auth::user())) {
+            return response()->json(['ok' => false, 'msg' => $why, 'message' => $why], 422);
+        }
+
+        $name = $user->name;
+        $email = $user->email;
+        DB::transaction(function () use ($user) {
+            $this->invalidateUserSessions($user->id);
+            DB::table('password_reset_tokens')->where('email', $user->email)->delete();
+            $user->delete();   // notifikasi & kode verifikasi ikut terhapus (cascade); rujukan lain menjadi kosong (nullOnDelete)
+        });
+        Audit::log('staff', "Menghapus akun staf {$name} ({$email}) yang belum pernah dipakai");
+
+        return response()->json(['ok' => true, 'msg' => "Akun {$name} dihapus. Email {$email} bisa dipakai lagi."]);
     }
 
     /**

@@ -60,6 +60,7 @@
           <a class="btn btn-light btn-xs" href="${Admin.O('histori?staff=' + u.id)}" title="Histori staff"><i class="fa-solid fa-clock-rotate-left"></i> Histori</a>
           <button class="btn btn-light btn-xs" data-edit="${u.id}"><i class="fa-solid fa-pen"></i> Edit</button>
           ${self ? '' : `<button class="btn ${off ? 'btn-primary' : 'btn-light'} btn-xs" data-toggle="${u.id}"><i class="fa-solid ${off ? 'fa-user-check' : 'fa-user-slash'}"></i> ${off ? 'Aktifkan' : 'Nonaktifkan'}</button>`}
+          ${u.canDelete ? `<button class="btn btn-light btn-xs" data-del="${u.id}" style="color:#b42318" title="Hanya untuk akun yang belum pernah dipakai"><i class="fa-solid fa-trash-can"></i> Hapus</button>` : ''}
         </div></td></tr>`;
     }).join('') : '<tr><td colspan="6"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-solid fa-users"></i></div><h3>Tidak ada staff</h3><p>Coba ubah filter pencarian.</p></div></td></tr>';
   }
@@ -222,8 +223,17 @@
   $('#add').addEventListener('click', () => form());
   ['#q', '#fStatus', '#fRole'].forEach((s) => $(s).addEventListener('input', () => { fetchStaff(); }));
   $('#rows').addEventListener('click', async (e) => {
-    const ed = e.target.closest('[data-edit]'), tg = e.target.closest('[data-toggle]'), rs = e.target.closest('[data-reset]');
+    const ed = e.target.closest('[data-edit]'), tg = e.target.closest('[data-toggle]'), rs = e.target.closest('[data-reset]'), dl = e.target.closest('[data-del]');
     if (ed) form(getStaff(ed.dataset.edit));
+    /* Hapus: hanya akun yang belum pernah login & belum punya aktivitas (server memeriksa ulang) */
+    if (dl) {
+      const u = getStaff(dl.dataset.del);
+      const ok = await confirmBox({ title: `Hapus akun ${esc(u.name)}?`, text: `Akun ini belum pernah dipakai, jadi bisa dihapus permanen. Email <b>${esc(u.email)}</b> bisa dipakai lagi untuk akun baru.`, ok: 'Hapus akun', danger: true });
+      if (!ok) return;
+      const r = await Api.busy(dl, () => Api.del('api/owner/staff/' + u.id), 'Menghapus…'); if (!r) return;
+      if (r.ok) { toast(r.msg || 'Akun dihapus.'); await fetchStaff(); } else toast(r.msg || 'Gagal menghapus akun.', 'err');
+      return;
+    }
     if (tg) {
       const u = getStaff(tg.dataset.toggle); const off = u.status === 'nonaktif';
       if (!off && u.role === 'owner' && activeOwners().length <= 1) { toast('Minimal harus ada satu Owner aktif.', 'err'); return; }

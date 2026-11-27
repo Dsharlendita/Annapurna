@@ -41,6 +41,8 @@
   const lines = (v) => String(v || '').split(/\n|,/).map((x) => x.trim()).filter(Boolean);
   const catName = (id) => (DB.categories(true).find((c) => c.id === id) || { name: id }).name;
   const productsRaw = () => DB.get('products');
+  /* Tombol Hapus (merah): hanya untuk data yang tidak dipakai barang mana pun; yang dipakai cukup dinonaktifkan */
+  const DEL_BTN = (k, id, title) => `<button class="btn btn-light btn-xs" data-${k}="${esc(id)}" style="color:#b42318" title="${esc(title)}"><i class="fa-solid fa-trash-can"></i> Hapus</button>`;
   const head = (t, sub, btn) => `<div class="cfg-head"><div><h2>${t}</h2><p>${sub}</p></div>${btn || ''}</div>`;
   const listEditor = (id, arr, ph) => `<div class="line-list" id="${id}">${arr.map((t) => lineRow(t, ph)).join('')}</div><button type="button" class="btn btn-light btn-sm" data-addline="${id}" data-ph="${esc(ph || '')}"><i class="fa-solid fa-plus"></i> Tambah poin</button>`;
   const lineRow = (t, ph) => `<div class="line-row"><textarea class="textarea" rows="2" placeholder="${esc(ph || '')}">${esc(t)}</textarea><button type="button" class="btn btn-light btn-xs" data-rmline title="Keluarkan poin"><i class="fa-solid fa-xmark"></i></button></div>`;
@@ -326,7 +328,7 @@
         + `<div class="cfg-cards">${cats.map((c) => { const n = P.filter((p) => p.cat === c.id).length; const at = DB.attrsForCat(c.id); const off = c.active === false;
           return `<article class="cfg-card ${off ? 'row-off' : ''}"><img loading="lazy" decoding="async" src="${asset(c.img)}" alt=""><div class="cc-bd"><strong>${esc(c.name)}</strong>${off ? ' <span class="pill gray plain">Tidak aktif</span>' : ''}<small>${n} barang</small>
             <div class="chips">${at.length ? at.map((a) => `<span class="${a.variant ? 'v' : ''}">${esc(a.name)}</span>`).join('') : '<span class="none">Tanpa atribut</span>'}</div></div>
-            <div class="cc-act"><button class="btn btn-light btn-xs" data-cedit="${c.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-ctoggle="${c.id}">${off ? 'Aktifkan' : 'Nonaktifkan'}</button></div></article>`; }).join('')}</div>`;
+            <div class="cc-act"><button class="btn btn-light btn-xs" data-cedit="${c.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-ctoggle="${c.id}">${off ? 'Aktifkan' : 'Nonaktifkan'}</button>${n ? '' : DEL_BTN('cdel', c.id, 'Hanya untuk kategori tanpa barang')}</div></article>`; }).join('')}</div>`;
       $('#addCat').addEventListener('click', () => catForm());
     },
     /* ---------- Atribut ---------- */
@@ -339,7 +341,7 @@
           return `<tr class="${off ? 'row-off' : ''}"><td><strong>${esc(a.name)}</strong><small>${TYPE_LABEL[a.type]}${a.variant ? ' · <b style="color:var(--g700)">Varian stok</b>' : ''}${a.required ? ' · wajib diisi' : ''}${off ? ' · <b>nonaktif</b>' : ''}</small></td>
             <td style="max-width:280px"><div class="chips">${a.type === 'pilihan' ? a.values.map((v) => `<span>${esc(v)}</span>`).join('') : `<span class="none">Diisi bebas (${TYPE_LABEL[a.type].toLowerCase()})</span>`}</div></td>
             <td>${(a.cats || []).length ? a.cats.map(catName).map(esc).join(', ') : 'Semua kategori'}</td><td>${used} barang</td>
-            <td><div class="acts"><button class="btn btn-light btn-xs" data-aedit="${a.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-atoggle="${a.id}">${off ? 'Aktifkan' : 'Nonaktifkan'}</button></div></td></tr>`; }).join('')}
+            <td><div class="acts"><button class="btn btn-light btn-xs" data-aedit="${a.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-atoggle="${a.id}">${off ? 'Aktifkan' : 'Nonaktifkan'}</button>${used ? '' : DEL_BTN('adel', a.id, 'Hanya untuk atribut yang belum dipakai barang')}</div></td></tr>`; }).join('')}
         </tbody></table></div>`;
       $('#addAt').addEventListener('click', () => attrForm());
     },
@@ -624,7 +626,7 @@
       const L = DB.sops();
       $('#cfgMain').innerHTML = head('SOP & Peraturan Staff', 'Tampil di menu SOP staff, di dashboard (yang disematkan), dan bisa dibuka lewat tautan “Lihat SOP” di form terkait (misalnya SOP pengembalian saat staff memproses pengembalian).', '<button class="btn btn-primary btn-sm" id="addSop"><i class="fa-solid fa-plus"></i> Tambah SOP</button>')
         + `<div class="sop-list">${L.map((x) => `<article class="sop-card ${x.active === false ? 'row-off' : ''}"><div class="sop-h"><span class="pill blue plain">${CTX[x.context] || x.context}</span>${x.pinned ? '<span class="pill amber plain"><i class="fa-solid fa-thumbtack"></i> Disematkan</span>' : ''}${x.active === false ? '<span class="pill gray plain">Diarsipkan</span>' : ''}</div>
-          <h3>${esc(x.title)}</h3><p>${esc(x.body)}</p><div class="acts" style="justify-content:flex-start"><button class="btn btn-light btn-xs" data-sedit="${x.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-stoggle="${x.id}">${x.active === false ? 'Aktifkan' : 'Arsipkan'}</button></div></article>`).join('') || '<p class="muted">Belum ada SOP.</p>'}</div>`;
+          <h3>${esc(x.title)}</h3><p>${esc(x.body)}</p><div class="acts" style="justify-content:flex-start"><button class="btn btn-light btn-xs" data-sedit="${x.id}"><i class="fa-solid fa-pen"></i> Edit</button><button class="btn btn-light btn-xs" data-stoggle="${x.id}">${x.active === false ? 'Aktifkan' : 'Arsipkan'}</button>${DEL_BTN('sdel', x.id, 'Hapus SOP ini')}</div></article>`).join('') || '<p class="muted">Belum ada SOP.</p>'}</div>`;
       $('#addSop').addEventListener('click', () => sopForm());
     },
   };
@@ -746,6 +748,24 @@
     const se = t.closest('[data-sedit]'); if (se) sopForm(DB.sops().find((x) => x.id === se.dataset.sedit));
     const st = t.closest('[data-stoggle]'); if (st) { const all = DB.sops(); const x = all.find((y) => y.id === st.dataset.stoggle); const off = x.active === false; x.active = off;
       DB.saveConfig('sops', all, `${off ? 'Mengaktifkan kembali' : 'Mengarsipkan'} SOP "${x.title}"`, []); R.sop(); }
+
+    /* ---------- Hapus permanen (diperiksa ulang saat diklik) ---------- */
+    const ad = t.closest('[data-adel]'); if (ad) { const all = DB.attributes(true); const a = all.find((x) => x.id === ad.dataset.adel); if (!a) return;
+      if (productsRaw().some((p) => (p.variant && p.variant.attrId === a.id) || (p.attrs && p.attrs[a.id]))) { toast(`Atribut "${a.name}" dipakai barang, jadi tidak bisa dihapus. Gunakan Nonaktifkan.`, 'err'); return; }
+      if (!(await confirmBox({ title: `Hapus atribut "${esc(a.name)}"?`, text: 'Atribut belum dipakai barang mana pun, jadi bisa dihapus permanen dari daftar.', ok: 'Hapus', danger: true }))) return;
+      DB.saveConfig('attributes', all.filter((x) => x.id !== a.id), `Menghapus atribut barang "${a.name}"`, [{ field: 'Atribut', from: a.name, to: '(dihapus)' }]); toast(`Atribut "${a.name}" dihapus.`); R.atribut(); return; }
+    const cd = t.closest('[data-cdel]'); if (cd) { const cats = DB.categories(true); const c = cats.find((x) => x.id === cd.dataset.cdel); if (!c) return;
+      if (productsRaw().some((p) => p.cat === c.id)) { toast(`Kategori "${c.name}" masih berisi barang, jadi tidak bisa dihapus. Gunakan Nonaktifkan.`, 'err'); return; }
+      /* Atribut yang HANYA berlaku untuk kategori ini akan berubah jadi "Semua kategori" bila kategorinya hilang, jadi diminta diubah dulu */
+      const only = DB.attributes(true).filter((a) => (a.cats || []).length === 1 && a.cats[0] === c.id);
+      if (only.length) { toast(`Atribut ${only.map((a) => `"${a.name}"`).join(', ')} hanya berlaku untuk kategori ini. Ubah atau hapus atribut itu dulu di Atribut Barang.`, 'err'); return; }
+      if (!(await confirmBox({ title: `Hapus kategori "${esc(c.name)}"?`, text: 'Kategori ini tidak berisi barang, jadi bisa dihapus permanen.', ok: 'Hapus', danger: true }))) return;
+      const attrs = DB.attributes(true); if (attrs.some((a) => (a.cats || []).includes(c.id))) DB.saveConfig('attributes', attrs.map((a) => (a.cats || []).includes(c.id) ? Object.assign({}, a, { cats: a.cats.filter((x) => x !== c.id) }) : a), `Melepas kategori "${c.name}" dari atribut barang`, []);
+      DB.set('categories', cats.filter((x) => x.id !== c.id)); DB.audit({ type: 'konfigurasi', action: `Menghapus kategori ${c.name}`, ref: c.id });
+      toast(`Kategori "${c.name}" dihapus.`); R.kategori(); return; }
+    const sd = t.closest('[data-sdel]'); if (sd) { const all = DB.sops(); const x = all.find((y) => y.id === sd.dataset.sdel); if (!x) return;
+      if (!(await confirmBox({ title: `Hapus SOP "${esc(x.title)}"?`, text: 'SOP dihapus permanen dari daftar. Bila hanya ingin disembunyikan, pakai Arsipkan.', ok: 'Hapus', danger: true }))) return;
+      DB.saveConfig('sops', all.filter((y) => y.id !== x.id), `Menghapus SOP "${x.title}"`, []); toast('SOP dihapus.'); R.sop(); }
   });
   nav(); R[cur]();
 })();

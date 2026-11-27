@@ -1092,6 +1092,7 @@
       columns: [{ header: 'ID' }, { header: 'Nama Barang', width: 30 }, { header: 'Kategori' }, { header: 'Sewa / malam', type: 'money' }, { header: 'Perkegiatan 3 hari', type: 'money' }, { header: 'Ekspedisi 5 hari', type: 'money' }, { header: 'Total Unit', type: 'number' }, { header: 'Tersedia', type: 'number' }, { header: 'Disewa', type: 'number' }, { header: 'Ukuran' }, { header: 'Status' }],
       rows: L.map((p) => [p.id, p.name, catName(p.cat), p.rent, p.rent3 || '', p.rent5 || '', p.stock, Rules.availableOn(p.id, T), Rules.rentedNow(p.id), vtxt(p), p.active === false ? 'Tidak aktif' : 'Aktif']),
       foot: ['Total', '', '', '', '', '', L.reduce((a, p) => a + p.stock, 0), L.reduce((a, p) => a + Rules.availableOn(p.id, T), 0), L.reduce((a, p) => a + Rules.rentedNow(p.id), 0), '', ''] }; });
+  fillCats();   /* pilihan filter kategori (dulu ikut terhapus saat menu Data Barang dirombak, sehingga hanya ada "Semua kategori") */
   fillType();
   if (param('low')) { setTab('jual'); $('#fType').value = 'lowsale'; }
   else if (param('jenis') === 'jual') setTab('jual');

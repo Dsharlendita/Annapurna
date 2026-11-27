@@ -101,35 +101,4 @@
     toast(`Selamat datang, ${data.user.name.split(' ')[0]}!`);
     setTimeout(() => { location.href = data.redirect || (next ? next : DB.isStaff(data.user) ? DB.panelHome(data.user) : './'); }, 450);
   });
-
-  /* Masuk tanpa kata sandi: kode verifikasi dikirim server ke email akun (khusus customer) */
-  const ob = document.getElementById('otpBtn');
-  if (ob) ob.addEventListener('click', () => {
-    const m = UI.modal({ title: 'Masuk dengan kode verifikasi', body: `<p class="muted" style="font-size:13.5px;margin-bottom:12px">Cocok untuk akun yang dibuat otomatis saat checkout. Kode dikirim ke <b>email akunmu</b>.</p>
-      <div class="field"><label for="otpId">Email atau nomor WhatsApp</label><input class="input" id="otpId" placeholder="nama@email.com / 08xxxxxxxxxx"></div><div id="otpStep"></div>`,
-      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="otpGo">Kirim kode</button>' });
-    let ident = '';
-    const go = m.$('#otpGo');
-    const send = async (btn) => {
-      const r = await Api.busy(btn, () => Api.code.send(ident, 'login'), 'Mengirim…'); if (!r) return false;
-      if (!r.ok) { m.$('#otpId').classList.add('err'); UI.toast(r.msg, 'err'); return false; }
-      m.$('#otpStep').innerHTML = `<p style="font-size:13.5px;margin-top:10px">Halo ${UI.esc(String(r.raw.name || '').split(' ')[0])}!</p>` + Api.code.field('otpCode', r.raw);
-      Api.code.countdown(m.$('#otpCodeRe'), r.raw.resendIn);
-      m.$('#otpCodeRe').addEventListener('click', (ev) => send(ev.currentTarget));
-      m.$('#otpCode').focus(); return true;
-    };
-    go.addEventListener('click', async () => {
-      if (!ident) {
-        const id = m.$('#otpId').value.trim(); if (!id) { m.$('#otpId').classList.add('err'); UI.toast('Isi email atau nomor WhatsApp.', 'err'); return; }
-        ident = id;
-        if (await send(go)) { m.$('#otpId').readOnly = true; go.textContent = 'Masuk'; } else ident = '';
-        return;
-      }
-      const v = await Api.busy(go, () => Api.code.check(ident, 'login', m.$('#otpCode').value, next), 'Memeriksa…'); if (!v) return;
-      if (!v.ok) { m.$('#otpCode').classList.add('err'); UI.toast(v.msg, 'err'); return; }
-      DB.adoptSession(v.raw.user);
-      UI.toast(`Selamat datang, ${v.raw.user.name.split(' ')[0]}!`);
-      setTimeout(() => (location.href = v.raw.redirect || UI.url('./')), 400);
-    });
-  });
 })();

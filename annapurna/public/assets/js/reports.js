@@ -354,7 +354,10 @@
   }
   function mailModal(m) {
     const mailto = `mailto:${encodeURIComponent(m.to)}?subject=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(mailText(m))}`;
-    UI.modal({ title: 'Pratinjau email', size: 'lg', body: mailHtml(m), foot: `<a class="btn btn-light" href="${mailto}"><i class="fa-regular fa-envelope"></i> Buka di aplikasi email</a><button class="btn btn-primary" data-close>Tutup</button>` });
+    /* Pratinjau isi email yang SUDAH dikirim sistem. Tombol mailto hanya cadangan bila email otomatis tidak sampai. */
+    const notSent = ['tidak_aktif', 'nonaktif', 'gagal'].includes(m.status);
+    const note = notSent ? 'Email ini <b>belum terkirim</b> karena email otomatis belum aktif / gagal. Kirim manual lewat tombol di bawah atau lewat WhatsApp.' : 'Ini salinan email yang <b>sudah dikirim otomatis</b> oleh sistem. Tidak perlu dikirim ulang.';
+    UI.modal({ title: 'Pratinjau email', size: 'lg', body: `<p class="muted" style="font-size:12.5px;margin:0 0 10px"><i class="fa-solid fa-circle-info"></i> ${note}</p>${mailHtml(m)}`, foot: `<a class="btn btn-light" href="${mailto}" title="${notSent ? 'Buka aplikasi email untuk mengirim manual' : 'Hanya bila email otomatis tidak sampai'}"><i class="fa-regular fa-envelope"></i> ${notSent ? 'Kirim manual' : 'Kirim manual (cadangan)'}</a><button class="btn btn-primary" data-close>Tutup</button>` });
   }
 
   window.Reports = { salesByProduct, refNo, refText, R, TYPES, build: (type, f, t) => R[type](f, t), toSpec, MONTHLY, monthName, monthRange, prevPeriod, folderName, fileName, monthSummary, generateMonthly, autoMonthly, snapshot, downloadArchiveFile, mailHtml, mailText, mailModal };

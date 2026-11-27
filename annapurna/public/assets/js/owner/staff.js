@@ -70,12 +70,12 @@
   function sentModal(title, u, res) {
     const tempPw = res.temp || res.temp_password || '';
     const m = modal({ title, body: `
-      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-envelope-circle-check"></i><div>${res.mail && res.mail.status === 'terkirim' ? `Email informasi akun dikirim ke <strong>${esc(u.email)}</strong>.` : 'Akun staf berhasil dibuat.'} Staff wajib mengganti kata sandi saat pertama login.</div></div>
+      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-envelope-circle-check"></i><div>${res.mail && res.mail.status === 'terkirim' ? `Email informasi akun <b>sudah dikirim otomatis</b> ke <strong>${esc(u.email)}</strong> (bila belum masuk dalam beberapa menit, cek folder Spam).` : 'Akun staf berhasil dibuat.'} Staff wajib mengganti kata sandi saat pertama login.</div></div>
       ${res.mail && res.mail.status === 'tidak_aktif' ? `<div class="notice amber" style="margin-bottom:14px"><i class="fa-solid fa-triangle-exclamation"></i><div><b>Email otomatis belum aktif</b> di server, jadi email ke <strong>${esc(u.email)}</strong> tidak terkirim. Sampaikan info login lewat WhatsApp pribadi staff.</div></div>` : ''}
       <div class="kv"><span>Email akun</span><strong>${esc(u.email)}</strong></div>
       <div class="kv"><span>Kata sandi sementara</span><span><code class="temp-pw">${esc(tempPw)}</code> <button class="btn btn-light btn-xs" id="cp"><i class="fa-regular fa-copy"></i> Salin</button></span></div>
       <p class="muted" style="font-size:12.5px;margin-top:10px">Kata sandi sementara hanya ditampilkan sekali di sini. Sistem tidak menyimpan kata sandi dalam bentuk yang bisa dibaca saat backend sudah aktif.</p>`,
-      foot: `${res.mail && res.mail.subject && (res.mail.status === 'terkirim' || res.mail.status === 'tidak_aktif') ? '<button class="btn btn-light" id="pv"><i class="fa-regular fa-eye"></i> Lihat email</button>' : ''}<button class="btn btn-primary" data-close>Selesai</button>` });
+      foot: `${res.mail && res.mail.subject && (res.mail.status === 'terkirim' || res.mail.status === 'tidak_aktif') ? '<button class="btn btn-light" id="pv"><i class="fa-regular fa-eye"></i> Pratinjau email</button>' : ''}<button class="btn btn-primary" data-close>Selesai</button>` });
     m.$('#cp').addEventListener('click', () => { navigator.clipboard && navigator.clipboard.writeText(tempPw); toast('Kata sandi sementara disalin.'); });
     const pv = m.$('#pv'); if (pv) pv.addEventListener('click', () => Reports.mailModal(res.mail));
   }
@@ -84,14 +84,15 @@
   function createdModal(u, res, payload) {
     const mail = res.mail; const sent = mail && mail.status === 'terkirim'; const failed = mail && mail.status === 'gagal'; const off = mail && mail.status === 'tidak_aktif';
     const m = modal({ title: 'Staff ditambahkan', body: `
-      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-user-check"></i><div>Akun <strong>${esc(u.name)}</strong> berhasil dibuat sebagai <strong>Admin / Staff</strong>.${sent ? ` Email informasi akun dikirim ke <strong>${esc(u.email)}</strong>.` : ''}</div></div>
+      <div class="notice green" style="margin-bottom:14px"><i class="fa-solid fa-user-check"></i><div>Akun <strong>${esc(u.name)}</strong> berhasil dibuat sebagai <strong>Admin / Staff</strong>.${sent ? ` Email informasi akun <b>sudah dikirim otomatis</b> oleh sistem ke <strong>${esc(u.email)}</strong>. Tidak perlu dikirim ulang.` : ''}</div></div>
+      ${sent ? `<p class="muted" style="font-size:12.5px;margin:-6px 0 12px">Bila beberapa menit belum masuk (cek juga folder Spam), kirim info login lewat WhatsApp.</p>` : ''}
       ${off ? `<div class="notice amber" style="margin-bottom:14px"><i class="fa-solid fa-triangle-exclamation"></i><div><b>Email otomatis belum aktif</b> di server, jadi email ke <strong>${esc(u.email)}</strong> tidak terkirim. Sampaikan info login lewat WhatsApp pribadi staff.</div></div>` : ''}
       ${failed ? `<div class="notice red" style="margin-bottom:14px"><i class="fa-solid fa-envelope-circle-xmark"></i><div>Email informasi akun gagal dikirim. Sampaikan info login langsung ke staff.</div></div>` : ''}
       <div class="kv"><span>Email login</span><strong>${esc(u.email)}</strong></div>
       <div class="kv"><span>Kata sandi</span><span>Sesuai yang kamu buat tadi</span></div>
       <div class="kv"><span>Ingatkan ganti kata sandi</span><span>${payload.mustChangePw ? 'Ya' : 'Tidak'}</span></div>
       <p class="muted" style="font-size:12.5px;margin-top:10px">Kirim info login ke WhatsApp pribadi staff (jangan lewat grup chat). Setelah jendela ini ditutup, kata sandi tidak bisa dilihat lagi karena disimpan terenkripsi.</p>`,
-      foot: `${(sent || off) && mail.subject ? '<button class="btn btn-light" id="pv"><i class="fa-regular fa-eye"></i> Lihat email</button>' : ''}<button class="btn btn-light" data-close>Selesai</button><button class="btn btn-wa" id="waL"><i class="fa-brands fa-whatsapp"></i> Kirim info login ke WhatsApp</button>` });
+      foot: `${(sent || off) && mail.subject ? '<button class="btn btn-light" id="pv"><i class="fa-regular fa-eye"></i> Pratinjau email</button>' : ''}<button class="btn btn-light" data-close>Selesai</button><button class="btn btn-wa" id="waL"><i class="fa-brands fa-whatsapp"></i> Kirim info login ke WhatsApp</button>` });
     const pv = m.$('#pv'); if (pv) pv.addEventListener('click', () => Reports.mailModal(mail));
     m.$('#waL').addEventListener('click', () => { m.close(); setTimeout(() => waLogin(Object.assign({}, payload, u), payload.password, payload.mustChangePw), 230); });
   }

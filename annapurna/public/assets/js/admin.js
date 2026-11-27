@@ -1709,7 +1709,7 @@
       <div class="mini-sec"><h4>Barang</h4><div class="adm-items">${b.items.map((i) => `<div class="it"><img src="${asset(i.img)}" alt=""><div class="nm"><strong>${esc(i.name)}</strong><br><small class="muted">${i.qty} × ${rupiah(Rules.lineUnit(i, b.days))} · ${esc(Rules.tierLabel(i.tiers || { d1: i.pricePerDay }, b.days))}</small>${(i.units || []).length ? `<div class="unit-tags">${i.units.map((u) => `<span><i class="fa-solid fa-barcode"></i> ${u.code}</span>`).join('')}</div>` : ''}</div><strong>${rupiah(i.qty * Rules.lineUnit(i, b.days))}</strong></div>`).join('')}</div></div>
       <div class="mini-sec" style="max-width:360px;margin-left:auto">
         ${CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
-        <div class="kv"><span>Subtotal${CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(b.subtotal)}</span></div>
+        ${CI.ok.length ? '' : `<div class="kv"><span>Subtotal</span><span>${rupiah(b.subtotal)}</span></div>`}
         ${b.discount ? `<div class="kv"><span>${esc(DB.discLabel(b.discount))}</span><span style="color:var(--g700)">− ${rupiah(b.discount.amount)}</span></div>` : ''}
         ${b.fine ? `<div class="kv"><span>Denda</span><span>${rupiah(b.fine)}</span></div>` : ''}
         <div class="kv total"><span>${CI.ok.length ? 'Total baru' : 'Total'}</span><span>${rupiah(b.total)}</span></div>

@@ -122,7 +122,7 @@
     <div class="inv-feet ${(isRent && Ann.Svc.has(x)) || saleDel ? 'has-svc' : ''}">
     <div class="inv-foot inv-main"><div class="box">
       ${isRent && CI.ok.length ? `<div class="kv"><span>Total awal</span><span>${rupiah(CI.base)}</span></div><div class="kv"><span>Tambahan ganti barang</span><span style="color:#9a6508;font-weight:700">${CI.add >= 0 ? '+' : '−'} ${rupiah(Math.abs(CI.add))}</span></div>` : ''}
-      <div class="kv"><span>Subtotal${isRent && CI.ok.length ? ' (setelah ganti barang)' : ''}</span><span>${rupiah(isLd ? (x.items || []).reduce((a, i) => a + i.price * i.qty, 0) : x.subtotal)}</span></div>
+      ${isRent && CI.ok.length ? '' : `<div class="kv"><span>Subtotal</span><span>${rupiah(isLd ? (x.items || []).reduce((a, i) => a + i.price * i.qty, 0) : x.subtotal)}</span></div>`}
       ${isLd && x.ongkir ? `<div class="kv"><span>Ongkir</span><span>${rupiah(x.ongkir)}</span></div>` : ''}
       ${isLd && x.discount ? `<div class="kv"><span>${esc(x.discountReason ? 'Diskon · ' + x.discountReason : 'Diskon')}</span><span style="color:var(--g700)">− ${rupiah(x.discount)}</span></div>` : ''}
       ${!isLd && x.discount ? `<div class="kv"><span>${esc(Ann.DB.discLabel(x.discount))}</span><span style="color:var(--g700)">− ${rupiah(x.discount.amount)}</span></div>` : ''}

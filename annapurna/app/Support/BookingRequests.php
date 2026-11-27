@@ -83,6 +83,8 @@ class BookingRequests
         $ext->update(['status' => 'disetujui', 'action_by' => Auth::id(), 'action_at' => now()]);
         $booking->end_date = $ext->to_date;
         $booking->days += $ext->days;
+        // Subtotal (harga sewa) ikut naik supaya subtotal − diskon + denda = total tetap berlaku (lihat OrderPresenter)
+        $booking->subtotal += $ext->cost;
         $booking->total_amount += $ext->cost;
         $booking->save();
 
@@ -126,6 +128,8 @@ class BookingRequests
             }
         }
         if ($change->price_diff != 0) {
+            // Dulu hanya total yang berubah, sehingga "Subtotal" di nota tetap harga lama (mis. 40.000 padahal total baru 80.000)
+            $booking->subtotal = max(0, $booking->subtotal + $change->price_diff);
             $booking->total_amount = max(0, $booking->total_amount + $change->price_diff);
             $booking->save();
         }

@@ -80,6 +80,8 @@ class PermintaanPesananTest extends TestCase
         $res = $this->actingAs($this->admin)->postJson("/api/admin/permintaan/extend/{$ext['id']}/action", ['action' => 'setujui'])->assertOk();
         $res->assertJsonPath('data.end', $to)->assertJsonPath('data.extensions.0.status', 'disetujui');
         $this->assertSame((int) $b->total_amount + 80000, (int) $b->fresh()->total_amount);
+        $this->assertSame((int) $b->subtotal + 80000, (int) $b->fresh()->subtotal);         // harga sewa ikut naik
+        $this->assertSame($res->json('data.subtotal'), $res->json('data.total'));           // tanpa diskon: subtotal = total
     }
 
     public function test_perpanjangan_di_toko_langsung_disetujui_dan_dibayar(): void
@@ -111,10 +113,12 @@ class PermintaanPesananTest extends TestCase
         $c = $res->json('data.changes.0');
         $this->assertSame(['menunggu', 20000, 'tnd-2', 0], [$c['status'], $c['diff'], $c['fromId'], $c['lineIndex']]);   // (40.000 − 30.000) × 2 malam
 
-        $this->actingAs($this->admin)->postJson("/api/admin/permintaan/change/{$c['id']}/action", ['action' => 'setujui'])->assertOk()
+        $ok = $this->actingAs($this->admin)->postJson("/api/admin/permintaan/change/{$c['id']}/action", ['action' => 'setujui'])->assertOk()
             ->assertJsonPath('data.changes.0.status', 'disetujui');
         $this->assertTrue($b->items()->where('product_id', 'tnd-4')->exists());
         $this->assertSame((int) $b->total_amount + 20000, (int) $b->fresh()->total_amount);
+        $this->assertSame((int) $b->subtotal + 20000, (int) $b->fresh()->subtotal);         // dulu subtotal tetap harga lama
+        $this->assertSame($ok->json('data.subtotal'), $ok->json('data.total'));
 
         // Ganti di toko: langsung disetujui + selisih dibayar
         $this->actingAs($this->admin)->postJson("/api/admin/booking/{$b->booking_code}/ganti", ['from_id' => 'matras', 'to_id' => 'tnd-2', 'qty' => 2, 'paid_now' => true])
@@ -124,6 +128,20 @@ class PermintaanPesananTest extends TestCase
         // Barang yang tidak ada di booking / barang jual ditolak
         $this->actingAs($this->budi)->postJson("/api/pesanan/{$b->booking_code}/ganti", ['from_id' => 'gas', 'to_id' => 'tnd-4', 'qty' => 1])->assertStatus(422);
         $this->actingAs($this->budi)->postJson("/api/pesanan/{$b->booking_code}/ganti", ['from_id' => 'tnd-2', 'to_id' => 'gas', 'qty' => 1])->assertStatus(422);
+    }
+
+    /** Migrasi 2026_11_27_000003: booking lama yang subtotalnya tertinggal diperbaiki (hanya yang disetujui) */
+    public function test_migrasi_memperbaiki_subtotal_booking_lama(): void
+    {
+        $b = $this->booking([['product_id' => 'tnd-4', 'qty' => 1]]);
+        $sub = (int) $b->subtotal;
+        $row = ['booking_id' => $b->id, 'from_product_id' => 'tnd-4', 'to_product_id' => 'tnd-2', 'qty' => 1, 'created_at' => now(), 'updated_at' => now()];
+        DB::table('booking_changes')->insert([$row + ['price_diff' => 40000, 'status' => 'disetujui'], $row + ['price_diff' => 99000, 'status' => 'ditolak']]);
+        DB::table('booking_extensions')->insert(['booking_id' => $b->id, 'from_date' => now()->toDateString(), 'to_date' => now()->addDay()->toDateString(), 'days' => 1, 'cost' => 15000, 'status' => 'disetujui', 'created_at' => now(), 'updated_at' => now()]);
+
+        (require database_path('migrations/2026_11_27_000003_fix_booking_subtotal_after_changes.php'))->up();
+
+        $this->assertSame($sub + 40000 + 15000, (int) $b->fresh()->subtotal);
     }
 
     public function test_permintaan_ditolak_dan_booking_selesai_tidak_bisa_diperpanjang(): void

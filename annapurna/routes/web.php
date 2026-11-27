@@ -245,7 +245,7 @@ Route::prefix('api/admin')->name('api.admin.')->middleware(['auth', 'role:admin,
     Route::post('/sales/{id}/delivery', [ApiController::class, 'saveSaleDelivery'])->name('sales.delivery');
     Route::post('/booking/{id}/settle', [ApiController::class, 'settleBooking'])->name('booking.settle');
 
-    // Rekap laporan bulanan: 7 PDF diunggah ke Google Drive Owner
+    // Rekap laporan bulanan: 8 PDF diunggah ke Google Drive Owner
     Route::post('/rekap', [RekapController::class, 'store'])->middleware('throttle:10,1')->name('rekap.store');
     Route::get('/rekap/{period}/aktivitas', [ActivityController::class, 'rekap'])->name('rekap.aktivitas');
 });

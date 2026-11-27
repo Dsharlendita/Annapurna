@@ -110,6 +110,16 @@ class GoogleDriveRekapTest extends TestCase
         $this->assertTrue(\App\Support\FeData::settings(true)['integration']['driveConnected']);
     }
 
+    /** Daftar PDF yang dibuat browser (Reports.MONTHLY) harus sama dengan yang diterima server (Rekap::FILES) */
+    public function test_daftar_laporan_rekap_tampilan_sama_dengan_server(): void
+    {
+        $js = file_get_contents(public_path('assets/js/reports.js'));
+        $this->assertSame(1, preg_match('/const MONTHLY = \[(.*?)\];/s', $js, $m));
+        preg_match_all("/\['([a-z]+)', '([^']+)'\]/", $m[1], $pairs, PREG_SET_ORDER);
+        $this->assertSame(Rekap::FILES, array_column($pairs, 2, 1));
+        $this->assertArrayHasKey('denda', Rekap::FILES);           // Laporan Kerusakan & Denda ikut ke Drive
+    }
+
     public function test_izin_drive_tidak_dicentang_ditolak(): void
     {
         $g = (new GoogleUser())->map(['id' => 'g-9', 'email' => 'toko@gmail.com'])->setToken('a')->setRefreshToken('r')->setApprovedScopes(['openid', 'email']);
@@ -133,13 +143,14 @@ class GoogleDriveRekapTest extends TestCase
             ->assertJsonPath('data.path', ['ANNAPURNA ADVENTURE', 'TAHUN 2026', 'REKAP LAPORAN BULAN OKTOBER 2026'])
             ->assertJsonPath('data.files.0.name', 'Laporan Rental Oktober 2026.pdf')
             ->assertJsonPath('data.mailStatus', 'nonaktif');           // MAIL_MAILER=log: tidak pura-pura terkirim
-        $this->assertCount(7, $res->json('data.files'));
-        $this->assertNotEmpty($res->json('data.files.6.url'));
+        $this->assertCount(8, $res->json('data.files'));
+        $this->assertContains('Laporan Kerusakan & Denda Oktober 2026.pdf', array_column($res->json('data.files'), 'name'));
+        $this->assertNotEmpty($res->json('data.files.7.url'));
         $this->assertStringStartsWith('https://drive.google.com/', $res->json('data.folderUrl'));
 
-        // 3 folder dibuat + 7 file diunggah (multipart)
+        // 3 folder dibuat + 8 file diunggah (multipart)
         $this->assertSame(3, count(array_filter($log, fn ($l) => $l === 'POST https://www.googleapis.com/drive/v3/files')));
-        $this->assertSame(7, count(array_filter($log, fn ($l) => $l === 'POST https://www.googleapis.com/upload/drive/v3/files')));
+        $this->assertSame(8, count(array_filter($log, fn ($l) => $l === 'POST https://www.googleapis.com/upload/drive/v3/files')));
         Http::assertSent(fn ($r) => str_contains($r->url(), 'uploadType=multipart') && str_contains($r->body(), '"name":"Laporan Rental Oktober 2026.pdf"') && $r->hasHeader('Authorization', 'Bearer akses-uji'));
 
         $a = ReportArchive::sole();

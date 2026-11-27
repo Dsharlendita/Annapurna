@@ -22,6 +22,7 @@ class Rekap
         'keuangan' => 'Laporan Keuangan',
         'stok' => 'Laporan Stok',
         'pengembalian' => 'Laporan Pengembalian',
+        'denda' => 'Laporan Kerusakan & Denda',
         'aktivitas' => 'Laporan Aktivitas Staff',
         'login' => 'Histori Login Staff',
     ];

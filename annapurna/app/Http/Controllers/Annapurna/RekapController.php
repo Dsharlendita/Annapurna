@@ -27,7 +27,7 @@ use Laravel\Socialite\Facades\Socialite;
  *   GET    /owner/integrasi/google/hubungkan  → Owner memberi izin Drive (Google, izin drive.file)
  *          (Google kembali ke /auth/google/callback; GoogleAuthController meneruskan ke finishConnect)
  *   DELETE /api/owner/drive                   → putuskan Google Drive (izin dicabut di akun Google)
- *   POST   /api/admin/rekap                   → unggah 7 PDF rekap satu bulan, simpan arsip, kirim email
+ *   POST   /api/admin/rekap                   → unggah 8 PDF rekap satu bulan (Rekap::FILES), simpan arsip, kirim email
  *
  * PDF dibuat browser dari data server (laporan yang sama dengan halaman Laporan),
  * jadi server cukup menyimpan file ke folder: folder utama / TAHUN yyyy / REKAP LAPORAN BULAN …

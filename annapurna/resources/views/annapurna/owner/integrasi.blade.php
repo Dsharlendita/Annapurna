@@ -14,7 +14,7 @@
       <form id="gf" novalidate>
         <div class="field"><label>Akun Google</label><div class="input" id="driveAcc" style="background:var(--g50,#f6f4ee);display:flex;align-items:center;gap:8px;min-height:42px"></div><span class="hint">Akun dipilih saat menekan <b>Hubungkan</b>. Sistem hanya bisa melihat folder &amp; file yang dibuatnya sendiri di Drive ini.</span></div>
         <div class="field"><label>Folder utama</label><input class="input" name="driveRoot"><span class="hint">Struktur: folder utama / TAHUN 2026 / REKAP LAPORAN BULAN …</span></div>
-        <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:12px"><input type="checkbox" name="autoMonthly"> Buat rekap otomatis setiap bulan</label>
+        <div class="field"><label style="display:flex;gap:8px;align-items:center;font-size:14px;font-weight:500"><input type="checkbox" name="autoMonthly"> Buat rekap otomatis setiap bulan</label><span class="hint">Tidak wajib untuk menghubungkan Google Drive. Tanpa centang ini, rekap tetap bisa dibuat manual dari arsip di bawah.</span></div>
         <div class="grid-2">
           <div class="field"><label>Tanggal pembuatan</label><select class="select" name="sendDay">@for ($d = 1; $d <= 5; $d++)<option value="{{ $d }}">Tanggal {{ $d }} bulan berikutnya</option>@endfor</select></div>
           <div class="field"><label>Jam</label><input class="input" type="time" name="sendTime"></div>
@@ -24,7 +24,7 @@
     <div class="panel">
       <div class="panel-h"><h3><i class="fa-regular fa-envelope" style="color:var(--g700)"></i> Email laporan</h3></div>
       <form id="mf" novalidate>
-        <div class="field"><label>Email Owner (penerima utama)</label><input class="input" name="ownerEmail" type="email"></div>
+        <div class="field"><label>Email Owner (penerima utama)</label><input class="input" name="ownerEmail" type="email" placeholder="contoh: pemilik@gmail.com"><span class="hint">Penerima email ringkasan rekap. Boleh dikosongkan: rekap tetap tersimpan di Google Drive.</span></div>
         <div class="field"><label>CC (opsional, pisahkan dengan koma)</label><input class="input" name="ccEmails" placeholder="contoh: partner@mail.com"></div>
       </form>
       <div id="nextRun" class="notice green" style="margin-top:4px"></div>

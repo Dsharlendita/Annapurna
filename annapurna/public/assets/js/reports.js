@@ -203,7 +203,7 @@
   /* Sumber histori: saat membuat rekap memakai data server satu bulan (lihat generateMonthly), selain itu isi browser */
   let auditSrc = null;
   const audits = () => auditSrc || DB.audits();
-  const MONTHLY = [['rental', 'Laporan Rental'], ['penjualan', 'Laporan Penjualan'], ['keuangan', 'Laporan Keuangan'], ['stok', 'Laporan Stok'], ['pengembalian', 'Laporan Pengembalian'], ['aktivitas', 'Laporan Aktivitas Staff'], ['login', 'Histori Login Staff']];
+  const MONTHLY = [['rental', 'Laporan Rental'], ['penjualan', 'Laporan Penjualan'], ['keuangan', 'Laporan Keuangan'], ['stok', 'Laporan Stok'], ['pengembalian', 'Laporan Pengembalian'], ['denda', 'Laporan Kerusakan & Denda'], ['aktivitas', 'Laporan Aktivitas Staff'], ['login', 'Histori Login Staff']];
   const pad = (n) => String(n).padStart(2, '0');
   const monthName = (period) => { const [y, m] = period.split('-').map(Number); return `${D.BULAN_PANJANG[m - 1]} ${y}`; };
   const monthRange = (period) => { const [y, m] = period.split('-').map(Number); const last = new Date(y, m, 0).getDate(); return [`${period}-01`, `${period}-${pad(last)}`]; };
@@ -229,7 +229,7 @@
     };
   }
 
-  /* Buat 7 PDF rekap di browser (isi sama dengan halaman Laporan), lalu server mengunggahnya ke Google Drive Owner
+  /* Buat PDF rekap (8 laporan = MONTHLY, sama dengan Rekap::FILES di server) di browser (isi sama dengan halaman Laporan), lalu server mengunggahnya ke Google Drive Owner
      (folder utama / TAHUN yyyy / REKAP LAPORAN BULAN …) dan mengirim email ringkasan bila server email aktif.
      Hasil: { ok: true, a } atau { ok: false, msg, reconnect } — tidak pernah throw. */
   const MAIL_LBL = { terkirim: 'email terkirim', gagal: 'email gagal dikirim', nonaktif: 'email belum aktif' };

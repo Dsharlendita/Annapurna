@@ -10,18 +10,20 @@
   const info = () => DB.driveInfo() || {};
   const base = document.body.dataset.base || '/';
 
-  /* Hasil kembali dari halaman izin Google (?drive=…) */
+  /* Hasil kembali dari halaman izin Google (?drive=…). Gagal karena izin → petunjuk tetap tampil di atas (bukan toast sesaat) */
+  let connFail = '';
   (function connectResult() {
     const r = param('drive'); if (!r) return;
     const MSG = {
       terhubung: ['ok', `Google Drive terhubung (${info().email || ''}).`],
       putus: ['ok', 'Google Drive diputuskan.'],
       batal: ['err', 'Menghubungkan Google Drive dibatalkan.'],
-      izin: ['err', 'Izin Google Drive belum dicentang. Tekan Hubungkan lagi lalu centang izin akses file Google Drive.'],
+      izin: ['err', 'Google Drive belum terhubung: kotak izin di halaman Google belum dicentang. Lihat petunjuk di atas.'],
       'belum-aktif': ['err', 'Login Google belum diatur di server (GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET di .env).'],
       gagal: ['err', 'Gagal menghubungkan Google Drive. Coba lagi.'],
     };
     const m = MSG[r] || MSG.gagal;
+    if (r === 'izin') connFail = r;
     if (r === 'terhubung') DB.audit({ type: 'pengaturan', action: `Menghubungkan Google Drive (${info().email || '-'})` });
     setTimeout(() => toast(m[1], m[0] === 'ok' ? undefined : 'err'), 300);
     const u = new URL(location.href); u.searchParams.delete('drive'); history.replaceState(null, '', u.pathname + u.search + u.hash);
@@ -31,7 +33,10 @@
     const i = info();
     let html;
     if (!i.enabled) html = '<div class="notice amber"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Google belum diatur di server.</strong> Isi GOOGLE_CLIENT_ID &amp; GOOGLE_CLIENT_SECRET di file .env agar Google Drive bisa dihubungkan.</div></div>';
-    else if (!i.connected) html = '<div class="notice amber"><i class="fa-brands fa-google-drive"></i><div><strong>Google Drive belum terhubung.</strong> Tekan <b>Hubungkan</b>, pilih akun Google toko, lalu izinkan akses Google Drive. Rekap belum bisa disimpan sebelum terhubung.</div></div>';
+    else if (!i.connected && connFail === 'izin') html = '<div class="notice red"><i class="fa-solid fa-circle-exclamation"></i><div><strong>Google Drive belum terhubung karena izin Drive belum dicentang.</strong> '
+      + 'Di halaman izin Google ada <b>kotak centang untuk file Google Drive</b> (atau pilihan <b>Pilih semua</b>). Kotak itu harus dicentang sebelum menekan <b>Lanjutkan</b>. Tekan <b>Hubungkan</b> lagi untuk mencoba.'
+      + '<br><span class="muted">Kotak "Buat rekap otomatis setiap bulan" di halaman ini tidak ada hubungannya: Drive bisa dihubungkan walau kotak itu tidak dicentang.</span></div></div>';
+    else if (!i.connected) html = '<div class="notice amber"><i class="fa-brands fa-google-drive"></i><div><strong>Google Drive belum terhubung.</strong> Tekan <b>Hubungkan</b>, pilih akun Google toko, lalu di halaman Google <b>centang kotak izin file Google Drive</b> dan tekan <b>Lanjutkan</b>. Rekap belum bisa disimpan sebelum terhubung.</div></div>';
     else html = `<div class="notice green"><i class="fa-solid fa-circle-check"></i><div><strong>Terhubung ke Google Drive ${esc(i.email)}.</strong> Rekap disimpan sungguhan di Drive akun ini${i.rootUrl ? ` (<a href="${esc(i.rootUrl)}" target="_blank" rel="noopener">buka folder utama</a>)` : ''}.`
       + (i.mailOn ? '' : ' <br><span class="muted">Email ringkasan belum aktif karena server email belum diatur. Link folder tetap bisa dibuka dari halaman ini.</span>') + '</div></div>';
     $('#driveNotice').innerHTML = html;
@@ -50,7 +55,7 @@
     const next = new Date(); next.setDate(1); next.setMonth(next.getMonth() + 1); next.setDate(x.sendDay || 1);
     const nextPeriod = T.slice(0, 7);
     $('#nextRun').innerHTML = x.autoMonthly && i.connected
-      ? `<i class="fa-solid fa-calendar-check"></i><div>Rekap <strong>${Reports.monthName(nextPeriod)}</strong> dibuat otomatis mulai <strong>${D.fmtDate(D.toISO(next), true)} pukul ${esc(x.sendTime || '06:00')} WIB</strong>, saat panel admin/owner pertama kali dibuka, lalu disimpan ke Google Drive${i.mailOn ? ` dan ringkasannya dikirim ke ${esc(x.ownerEmail || '-')}${x.ccEmails ? ` (CC: ${esc(x.ccEmails)})` : ''}` : ''}. Bila sampai pukul 10.00 belum dibuat, Owner diingatkan lewat notifikasi.</div>`
+      ? `<i class="fa-solid fa-calendar-check"></i><div>Rekap <strong>${Reports.monthName(nextPeriod)}</strong> dibuat otomatis mulai <strong>${D.fmtDate(D.toISO(next), true)} pukul ${esc(x.sendTime || '06:00')} WIB</strong>, saat panel admin/owner pertama kali dibuka, lalu disimpan ke Google Drive${i.mailOn ? (x.ownerEmail ? ` dan ringkasannya dikirim ke ${esc(x.ownerEmail)}${x.ccEmails ? ` (CC: ${esc(x.ccEmails)})` : ''}` : `${x.ccEmails ? ` dan ringkasannya dikirim ke ${esc(x.ccEmails)}` : ' (email ringkasan tidak dikirim karena Email Owner kosong)'}`) : ''}. Bila sampai pukul 10.00 belum dibuat, Owner diingatkan lewat notifikasi.</div>`
       : `<i class="fa-solid fa-circle-pause"></i><div>Rekap otomatis sedang nonaktif${i.connected ? '' : ' (Google Drive belum terhubung)'}. Rekap tetap bisa dibuat manual dari arsip di bawah.</div>`;
     $('#nextRun').className = `notice ${x.autoMonthly && i.connected ? 'green' : ''}`;
     notice();
@@ -66,7 +71,8 @@
   }
   $('#saveInt').addEventListener('click', () => {
     const okG = validate(G, { driveRoot: (v) => (v.length < 3 ? 'Isi nama folder.' : ''), sendTime: (v) => (!v ? 'Isi jam.' : '') });
-    const okM = validate(M, { ownerEmail: (v) => (!isEmail(v) ? 'Email tidak valid.' : ''), ccEmails: (v) => (v && v.split(',').some((e) => !isEmail(e.trim())) ? 'Ada email CC yang tidak valid.' : '') });
+    /* Email Owner boleh kosong: rekap tetap tersimpan di Drive, hanya email ringkasan yang tidak dikirim */
+    const okM = validate(M, { ownerEmail: (v) => (v && !isEmail(v) ? 'Email tidak valid.' : ''), ccEmails: (v) => (v && v.split(',').some((e) => !isEmail(e.trim())) ? 'Ada email CC yang tidak valid.' : '') });
     if (!okG || !okM) return;
     const next = Object.assign({}, DB.settings());
     next.integration = Object.assign({}, ig(), { driveRoot: G.elements.driveRoot.value.trim().toUpperCase(), autoMonthly: G.elements.autoMonthly.checked,
@@ -161,7 +167,7 @@
     const p = $('#genPeriod').value; if (!p) { toast('Pilih bulan.', 'err'); return; }
     if (!info().connected) { toast('Hubungkan Google Drive terlebih dahulu.', 'err'); return; }
     const exists = DB.archive(p);
-    if (!(await confirmBox({ title: `${exists ? 'Perbarui' : 'Buat'} rekap ${Reports.monthName(p)}?`, text: `${exists ? 'File di folder Drive akan diganti dengan data terbaru. ' : ''}${Reports.MONTHLY.length} laporan PDF diunggah ke folder <strong>${esc(Reports.folderName(p))}</strong> di Google Drive ${esc(info().email)}${info().mailOn ? ` dan email ringkasan dikirim ke ${esc(ig().ownerEmail || '-')}` : ''}.${p === T.slice(0, 7) ? '<br><br>Catatan: bulan berjalan belum selesai, datanya masih bisa bertambah.' : ''}`, ok: exists ? 'Perbarui' : 'Buat & unggah' }))) return;
+    if (!(await confirmBox({ title: `${exists ? 'Perbarui' : 'Buat'} rekap ${Reports.monthName(p)}?`, text: `${exists ? 'File di folder Drive akan diganti dengan data terbaru. ' : ''}${Reports.MONTHLY.length} laporan PDF diunggah ke folder <strong>${esc(Reports.folderName(p))}</strong> di Google Drive ${esc(info().email)}${info().mailOn && ig().ownerEmail ? ` dan email ringkasan dikirim ke ${esc(ig().ownerEmail)}` : ''}.${p === T.slice(0, 7) ? '<br><br>Catatan: bulan berjalan belum selesai, datanya masih bisa bertambah.' : ''}`, ok: exists ? 'Perbarui' : 'Buat & unggah' }))) return;
     runRekap(p, btn);
   });
   window.onRekapDone = () => { drawDrive(); drawOutbox(); drawCleanup(); };

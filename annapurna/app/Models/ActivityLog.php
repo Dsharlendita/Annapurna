@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use LogicException;
 
 /**
@@ -58,10 +59,34 @@ class ActivityLog extends Model
         return array_map(fn ($x) => self::canonical($x), $v);
     }
 
+    /**
+     * Ambil catatan terakhir untuk disambung, sambil memegang KUNCI RANTAI (panggil di dalam transaksi).
+     *
+     * Dulu cukup `lockForUpdate()->latest('id')`, tetapi di MySQL itu ikut mengunci celah setelah baris terakhir
+     * (next-key lock). Dua penulis yang datang bersamaan lalu saling menunggu saat INSERT → "1213 Deadlock" (terjadi di
+     * hosting saat beberapa unit ditandai bersih berturut-turut). Sekarang semua penulis antre di SATU baris tetap
+     * document_sequences (prefix AUDIT), dikunci lewat kunci unik = kunci baris saja tanpa celah, jadi bergiliran rapi.
+     */
+    public static function lockHead(): ?self
+    {
+        $head = fn () => DB::table('document_sequences')->where('prefix', 'AUDIT')->where('year', 0)->where('month', 0)->lockForUpdate()->first();
+        if (! $head()) {
+            DB::table('document_sequences')->insertOrIgnore(['prefix' => 'AUDIT', 'year' => 0, 'month' => 0, 'last_number' => 0, 'created_at' => now(), 'updated_at' => now()]);
+            $head();
+        }
+
+        return static::query()->lockForUpdate()->latest('id')->first();
+    }
+
     public static function record(?int $userId, string $type, string $action, ?string $subjectType = null, ?string $subjectId = null, ?array $changes = null): static
     {
+        return DB::transaction(fn () => static::recordLocked($userId, $type, $action, $subjectType, $subjectId, $changes), 3);
+    }
+
+    private static function recordLocked(?int $userId, string $type, string $action, ?string $subjectType, ?string $subjectId, ?array $changes): static
+    {
         $user = $userId ? User::find($userId) : null;
-        $prevLog = static::latest('id')->first();
+        $prevLog = static::lockHead();
         $prevHash = $prevLog ? $prevLog->hash : str_repeat('0', 64);
 
         $attrs = [

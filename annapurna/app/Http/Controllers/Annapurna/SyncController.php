@@ -63,7 +63,12 @@ class SyncController extends Controller
         $removed = array_values(array_filter((array) $request->input('removed', []), 'is_scalar'));
         abort_unless(is_array($items), 422, 'Format data tidak valid.');
 
-        DB::transaction(fn () => $this->{$handler}($items, $removed));
+        // 3 percobaan: deadlock MySQL (1213) membatalkan seluruh transaksi, jadi diulang dari awal dengan hasil yang dikosongkan
+        DB::transaction(function () use ($handler, $items, $removed) {
+            $this->map = [];
+            $this->skipped = [];
+            $this->{$handler}($items, $removed);
+        }, 3);
         BootController::bump();
 
         return response()->json(['ok' => true, 'map' => (object) $this->map, 'skipped' => $this->skipped]);

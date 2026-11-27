@@ -22,8 +22,9 @@ class Audit
             return null;
         }
 
+        // 3 percobaan: bila MySQL tetap memilih transaksi ini sebagai korban deadlock, diulang otomatis (hanya di transaksi terluar)
         return DB::transaction(function () use ($type, $action, $subject, $changes, $actor, $system) {
-            $last = ActivityLog::query()->lockForUpdate()->latest('id')->first();
+            $last = ActivityLog::lockHead();
             $prev = $last?->hash ?? str_repeat('0', 64);
             $attrs = [
                 'user_id' => $system ? null : $actor->id,
@@ -46,7 +47,7 @@ class Audit
             $log->save();
 
             return $log;
-        });
+        }, 3);
     }
 
     /**
@@ -65,7 +66,7 @@ class Audit
         $changes = array_values(array_filter((array) ($e['changes'] ?? []), 'is_array'));
 
         return DB::transaction(function () use ($e, $actor, $ref, $changes) {
-            $last = ActivityLog::query()->lockForUpdate()->latest('id')->first();
+            $last = ActivityLog::lockHead();
             $prev = $last?->hash ?? str_repeat('0', 64);
             $attrs = [
                 'user_id' => $actor->id,
@@ -89,7 +90,7 @@ class Audit
             $log->save();
 
             return $log;
-        });
+        }, 3);
     }
 
     /** Catatan histori dalam bentuk tampilan (sama dengan isi DB.audits()). */

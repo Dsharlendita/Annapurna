@@ -12,7 +12,7 @@
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Nama akun</td><td style="border-bottom:1px solid #e4dfd4">{{ $staff->name }}</td></tr>
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Email akun</td><td style="border-bottom:1px solid #e4dfd4">{{ $staff->email }}</td></tr>
           @if ($temporaryPassword)
-          <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Kata sandi sementara</td><td style="border-bottom:1px solid #e4dfd4"><code>{{ $temporaryPassword }}</code></td></tr>
+          <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">{{ $mustChange ? 'Kata sandi sementara' : 'Kata sandi' }}</td><td style="border-bottom:1px solid #e4dfd4"><code style="font-size:15px;background:#eef6f0;padding:2px 8px;border-radius:4px;color:#1f4d2f;font-weight:bold">{{ $temporaryPassword }}</code></td></tr>
           @else
           <tr><td style="color:#6b766e;border-bottom:1px solid #e4dfd4">Kata sandi</td><td style="border-bottom:1px solid #e4dfd4">Diberikan langsung oleh Owner</td></tr>
           @endif
@@ -21,9 +21,10 @@
         <p><strong>Cara masuk:</strong></p>
         <ol>
           <li>Buka link website di atas.</li>
-          <li>Masuk dengan email akun dan kata sandi {{ $temporaryPassword ? 'sementara' : 'yang diberikan Owner' }}.</li>
-          @if ($temporaryPassword || $mustChange)<li>Buat kata sandi baru saat pertama login.</li>@endif
+          <li>Masuk dengan email akun dan kata sandi {{ $temporaryPassword ? 'di atas' : 'yang diberikan Owner' }}.</li>
+          @if ($mustChange)<li>Buat kata sandi baru saat pertama login.</li>@endif
           <li>Jangan bagikan kata sandi kepada siapa pun.</li>
+          @if ($temporaryPassword)<li>Setelah berhasil masuk, sebaiknya hapus email ini.</li>@endif
         </ol>
         <p style="font-size:12.5px;color:#6b766e">Akun ini dibuat oleh Owner Annapurna Adventure. Semua aktivitas di panel admin tercatat otomatis di histori sistem.</p>
         <p><a href="{{ $loginUrl }}" style="display:inline-block;background:#1f4d2f;color:#ffffff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:bold">Masuk ke panel</a></p>

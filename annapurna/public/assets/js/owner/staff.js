@@ -118,7 +118,7 @@
         <div class="field"><label>Ulangi kata sandi <span class="req">*</span></label><div class="pw-wrap"><input class="input" type="password" name="rpw2" autocomplete="new-password"><button type="button" class="pw-eye" data-eye="rpw2" aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
       </div>
       <label class="chk-line"><input type="checkbox" name="rmust" checked> <span>Ingatkan staff untuk mengganti kata sandi ini <small class="chk-help">Staff tetap bisa langsung bekerja; pengingat muncul di atas halaman panel sampai kata sandinya diganti.</small></span></label>
-      <label class="chk-line"><input type="checkbox" name="rmail"> <span>Kirim email pemberitahuan ke ${esc(u.email)} <small class="chk-help">Kata sandi <b>tidak</b> ikut dikirim.</small></span></label>
+      <label class="chk-line"><input type="checkbox" name="rmail"> <span>Kirim email pemberitahuan ke ${esc(u.email)} <small class="chk-help">Berisi kata sandi baru ini &amp; link login.</small></span></label>
       </form>`, foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="rpOk"><i class="fa-solid fa-key"></i> Simpan kata sandi baru</button>' });
     m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-eye]'); if (!b) return; const inp = m.$(`[name="${b.dataset.eye}"]`); const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; b.innerHTML = `<i class="fa-regular ${show ? 'fa-eye-slash' : 'fa-eye'}"></i>`; });
     m.$('#rpOk').addEventListener('click', async () => {
@@ -154,7 +154,7 @@
           <div class="field"><label>Ulangi kata sandi <span class="req" style="color:var(--red)">*</span></label><div class="pw-wrap"><input class="input" type="password" name="spw2" autocomplete="new-password" placeholder="Ketik ulang kata sandi"><button type="button" class="pw-eye" data-eye="spw2" aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div>
         </div>
         <label class="chk-line"><input type="checkbox" name="smust" checked> <span>Ingatkan staff untuk mengganti kata sandi ini <small class="chk-help">Staff tetap bisa langsung bekerja; pengingat muncul di atas halaman panel sampai kata sandinya diganti.</small></span></label>
-        <label class="chk-line"><input type="checkbox" name="smail" checked> <span>Kirim email informasi akun ke staff <small class="chk-help">Berisi nama toko, email akun, link website, dan cara login. Kata sandi <b>tidak</b> ikut dikirim, berikan langsung ke staff.</small></span></label>
+        <label class="chk-line"><input type="checkbox" name="smail" checked> <span>Kirim email informasi akun ke staff <small class="chk-help">Berisi nama toko, email akun, <b>kata sandi</b>, link website, dan cara login.</small></span></label>
       </div>` : ''}
       ${self ? '<p class="muted" style="font-size:12.5px;margin-top:8px">Status akunmu sendiri tidak bisa diubah dari sini.</p>' : ''}
       ${!isNew && !self ? `<div class="sf-reset"><i class="fa-solid fa-key"></i><span>Staff lupa kata sandi? <button type="button" class="link-btn" data-reset="${u.id}">Buat kata sandi baru</button><small>Kata sandi baru dibuat Owner dan diberikan langsung ke staff.</small></span></div>` : ''}

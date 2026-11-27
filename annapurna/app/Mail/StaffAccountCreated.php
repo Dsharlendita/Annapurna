@@ -11,9 +11,9 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * Dikirim otomatis saat Owner menambahkan staff.
- * Kata sandi dibuat Owner dan diberikan langsung ke staff, jadi $temporaryPassword biasanya null
- * (email hanya berisi info akun & cara login).
- * Contoh: Mail::to($staff)->queue(new StaffAccountCreated($staff, $owner, null, true));
+ * $temporaryPassword = kata sandi yang dibuat Owner, tercantum di email (null = "diberikan langsung oleh Owner").
+ * $mustChange = staff wajib membuat kata sandi baru saat pertama login (label "sementara" & langkahnya ikut menyesuaikan).
+ * Contoh: Mail::to($staff)->send(new StaffAccountCreated($staff, $owner, 'rahasia123', true));
  */
 class StaffAccountCreated extends Mailable
 {

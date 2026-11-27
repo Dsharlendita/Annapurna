@@ -174,15 +174,15 @@ class StaffController extends Controller
 
         $mailStatus = ['status' => 'lewati'];
         $shouldSend = $request->has('sendEmail') ? $request->boolean('sendEmail') : $request->boolean('send_email', true);
-        $preview = $this->mailPreview('staff_invite', 'Anda telah ditambahkan sebagai Staff Annapurna Adventure Shop', $user, $currentUser ?? $user, true, $mustChange, null);
+        $preview = $this->mailPreview('staff_invite', 'Anda telah ditambahkan sebagai Staff Annapurna Adventure Shop', $user, $currentUser ?? $user, true, $mustChange, null, true);
 
         if ($shouldSend && ! self::mailActive()) {
             // Server email belum dipasang (MAIL_MAILER=log): email tidak benar-benar terkirim, jangan ditulis "terkirim"
             $mailStatus = ['status' => 'tidak_aktif'] + $preview;
         } elseif ($shouldSend) {
             try {
-                // Kata sandi TIDAK ikut dikirim lewat email: Owner memberikannya langsung ke staff
-                Mail::to($user->email)->send(new StaffAccountCreated($user, $currentUser ?? $user, null, $mustChange));
+                // Kata sandi buatan Owner ikut tercantum di email (permintaan toko, 27 Nov 2026)
+                Mail::to($user->email)->send(new StaffAccountCreated($user, $currentUser ?? $user, $validated['password'], $mustChange));
 
                 EmailLog::create([
                     'kind' => 'staff_invite',
@@ -408,7 +408,7 @@ class StaffController extends Controller
             $user
         );
 
-        $preview = $this->mailPreview('password_reset', 'Kata sandi sementara akun Staff Annapurna Adventure', $user, $currentUser ?? $user, $ownerSet, $mustChange, $tempPassword);
+        $preview = $this->mailPreview('password_reset', 'Kata sandi sementara akun Staff Annapurna Adventure', $user, $currentUser ?? $user, $ownerSet, $mustChange, $tempPassword, $ownerSet);
         $mailStatus = ['status' => 'terkirim'] + $preview;
         $sendMail = $ownerSet ? $request->boolean('sendEmail', $request->boolean('send_email', false)) : true;
         if (!$sendMail) {
@@ -416,8 +416,8 @@ class StaffController extends Controller
         } elseif (! self::mailActive()) {
             $mailStatus = ['status' => 'tidak_aktif'] + $preview;
         } else try {
-            // Kata sandi buatan Owner TIDAK dikirim lewat email (diberikan langsung ke staff)
-            Mail::to($user->email)->send(new StaffPasswordReset($user, $currentUser ?? $user, $tempPassword, $mustChange));
+            // Kata sandi baru (buatan Owner atau sementara dari sistem) tercantum di email
+            Mail::to($user->email)->send(new StaffPasswordReset($user, $currentUser ?? $user, $ownerSet ? (string) $request->input('password') : $tempPassword, $mustChange));
 
             EmailLog::create([
                 'kind' => 'password_reset',
@@ -532,8 +532,11 @@ class StaffController extends Controller
         return config('mail.default') !== 'log';   // sama dengan pemeriksaan data-mail di halaman Masuk
     }
 
-    /** Data pratinjau email untuk tombol "Lihat email" di panel (sama dengan isi email yang dikirim). Kata sandi buatan Owner tidak ikut. */
-    private function mailPreview(string $kind, string $subject, User $user, User $by, bool $ownerSet, bool $mustChange, ?string $temp): array
+    /**
+     * Data pratinjau email untuk tombol "Pratinjau email" di panel (sama dengan isi email yang dikirim).
+     * Kata sandi buatan Owner tercantum di email, tetapi tidak dikembalikan ke panel ($pwInMail = penanda saja).
+     */
+    private function mailPreview(string $kind, string $subject, User $user, User $by, bool $ownerSet, bool $mustChange, ?string $temp, bool $pwInMail = false): array
     {
         return [
             'kind' => $kind,
@@ -548,6 +551,7 @@ class StaffController extends Controller
                 'ownerSetPw' => $ownerSet,
                 'mustChange' => $mustChange,
                 'tempPassword' => $temp,
+                'pwInMail' => $pwInMail ?: null,
             ], fn ($v) => $v !== null),
         ];
     }

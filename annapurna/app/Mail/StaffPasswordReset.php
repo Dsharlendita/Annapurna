@@ -19,7 +19,7 @@ class StaffPasswordReset extends Mailable
     public function __construct(
         public User $staff,
         public User $owner,
-        public ?string $temporaryPassword = null, // null = kata sandi dibuat Owner, tidak ikut dikirim
+        public ?string $temporaryPassword = null, // kata sandi baru yang tercantum di email (null = tidak dicantumkan)
         public bool $mustChange = true
     ) {}
 

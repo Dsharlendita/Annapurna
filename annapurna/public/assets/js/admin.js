@@ -147,8 +147,38 @@
   const remindWa = remindCustomer;
   const remindedToday = (b) => (b.reminders || []).some((r) => D.day(r.at) === D.today());
   /* Notifikasi otomatis: rental yang harus kembali hari ini → ingatkan staff menghubungi penyewa. */
+  /* ---------- DP sudah diunggah customer tapi belum dicek admin, padahal tanggal ambil sudah tiba / lewat ----------
+     Verifikasi DP manual (tanpa payment gateway), jadi satu pesanan yang terselip bisa membuat customer datang ke toko
+     dengan pesanan yang belum dikonfirmasi. Tidak ada tindakan otomatis: hanya penanda menonjol + notifikasi staf/Owner. */
+  const dpLate = (b) => (b && b.status === 'menunggu_konfirmasi' ? (b.start < D.today() ? 'late' : b.start === D.today() ? 'today' : '') : '');
+  function dpLateWa(b) {
+    const st = DB.settings(); const late = dpLate(b) === 'late';
+    const text = `Halo Kak ${String(b.customer.name || '').split(' ')[0]}, kami dari ${st.storeName || 'Annapurna Adventure'}.
+
+Mohon maaf, bukti pembayaran DP untuk pesanan *${NO(b)}* (ambil ${D.fmtDate(b.start, true)}) belum sempat kami cek. Kami cek sekarang ya.
+
+${late ? 'Apakah Kakak masih ingin mengambil barangnya, dijadwalkan ulang, atau dibatalkan? Bila dibatalkan, DP akan kami kembalikan penuh.' : 'Barang tetap bisa diambil hari ini sesuai jadwal.'}
+
+Terima kasih atas kesabarannya.`;
+    window.open(UI.waLink(text, b.customer.phone), '_blank');
+    const fresh = DB.booking(b.id) || b; (fresh.history = fresh.history || []).push({ at: D.nowStamp(), text: `Customer dihubungi via WhatsApp: DP belum dicek, ${late ? 'lewat tanggal ambil' : 'diambil hari ini'} (${me.name})` }); DB.saveBooking(fresh);
+    DB.audit({ type: 'booking', action: `Menghubungi customer ${NO(b)}: DP belum dicek (${late ? 'lewat tanggal ambil' : 'diambil hari ini'})`, ref: b.id });
+  }
   function dueTodayNotices() {
     const T = D.today(); const sent = DB.get('dueNotices');
+    /* DP belum dicek padahal hari ini/lewat tanggal ambil → notifikasi semua staf aktif termasuk Owner (sekali per pesanan per hari) */
+    DB.staffBookings().filter((b) => dpLate(b)).forEach((b) => {
+      const key = `dp|${b.id}|${T}`; if (sent.includes(key)) return;
+      const late = dpLate(b) === 'late';
+      DB.notifyStaff(late ? `DP belum dicek, lewat tanggal ambil` : `DP belum dicek, hari ini diambil`, `${NO(b)} · ${b.customer.name} · ambil ${D.fmtDate(b.start, true)}. Cek bukti pembayaran sekarang${late ? ' lalu hubungi customer' : ''}.`, 'admin/booking?id=' + b.id);
+      sent.push(key);
+    });
+    /* Penjualan: bukti bayar belum dicek lebih dari 1 hari */
+    DB.staffSales().filter((x) => x.paymentStatus === 'verifying' && Date.now() - new Date(x.createdAt).getTime() >= 864e5).forEach((x) => {
+      const key = `payv|${x.id}|${T}`; if (sent.includes(key)) return;
+      DB.notifyStaff('Pembayaran belum dicek lebih dari 1 hari', `${NO(x)} · ${x.customer.name} · ${rupiah(x.total)}. Cek bukti pembayaran sekarang.`, 'admin/penjualan?id=' + x.id);
+      sent.push(key);
+    });
     DB.bookings().filter((b) => b.status === 'disewa' && b.end === T).forEach((b) => {
       const key = `${b.id}|${T}`; if (sent.includes(key)) return;
       DB.notifyStaff('Pengembalian hari ini', `${NO(b)} · ${b.customer.name} harus mengembalikan ${itemsText(b)} hari ini. Ingatkan penyewa via WhatsApp.`, 'admin/pengembalian?remind=' + b.id);
@@ -1659,6 +1689,7 @@
     if (act === 'refund') { if (await BK.refund(b)) fin(); }
     if (act === 'detail') bookingModal(id, done);
     if (act === 'wa') window.open(custLink(b.customer), '_blank');
+    if (act === 'dpwa') { dpLateWa(b); fin(); }
     if (act === 'swap') BK.storeChange(b, fin);
     if (act === 'extend') BK.extend(b, fin);
     if (act === 'svcpay') { svcPay(b, fin); return; }
@@ -1703,6 +1734,7 @@
         <div class="kv"><span>Metode bayar</span><span>${esc(b.method || '-')}</span></div>
         <div class="kv"><span>Dibuat</span><span>${D.fmtDateTime(b.createdAt)}</span></div>
       </div>
+      ${dpLate(b) ? `<div class="notice red" style="margin:4px 0 14px"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>${dpLate(b) === 'late' ? `Tanggal ambil (${D.fmtDate(b.start, true)}) sudah lewat` : 'Barang diambil hari ini'}, tapi bukti DP belum dicek.</strong> Cek bukti di bawah lalu <b>Konfirmasi</b> (atau <b>Tolak</b> bila tidak valid), dan hubungi customer.${dpLate(b) === 'late' ? ' Bila customer batal karena keterlambatan dari toko: konfirmasi DP dulu, lalu <b>Batalkan</b> dan pilih <b>Kembalikan DP (refund)</b>.' : ''}<div style="margin-top:8px"><button class="btn btn-wa btn-sm" data-bdpwa><i class="fa-brands fa-whatsapp"></i> Hubungi customer</button></div></div></div>` : ''}
       ${svcSection(b)}
       
       ${b.notes ? `<p style="font-size:13.5px"><span class="muted">Catatan:</span> ${esc(b.notes)}</p>` : ''}
@@ -1752,6 +1784,7 @@
     m.$('[data-bprint]').addEventListener('click', () => UI.printStruk(DB.booking(id), 'rent'));
     if (m.$('[data-bsettle]')) m.$('[data-bsettle]').addEventListener('click', () => { m.close(); settleModal(id, done); });
     if (m.$('[data-bdue]')) m.$('[data-bdue]').addEventListener('click', () => contactDue(DB.booking(id)));
+    if (m.$('[data-bdpwa]')) m.$('[data-bdpwa]').addEventListener('click', () => dpLateWa(DB.booking(id)));
     m.$('[data-bcontact]').addEventListener('click', async (e) => { const bt = e.currentTarget; bt.disabled = true; try { await contactBooking(DB.booking(id)); } finally { bt.disabled = false; } });
     m.$$('[data-svcact]').forEach((btn) => btn.addEventListener('click', () => { m.close(); (btn.dataset.svcact === 'edit' ? svcEdit : svcPay)(DB.booking(id), () => { refreshShell(); done && done(); bookingModal(id, done); }); }));
     const fin2 = () => { refreshShell(); done && done(); };
@@ -2187,5 +2220,5 @@ ${pay}
     e.preventDefault(); e.stopPropagation();
     UI.waCompose({ title: 'Kirim pesan WhatsApp', text: t, phone: u.pathname.replace(/\D/g, ''), waLabel: 'Buka WhatsApp' });
   }, true);
-  window.Admin = { svcServer, ldFromServer, ldSaveServer, syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
+  window.Admin = { dpLate, svcServer, ldFromServer, ldSaveServer, syncBookings, syncSales, syncOrders, settleModal, contactDue, contactBooking, ldContact, ldLink, rentVars, saleShipCell, salePayCell, saleShip, ldPickup, ldWaText, ldNotaText, ldNotify, svcSchedule, svcTag, svcLine, svcSection, svcEdit, svcPay, svcNotaSent, laundryModal, ldStruk, ldWa, ldPay, ldAdvance, ldItems, cleanupModal, me, isOwner, A, O, scanQR, openRef, init, relTime, presence, remindWa, remindCustomer, fineLines, groupMates, reminderText, remindedToday, refreshShell, pendingRequests, BK, bookingActions, runBooking, bookingModal, saleActions, runSale, saleModal, saleTag, saleLine, salePay, contactSale, saleVars, ledger, sisa, itemsText, custLink };
 })();

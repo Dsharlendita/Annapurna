@@ -155,18 +155,29 @@
     setTimeout(() => { try { endEl.focus({ preventScroll: true }); if (endEl.showPicker) endEl.showPicker(); } catch (e) { /* browser tidak mengizinkan membuka otomatis */ } }, 60);
     setTimeout(() => endEl.classList.remove('date-next'), 2500);
   }
+  /* Tulisan kecil di bawah tanggal ambil (Rules.pickupNote): pesan lewat 20.00 → bawaan besok; lewat jam tutup → hari ini dikunci */
+  function pickNote(startEl) {
+    if (!startEl) return;
+    const txt = Rules.pickupNote(); const host = startEl.closest('label, .field') || startEl.parentElement; if (!host) return;
+    let n = host.querySelector('.pick-note');
+    if (!txt) { if (n) n.remove(); return; }
+    if (!n) { n = document.createElement('small'); n.className = 'pick-note'; host.appendChild(n); }
+    n.innerHTML = `<i class="fa-regular fa-clock"></i> ${esc(txt)}`;
+  }
+  /* Tanggal ambil yang diketik/dipilih sebelum batas paling awal digeser ke batas itu */
+  const clampPick = (el) => { const mn = Rules.pickupMin(); if (el && el.value && el.value < mn) el.value = mn; };
   function dateGuard(startEl, endEl) {
-    startEl.min = D.today();
+    startEl.min = Rules.pickupMin(); pickNote(startEl);
     let prev = startEl.value;
     /* Tidak pernah mengisi tanggal otomatis: hanya membatasi pilihan minimum */
     const minOnly = () => { const minEnd = D.addDays(startEl.value || D.today(), 1); endEl.min = minEnd; if (endEl.value && endEl.value < minEnd) endEl.value = minEnd; };
-    startEl.addEventListener('change', () => { shiftEnd(startEl, endEl, prev); prev = startEl.value; endEl.dispatchEvent(new Event('change')); });
+    startEl.addEventListener('change', () => { clampPick(startEl); shiftEnd(startEl, endEl, prev); prev = startEl.value; endEl.dispatchEvent(new Event('change')); });
     minOnly();
   }
   /* Pilihan durasi sesuai syarat & ketentuan: Per malam (1), Kegiatan 3 hari 3 malam, Ekspedisi 5 hari 5 malam.
      Mengisi tanggal kembali otomatis dari tanggal ambil. */
   /* Tanggal sewa bawaan bila customer belum memilih: ambil hari ini (atau besok bila sudah lewat 20.00), kembali H+1 */
-  function defaultTrip() { const T0 = D.today(); const late = new Date().getHours() >= 20; const start = late ? D.addDays(T0, 1) : T0; return { start, end: D.addDays(start, 1) }; }
+  function defaultTrip() { const start = Rules.pickupDefault(); return { start, end: D.addDays(start, 1) }; }
   function fillTrip(startEl, endEl) { if (startEl && !startEl.value) { const t = DB.trip() || defaultTrip(); startEl.value = t.start; if (endEl && !endEl.value) endEl.value = t.end || D.addDays(t.start, 1); } }
   /* Penjelasan perhitungan paket untuk lama sewa di luar 1 / 3 / 5 hari (aturan durasi di Konfigurasi).
      Bila dibulatkan ke atas (mis. 2 hari = paket 3 hari), tawarkan "Jadikan 3 hari" karena harganya sama. */
@@ -926,8 +937,8 @@
       const t = DB.trip();
       el.innerHTML = `<div class="trip-bar ${t ? 'set' : ''}"><span class="tb-ic"><i class="fa-regular fa-calendar-check"></i></span>
         <div class="tb-t"><strong>${t ? 'Tanggal sewamu' : 'Kapan mau sewa?'}</strong><small>${t ? `${tripText(t)} — stok di bawah sudah sesuai tanggal ini` : 'Pilih tanggal sekali, stok semua alat langsung menyesuaikan.'}</small></div>
-        <div class="tb-in"><label>Ambil<input type="date" class="input" data-ts value="${t ? t.start : ''}" min="${D.today()}"></label><label>Kembali<input type="date" class="input" data-te value="${t ? t.end : ''}" min="${t ? D.addDays(t.start, 1) : D.addDays(D.today(), 1)}"></label>${t ? '<button type="button" class="btn btn-ghost btn-sm" data-tclear title="Hapus tanggal"><i class="fa-solid fa-xmark"></i></button>' : ''}</div></div>`;
-      const s0 = el.querySelector('[data-ts]'), e0 = el.querySelector('[data-te]');
+        <div class="tb-in"><label>Ambil<input type="date" class="input" data-ts value="${t ? t.start : ''}" min="${Rules.pickupMin()}"></label><label>Kembali<input type="date" class="input" data-te value="${t ? t.end : ''}" min="${t ? D.addDays(t.start, 1) : D.addDays(Rules.pickupMin(), 1)}"></label>${t ? '<button type="button" class="btn btn-ghost btn-sm" data-tclear title="Hapus tanggal"><i class="fa-solid fa-xmark"></i></button>' : ''}</div></div>`;
+      const s0 = el.querySelector('[data-ts]'), e0 = el.querySelector('[data-te]'); pickNote(s0);
       /* Simpan tanpa menggambar ulang kotak (agar kalender yang sedang dibuka tidak tertutup) */
       let prevStart = s0.value;
       const save = () => {
@@ -939,7 +950,7 @@
         if (!el.querySelector('[data-tclear]')) { el.querySelector('.tb-in').insertAdjacentHTML('afterend', '<button type="button" class="btn btn-ghost btn-sm" data-tclear title="Hapus tanggal"><i class="fa-solid fa-xmark"></i></button>'); el.querySelector('[data-tclear]').addEventListener('click', () => { DB.setTrip(null); draw(); onChange && onChange(); }); }
         onChange && onChange();
       };
-      s0.addEventListener('change', () => { shiftEnd(s0, e0, prevStart); prevStart = s0.value; save(); });
+      s0.addEventListener('change', () => { clampPick(s0); shiftEnd(s0, e0, prevStart); prevStart = s0.value; save(); });
       e0.addEventListener('change', save);
       const c = el.querySelector('[data-tclear]'); if (c) c.addEventListener('click', () => { DB.setTrip(null); draw(); onChange && onChange(); });
     };
@@ -948,10 +959,10 @@
   function tripModal(onDone) {
     const t = DB.trip() || { start: '', end: '' };
     const m = modal({ title: 'Pilih tanggal sewa', body: `<p class="muted" style="font-size:13.5px;margin-bottom:12px">Cukup pilih sekali. Stok di katalog, halaman produk, dan keranjang otomatis mengikuti tanggal ini.</p>
-      <div class="grid-2"><div class="field"><label>Tanggal ambil</label><input type="date" class="input" id="tmS" value="${t.start}" min="${D.today()}"></div><div class="field"><label>Tanggal kembali</label><input type="date" class="input" id="tmE" value="${t.end}"></div></div><div id="tmDur"></div><p class="muted" id="tmInfo" style="font-size:13px"></p>`,
+      <div class="grid-2"><div class="field"><label>Tanggal ambil</label><input type="date" class="input" id="tmS" value="${t.start}" min="${Rules.pickupMin()}"></div><div class="field"><label>Tanggal kembali</label><input type="date" class="input" id="tmE" value="${t.end}"></div></div><div id="tmDur"></div><p class="muted" id="tmInfo" style="font-size:13px"></p>`,
       foot: `${DB.trip() ? '<button class="btn btn-ghost" id="tmClear">Hapus tanggal</button>' : ''}<button class="btn btn-primary" id="tmOk"><i class="fa-solid fa-check"></i> Pakai tanggal ini</button>` });
-    const S0 = m.$('#tmS'), E0 = m.$('#tmE');
-    const info = () => { E0.min = D.addDays(S0.value || D.today(), 1); if (S0.value && E0.value && E0.value <= S0.value) E0.value = D.addDays(S0.value, 1);
+    const S0 = m.$('#tmS'), E0 = m.$('#tmE'); pickNote(S0);
+    const info = () => { clampPick(S0); E0.min = D.addDays(S0.value || D.today(), 1); if (S0.value && E0.value && E0.value <= S0.value) E0.value = D.addDays(S0.value, 1);
       const ok = !!(S0.value && E0.value && E0.value > S0.value);
       m.$('#tmInfo').textContent = ok ? `${Rules.rentalDays(S0.value, E0.value)} malam sewa · ambil ${D.fmtDate(S0.value, true)}, kembali ${D.fmtDate(E0.value, true)} paling lambat pukul ${String(DB.settings().returnTime || '22:00').replace(':', '.')} WIB` : 'Pilih tanggal ambil dan tanggal kembali.'; m.$('#tmOk').disabled = !ok; };
     S0.addEventListener('change', info); E0.addEventListener('change', info); info();
@@ -1974,7 +1985,7 @@
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-pw-toggle]'); if (b) eyeSet(b, b.previousElementSibling && b.previousElementSibling.type === 'password'); });
   document.addEventListener('reset', (e) => e.target.querySelectorAll && e.target.querySelectorAll('[data-pw-toggle]').forEach((b) => eyeSet(b, false)), true);
 
-  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, safeNext, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, safeNext, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, pickNote, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();
 
 /* Kolom angka (stok, jumlah, harga): saat diklik isinya terseleksi, dan 0 di depan otomatis hilang saat diketik (9 → 9, bukan 09) */

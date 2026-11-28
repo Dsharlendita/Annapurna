@@ -45,7 +45,8 @@
     return DB.staffBookings().filter((b) => (tab === 'semua' || b.status === tab)
       && (!q || [b.id, NO(b), b.customer.name, b.customer.phone, Admin.itemsText(b)].join(' ').toLowerCase().includes(q))
       && (!f || b.start >= f) && (!t || b.start <= t))
-      .sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
+      /* DP belum dicek padahal tanggal ambil hari ini / lewat: paling atas */
+      .sort((a, b) => (!!Admin.dpLate(b) - !!Admin.dpLate(a)) || String(b.createdAt).localeCompare(a.createdAt));
   }
   function draw() {
     const all = DB.staffBookings();
@@ -55,13 +56,13 @@
     $('#rows').innerHTML = L.length ? L.map((b) => {
       const acts = Admin.bookingActions(b).slice(0, 1);
       const late = b.status === 'disewa' && b.end < D.today(); const due = b.status === 'disewa' && b.end <= D.today();
-      const mates = Admin.groupMates(b);
-      return `<tr>
+      const mates = Admin.groupMates(b); const dpk = Admin.dpLate(b);
+      return `<tr${dpk ? ' class="row-dp-late"' : ''}>
         <td class="bk-who"><strong>${NO(b)}</strong><span>${esc(b.customer.name)}</span><small>${esc(b.customer.phone)}<br>dibuat ${D.fmtDate(b.createdAt)}</small></td>
         <td style="min-width:220px;max-width:280px"><span class="bk-items">${esc(Admin.itemsText(b))}</span>${svcCell(b)}${(b.changes || []).some((c) => c.status === 'menunggu') ? '<small style="color:#9a6508"><i class="fa-solid fa-arrows-rotate"></i> Ada permintaan ganti</small>' : ''}${b.group ? `<small class="grp-tag"><i class="fa-solid fa-link"></i> Pesanan gabungan${mates.length ? ' · ' + mates.map((x) => x.id).join(', ') : ''}</small>` : ''}</td>
         <td>${D.fmtRange(b.start, b.end)}<small>${b.days} malam${late ? ' · <span style="color:var(--red);font-weight:700">terlambat</span>' : ''}</small></td>
         <td class="bk-pay">${payCell(b)}</td>
-        <td class="bk-st">${pill('rental', b.status)}${b.status === 'selesai' && Admin.sisa(b) > 0 ? `<span class="pill red plain" title="${esc((b.piutang && b.piutang.note) || 'Sisa pembayaran belum diterima')}"><i class="fa-solid fa-hand-holding-dollar"></i> Piutang ${rupiah(Admin.sisa(b))}</span>` : b.status === 'disewa' && b.settleLater && Admin.sisa(b) > 0 ? `<span class="pill amber plain"><i class="fa-regular fa-clock"></i> Lunas saat kembali</span>` : pill('payment', b.paymentStatus)}</td>
+        <td class="bk-st">${pill('rental', b.status)}${dpk ? `<span class="pill red plain" title="Bukti DP belum dicek padahal tanggal ambil ${dpk === 'late' ? 'sudah lewat' : 'hari ini'}"><i class="fa-solid fa-triangle-exclamation"></i> DP belum dicek · ${dpk === 'late' ? 'lewat tgl ambil' : 'diambil hari ini'}</span>` : ''}${b.status === 'selesai' && Admin.sisa(b) > 0 ? `<span class="pill red plain" title="${esc((b.piutang && b.piutang.note) || 'Sisa pembayaran belum diterima')}"><i class="fa-solid fa-hand-holding-dollar"></i> Piutang ${rupiah(Admin.sisa(b))}</span>` : b.status === 'disewa' && b.settleLater && Admin.sisa(b) > 0 ? `<span class="pill amber plain"><i class="fa-regular fa-clock"></i> Lunas saat kembali</span>` : pill('payment', b.paymentStatus)}</td>
         <td><div class="acts">${due ? `<button class="btn btn-wa btn-xs" data-remind="${b.id}" title="${late ? 'Kirim nota + denda ke customer' : 'Ingatkan pengembalian hari ini'}"><i class="fa-brands fa-whatsapp"></i> ${late ? 'Tagih denda' : 'Ingatkan'}</button>` : ''}${acts.map(([k, ic, l, c]) => `<button class="btn ${c} btn-xs" data-act="${k}" data-id="${b.id}" title="${l}"><i class="fa-solid ${ic}"></i> ${l}</button>`).join('')}<button class="btn btn-light btn-xs" data-act="detail" data-id="${b.id}">Detail</button></div></td></tr>`;
     }).join('') : `<tr><td colspan="6"><div class="empty-state" style="padding:28px"><div class="ic"><i class="fa-regular fa-calendar"></i></div><h3>Tidak ada booking</h3><p>Coba ubah filter atau kata kunci pencarian.</p></div></td></tr>`;
     $('#count').textContent = `Menampilkan ${L.length} booking.`;

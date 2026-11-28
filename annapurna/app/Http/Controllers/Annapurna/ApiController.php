@@ -218,6 +218,10 @@ class ApiController extends Controller
             if ($blocked = $this->blockedResponse($validated['customer_email'] ?? null, $validated['customer_phone'] ?? null)) {
                 return $blocked;
             }
+            // Tanggal ambil: tidak boleh lewat, dan setelah toko tutup (22.00 WIB) paling cepat besok (sama dengan tampilan)
+            if ($why = \App\Support\PickupWindow::reject(\Carbon\CarbonImmutable::parse($validated['start_date'])->toDateString())) {
+                return response()->json(['message' => $why, 'errors' => ['start_date' => [$why]]], 422);
+            }
         }
 
         return DB::transaction(function () use ($validated, $request) {

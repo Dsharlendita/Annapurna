@@ -4779,3 +4779,10 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-width: 0
   .bank-row .input[data-k="holder"] { grid-column: 1; }
   .bank-row .btn { grid-column: 2; width: 46px; height: 100%; min-height: 44px; padding: 0; border-radius: 12px; justify-content: center; }
 }
+
+/* Catatan jam pesan di bawah tanggal ambil (Rules.pickupNote) */
+.pick-note { display: block; margin-top: 6px; font-size: 12px; line-height: 1.45; font-weight: 400; color: #8a5a00; white-space: normal; text-transform: none; letter-spacing: 0; }
+.pick-note i { margin-right: 3px; }
+/* Booking dengan DP belum dicek padahal tanggal ambil hari ini / lewat (Admin.dpLate) */
+tr.row-dp-late > td { background: #fdf1ef; }
+tr.row-dp-late > td:first-child { box-shadow: inset 3px 0 0 #b42318; }

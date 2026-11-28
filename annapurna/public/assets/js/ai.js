@@ -436,7 +436,7 @@
           <label class="ai-lbl" for="aiPlanText">Rencana trip</label>
           <textarea class="textarea" id="aiPlanText" rows="3" placeholder="Contoh: camping di Baturraden berempat 1 malam, sudah punya tenda"></textarea>
           <div class="ai-ex">${['Camping berempat 1 malam', 'Naik Slamet berdua 2 malam', 'Tektok Prau sendirian'].map((t) => `<button type="button">${t}</button>`).join('')}</div>
-          <div class="ai-dates"><label>Ambil<input type="date" class="input" id="aiStart" value="${s0}" min="${D.today()}"></label><label>Kembali<input type="date" class="input" id="aiEnd" value="${D.addDays(s0, 1)}"></label></div>
+          <div class="ai-dates"><label>Ambil<input type="date" class="input" id="aiStart" value="${s0}" min="${Ann.Rules.pickupMin()}"></label><label>Kembali<input type="date" class="input" id="aiEnd" value="${D.addDays(s0, 1)}"></label></div>
           <button type="button" class="btn btn-primary btn-block" id="aiPlanGo"><i class="fa-solid fa-wand-magic-sparkles"></i> Buat rencana</button>
           <button type="button" class="ai-switch" data-go="chat">Pertanyaan soal sewa atau pesanan? <b>Buka Tanya Jawab</b></button>
         </div>
@@ -591,7 +591,7 @@
       <p class="muted" style="font-size:13.5px;margin-bottom:12px">Ceritakan rencanamu dengan bahasa sehari-hari. Asisten akan menyusun daftar alat, jumlah, dan biayanya.</p>
       <div class="tp-input"><textarea class="textarea" id="tpText" rows="2" placeholder="Contoh: mau camping di Baturraden berempat 1 malam, sudah punya tenda"></textarea></div>
       <div class="tp-ex">${['Camping di Baturraden berempat 1 malam', 'Naik Gunung Slamet berdua 2 malam', 'Tektok Prau sendirian', 'Kemah rombongan kampus 8 orang, sudah punya tenda'].map((t) => `<button type="button">${t}</button>`).join('')}</div>
-      <div class="tp-dates"><label>Ambil<input type="date" class="input" id="tpStart" value="${s0}" min="${D.today()}"></label><label>Kembali<input type="date" class="input" id="tpEnd" value="${(dates && dates.end > s0 && dates.end) || D.addDays(s0, 1)}"></label><button class="btn btn-primary" id="tpGo"><i class="fa-solid fa-wand-magic-sparkles"></i> Buat rekomendasi</button></div>
+      <div class="tp-dates"><label>Ambil<input type="date" class="input" id="tpStart" value="${s0}" min="${Ann.Rules.pickupMin()}"></label><label>Kembali<input type="date" class="input" id="tpEnd" value="${(dates && dates.end > s0 && dates.end) || D.addDays(s0, 1)}"></label><button class="btn btn-primary" id="tpGo"><i class="fa-solid fa-wand-magic-sparkles"></i> Buat rekomendasi</button></div>
       <div id="tpOut"></div>` });
     let last = null;
     const run = async (auto) => {

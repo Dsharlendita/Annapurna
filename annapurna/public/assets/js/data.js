@@ -473,6 +473,7 @@
     lateFeeMode: 'persen',
     lateFeeAmount: 0,
     returnTime: '22:00',
+    lateOrderTime: '20:00',   /* pesan lewat jam ini → tanggal ambil bawaan besok (toko tutup = returnTime) */
     lateAfterReturnTime: true,
     maxRentDays: 14,
     serviceEvery: 0, /* perawatan berkala bawaan nonaktif (bisa dinyalakan Owner) */
@@ -1843,7 +1844,7 @@
     /* ---------- Tanggal trip (dipilih sekali, dipakai di seluruh website) ---------- */
     /* Tanggal sewa (trip) disimpan per sesi browser (sessionStorage): setiap website dibuka kembali, tanggal kosong
        dan customer memilih sendiri. Tidak pernah diisi otomatis. */
-    trip() { let t = null; try { t = JSON.parse(sessionStorage.getItem(KEY('trip')) || 'null'); } catch (e) { t = null; } if (!t || !t.start || t.end <= t.start || t.start < today()) return null; return t; },
+    trip() { let t = null; try { t = JSON.parse(sessionStorage.getItem(KEY('trip')) || 'null'); } catch (e) { t = null; } if (!t || !t.start || t.end <= t.start || t.start < Rules.pickupMin()) return null; return t; },
     setTrip(start, end) { try { if (!start || !end || end <= start) sessionStorage.removeItem(KEY('trip')); else sessionStorage.setItem(KEY('trip'), JSON.stringify({ start, end })); } catch (e) { /* abaikan */ } document.dispatchEvent(new CustomEvent('trip:change')); },
     normPhone: (p) => String(p || '').replace(/\D/g, '').replace(/^62/, '0'),
     /* Status blokir dicek dari email ATAU nomor HP, supaya tidak bisa diakali dengan ganti nama. */
@@ -2104,7 +2105,22 @@
   };
 
   const ACTIVE = ['menunggu_pembayaran', 'menunggu_konfirmasi', 'dikonfirmasi', 'disewa'];
+  /* Menit sejak tengah malam dari "HH:MM" (cadangan bila kosong) & jam perangkat sekarang (toko & customer di WIB) */
+  const hhmm = (s, d) => { const [h, m] = String(s || d).split(/[:.]/).map(Number); return (h || 0) * 60 + (m || 0); };
+  const minsNow = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
+  const jam = (s, d) => String(s || d).replace(':', '.');
   const Rules = {
+    /* ---------- Jam pesan & tanggal ambil ----------
+       Lewat jam pesan malam (lateOrderTime, 20.00): tanggal ambil bawaan BESOK, hari ini masih boleh dipilih sampai toko tutup.
+       Lewat jam tutup (returnTime, 22.00): tanggal hari ini dikunci. Server memeriksa ulang (App\Support\PickupWindow). */
+    pickupMin: () => (minsNow() >= hhmm(DB.settings().returnTime, '22:00') ? addDays(today(), 1) : today()),
+    pickupDefault: () => (minsNow() >= hhmm(DB.settings().lateOrderTime, '20:00') ? addDays(today(), 1) : Rules.pickupMin()),
+    pickupNote() {
+      const st = DB.settings(), close = jam(st.returnTime, '22:00'), late = jam(st.lateOrderTime, '20:00');
+      if (minsNow() >= hhmm(st.returnTime, '22:00')) return `Toko sudah tutup pukul ${close}, jadi tanggal ambil paling cepat besok.`;
+      if (minsNow() >= hhmm(st.lateOrderTime, '20:00')) return `Pesan lewat jam ${late} otomatis diambil besok ya. Mau ambil malam ini? Pilih tanggal hari ini aja, toko buka sampai jam ${close}.`;
+      return '';
+    },
     /* Modal (harga beli) sebuah pesanan jual. Memakai harga beli yang dicatat saat transaksi (it.cost);
        pesanan lama tanpa catatan memakai harga beli barang saat ini. missing = ada barang tanpa harga beli. */
     saleCost(s) {

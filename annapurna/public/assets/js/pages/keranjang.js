@@ -9,6 +9,10 @@
   }
   let ctab = '';
   function draw() {
+    /* Tanggal ambil yang sudah terkunci (mis. "hari ini" dipilih sebelum toko tutup, baru dibuka lewat jam tutup) digeser ke paling awal */
+    const mn = Rules.pickupMin(); const old = Cart.all().filter((c) => c.type === 'rent' && c.start && c.start < mn);
+    if (old.length) { const cart0 = Cart.all(); cart0.forEach((c) => { if (c.type === 'rent' && c.start && c.start < mn) { const n = Math.max(1, D.diffDays(c.start, c.end) || 1); c.start = mn; c.end = D.addDays(mn, n); } }); DB.setCart(cart0);
+      setTimeout(() => toast(`Tanggal ambil ${old.length} alat digeser ke ${D.fmtDate(mn, true)}. ${Rules.pickupNote()}`.trim()), 200); }
     const cart = Cart.all();
     if (!cart.length) {
       root.innerHTML = `<div class="card empty-state"><div class="ic"><i class="fa-solid fa-cart-shopping"></i></div><h3>Keranjang masih kosong</h3><p>Pilih alat yang mau disewa atau dibeli. Semua yang kamu tambahkan akan muncul di sini.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="katalog">Sewa alat</a><a class="btn btn-outline" href="paket">Lihat paket</a><a class="btn btn-light" href="belanja">Belanja alat</a></div></div>`;
@@ -40,7 +44,7 @@
           ${(() => { const p = it.kind === 'product' && DB.product(it.refId); if (!p || !DB.hasVariant(p)) return '';
             const left = (o) => it.type === 'rent' ? Rules.available(p.id, it.start, it.end, null, o.name) : DB.sizeStock(p, o.name);
             return `<div class="cart-size"><label>Ukuran</label><select class="select" data-f="size">${p.variant.options.map((o) => { const n = left(o); return `<option value="${esc(o.name)}" ${o.name === it.size ? 'selected' : ''} ${n < 1 && o.name !== it.size ? 'disabled' : ''}>${esc(o.name.replace(/\s*\(.*\)/, ''))}${n < 1 ? ' (habis)' : ` (sisa ${n})`}</option>`; }).join('')}</select></div>`; })()}
-          ${it.type === 'rent' ? `<div class="dates"><label class="sr-only">Tanggal ambil</label><input type="date" class="input" data-f="start" value="${it.start}" min="${D.today()}"><span class="sm" style="align-self:center">sampai</span><label class="sr-only">Tanggal kembali</label><input type="date" class="input" data-f="end" value="${it.end}" min="${D.addDays(it.start, 1)}"></div>` : ''}
+          ${it.type === 'rent' ? `<div class="dates"><label class="sr-only">Tanggal ambil</label><input type="date" class="input" data-f="start" value="${it.start}" min="${Rules.pickupMin()}"><span class="sm" style="align-self:center">sampai</span><label class="sr-only">Tanggal kembali</label><input type="date" class="input" data-f="end" value="${it.end}" min="${D.addDays(it.start, 1)}"></div>` : ''}
           ${bad ? `<div class="warn"><i class="fa-solid fa-triangle-exclamation"></i> ${it.type === 'rent' ? (it.kind === 'product' ? Rules.availMsg(DB.product(it.refId), it.qty, it.start, it.end, it.size, avail) : `Paket ini hanya tersedia ${avail} untuk ${D.fmtRange(it.start, it.end)}. Kurangi jumlah atau ubah tanggal.`) : `Stok tersisa ${avail} unit${it.size ? ` untuk ukuran ${esc(it.size)}` : ''}.`}</div>` : ''}
         </div>
         <div class="end">
@@ -105,7 +109,7 @@
       if (twin) { Cart.update(twin.key, { qty: twin.qty + it.qty }); Cart.remove(key); } else Cart.update(key, { size: e.target.value });
       UI.toast('Ukuran diperbarui.');
     }
-    if (f === 'start') { const s = e.target.value < D.today() ? D.today() : e.target.value; Cart.update(key, { start: s, end: it.end <= s ? D.addDays(s, 1) : it.end }); }
+    if (f === 'start') { const s = e.target.value < Rules.pickupMin() ? Rules.pickupMin() : e.target.value; Cart.update(key, { start: s, end: it.end <= s ? D.addDays(s, 1) : it.end }); }
     if (f === 'end') { Cart.update(key, { end: e.target.value <= it.start ? D.addDays(it.start, 1) : e.target.value }); }
     draw();
   });

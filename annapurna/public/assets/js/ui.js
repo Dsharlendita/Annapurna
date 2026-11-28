@@ -155,6 +155,45 @@
     setTimeout(() => { try { endEl.focus({ preventScroll: true }); if (endEl.showPicker) endEl.showPicker(); } catch (e) { /* browser tidak mengizinkan membuka otomatis */ } }, 60);
     setTimeout(() => endEl.classList.remove('date-next'), 2500);
   }
+  /* ---------- Lupa kata sandi lama (sedang masuk) ----------
+     Kode 6 digit dikirim ke email akun yang sedang masuk → kata sandi baru tanpa kata sandi lama. Dipakai Owner & Admin
+     (Pengaturan) dan Customer (Profil). Server: api/kode/kirim (purpose reset) → cek → sandi-baru; perangkat lain dikeluarkan.
+     Admin yang BELUM masuk tetap diarahkan ke Owner (aturan di halaman Masuk). */
+  function forgotOldLink(form) {
+    if (!form || form.querySelector('[data-pw-forgot]')) return;
+    const sub = form.querySelector('[type="submit"]'); if (!sub) return;
+    sub.insertAdjacentHTML('afterend', '<button type="button" class="link" data-pw-forgot style="display:block;margin-top:10px;font-size:13px;background:none;border:0;padding:0;cursor:pointer;text-align:left">Lupa kata sandi lama? Atur ulang lewat kode email</button>');
+    form.querySelector('[data-pw-forgot]').addEventListener('click', forgotOldPw);
+  }
+  function forgotOldPw() {
+    const email = (DB.session() || {}).email || '';
+    const m = modal({ title: 'Atur ulang kata sandi', body: `<ol class="fg-steps"><li class="on">Verifikasi</li><li>Kata sandi baru</li></ol>
+      <div id="ofA"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Kode verifikasi 6 digit akan dikirim ke email akunmu <b>${esc(email)}</b>. Kata sandi lama tidak diperlukan.</p><div id="ofCode"></div></div>
+      <div id="ofB" hidden><div class="field"><label for="ofPw">Kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" id="ofPw" autocomplete="new-password"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div><span class="hint">Minimal 6 karakter.</span></div>
+        <div class="field"><label for="ofPw2">Ulangi kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" id="ofPw2" autocomplete="new-password"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div></div>`,
+      foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="ofGo">Kirim kode</button>' });
+    let step = 0; const go = m.$('#ofGo');
+    const send = async (btn) => {
+      const r = await Api.busy(btn, () => Api.code.send(email, 'reset'), 'Mengirim…'); if (!r) return false;
+      if (!r.ok) { toast(r.msg, 'err'); return false; }
+      m.$('#ofCode').innerHTML = Api.code.field('ofCodeIn', r.raw); Api.code.countdown(m.$('#ofCodeInRe'), r.raw.resendIn);
+      m.$('#ofCodeInRe').addEventListener('click', (ev) => send(ev.currentTarget)); m.$('#ofCodeIn').focus(); return true;
+    };
+    go.addEventListener('click', async () => {
+      if (step === 0) { if (await send(go)) { step = 1; go.textContent = 'Verifikasi'; } return; }
+      if (step === 1) { const v = await Api.busy(go, () => Api.code.check(email, 'reset', m.$('#ofCodeIn').value), 'Memeriksa…'); if (!v) return;
+        if (!v.ok) { m.$('#ofCodeIn').classList.add('err'); toast(v.msg, 'err'); return; }
+        step = 2; m.$('#ofA').hidden = true; m.$('#ofB').hidden = false; m.$$('.fg-steps li')[1].classList.add('on'); go.textContent = 'Simpan kata sandi'; m.$('#ofPw').focus(); return; }
+      const a = m.$('#ofPw').value, b = m.$('#ofPw2').value;
+      if (a.length < 6) { m.$('#ofPw').classList.add('err'); toast('Kata sandi minimal 6 karakter.', 'err'); return; }
+      if (a !== b) { m.$('#ofPw2').classList.add('err'); toast('Kata sandi baru tidak sama.', 'err'); return; }
+      const r = await Api.busy(go, () => Api.code.newPassword(a), 'Menyimpan…'); if (!r) return;
+      if (!r.ok) { toast(r.msg, 'err'); return; }
+      if (r.raw && r.raw.user) DB.adoptSession(r.raw.user);
+      m.close(); toast('Kata sandi baru tersimpan. Perangkat lain yang masih masuk sudah dikeluarkan.');
+      setTimeout(() => location.reload(), 900);
+    });
+  }
   /* Tulisan kecil di bawah tanggal ambil (Rules.pickupNote): pesan lewat 20.00 → bawaan besok; lewat jam tutup → hari ini dikunci */
   function pickNote(startEl) {
     if (!startEl) return;
@@ -1985,7 +2024,7 @@
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-pw-toggle]'); if (b) eyeSet(b, b.previousElementSibling && b.previousElementSibling.type === 'password'); });
   document.addEventListener('reset', (e) => e.target.querySelectorAll && e.target.querySelectorAll('[data-pw-toggle]').forEach((b) => eyeSet(b, false)), true);
 
-  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, safeNext, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, pickNote, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
+  window.UI = { refundTitle, refundVia, ldNotaCanvas, canvasToPDF, avatar, initials, buyModal, cdSpan, cdText, returnDeadline, $, $$, esc, asset, url, param, safeNext, toast, modal, confirmBox, pill, stars, Cart, quickRent, quickBuy, sizePicker, firstAvailSize, durHint, fillTrip, defaultTrip, variantInfo, printStruk, ldStruk, printAny, receiptPaper: () => Object.assign({ paper: 58 }, DB.settings().receipt || {}).paper, idField, idBind, idRead, saleCanvas, waCompose, changeModal, notifMenu, notifCenter, tripBar, tripModal, tripDefault, orderTracker, productCard, bindProductActions, validate, isEmail, isPhone, fileToDataURL, downloadCSV, exportExcel, exportPDF, elementToPDF, runExport, bindExport, exportButtons, loadScript, reviewModal, searchProducts, dateGuard, pickNote, forgotOldLink, forgotOldPw, durationChips, tierText, waLink, waContact, refundFields, refundBind, refundRead, refundText, refundPayload, copyText, REFUND_BANKS, sendPreview, pendingPay, pendingPayHtml, helpLine, fineLines, billOf, tagihanCanvas, changeInfo, changesHtml, delivNote, activeOrders, notaCanvas, serverLogout, moneyInput, cropImage, paginateScan: () => pgScan(), BASE };
 })();
 
 /* Kolom angka (stok, jumlah, harga): saat diklik isinya terseleksi, dan 0 di depan otomatis hilang saat diketik (9 → 9, bukan 09) */

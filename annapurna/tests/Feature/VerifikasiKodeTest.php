@@ -155,6 +155,22 @@ class VerifikasiKodeTest extends TestCase
         $send('off@mail.com', 'login')->assertStatus(403);
     }
 
+    /** "Lupa kata sandi lama?" di Profil: admin yang sedang masuk boleh atur ulang sandinya SENDIRI lewat kode email */
+    public function test_admin_yang_sedang_masuk_bisa_atur_ulang_sandinya_sendiri(): void
+    {
+        Mail::fake();
+        $dita = User::create(['name' => 'Dita', 'email' => 'dita@annapurna.id', 'role' => 'admin', 'status' => 'aktif', 'password' => 'rahasia1']);
+        $aji = User::create(['name' => 'Aji', 'email' => 'aji@annapurna.id', 'role' => 'admin', 'status' => 'aktif', 'password' => 'rahasia1']);
+        $send = fn ($id) => $this->postJson('/api/kode/kirim', ['identifier' => $id, 'purpose' => 'reset']);
+
+        $send('dita@annapurna.id')->assertStatus(422);                           // belum masuk: tetap minta Owner
+        $this->actingAs($aji);
+        $send('dita@annapurna.id')->assertStatus(422);                           // akun staff lain: ditolak
+        $this->actingAs($dita);
+        $send('dita@annapurna.id')->assertOk();                                  // akunnya sendiri: kode dikirim
+        Mail::assertSent(\App\Mail\LoginCodeMail::class, fn ($m) => $m->hasTo('dita@annapurna.id'));
+    }
+
     public function test_email_gagal_terkirim_kode_tidak_berlaku(): void
     {
         Mail::shouldReceive('to')->andThrow(new \RuntimeException('SMTP gagal'));

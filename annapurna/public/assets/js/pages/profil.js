@@ -43,6 +43,8 @@
     if (!needOld) { const s = DB.session(); if (s) { s.hasPassword = true; localStorage.setItem('annapurna:session', JSON.stringify(s)); } const fo = p.elements.old && p.elements.old.closest('.field'); if (fo) fo.hidden = false; const n = $('#pwGoogleNote'); if (n) n.remove(); }
     p.reset(); toast(needOld ? 'Kata sandi berhasil diganti.' : 'Kata sandi dibuat. Sekarang kamu juga bisa masuk dengan email & kata sandi.');
   });
+  /* Lupa kata sandi lama: atur ulang lewat kode ke email akun (tidak perlu untuk akun Google tanpa kata sandi) */
+  if (!noPw) UI.forgotOldLink(p);
 
   function notifs() {
     const list = DB.notifications(user.email);

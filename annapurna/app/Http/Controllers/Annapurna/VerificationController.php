@@ -74,7 +74,9 @@ class VerificationController extends Controller
         if ($purpose === 'login' && $u->isStaff()) {
             return $this->fail('Akun staff masuk memakai email dan kata sandi.');
         }
-        if ($purpose === 'reset' && $u->role === 'admin') {
+        // Admin yang lupa sandi dari halaman Masuk → minta Owner. Admin yang SEDANG MASUK boleh mengatur ulang sandinya sendiri
+        // lewat kode ke emailnya (tautan "Lupa kata sandi lama?" di Profil), karena sesi login membuktikan pemilik akun.
+        if ($purpose === 'reset' && $u->role === 'admin' && \Illuminate\Support\Facades\Auth::id() !== $u->id) {
             return $this->fail('Akun staff: minta Owner mengatur ulang kata sandi lewat Manajemen Staff.');
         }
         if (! $this->hasRealEmail($u)) {

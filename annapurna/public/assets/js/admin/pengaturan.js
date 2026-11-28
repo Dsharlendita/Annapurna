@@ -67,40 +67,8 @@
   P.addEventListener('submit', async (e) => { e.preventDefault(); if (!validate(P, { old: (v) => (!v ? 'Wajib diisi.' : ''), npw: (v) => (v.length < 6 ? 'Minimal 6 karakter.' : '') })) return;
     const r = await Api.busy(P.querySelector('[type="submit"]'), () => Api.changePassword(P.elements.old.value, P.elements.npw.value), 'Menyimpan…'); if (!r) return;
     if (!r.ok) { if (r.field === 'old') validate(P, { old: () => r.msg || 'Kata sandi lama salah.' }); else toast(r.msg, 'err'); return; } P.reset(); toast('Kata sandi diganti.'); });
-  /* Owner lupa kata sandi lama (mis. biasa masuk lewat Google): atur ulang lewat kode 6 digit ke email akun Owner.
-     Admin tidak memakai jalur ini (lupa sandi staff diatur ulang oleh Owner). Server: api/kode/kirim -> cek -> sandi-baru. */
-  if (owner) {
-    P.querySelector('[type="submit"]').insertAdjacentHTML('afterend', '<button type="button" class="link" id="pwForgot" style="display:block;margin-top:10px;font-size:13px;background:none;border:0;padding:0;cursor:pointer">Lupa kata sandi lama? Atur ulang lewat kode email</button>');
-    $('#pwForgot').addEventListener('click', () => {
-      const email = (DB.session() || {}).email || '';
-      const m = modal({ title: 'Atur ulang kata sandi', body: `<ol class="fg-steps"><li class="on">Verifikasi</li><li>Kata sandi baru</li></ol>
-        <div id="ofA"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Kode verifikasi 6 digit akan dikirim ke email akunmu <b>${esc(email)}</b>. Kata sandi lama tidak diperlukan.</p><div id="ofCode"></div></div>
-        <div id="ofB" hidden><div class="field"><label for="ofPw">Kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" id="ofPw" autocomplete="new-password"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div><span class="hint">Minimal 6 karakter.</span></div>
-          <div class="field"><label for="ofPw2">Ulangi kata sandi baru</label><div class="pw-wrap"><input class="input" type="password" id="ofPw2" autocomplete="new-password"><button type="button" class="pw-eye" data-pw-toggle aria-label="Tampilkan kata sandi"><i class="fa-regular fa-eye"></i></button></div></div></div>`,
-        foot: '<button class="btn btn-light" data-close>Batal</button><button class="btn btn-primary" id="ofGo">Kirim kode</button>' });
-      let step = 0; const go = m.$('#ofGo');
-      const send = async (btn) => {
-        const r = await Api.busy(btn, () => Api.code.send(email, 'reset'), 'Mengirim…'); if (!r) return false;
-        if (!r.ok) { toast(r.msg, 'err'); return false; }
-        m.$('#ofCode').innerHTML = Api.code.field('ofCodeIn', r.raw); Api.code.countdown(m.$('#ofCodeInRe'), r.raw.resendIn);
-        m.$('#ofCodeInRe').addEventListener('click', (ev) => send(ev.currentTarget)); m.$('#ofCodeIn').focus(); return true;
-      };
-      go.addEventListener('click', async () => {
-        if (step === 0) { if (await send(go)) { step = 1; go.textContent = 'Verifikasi'; } return; }
-        if (step === 1) { const v = await Api.busy(go, () => Api.code.check(email, 'reset', m.$('#ofCodeIn').value), 'Memeriksa…'); if (!v) return;
-          if (!v.ok) { m.$('#ofCodeIn').classList.add('err'); toast(v.msg, 'err'); return; }
-          step = 2; m.$('#ofA').hidden = true; m.$('#ofB').hidden = false; m.$$('.fg-steps li')[1].classList.add('on'); go.textContent = 'Simpan kata sandi'; m.$('#ofPw').focus(); return; }
-        const a = m.$('#ofPw').value, b = m.$('#ofPw2').value;
-        if (a.length < 6) { m.$('#ofPw').classList.add('err'); toast('Kata sandi minimal 6 karakter.', 'err'); return; }
-        if (a !== b) { m.$('#ofPw2').classList.add('err'); toast('Kata sandi baru tidak sama.', 'err'); return; }
-        const r = await Api.busy(go, () => Api.code.newPassword(a), 'Menyimpan…'); if (!r) return;
-        if (!r.ok) { toast(r.msg, 'err'); return; }
-        if (r.raw && r.raw.user) DB.adoptSession(r.raw.user);
-        m.close(); toast('Kata sandi baru tersimpan. Perangkat lain yang masih masuk sudah dikeluarkan.');
-        setTimeout(() => location.reload(), 900);
-      });
-    });
-  }
+  /* Lupa kata sandi lama: atur ulang lewat kode ke email akun (Owner & Admin yang sedang masuk) */
+  UI.forgotOldLink(P);
   if ($('#reset')) $('#reset').addEventListener('click', async () => { if (!(await confirmBox({ title: 'Setel ulang data demo?', text: 'Semua data kembali ke contoh awal, termasuk histori sistem demo. Kamu tetap masuk sebagai owner.', ok: 'Setel ulang', danger: true }))) return; DB.reset(); toast('Data demo dipulihkan.'); setTimeout(() => location.reload(), 700); });
   if (owner) { load(); if (param('tab')) show(param('tab')); }
   else {

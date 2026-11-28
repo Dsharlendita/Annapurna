@@ -4786,3 +4786,15 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-width: 0
 /* Booking dengan DP belum dicek padahal tanggal ambil hari ini / lewat (Admin.dpLate) */
 tr.row-dp-late > td { background: #fdf1ef; }
 tr.row-dp-late > td:first-child { box-shadow: inset 3px 0 0 #b42318; }
+
+/* Notifikasi di Profil customer: tiap notifikasi berupa kartu dengan jarak (dulu menempel tepi & mepet) */
+#nList { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+#nList .notif-item { display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+#nList .notif-item.unread { background: #fbf7e9; border-color: #efe2b6; }
+#nList .notif-item:hover { background: var(--g50); }
+#nList .notif-item .ic { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--g50); color: var(--g700); }
+#nList .notif-item.unread .ic { background: #fff; }
+#nList .nf-bd { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#nList .nf-bd strong { font-size: 14.5px; }
+#nList .nf-tx { font-size: 13.5px; color: var(--ink-2, #3b463f); line-height: 1.5; }
+@media (max-width: 560px) { #nList .notif-item { padding: 12px 14px; gap: 12px; } }

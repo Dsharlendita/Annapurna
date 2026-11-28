@@ -42,7 +42,7 @@
     const acts = DB.audits().filter((a) => a.type !== 'akses' && D.day(a.at) >= monthFrom);
     const st = (ic, tone, l, v, d) => `<div class="stat"><span class="ic ${tone}"><i class="fa-solid ${ic}"></i></span><div><small>${l}</small><strong>${v}</strong>${d ? `<span class="d">${d}</span>` : ''}</div></div>`;
     $('#stats').innerHTML = st('fa-users', '', 'Total staff', S.length, `${S.filter((u) => u.role === 'owner').length} owner`) + st('fa-user-check', '', 'Aktif', S.filter((u) => u.status === 'aktif').length)
-      + st('fa-user-slash', 'red', 'Nonaktif', S.filter((u) => u.status === 'nonaktif').length) + st('fa-key', 'amber', 'Belum ganti sandi awal', S.filter((u) => u.mustChangePw && u.status === 'aktif').length, 'perlu login pertama');
+      + st('fa-user-slash', 'red', 'Nonaktif', S.filter((u) => u.status === 'nonaktif').length) + st('fa-key', 'amber', 'Belum ganti sandi awal', S.filter((u) => u.mustChangePw && u.role !== 'owner' && u.status === 'aktif').length, 'perlu login pertama');
     const L = list();
     $('#rows').innerHTML = L.length ? L.map((u) => {
       const p = Admin.presence(u);
@@ -53,7 +53,7 @@
       return `<tr class="${off ? 'row-off' : ''}">
         <td><div class="prod"><span class="av-dot">${esc(u.name.charAt(0))}</span><div><strong>${esc(u.name)}${self ? ' <span class="pill green plain">Kamu</span>' : ''}</strong><small>${esc(u.email)}${u.phone ? ` · ${esc(u.phone)}` : ''}</small>${u.createdAt ? `<small>Dibuat ${D.fmtDate(u.createdAt)}${creator ? ` oleh ${esc(creator.name)}` : ''}</small>` : ''}</div></div></td>
         <td><span class="pill ${u.role === 'owner' ? 'amber' : 'blue'}">${u.role === 'owner' ? '<i class="fa-solid fa-crown"></i> ' : ''}${esc(DB.ROLE_LABEL[u.role] || u.role)}</span></td>
-        <td>${off ? '<span class="pill gray">Nonaktif</span>' : '<span class="pill green">Aktif</span>'}${u.mustChangePw && !off ? '<small style="color:#9a6508"><i class="fa-solid fa-key"></i> Belum ganti kata sandi awal</small>' : ''}</td>
+        <td>${off ? '<span class="pill gray">Nonaktif</span>' : '<span class="pill green">Aktif</span>'}${u.mustChangePw && !off && u.role !== 'owner' ? '<small style="color:#9a6508"><i class="fa-solid fa-key"></i> Belum ganti kata sandi awal</small>' : ''}</td>
         <td>${u.lastLogin ? `${D.fmtDateTime(u.lastLogin)}<small>${Admin.relTime(u.lastLogin)}${u.lastLogout && u.lastLogout > u.lastLogin ? ` · logout ${D.fmtDateTime(u.lastLogout).split(', ')[1]}` : ''}</small>` : '<span class="muted">Belum pernah login</span>'}</td>
         <td class="num">${n}</td>
         <td><div class="acts">
